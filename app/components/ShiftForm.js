@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export default function ShiftForm() { //สร้าง function ชื่อ ShiftForm
-    const [formData, setFormData] = useState({ //สร้างตัวแปร formData และ setFormData
+    const [formData, setFormData] = useState({ //สร้างตัวแปร formData และ setFormData โดยให้มีค่าเริ่มต้นเป็น object
         date: '', //เก็บวันที่
         shift: '', //เก็บช่วงเวลา
         wards: { //เก็บข้อมูลของแต่ละวอร์ด
@@ -45,3 +45,19 @@ export default function ShiftForm() { //สร้าง function ชื่อ Sh
         },
         supervisorSignature: ''//เก็บลายเซ็นผู้ควบคุม
 });
+//สร้าง function ชื่อ handleInputChange โดยรับค่า event
+    const handkeSubmit = async (element) => { 
+        element.preventDefault(); //ป้องกันการรีเฟรชหน้าเว็บ 
+        try{ 
+            await addDoc(collection(db, 'staffReacords'), formData); //เพิ่มข้อมูลลงใน collection ชื่ staffReacords
+            alert('บันทึกข้อมูลสำเร็จ')
+        } catch (error) {
+            alert('เกิดข้อผิดพลาด')
+        }
+}; 
+//จัดการการเปลี่ยนแปลงอินพุต // Handle Input Change
+const handleInputChange = (section, field, value) => {
+    setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));//...prev คัดลอกค่าทั้งหมดจาก state เก่า และ ...prev[section] คัดลอกค่าทั้งหมดในส่วนของ section นั้นๆแล้วค่อยอัพเดทเฉพาะค่าที่ต้องการเปลี่ยน
+} 
+
+
