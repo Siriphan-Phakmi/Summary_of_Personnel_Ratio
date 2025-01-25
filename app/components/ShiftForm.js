@@ -44,20 +44,35 @@ export default function ShiftForm() { //สร้าง function ชื่อ Sh
             deaths: ''//ผู้ป่วยที่เสียชีวิต
         },
         supervisorSignature: ''//เก็บลายเซ็นผู้ควบคุม
-});
-//สร้าง function ชื่อ handleInputChange โดยรับค่า event
-    const handkeSubmit = async (element) => { 
+    });
+    //สร้าง function ชื่อ handleInputChange โดยรับค่า event
+    const handkeSubmit = async (element) => {
         element.preventDefault(); //ป้องกันการรีเฟรชหน้าเว็บ 
-        try{ 
+        try {
             await addDoc(collection(db, 'staffReacords'), formData); //เพิ่มข้อมูลลงใน collection ชื่ staffReacords
             alert('บันทึกข้อมูลสำเร็จ')
         } catch (error) {
             alert('เกิดข้อผิดพลาด')
         }
-}; 
-//จัดการการเปลี่ยนแปลงอินพุต // Handle Input Change
-const handleInputChange = (section, field, value) => {
-    setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));//...prev คัดลอกค่าทั้งหมดจาก state เก่า และ ...prev[section] คัดลอกค่าทั้งหมดในส่วนของ section นั้นๆแล้วค่อยอัพเดทเฉพาะค่าที่ต้องการเปลี่ยน
-} 
+    };
+    //จัดการการเปลี่ยนแปลงอินพุต // Handle Input Change
+    const handleInputChange = (section, field, value) => {
+        setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));//...prev คัดลอกค่าทั้งหมดจาก state เก่า และ ...prev[section] คัดลอกค่าทั้งหมดในส่วนของ section นั้นๆแล้วค่อยอัพเดทเฉพาะค่าที่ต้องการเปลี่ยน
+    };
 
-
+    return (/*สร้าง input สำหรับกรอกวันที่*/
+        <form onSubmit={handkeSubmit} className='shift-form'>
+            <h1 className="text-Summary-h1">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
+            <div className='form-group'>
+                <div>
+                <label>วันที่</label>
+                <input type='date' 
+                value={formData.date} 
+                onChange={(element) => setFormData({ ...formData, date: element.target.value })} 
+                required
+                />
+                </div>
+            </div> 
+        </form>
+    );
+}
