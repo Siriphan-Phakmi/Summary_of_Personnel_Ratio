@@ -60,19 +60,31 @@ export default function ShiftForm() { //สร้าง function ชื่อ Sh
         setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));//...prev คัดลอกค่าทั้งหมดจาก state เก่า และ ...prev[section] คัดลอกค่าทั้งหมดในส่วนของ section นั้นๆแล้วค่อยอัพเดทเฉพาะค่าที่ต้องการเปลี่ยน
     };
 
-    return (/*สร้าง input สำหรับกรอกวันที่*/
+    return (
         <form onSubmit={handkeSubmit} className='shift-form'>
             <h1 className="text-Summary-h1">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
             <div className='form-group'>
                 <div>
-                <label>วันที่</label>
-                <input type='date' 
-                value={formData.date} 
-                onChange={(element) => setFormData({ ...formData, date: element.target.value })} 
-                required
-                />
+                    <label>วันที่</label>
+                    <input type='date' /*สร้าง input สำหรับกรอกวันที่*/
+                        value={formData.date}
+                        onChange={(element) => setFormData({ ...formData, date: element.target.value })}
+                        required
+                    />
                 </div>
-            </div> 
+            </div>
+            <div>
+                <label>กะงาน</label>
+                <select //สร้าง select สำหรับเลือกกะงาน
+                    value={formData.shift}
+                    onChange={(element) => setFormData({ ...formData, shift: element.target.value })}
+                    required
+                >
+                    <option value=''>เลือกกะงาน</option>
+                    <option value='เช้า'>เช้า 07:00-19:00น. </option>
+                    <option value='ดึก'>ดึก 19:00-07:00น. </option>
+                </select>
+            </div>
         </form>
     );
 }
