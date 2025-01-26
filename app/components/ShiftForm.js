@@ -70,14 +70,14 @@ export default function ShiftForm() {
     };// สร้างฟังก์ชันจัดการการเปลี่ยนแปลงวันที่
 
     // ฟังก์ชันสำหรับบันทึกข้อมูลลง Firebase
-    const handkeSubmit = async (element) => {
-        element.preventDefault();
-        try {
+    const handkeSubmit = async (element) => { // ฟังก์ชันจัดการการส่งข้อมูล
+        element.preventDefault(); // หยุดการทำงานของฟอร์ม
+        try { // ลองทำงาน
             await addDoc(collection(db, 'staffReacords'), formData);
-            alert('บันทึกข้อมูลสำเร็จ')
-        } catch (error) {
-            alert('เกิดข้อผิดพลาด')
-        }
+            alert('บันทึกข้อมูลสำเร็จ') // แสดงข้อความบันทึกสำเร็จ
+        } catch (error) { // ถ้าเกิดข้อผิดพลาด 
+            alert('เกิดข้อผิดพลาด') // แสดงข้อความเกิดข้อผิดพลาด
+        } // จบการทำงาน 
     };
 
     // ฟังก์ชันจัดการการเปลี่ยนแปลงข้อมูลในฟอร์ม
@@ -142,6 +142,7 @@ export default function ShiftForm() {
                     </div>
                 </div>
             </div>
+            
         </form>
     );
 }
