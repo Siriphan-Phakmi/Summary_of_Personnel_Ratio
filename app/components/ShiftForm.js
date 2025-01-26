@@ -4,110 +4,118 @@ import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export default function ShiftForm() {
-    // เพิ่ม state สำหรับเก็บวันที่แบบไทย
     const [thaiDate, setThaiDate] = useState('');
-
-    // สร้าง state สำหรับเก็บข้อมูลฟอร์ม
     const [formData, setFormData] = useState({
         date: '',
         shift: '',
         wards: {
-            ward6: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward7: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward8: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward9: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward10: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward11: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ward12: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            ICU: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            CCU: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            LR: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' },
-            NSY: { nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '' }
+            ward6: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward7: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward8: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward9: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward10: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward11: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ward12: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            ICU: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            CCU: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            LR: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            },
+            NSY: { 
+                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            }
         },
         totals: {
-            nurse: '',
-            manager: '',
-            RN: '',
-            PN: '',
-            NA: '',
-            admin: ''
-        },
-        patientStats: {
-            opdCount: '',
-            existingPatients: '',
-            newPatients: '',
-            admitCount: '',
-        },
-        patientMovement: {
-            newAdmissions: '',
-            transfers: '',
-            referIn: '',
-            transferOut: '',
-            referOut: '',
-            discharge: '',
-            deaths: ''
-        },
-        supervisorSignature: ''
+            nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+            newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+        }
     });
-    const formatThaiDate = (isoDate) => {     // ฟังก์ชันแปลงวันที่เป็นรูปแบบไทย
-        if (!isoDate) return '';// ถ้าไม่มีวันที่ให้คืนค่าว่าง
-        const [year, month, day] = isoDate.split('-');// แยกปี เดือน วัน ออกจากวันที่
-        const thaiYear = parseInt(year) + 543;// นำปีไทยมาเพิ่ม 543 ปี
-        return `${day}/${month}/${thaiYear}`;// คืนค่าวันที่ในรูปแบบไทย
-    };// สร้างฟังก์ชันแปลงวันที่เป็นรูปแบบไทย
 
-    useEffect(() => { // ฟังก์ชันจัดการการเปลี่ยนแปลงวันที่
-        const today = new Date();// อ่านวันที่ปัจจุบัน
-        const isoDate = today.toISOString().split('T')[0];// แปลงวันที่เป็นรูปแบบ ISO
-        setFormData(prev => ({ ...prev, date: isoDate }));// บันทึกวันที่ปัจจุบัน
-        setThaiDate(formatThaiDate(isoDate));// แปลงวันที่เป็นรูปแบบไทย
-    }, []);// สั่งให้ฟังก์ชันทำงานครั้งเดียวเมื่อคอมโพเนนต์ถูกสร้าง
-    
-    const handleDateChange = (element) => { // ฟังก์ชันจัดการการเปลี่ยนแปลงวันที่
-        const newDate = element.target.value;// อ่านค่าวันที่ใหม่จากอิลิเมนต์
-        setFormData(prev => ({ ...prev, date: newDate }));// บันทึกวันที่ใหม่
-        setThaiDate(formatThaiDate(newDate));// แปลงวันที่เป็นรูปแบบไทย
-    };// สร้างฟังก์ชันจัดการการเปลี่ยนแปลงวันที่
-
-    // ฟังก์ชันสำหรับบันทึกข้อมูลลง Firebase
-    const handkeSubmit = async (element) => { // ฟังก์ชันจัดการการส่งข้อมูล
-        element.preventDefault(); // หยุดการทำงานของฟอร์ม
-        try { // ลองทำงาน
-            await addDoc(collection(db, 'staffReacords'), formData);
-            alert('บันทึกข้อมูลสำเร็จ') // แสดงข้อความบันทึกสำเร็จ
-        } catch (error) { // ถ้าเกิดข้อผิดพลาด 
-            alert('เกิดข้อผิดพลาด') // แสดงข้อความเกิดข้อผิดพลาด
-        } // จบการทำงาน 
+    const formatThaiDate = (isoDate) => {
+        if (!isoDate) return '';
+        const [year, month, day] = isoDate.split('-');
+        const thaiYear = parseInt(year) + 543;
+        return `${day}/${month}/${thaiYear}`;
     };
 
-    // ฟังก์ชันจัดการการเปลี่ยนแปลงข้อมูลในฟอร์ม
+    useEffect(() => {
+        const today = new Date();
+        const isoDate = today.toISOString().split('T')[0];
+        setFormData(prev => ({ ...prev, date: isoDate }));
+        setThaiDate(formatThaiDate(isoDate));
+    }, []);
+
+    const handleDateChange = (element) => {
+        const newDate = element.target.value;
+        setFormData(prev => ({ ...prev, date: newDate }));
+        setThaiDate(formatThaiDate(newDate));
+    };
+
+    const handkeSubmit = async (element) => {
+        element.preventDefault();
+        try {
+            await addDoc(collection(db, 'staffReacords'), formData);
+            alert('บันทึกข้อมูลสำเร็จ');
+        } catch (error) {
+            alert('เกิดข้อผิดพลาด');
+        }
+    };
+
     const handleInputChange = (section, field, value) => {
-        setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } })); // บันทึกข้อมูลใหม่
-    }; 
+        setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+    };
 
     return (
-        <form onSubmit={handkeSubmit} className='shift-form p-4'> {/* ส่วนฟอร์ม */}   
-            <div className='flex justify-center items-center space-x-4 text-white p-3'> {/* ส่วนหัวฟอร์ม */}
-                <h1 className="text-lg font-medium whitespace-nowrap">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1> {/* ข้อความหัวฟอร์ม */}
-                <div className='flex items-center space-x-2'> {/* ส่วนปุ่มบันทึก */}
-                    <label className="whitespace-nowrap">วันที่</label>  {/* ส่วนเลือกวันที่ */}
-                    <div className="flex items-center gap-2"> {/* ส่วนเลือกวันที่ */}
-                        <input // อิลิเมนต์เลือกวันที่
-                            type='date' // ประเภทของอิลิเมนต์
-                            value={formData.date} // ค่าของอิลิเมนต์
-                            onChange={handleDateChange} // ฟังก์ชันที่จะทำงานเมื่อมีการเปลี่ยนแปลง
-                            required // บังคับให้กรอกข้อมูล
-                            className='px-2 py-1 border rounded text-black' // รูปแบบของอิลิเมนต์
+        <form onSubmit={handkeSubmit} className='shift-form p-4'>
+            <div className='flex justify-center items-center space-x-4 text-black p-3'>
+                <h1 className="text-lg font-medium whitespace-nowrap">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
+                <div className='flex items-center space-x-2'>
+                    <label className="whitespace-nowrap">เลือกวันที่</label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type='date'
+                            value={formData.date}
+                            onChange={handleDateChange}
+                            required
+                            className='px-2 py-1 border rounded text-black'
                         />
-                        <span className="text-white">{thaiDate}</span> {/* แสดงวันที่ในรูปแบบไทย */}
-                    </div> 
+                        <span className="text-black">{thaiDate}</span>
+                    </div>
                 </div>
-                {/* ส่วนเลือกกะงาน */}
-                <div className="flex items-center space-x-2"> 
-                    <label className='whitespace-nowrap'>กะงาน</label> {/* ข้อความเลือกกะงาน */}
-                    <div className='flex space-x-4'> {/* ตัวเลือกกะงาน */}
-                        <label className='flex items-center space-x-1 cursor-pointer'> 
-                            <input // อิลิเมนต์เลือกกะเช้า
+                <div className="flex items-center space-x-2">
+                    <label className='whitespace-nowrap'>กะงาน</label>
+                    <div className='flex space-x-4'>
+                        <label className='flex items-center space-x-1 cursor-pointer'>
+                            <input
                                 type='checkbox'
                                 name='shift'
                                 value='07:00-19:00'
@@ -120,9 +128,8 @@ export default function ShiftForm() {
                                     }
                                 }}
                             />
-                            <span className="whitespace-nowrap text-white">เช้า 07:00-19:00น.</span>
+                            <span className="whitespace-nowrap text-black">เช้า 07:00-19:00น.</span>
                         </label>
-                        {/* ตัวเลือกกะดึก */}
                         <label className='flex items-center space-x-1 cursor-pointer'>
                             <input
                                 type='checkbox'
@@ -137,12 +144,154 @@ export default function ShiftForm() {
                                     }
                                 }}
                             />
-                            <span className="whitespace-nowrap text-white">ดึก 19:00-07:00น.</span>
+                            <span className="whitespace-nowrap text-black">ดึก 19:00-07:00น.</span>
                         </label>
                     </div>
                 </div>
             </div>
             
+            <div className='w-full overflow-x-auto mt-4'>
+                <table className='min-w-full bg-white border border-gray-300'>
+                    <thead className='bg-gray-100'>
+                        <tr>
+                            <th rowSpan="2" className='border border-gray-300 text-black p-2'>Ward</th>
+                            <th rowSpan="2" className='border border-gray-300 text-black p-2'>คงพยาบาล</th>
+                            <th colSpan="5" className='border border-gray-300 text-black p-2'>อัตรากำลัง</th>
+                            <th colSpan="5" className='border border-gray-300 text-black p-2'>จำนวนผู้ป่วย</th>
+                        </tr>
+                        <tr>
+                            <th className="border border-gray-300 text-black p-2">ผจก.</th>
+                            <th className="border border-gray-300 text-black p-2">RN</th>
+                            <th className="border border-gray-300 text-black p-2">PN</th>
+                            <th className="border border-gray-300 text-black p-2">NA</th>
+                            <th className="border border-gray-300 text-black p-2">ธุรการ</th>
+                            <th className="border border-gray-300 text-black p-2">รับใหม่</th>
+                            <th className="border border-gray-300 text-black p-2">รับย้าย</th>
+                            <th className="border border-gray-300 text-black p-2">Refer Out</th>
+                            <th className="border border-gray-300 text-black p-2">กลับบ้าน</th>
+                            <th className="border border-gray-300 text-black p-2">dead</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {Object.entries(formData.wards).map(([ward, data]) => (
+                            <tr key={ward}>
+                                <td className='border border-gray-300 text-center text-black p-2'>{ward}</td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.nurse}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, nurse: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.manager}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, manager: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.RN}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, RN: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.PN}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, PN: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.NA}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, NA: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.admin}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, admin: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.newAdmissions}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, newAdmissions: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.transfers}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, transfers: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.referOut}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, referOut: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.discharge}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, discharge: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                                <td className='border border-gray-300 p-2'>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.deaths}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, deaths: element.target.value })}
+                                        className='w-full text-center text-black'
+                                    />
+                                </td>
+                            </tr>
+                        ))}
+                        <tr>
+                            <td className='border border-gray-300 text-center text-black p-2'>Total</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+  
+            <div className='mt-4 flex justify-end'>
+                <button 
+                    type="submit"
+                    className='bg-red-500 text-white px-4 py-2 rounded hover:bg-green-600'
+                >
+                    บันทึกข้อมูล
+                </button>
+            </div>
         </form>
     );
 }

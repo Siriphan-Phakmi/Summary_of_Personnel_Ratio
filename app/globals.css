@@ -14,6 +14,15 @@
   }
 }
 
+@media (max-width: 1024px) {
+    .shift-form input[type="number"] {
+        display: none;
+    }
+    .shift-form {
+        display: none;
+    }
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
