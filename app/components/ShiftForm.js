@@ -71,7 +71,7 @@ export default function ShiftForm() {
         const [year, month, day] = isoDate.split('-');
         const thaiYear = parseInt(year) + 543;
         return `${day}/${month}/${thaiYear}`;
-    };
+    };// สร้างฟังก์ชัน formatThaiDate ที่รับพารามิเตอร์ isoDate และคืนค่าเป็นวันที่ในรูปแบบวัน/เดือน/ปี ตามปฏิทินไทย
 
     const calculateTotals = () => {
         const totals = Object.values(formData.wards).reduce((acc, ward) => {
@@ -81,20 +81,20 @@ export default function ShiftForm() {
             return acc;
         }, {});
         setFormData(prev => ({...prev, totals}));
-    };
+    };// สร้างฟังก์ชัน calculateTotals ที่ใช้ในการคำนวณค่ารวมของข้อมูลทั้งหมดในแต่ละส่วนของฟอร์ม
 
     useEffect(() => {
         const today = new Date();
         const isoDate = today.toISOString().split('T')[0];
         setFormData(prev => ({ ...prev, date: isoDate }));
         setThaiDate(formatThaiDate(isoDate));
-    }, []);
+    }, []);// ใช้ useEffect ในการกำหนดวันที่ปัจจุบันให้กับฟอร์มเมื่อคอมโพเนนต์ถูกโหลดเข้ามา
 
     const handleDateChange = (element) => {
         const newDate = element.target.value;
         setFormData(prev => ({ ...prev, date: newDate }));
         setThaiDate(formatThaiDate(newDate));
-    };
+    };// สร้างฟังก์ชัน handleDateChange ที่ใช้ในการเปลี่ยนวันที่ในฟอร์ม
 
     const handkeSubmit = async (element) => {
         element.preventDefault();
@@ -107,19 +107,17 @@ export default function ShiftForm() {
         } finally {
             setIsLoading(false);
         }
-    };
-
-    
+    };// สร้างฟังก์ชัน handkeSubmit ที่ใช้ในการบันทึกข้อมูลลงในฐานข้อมูล
 
     const handleInputChange = (section, field, value) => {
         setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
-    };
-
+    };// สร้างฟังก์ชัน handleInputChange ที่ใช้ในการเปลี่ยนแปลงข้อมูลในฟอร์ม
+    
     return (
         <form onSubmit={handkeSubmit} className="max-w-7xl mx-auto p-4 text-center">
             <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
                 <h1 className="text-xl font-bold text-center text-black mb-4">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
-
+                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกวันที่ */}
                 <div className="space-y-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 justify-center">
                         <div className="flex items-center gap-4 justify-center">
@@ -137,7 +135,7 @@ export default function ShiftForm() {
                         </div>
                     </div>
                 </div>
-
+                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                 <div className="space-y-2">
                     <div className="flex items-center gap-4">
                         <label className="text-sm font-medium text-black">กะงาน</label>
@@ -164,7 +162,6 @@ export default function ShiftForm() {
                     </div>
                 </div>
             </div>
-
             {/* Desktop View - Table */}
             <div className="hidden md:block w-full overflow-x-auto mt-4">
                 <table className="min-w-full bg-white border border-gray-300">
@@ -322,15 +319,13 @@ export default function ShiftForm() {
                     </tbody>
                 </table>
             </div>
-
-            {/* Mobile View - Cards */}
+            {/*แสดงผลแบบ Mobile*/}
             <div className="block md:hidden mt-4">
                 <div className="grid grid-cols-1 gap-6 mb-6">
                     {Object.entries(formData.wards).map(([ward, data]) => (
                         <div key={ward} className="bg-white rounded-lg shadow-sm p-4 text-center">
                             <h3 className="text-lg font-semibold mb-4 text-center text-black border-b pb-2">{ward}</h3>
-
-                            {/* Staff Section */}
+                            {/* Staff Section */ }
                             <div className="space-y-4 mb-6">
                                 <h4 className="font-medium text-black text-center">อัตรากำลัง</h4>
                                 <div className="grid grid-cols-2 text-black gap-3">
@@ -355,8 +350,8 @@ export default function ShiftForm() {
                                             />
                                         </div>
                                     ))}
-                                </div>
-                            </div>
+                                </div> 
+                            </div> 
 
                             {/* Patient Movement Section */}
                             <div className="space-y-4">
