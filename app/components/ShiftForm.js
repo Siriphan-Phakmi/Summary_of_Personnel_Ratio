@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import 'react-datepicker/dist/react-datepicker.css';
+import th from 'date-fns/locale/th';
 
 export default function ShiftForm() {
     const [isLoading, setIsLoading] = useState(false);
@@ -65,31 +67,23 @@ export default function ShiftForm() {
             newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
         }
     });
-
     // ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็น dd/mm/yyyy โดยไม่สนใจ locale ของ browser
     const formatThaiDate = (isoDate) => {
         if (!isoDate) return '';
-
-        // สร้าง Date object จาก ISO string
-        const date = new Date(isoDate);
-
-        // บังคับใช้ locale เป็น 'th-TH' เสมอ
-        const day = date.toLocaleString('th-TH', { day: '2-digit' });
-        const month = date.toLocaleString('th-TH', { month: '2-digit' });
-        const thaiYear = date.getFullYear() + 543;
-
-        // รูปแบบ dd/mm/yyyy
-        return `${day}/${month}/${thaiYear}`;
-    };
-
-    // ฟังก์ชันสำหรับฟอร์แมตวันที่สำหรับ input
-    const formatDateForInput = (date) => {
-        return date.toISOString().split('T')[0];
+        // แยกส่วนประกอบของวันที่จาก ISO string
+        const [year, month, day] = isoDate.split('-').map(Number);
+        // จัดรูปแบบให้เป็น dd/mm/yyyy
+        const formattedDay = String(day).padStart(2, '0'); // ใส่ 0 ข้างหน้าถ้าเป็นเลขเดียว
+        const formattedMonth = String(month).padStart(2, '0');
+        const thaiYear = year + 543;
+        // ส่งคืนในรูปแบบ dd/mm/yyyy
+        return `${formattedDay}/${formattedMonth}/${thaiYear}`;
     };
 
     useEffect(() => {
         const today = new Date();
-        const isoDate = formatDateForInput(today);
+        // แปลง Date เป็น YYYY-MM-DD format สำหรับ input
+        const isoDate = today.toISOString().split('T')[0];
         setFormData(prev => ({ ...prev, date: isoDate }));
         setThaiDate(formatThaiDate(isoDate));
     }, []);
@@ -143,7 +137,12 @@ export default function ShiftForm() {
                                     value={formData.date}
                                     onChange={handleDateChange}
                                     required
-                                    className="px-2 py-1 border rounded text-black"
+                                    lang="th-TH"
+                                    className="px-2 py-1 border rounded text-black [&::-webkit-calendar-picker-indicator]:bg-inherit [&::-webkit-datetime-edit]:p-0"
+                                    style={{
+                                        WebkitLocaleDateFormat: 'dd/mm/yyyy',
+                                        dateFormat: 'dd/mm/yyyy'
+                                    }}
                                 />
                                 <span className="text-black">{thaiDate}</span>
                             </div>
