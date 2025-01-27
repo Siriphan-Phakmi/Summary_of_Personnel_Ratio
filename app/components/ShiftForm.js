@@ -102,12 +102,21 @@ export default function ShiftForm() {
     const calculateTotals = () => {
         const totals = Object.values(formData.wards).reduce((acc, ward) => {
             Object.keys(ward).forEach(key => {
-                acc[key] = (parseInt(acc[key]) || 0) + (parseInt(ward[key]) || 0);
+                const value = parseInt(ward[key]) || 0;
+                // ถ้าทุกค่าเป็นค่าว่าง ให้ acc[key] เป็นค่าว่าง
+                if (value === 0 && acc[key] === 0) {
+                    acc[key] = '';
+                } else {
+                    acc[key] = (parseInt(acc[key]) || 0) + value;
+                }
             });
             return acc;
-        }, {});
+        }, {
+            numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+            newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+        });
         setFormData(prev => ({ ...prev, totals }));
-    };// สร้างฟังก์ชัน calculateTotals ที่ใช้ในการคำนวณค่ารวมของข้อมูลทั้งหมดในแต่ละส่วนของฟอร์ม
+    };
 
     const validateForm = () => {
         if (!formData.date || !formData.shift) {
@@ -118,6 +127,11 @@ export default function ShiftForm() {
     };
 
     const resetForm = () => {
+        // Add confirmation dialog
+        if (!confirm('คุณต้องการล้างข้อมูลทั้งหมดใช่หรือไม่?')) {
+            return; // If user clicks Cancel, exit the function
+        }
+
         setFormData({
             date: '',
             shift: '',
@@ -137,7 +151,7 @@ export default function ShiftForm() {
         });
     };
 
-    // Fix typo and improve handleSubmit
+    // แก้ไขชื่อฟิลด์ของ collection และเพิ่มเงื่อนไขในฟังก์ชัน handleSubmit
     const handleSubmit = async (element) => {
         element.preventDefault();
         if (!validateForm()) return;
@@ -155,7 +169,7 @@ export default function ShiftForm() {
         }
     };
 
-    // Improve input validation
+    // แก้ไขฟังก์ชัน handleInputChange ให้สามารถรับค่าที่เป็นเลขที่มากกว่าหรือเท่ากับ 0
     const handleInputChange = (section, ward, data) => {
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => [
