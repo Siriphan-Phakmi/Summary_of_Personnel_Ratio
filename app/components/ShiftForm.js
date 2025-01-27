@@ -88,6 +88,11 @@ export default function ShiftForm() {
         setThaiDate(formatThaiDate(isoDate));
     }, []);
 
+    // Add useEffect for automatic total calculation
+    useEffect(() => {
+        calculateTotals();
+    }, [formData.wards]);
+
     const handleDateChange = (element) => {
         const newDate = element.target.value;
         setFormData(prev => ({ ...prev, date: newDate }));
@@ -104,26 +109,71 @@ export default function ShiftForm() {
         setFormData(prev => ({ ...prev, totals }));
     };// สร้างฟังก์ชัน calculateTotals ที่ใช้ในการคำนวณค่ารวมของข้อมูลทั้งหมดในแต่ละส่วนของฟอร์ม
 
+    const validateForm = () => {
+        if (!formData.date || !formData.shift) {
+            alert('กรุณากรอกวันที่และกะงาน');
+            return false;
+        }
+        return true;
+    };
 
-    const handkeSubmit = async (element) => {
+    const resetForm = () => {
+        setFormData({
+            date: '',
+            shift: '',
+            wards: Object.fromEntries(
+                Object.keys(formData.wards).map(ward => [
+                    ward,
+                    {
+                        numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                        newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                    }
+                ])
+            ),
+            totals: {
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            }
+        });
+    };
+
+    // Fix typo and improve handleSubmit
+    const handleSubmit = async (element) => {
         element.preventDefault();
+        if (!validateForm()) return;
+        
         setIsLoading(true);
         try {
-            await addDoc(collection(db, 'staffReacords'), formData);
+            await addDoc(collection(db, 'staffRecords'), formData); // Fix typo in collection name
             alert('บันทึกข้อมูลสำเร็จ');
+            resetForm();
         } catch (error) {
-            alert('เกิดข้อผิดพลาด');
+            console.error('Error:', error);
+            alert(`เกิดข้อผิดพลาด: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
-    };// สร้างฟังก์ชัน handkeSubmit ที่ใช้ในการบันทึกข้อมูลลงในฐานข้อมูล
+    };
 
-    const handleInputChange = (section, field, value) => {
-        setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
-    };// สร้างฟังก์ชัน handleInputChange ที่ใช้ในการเปลี่ยนแปลงข้อมูลในฟอร์ม
+    // Improve input validation
+    const handleInputChange = (section, ward, data) => {
+        const sanitizedData = Object.fromEntries(
+            Object.entries(data).map(([key, value]) => [
+                key,
+                value === '' ? '' : Math.max(0, parseInt(value) || 0)
+            ])
+        );
+        setFormData(prev => ({
+            ...prev,
+            wards: {
+                ...prev.wards,
+                [ward]: sanitizedData
+            }
+        }));
+    };
 
     return (
-        <form onSubmit={handkeSubmit} className="max-w-7xl mx-auto p-4 text-center">
+        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-4 text-center">
             <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
                 <h1 className="text-xl font-bold text-center text-black mb-4">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
                 {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกวันที่ */}
@@ -328,7 +378,17 @@ export default function ShiftForm() {
                         ))}
                         <tr>
                             <td className="border border-gray-300 text-center text-black p-2">Total</td>
-                            {/* คุณจะใส่ส่วนคำนวณ Total ที่นี่ก็ได้ */}
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.numberOfPatients}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.manager}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.RN}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.PN}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.NA}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.admin}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.newAdmissions}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.transfers}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.referOut}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.discharge}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.deaths}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -398,13 +458,31 @@ export default function ShiftForm() {
                 </div>
             </div>
 
-            {/* Submit Button */}
-            <div className="mt-4 flex justify-end">
+            {/* Add loading overlay */}
+            {isLoading && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                        <p className="mt-2">กำลังบันทึกข้อมูล...</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Modify submit button section */}
+            <div className="mt-4 flex justify-end gap-4">
+                <button
+                    type="button"
+                    onClick={resetForm}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors"
+                >
+                    ล้างข้อมูล
+                </button>
                 <button
                     type="submit"
-                    className="bg-red-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors"
+                    disabled={isLoading}
+                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
-                    บันทึกข้อมูล
+                    {isLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
                 </button>
             </div>
         </form>
