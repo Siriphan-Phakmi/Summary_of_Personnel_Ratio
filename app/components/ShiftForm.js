@@ -10,52 +10,52 @@ export default function ShiftForm() {
         shift: '',
         wards: {
             ward6: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward7: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward8: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward9: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward10: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward11: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ward12: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             ICU: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             CCU: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             LR: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             },
             NSY: { 
-                nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
                 newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
             }
         },
         totals: {
-            nurse: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+            numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
             newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
         }
     });
@@ -155,7 +155,7 @@ export default function ShiftForm() {
                     <thead className='bg-gray-100'>
                         <tr>
                             <th rowSpan="2" className='border border-gray-300 text-black p-2'>Ward</th>
-                            <th rowSpan="2" className='border border-gray-300 text-black p-2'>คงพยาบาล</th>
+                            <th rowSpan="2" className='border border-gray-300 text-black p-2'>คงพยาบาล (จำนวนผู้ป่วย)</th>
                             <th colSpan="5" className='border border-gray-300 text-black p-2'>อัตรากำลัง</th>
                             <th colSpan="5" className='border border-gray-300 text-black p-2'>จำนวนผู้ป่วย</th>
                         </tr>
@@ -180,8 +180,8 @@ export default function ShiftForm() {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.nurse}
-                                        onChange={(element) => handleInputChange('wards', ward, { ...data, nurse: element.target.value })}
+                                        value={data.numberOfPatients}
+                                        onChange={(element) => handleInputChange('wards', ward, { ...data, numberOfPatients: element.target.value })}
                                         className='w-full text-center text-black'
                                     />
                                 </td>
