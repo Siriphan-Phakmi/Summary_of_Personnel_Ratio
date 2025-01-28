@@ -10,13 +10,14 @@ export async function fetchStaffRecords() {
     }));
 }
 
-// ฟังก์ชันแปลงข้อมูลให้อยู่ในรูปแบบที่เหมาะสมสำหรับ Excel
+// ใน exportData.js
 export function formatDataForExcel(records) {
-    return records.map(record => ({
-        'วันที่': record.date,
-        'กะ': record.shift,
-        'วอร์ด': Object.entries(record.wards).map(([ward, data]) => ({
-            'ชื่อวอร์ด': ward,
+    // แบนข้อมูลให้เป็นแถวเดียว
+    const flattenedData = records.flatMap(record => 
+        Object.entries(record.wards).map(([ward, data]) => ({
+            'วันที่': record.date,
+            'กะ': record.shift,
+            'วอร์ด': ward,
             'จำนวนผู้ป่วย': data.numberOfPatients,
             'ผู้จัดการ': data.manager,
             'RN': data.RN,
@@ -29,7 +30,8 @@ export function formatDataForExcel(records) {
             'กลับบ้าน': data.discharge,
             'เสียชีวิต': data.deaths
         }))
-    }));
+    );
+    return flattenedData;
 }
 
 // ฟังก์ชันสำหรับ Export ไปยัง Excel

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../lib/exportData';
 
@@ -208,7 +208,7 @@ const ShiftForm = () => {
                 return;
             }
             const formattedData = formatDataForExcel(records);
-            const fileName = `staff-records-${new Date().toISOString().split('T')[0]}`;
+            const fileName = `staff-records-${formData.date}-${formData.shift}`;
             exportToExcel(formattedData, fileName);
         } catch (error) {
             console.error('Export error:', error);
