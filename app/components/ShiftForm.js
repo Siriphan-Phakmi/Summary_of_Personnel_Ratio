@@ -5,9 +5,9 @@ import { collection, addDoc } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 import th from 'date-fns/locale/th';
 
-// Add mobile view enhancements
+//คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(false); //const คือ Destructuring [คือ การแยกออกมา ของ isLoading และ setIsLoading ออกมา] = useState คือ การกำหนดค่าเริ่มต้น ว่าเป็น false หรือ ไม่มีอะไรเลย
     const [thaiDate, setThaiDate] = useState('');
     const [formData, setFormData] = useState({
         date: '',
