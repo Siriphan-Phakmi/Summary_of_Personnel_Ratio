@@ -125,6 +125,13 @@ const ShiftForm = () => {
             alert('กรุณากรอกวันที่และกะงาน');
             return false;
         }
+        const hasData = Object.values(formData.wards).some(ward =>
+            Object.values(ward).some(value => value !== '')
+        );
+        if (!hasData) {
+            alert('กรุณากรอกข้อมูลอย่างน้อย 1 Ward');
+            return false;
+        }
         return true;
     };
 
@@ -187,11 +194,19 @@ const ShiftForm = () => {
             }
         }));
     };
-
-    const handleExport = async () => {// สร้างฟังก์ชัน handleExport สำหรับส่งข้อมูลไปยัง Excel
+    // สร้างฟังก์ชัน handleExport สำหรับส่งข้อมูลไปยัง Excel
+    const handleExport = async () => {
+        if (!formData.date || !formData.shift) {
+            alert('กรุณาเลือกวันที่และกะงานก่อน Export');
+            return;
+        }
         setIsExporting(true);
         try {
             const records = await fetchStaffRecords();
+            if (records.length === 0) {
+                alert('ไม่พบข้อมูลที่จะส่งออก');
+                return;
+            }
             const formattedData = formatDataForExcel(records);
             const fileName = `staff-records-${new Date().toISOString().split('T')[0]}`;
             exportToExcel(formattedData, fileName);
@@ -498,31 +513,30 @@ const ShiftForm = () => {
                     </div>
                 </div>
             )}
-            {/* ปุ่มส่งออกไปยัง Excel */}
-            <div className="mt-4">
-                <button
-                    onClick={handleExport}
-                    disabled={isExporting}
-                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
-                >
-                    {isExporting ? 'กำลัง Export...' : 'Export to Excel'}
-                </button>
-            </div>
+
             {/* ปุ่ม submit button section */}
             <div className="mt-4 flex justify-end gap-4">
                 <button
                     type="button"
                     onClick={resetForm}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors"
+                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg transition-colors"
                 >
                     ล้างข้อมูล
                 </button>
                 <button
                     type="submit"
                     disabled={isLoading}
-                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
                     {isLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                </button>
+                {/* ปุ่มส่งออกไปยัง Excel */}
+                <button
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                >
+                    {isExporting ? 'กำลัง Export...' : 'Export to Excel'}
                 </button>
             </div>
         </form>
