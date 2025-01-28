@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
-import th from 'date-fns/locale/th';
+import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../lib/exportData';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
-    const [isLoading, setIsLoading] = useState(false); //const คือ Destructuring [คือ การแยกออกมา ของ isLoading และ setIsLoading ออกมา] = useState คือ การกำหนดค่าเริ่มต้น ว่าเป็น false หรือ ไม่มีอะไรเลย
+    const [isExporting, setIsExporting] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const [thaiDate, setThaiDate] = useState('');
     const [formData, setFormData] = useState({
         date: '',
@@ -156,7 +157,7 @@ const ShiftForm = () => {
     const handleSubmit = async (element) => {
         element.preventDefault();
         if (!validateForm()) return;
-        
+
         setIsLoading(true);
         try {
             await addDoc(collection(db, 'staffRecords'), formData); // Fix typo in collection name
@@ -187,74 +188,19 @@ const ShiftForm = () => {
         }));
     };
 
-    // Add totals display for mobile view
-    const renderTotals = () => {
-        // ...code to render totals...
-    };
-
-    // Add clear separation between manpower rates and patient movements
-    const renderSections = () => {
-        // ...code to render sections...
-    };
-
-    // Add Thai date display
-    const renderThaiDate = () => {
-        // ...code to render Thai date...
-    };
-
-    // Add larger buttons for mobile
-    const renderButtons = () => {
-        // ...code to render larger buttons...
-    };
-
-    // Add confirmation before saving data
-    const confirmSave = () => {
-        // ...code to confirm save...
-    };
-
-    // Add data validation before saving
-    const validateData = () => {
-        // ...code to validate data...
-    };
-
-    // Add notification for incomplete data
-    const notifyIncompleteData = () => {
-        // ...code to notify incomplete data...
-    };
-
-    // Add progress display while saving
-    const showProgress = () => {
-        // ...code to show progress...
-    };
-
-    // Add copy data button
-    const copyData = () => {
-        // ...code to copy data...
-    };
-
-    // Add clear ward data button
-    const clearWardData = () => {
-        // ...code to clear ward data...
-    };
-
-    // Add temporary save functionality
-    const saveTemporary = () => {
-        // ...code to save temporarily...
-    };
-
-    // Add authentication before saving
-    const authenticateBeforeSave = () => {
-        // ...code to authenticate before save...
-    };
-
-    // Add access control check
-    const checkAccessControl = () => {
-        // ...code to check access control...
-    };
-
-    // Add prevention of duplicate save
-    const preventDuplicateSave = () => {
-        // ...code to prevent duplicate save...
+    const handleExport = async () => {// สร้างฟังก์ชัน handleExport สำหรับส่งข้อมูลไปยัง Excel
+        setIsExporting(true);
+        try {
+            const records = await fetchStaffRecords();
+            const formattedData = formatDataForExcel(records);
+            const fileName = `staff-records-${new Date().toISOString().split('T')[0]}`;
+            exportToExcel(formattedData, fileName);
+        } catch (error) {
+            console.error('Export error:', error);
+            alert(`เกิดข้อผิดพลาดในการส่งออกข้อมูล: ${error.message}`);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     return (
@@ -543,7 +489,7 @@ const ShiftForm = () => {
                 </div>
             </div>
 
-            {/* Add loading overlay */}
+            {/* เพิ่ม loading overlay */}
             {isLoading && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -552,8 +498,17 @@ const ShiftForm = () => {
                     </div>
                 </div>
             )}
-
-            {/* Modify submit button section */}
+            {/* ปุ่มส่งออกไปยัง Excel */}
+            <div className="mt-4">
+                <button
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                >
+                    {isExporting ? 'กำลัง Export...' : 'Export to Excel'}
+                </button>
+            </div>
+            {/* ปุ่ม submit button section */}
             <div className="mt-4 flex justify-end gap-4">
                 <button
                     type="button"
@@ -574,4 +529,4 @@ const ShiftForm = () => {
     );
 };
 
-export default ShiftForm;
+export default ShiftForm; //ส่ง ShiftForm ออกไปใช้งาน
