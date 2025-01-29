@@ -29,7 +29,17 @@ export function formatDataForExcel(records) {
             'รับย้าย': data.transfers,
             'Refer Out': data.referOut,
             'กลับบ้าน': data.discharge,
-            'เสียชีวิต': data.deaths
+            'เสียชีวิต': data.deaths,
+            'OPD 24hr': record.summaryData?.opdTotal24hr || '',
+            'คนไข้เก่า': record.summaryData?.existingPatients || '',
+            'คนไข้ใหม่': record.summaryData?.newPatients || '',
+            'Admit 24hr': record.summaryData?.admissions24hr || '',
+            'ผู้ตรวจการ': record.summaryData?.supervisorName || '',
+            'คงพยาบาล': data.currentPatients,
+            'ห้องว่าง': data.availableBeds,
+            'Plan D/C': data.plannedDischarge,
+            'ห้องชำรุด': data.maintainanceRooms,
+            'หมายเหตุ': data.remarks
         }))
     );
     return flattenedData;

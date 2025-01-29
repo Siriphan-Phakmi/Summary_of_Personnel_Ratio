@@ -10,63 +10,83 @@ const ShiftForm = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [thaiDate, setThaiDate] = useState('');
+    const [summaryData, setSummaryData] = useState({
+        opdTotal24hr: '', //ยอด OPD 24 hour - รวมผู้ป่วยนอกใน 24 ชั่วโมง
+        existingPatients: '', // คนไข้เก่า - จำนวนผู้ป่วยที่รักษาต่อเนื่อง
+        newPatients: '', // คนไข้ใหม่ - จำนวนผู้ป่วยที่มารับการรักษาครั้งแรก
+        admissions24hr: '',// Admit 24 ชม. - จำนวนผู้ป่วยที่รับไว้ใน 24 ชั่วโมง
+        supervisorName: '', // ลงชื่อผู้ตรวจการ - ชื่อผู้รับผิดชอบประจำกะ
+    });
     const [formData, setFormData] = useState({
         date: '',
         shift: '',
         wards: {
-            ward6: {
+            Ward6: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            ward7: {
+            Ward7: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            ward8: {
+            Ward8: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            ward9: {
+            Ward9: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            wardGI: {
+            WardGI: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            ward10B: {
+            Ward10B: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
 
-            ward11: {
+            Ward11: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
-            ward12: {
+            Ward12: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
             ICU: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
             CCU: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
             LR: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             },
             NSY: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
             }
         },
         totals: {
             numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
+            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+            currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
         }
     });
     // ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็น dd/mm/yyyy โดยไม่สนใจ locale ของ browser
@@ -83,11 +103,12 @@ const ShiftForm = () => {
     };
 
     useEffect(() => {
-        const today = new Date();
-        // แปลง Date เป็น YYYY-MM-DD format สำหรับ input
-        const isoDate = today.toISOString().split('T')[0];
-        setFormData(prev => ({ ...prev, date: isoDate }));
-        setThaiDate(formatThaiDate(isoDate));
+        if (typeof window !== 'undefined') { // เช็คว่าอยู่ฝั่ง client
+            const today = new Date();
+            const isoDate = today.toISOString().split('T')[0];
+            setFormData(prev => ({ ...prev, date: isoDate }));
+            setThaiDate(formatThaiDate(isoDate));
+        }
     }, []);
 
     // Add useEffect for automatic total calculation
@@ -221,27 +242,25 @@ const ShiftForm = () => {
     return (
 
         <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-4 text-center">
-            <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-                <h1 className="text-xl font-bold text-center text-black mb-4">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
-                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกวันที่ และ กะ*/}
-                <div className="space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 justify-center">
+            {/*ส่วน*/}
+            <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
+                <h1 className="text-2xl font-semibold text-[#0ab4ab] mb-6">
+                    สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน
+                </h1>
+                {/*ส่วนของวันที่และกะงาน*/}
+                <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
                         <div className="flex items-center gap-4 justify-center">
-                            <label className="text-sm font-medium text-black">วันที่</label>
-                            <div className="flex gap-2 items-center text-sm">
+                            <label className="text-sm font-medium text-gray-700">วันที่</label>
+                            <div className="flex gap-2 items-center">
                                 <input
                                     type="date"
                                     value={formData.date}
                                     onChange={handleDateChange}
                                     required
-                                    lang="th-TH"
-                                    className="px-2 py-1 border rounded text-black [&::-webkit-calendar-picker-indicator]:bg-inherit [&::-webkit-datetime-edit]:p-0"
-                                    style={{
-                                        WebkitLocaleDateFormat: 'dd/mm/yyyy',
-                                        dateFormat: 'dd/mm/yyyy'
-                                    }}
+                                    className="px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
                                 />
-                                <span className="text-black">{thaiDate}</span>
+                                <span className="text-gray-700 font-medium">{thaiDate}</span>
                             </div>
                         </div>
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
@@ -273,33 +292,38 @@ const ShiftForm = () => {
 
             {/* Desktop View - Table */}
             <div className="hidden md:block w-full overflow-x-auto mt-4">
-                <table className="min-w-full bg-white border border-gray-300">
-                    <thead className="bg-gray-100">
-                        <tr>
-                            <th rowSpan="2" className="border border-gray-300 text-black p-2">Ward</th>
-                            <th rowSpan="2" className="border border-gray-300 text-black p-2">คงพยาบาล (จำนวนผู้ป่วย)</th>
-                            <th colSpan="5" className="border border-gray-300 text-black p-2">อัตรากำลัง</th>
-                            <th colSpan="6" className="border border-gray-300 text-black p-2">จำนวนผู้ป่วย</th>
+                <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg">
+                    <thead>
+                        <tr className="bg-[#0ab4ab] text-white">
+                            <th rowSpan="2" className="border  p-3">Ward</th>
+                            <th rowSpan="2" className="border  p-3">คงพยาบาล (จำนวนผู้ป่วย)</th>
+                            <th colSpan="5" className="border  p-3">อัตรากำลัง</th>
+                            <th colSpan="6" className="border  p-3">จำนวนผู้ป่วย</th>
+                            <th rowSpan="2" className="border  p-3">คงพยาบาล</th>
+                            <th rowSpan="2" className="border  p-3">ห้องว่าง</th>
+                            <th rowSpan="2" className="border  p-3">Plan D/C</th>
+                            <th rowSpan="2" className="border  p-3">ห้องชำรุด</th>
+                            <th rowSpan="2" className="border  p-10">หมายเหตุ</th>
                         </tr>
-                        <tr>
-                            <th className="border border-gray-300 text-black p-2">ผจก.</th>
-                            <th className="border border-gray-300 text-black p-2">RN</th>
-                            <th className="border border-gray-300 text-black p-2">PN</th>
-                            <th className="border border-gray-300 text-black p-2">NA</th>
-                            <th className="border border-gray-300 text-black p-2">ธุรการ</th>
-                            <th className="border border-gray-300 text-black p-2">รับใหม่</th>
-                            <th className="border border-gray-300 text-black p-2">Refer In</th>
-                            <th className="border border-gray-300 text-black p-2">รับย้าย</th>
-                            <th className="border border-gray-300 text-black p-2">Refer Out</th>
-                            <th className="border border-gray-300 text-black p-2">กลับบ้าน</th>
-                            <th className="border border-gray-300 text-black p-2">dead</th>
+                        <tr className="bg-[#0ab4ab] text-white">
+                            <th className="border p-3">ผจก.</th>
+                            <th className="border p-3">RN</th>
+                            <th className="border  p-3">PN</th>
+                            <th className="border  p-3">NA</th>
+                            <th className="border  p-3">ธุรการ</th>
+                            <th className="border  p-3">รับใหม่</th>
+                            <th className="border  p-3">Refer In</th>
+                            <th className="border  p-3">รับย้าย</th>
+                            <th className="border  p-3">Refer Out</th>
+                            <th className="border  p-3">กลับบ้าน</th>
+                            <th className="border  p-3">dead</th>
                         </tr>
                     </thead>
                     <tbody>
                         {Object.entries(formData.wards).map(([ward, data]) => (
                             <tr key={ward}>
-                                <td className="border border-gray-300 text-center text-black p-2">{ward}</td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 text-center text-black p-2">{ward}</td>
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -307,10 +331,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, numberOfPatients: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -318,10 +342,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, manager: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -329,10 +353,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, RN: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -340,10 +364,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, PN: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -351,10 +375,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, NA: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -362,10 +386,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, admin: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -373,10 +397,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, newAdmissions: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -384,10 +408,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, transfers: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -395,10 +419,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, referIn: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -406,10 +430,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, referOut: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -417,10 +441,10 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, discharge: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
-                                <td className="border border-gray-300 p-2">
+                                <td className="border border-gray-200 p-2">
                                     <input
                                         type="number"
                                         min="0"
@@ -428,34 +452,166 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, deaths: element.target.value })
                                         }
-                                        className="w-full text-center text-black"
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                    />
+                                </td>
+                                <td className="border border-gray-200 p-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.currentPatients}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, currentPatients: element.target.value })
+                                        }
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                    />
+                                </td>
+                                <td className="border border-gray-200 p-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.availableBeds}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, availableBeds: element.target.value })
+                                        }
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                    />
+                                </td>
+                                <td className="border border-gray-200 p-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.plannedDischarge}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, plannedDischarge: element.target.value })
+                                        }
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                    />
+                                </td>
+                                <td className="border border-gray-200 p-2">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.maintainanceRooms}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, maintainanceRooms: element.target.value })
+                                        }
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                    />
+                                </td>
+                                <td className="border border-gray-200 p-2">
+                                    <input
+                                        type="text"
+                                        value={data.remarks}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, remarks: element.target.value })
+                                        }
+                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                             </tr>
                         ))}
                         <tr>
-                            <td className="border border-gray-300 text-center text-black p-2">Total</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.numberOfPatients}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.manager}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.RN}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.PN}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.NA}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.admin}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.newAdmissions}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.transfers}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.referIn}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.referOut}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.discharge}</td>
-                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.deaths}</td>
+                            <td className="border border-gray-200 text-center text-black p-2">Total</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.numberOfPatients}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.manager}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.RN}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.PN}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.NA}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.admin}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.newAdmissions}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.transfers}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.referIn}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.referOut}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.discharge}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.deaths}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.currentPatients}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.availableBeds}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.plannedDischarge}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.maintainanceRooms}</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.remarks}</td>
                         </tr>
                     </tbody>
                 </table>
+                {/*ส่วนของข้อมูลสรุป 24 ชั่วโมง*/}
+                <div className="mt-6 bg-white rounded-lg shadow-lg p-4">
+                    <h1 className="text-lg font-semibold text-[#0ab4ab] mt-1">ข้อมูลสรุป 24 ชั่วโมง</h1>
+                    <div className="grid grid-cols-4 gap-4">
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black gap-4">ยอด OPD 24 hour</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.opdTotal24hr}
+                                onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                placeholder="ยอดรวม"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black gap-4">คนไข้เก่า</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.existingPatients}
+                                onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                placeholder="ยอดรวม"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black gap-4">คนไข้ใหม่</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.newPatients}
+                                onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                placeholder="ยอดรวม"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black gap-4">Admit 24 ชม.</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.admissions24hr}
+                                onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                placeholder="ยอดรวม"
+                            />
+                        </div>
+                    </div>
+                </div>
+                {/*ส่วนของลงชื่อผู้ตรวจการ*/}
+                <div className="mt-6 bg-[#0ab4ab]/50 rounded-lg shadow-lg p-4">
+                    <div className="flex justify-end"> {/* Changed: Added flex and justify-end */}
+                        <div className="w-fit"> {/* Changed: Added fixed width */}
+                            <div className="flex items-center gap-4"> {/* Changed: Added flex layout */}
+                                <label className="text-sm font-medium text-black whitespace-nowrap">ลงชื่อผู้ตรวจการ</label>
+                                <input
+                                    type="text"
+                                    value={summaryData.supervisorName}
+                                    onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
+                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]" /* Changed: Added fixed width */
+                                    placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
             </div>
+
             {/*แสดงผลแบบ Mobile*/}
-            <div className="block md:hidden mt-4">
-                <div className="grid grid-cols-1 gap-6 mb-6">
+            <div className="md:hidden space-y-4">
+                <div className="grid grid-cols-1 gap-4">
                     {Object.entries(formData.wards).map(([ward, data]) => (
-                        <div key={ward} className="bg-white rounded-lg shadow-sm p-4 text-center">
+                        <div key={ward} className="bg-white rounded-lg shadow-lg p-4 border border-[#0ab4ab]/10">
                             <h3 className="text-lg font-semibold mb-4 text-center text-black border-b pb-2">{ward}</h3>
                             {/* Staff Section */}
                             <div className="space-y-4 mb-6">
