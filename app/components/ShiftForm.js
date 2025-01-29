@@ -247,8 +247,7 @@ const ShiftForm = () => {
                 </div>
                 {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                 <div className="space-y-2">
-                    <div className="flex items-center gap-4">
-                        <label className="text-sm font-medium text-black">กะงาน</label>
+                    <div className="flex items-center gap-4">                       
                         <div className="flex gap-4">
                             {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
                                 <label
