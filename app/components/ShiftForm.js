@@ -266,8 +266,8 @@ const ShiftForm = () => {
                 {/*ส่วนของวันที่และกะงาน*/}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
-                        <div className="flex items-center gap-2 whitespace-nowrap text-sm">
-                            <label className="font-medium text-gray-700 whitespace-nowrap">วันที่</label>
+                        <div className="flex items-center gap-2 whitespace-nowrap text-sm justify-center">
+                            <label className="font-medium text-gray-700 whitespace-nowrap ">วันที่</label>
                             <div className="flex gap-2 items-center">
                                 <input
                                     type="date"
@@ -280,7 +280,7 @@ const ShiftForm = () => {
                             </div>
                         </div>
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
-                        <div className="flex items-center gap-4 justify-end">
+                        <div className="flex gap-4 justify-center">
                             <div className="flex gap-4">
     
                                 {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
