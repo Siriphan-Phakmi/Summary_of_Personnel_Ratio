@@ -36,8 +36,15 @@ export function formatDataForExcel(records) {
 
 // ฟังก์ชันสำหรับ Export ไปยัง Excel
 export function exportToExcel(data, fileName) {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Staff Records");
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
+    try {
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Staff Records");
+        
+        // Save file
+        XLSX.writeFile(wb, `${fileName}.xlsx`);
+    } catch (error) {
+        console.error('Export error:', error);
+        throw error;
+    }
 }
