@@ -13,7 +13,7 @@ export async function fetchStaffRecords() {
 // ใน exportData.js
 export function formatDataForExcel(records) {
     // แบนข้อมูลให้เป็นแถวเดียว
-    const flattenedData = records.flatMap(record => 
+    const flattenedData = records.flatMap(record =>
         Object.entries(record.wards).map(([ward, data]) => ({
             'วันที่': record.date,
             'กะ': record.shift,
@@ -25,6 +25,7 @@ export function formatDataForExcel(records) {
             'NA': data.NA,
             'ธุรการ': data.admin,
             'รับใหม่': data.newAdmissions,
+            'Refer In': data.referIn,
             'รับย้าย': data.transfers,
             'Refer Out': data.referOut,
             'กลับบ้าน': data.discharge,
@@ -40,7 +41,7 @@ export function exportToExcel(data, fileName) {
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Staff Records");
-        
+
         // Save file
         XLSX.writeFile(wb, `${fileName}.xlsx`);
     } catch (error) {

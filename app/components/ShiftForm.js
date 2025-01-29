@@ -16,57 +16,57 @@ const ShiftForm = () => {
         wards: {
             ward6: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ward7: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ward8: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ward9: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             wardGI: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ward10B: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
 
             ward11: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ward12: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             ICU: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             CCU: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             LR: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             },
             NSY: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             }
         },
         totals: {
             numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-            newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
         }
     });
     // ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็น dd/mm/yyyy โดยไม่สนใจ locale ของ browser
@@ -115,7 +115,7 @@ const ShiftForm = () => {
             return acc;
         }, {
             numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-            newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
         });
         setFormData(prev => ({ ...prev, totals }));
     };
@@ -149,13 +149,13 @@ const ShiftForm = () => {
                     ward,
                     {
                         numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                        newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                        newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
                     }
                 ])
             ),
             totals: {
                 numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referOut: '', discharge: '', deaths: ''
+                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
             }
         });
     };
@@ -219,13 +219,14 @@ const ShiftForm = () => {
     };
 
     return (
+
         <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-4 text-center">
             <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
                 <h1 className="text-xl font-bold text-center text-black mb-4">สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน</h1>
-                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกวันที่ */}
+                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกวันที่ และ กะ*/}
                 <div className="space-y-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 justify-center">
-                        <div className="flex items-center gap-4 ">
+                        <div className="flex items-center gap-4 justify-center">
                             <label className="text-sm font-medium text-black">วันที่</label>
                             <div className="flex gap-2 items-center text-sm">
                                 <input
@@ -243,34 +244,33 @@ const ShiftForm = () => {
                                 <span className="text-black">{thaiDate}</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-                {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
-                <div className="space-y-2">
-                    <div className="flex items-center gap-4">                       
-                        <div className="flex gap-4">
-                            {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
-                                <label
-                                    key={shiftTime}
-                                    className="flex text-black text-sm items-center gap-2"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="shift"
-                                        value={shiftTime}
-                                        checked={formData.shift === shiftTime}
-                                        onChange={(element) =>
-                                            setFormData({ ...formData, shift: element.target.value })
-                                        }
-                                        className="rounded"
-                                    />
-                                    <span>{shiftTime === '07:00-19:00' ? 'เช้า' : 'ดึก'} ({shiftTime})</span>
-                                </label>
-                            ))}
+                        {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
+                        <div className="flex items-center gap-4 justify-center">
+                            <div className="flex gap-4">
+                                {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
+                                    <label
+                                        key={shiftTime}
+                                        className="flex text-black text-sm items-center gap-2"
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="shift"
+                                            value={shiftTime}
+                                            checked={formData.shift === shiftTime}
+                                            onChange={(element) =>
+                                                setFormData({ ...formData, shift: element.target.value })
+                                            }
+                                            className="rounded"
+                                        />
+                                        <span>{shiftTime === '07:00-19:00' ? 'เช้า' : 'ดึก'} ({shiftTime})</span>
+                                    </label>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
             {/* Desktop View - Table */}
             <div className="hidden md:block w-full overflow-x-auto mt-4">
                 <table className="min-w-full bg-white border border-gray-300">
@@ -279,7 +279,7 @@ const ShiftForm = () => {
                             <th rowSpan="2" className="border border-gray-300 text-black p-2">Ward</th>
                             <th rowSpan="2" className="border border-gray-300 text-black p-2">คงพยาบาล (จำนวนผู้ป่วย)</th>
                             <th colSpan="5" className="border border-gray-300 text-black p-2">อัตรากำลัง</th>
-                            <th colSpan="5" className="border border-gray-300 text-black p-2">จำนวนผู้ป่วย</th>
+                            <th colSpan="6" className="border border-gray-300 text-black p-2">จำนวนผู้ป่วย</th>
                         </tr>
                         <tr>
                             <th className="border border-gray-300 text-black p-2">ผจก.</th>
@@ -288,6 +288,7 @@ const ShiftForm = () => {
                             <th className="border border-gray-300 text-black p-2">NA</th>
                             <th className="border border-gray-300 text-black p-2">ธุรการ</th>
                             <th className="border border-gray-300 text-black p-2">รับใหม่</th>
+                            <th className="border border-gray-300 text-black p-2">Refer In</th>
                             <th className="border border-gray-300 text-black p-2">รับย้าย</th>
                             <th className="border border-gray-300 text-black p-2">Refer Out</th>
                             <th className="border border-gray-300 text-black p-2">กลับบ้าน</th>
@@ -390,6 +391,17 @@ const ShiftForm = () => {
                                     <input
                                         type="number"
                                         min="0"
+                                        value={data.referIn}
+                                        onChange={(element) =>
+                                            handleInputChange('wards', ward, { ...data, referIn: element.target.value })
+                                        }
+                                        className="w-full text-center text-black"
+                                    />
+                                </td>
+                                <td className="border border-gray-300 p-2">
+                                    <input
+                                        type="number"
+                                        min="0"
                                         value={data.referOut}
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, referOut: element.target.value })
@@ -431,6 +443,7 @@ const ShiftForm = () => {
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.admin}</td>
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.newAdmissions}</td>
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.transfers}</td>
+                            <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.referIn}</td>
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.referOut}</td>
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.discharge}</td>
                             <td className="border border-gray-300 p-2 text-center text-black">{formData.totals.deaths}</td>
@@ -478,6 +491,7 @@ const ShiftForm = () => {
                                 <div className="grid grid-cols-2 text-black gap-3">
                                     {[
                                         { key: 'newAdmissions', label: 'รับใหม่' },
+                                        { key: 'referIn', label: 'Refer In' },
                                         { key: 'transfers', label: 'รับย้าย' },
                                         { key: 'referOut', label: 'Refer Out' },
                                         { key: 'discharge', label: 'กลับบ้าน' },
@@ -504,28 +518,30 @@ const ShiftForm = () => {
             </div>
 
             {/* เพิ่ม loading overlay */}
-            {isLoading && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-lg">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
-                        <p className="mt-2">กำลังบันทึกข้อมูล...</p>
+            {
+                isLoading && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <div className="bg-white p-6 rounded-lg shadow-lg">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                            <p className="mt-2">กำลังบันทึกข้อมูล...</p>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* ปุ่ม submit button section */}
             <div className="mt-4 flex justify-end gap-4">
                 <button
                     type="button"
                     onClick={resetForm}
-                    className="bg-gray-500 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg transition-colors"
+                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg transition-colors"
                 >
                     ล้างข้อมูล
                 </button>
                 <button
                     type="submit"
                     disabled={isLoading}
-                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                    className="bg-red-500 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
                     {isLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
                 </button>
@@ -533,12 +549,12 @@ const ShiftForm = () => {
                 <button
                     onClick={handleExport}
                     disabled={isExporting}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                    className="bg-teal-500 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
                     {isExporting ? 'กำลัง Export...' : 'Export to Excel'}
                 </button>
             </div>
-        </form>
+        </form >
     );
 };
 
