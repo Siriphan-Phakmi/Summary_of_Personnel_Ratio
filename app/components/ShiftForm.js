@@ -194,7 +194,7 @@ const ShiftForm = () => {
                 summaryData,
                 timestamp: serverTimestamp()
             };
-            
+
             await addDoc(collection(db, 'staffRecords'), dataToSubmit);
             alert('บันทึกข้อมูลสำเร็จ');
             resetForm();
@@ -266,22 +266,23 @@ const ShiftForm = () => {
                 {/*ส่วนของวันที่และกะงาน*/}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
-                        <div className="flex items-center gap-4 justify-center">
-                            <label className="text-sm font-medium text-gray-700">วันที่</label>
+                        <div className="flex items-center gap-2 whitespace-nowrap text-sm">
+                            <label className="font-medium text-gray-700 whitespace-nowrap">วันที่</label>
                             <div className="flex gap-2 items-center">
                                 <input
                                     type="date"
                                     value={formData.date}
                                     onChange={handleDateChange}
                                     required
-                                    className="px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                    className="px-2 py-1 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
                                 />
                                 <span className="text-gray-700 font-medium">{thaiDate}</span>
                             </div>
                         </div>
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
-                        <div className="flex items-center gap-4 justify-center">
+                        <div className="flex items-center gap-4 justify-end">
                             <div className="flex gap-4">
+    
                                 {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
                                     <label
                                         key={shiftTime}
@@ -312,10 +313,16 @@ const ShiftForm = () => {
                     <thead>
                         <tr className="bg-[#0ab4ab] text-white">
                             <th rowSpan="2" className="border  p-3">Ward</th>
-                            <th rowSpan="2" className="border  p-3">คงพยาบาล (จำนวนผู้ป่วย)</th>
+                            <th rowSpan="2" className="border p-3">
+                                <div className="whitespace-nowrap">คงพยาบาล</div>
+                                <div className="whitespace-nowrap text-xs">(จำนวนผู้ป่วย)</div>
+                            </th>
                             <th colSpan="5" className="border  p-3">อัตรากำลัง</th>
                             <th colSpan="6" className="border  p-3">จำนวนผู้ป่วย</th>
-                            <th rowSpan="2" className="border  p-3">คงพยาบาล</th>
+                            <th rowSpan="2" className="border p-3">
+                                <div className="whitespace-nowrap">คงพยาบาล</div>
+                                <div className="whitespace-nowrap text-xs">(จำนวนผู้ป่วย)</div>
+                            </th>
                             <th rowSpan="2" className="border  p-3">ห้องว่าง</th>
                             <th rowSpan="2" className="border  p-3">Plan D/C</th>
                             <th rowSpan="2" className="border  p-3">ห้องชำรุด</th>
@@ -348,6 +355,7 @@ const ShiftForm = () => {
                                             handleInputChange('wards', ward, { ...data, numberOfPatients: element.target.value })
                                         }
                                         className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -633,9 +641,13 @@ const ShiftForm = () => {
                             {/* Staff Section */}
                             <div className="space-y-4 mb-6">
                                 <h4 className="font-medium text-black text-center">อัตรากำลัง</h4>
-                                <div className="grid grid-cols-2 text-black gap-3">
+                                <div className="grid grid-cols-2 text-black text-center gap-3">
                                     {[
-                                        { key: 'numberOfPatients', label: 'คงพยาบาล(จำนวนผู้ป่วย)' },
+                                        {
+                                            key: 'numberOfPatients',
+                                            label: 'คงพยาบาล',
+                                            placeholder: '    จำนวนผู้ป่วย',
+                                        },
                                         { key: 'manager', label: 'ผจก.' },
                                         { key: 'RN', label: 'RN' },
                                         { key: 'PN', label: 'PN' },
@@ -648,10 +660,11 @@ const ShiftForm = () => {
                                                 type="number"
                                                 min="0"
                                                 value={data[field.key]}
-                                                onChange={(e) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
+                                                onChange={(element) =>
+                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
                                                 }
-                                                className="w-full rounded border p-1 text-center text-black"
+                                                className="w-full rounded border p-1 text-center text-black text-sm"
+                                                placeholder={field.placeholder}
                                             />
                                         </div>
                                     ))}
@@ -676,8 +689,8 @@ const ShiftForm = () => {
                                                 type="number"
                                                 min="0"
                                                 value={data[field.key]}
-                                                onChange={(e) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
+                                                onChange={(element) =>
+                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
                                                 }
                                                 className="w-full rounded border p-1 text-center text-black"
                                             />
@@ -691,7 +704,12 @@ const ShiftForm = () => {
                                 <h4 className="font-medium text-black text-center">ข้อมูลเพิ่มเติม</h4>
                                 <div className="grid grid-cols-2 text-black gap-3">
                                     {[
-                                        { key: 'currentPatients', label: 'คงพยาบาล' },
+                                        {
+                                            key: 'numberOfPatients',
+                                            label: 'คงพยาบาล',
+                                            placeholder: '    จำนวนผู้ป่วย',
+                                        },
+
                                         { key: 'availableBeds', label: 'ห้องว่าง' },
                                         { key: 'plannedDischarge', label: 'Plan D/C' },
                                         { key: 'maintainanceRooms', label: 'ห้องชำรุด' }
@@ -702,10 +720,11 @@ const ShiftForm = () => {
                                                 type="number"
                                                 min="0"
                                                 value={data[field.key]}
-                                                onChange={(e) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
+                                                onChange={(element) =>
+                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
                                                 }
-                                                className="w-full rounded border p-1 text-center text-black"
+                                                className="w-full rounded border p-1 text-center text-black text-sm"
+                                                placeholder={field.placeholder}
                                             />
                                         </div>
                                     ))}
@@ -715,8 +734,8 @@ const ShiftForm = () => {
                                         <input
                                             type="text"
                                             value={data.remarks}
-                                            onChange={(e) =>
-                                                handleInputChange('wards', ward, { ...data, remarks: e.target.value })
+                                            onChange={(element) =>
+                                                handleInputChange('wards', ward, { ...data, remarks: element.target.value })
                                             }
                                             className="w-full rounded border p-1 text-center text-black"
                                             placeholder="หมายเหตุ"
@@ -744,7 +763,7 @@ const ShiftForm = () => {
                                     type="number"
                                     min="0"
                                     value={summaryData[field.key]}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                    onChange={(element) => setSummaryData(prev => ({ ...prev, [field.key]: element.target.value }))}
                                     className="w-1/2 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black"
                                     placeholder="ยอดรวม"
                                 />
@@ -760,7 +779,7 @@ const ShiftForm = () => {
                         <input
                             type="text"
                             value={summaryData.supervisorName}
-                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
+                            onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
                             className="w-full px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
                             placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
                         />
