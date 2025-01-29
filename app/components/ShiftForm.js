@@ -188,9 +188,24 @@ const ShiftForm = () => {
 
         setIsLoading(true);
         try {
-            await addDoc(collection(db, 'staffRecords'), formData); // Fix typo in collection name
+            // Include summaryData in the submission
+            const dataToSubmit = {
+                ...formData,
+                summaryData,
+                timestamp: serverTimestamp()
+            };
+            
+            await addDoc(collection(db, 'staffRecords'), dataToSubmit);
             alert('บันทึกข้อมูลสำเร็จ');
             resetForm();
+            // Reset summaryData after successful submission
+            setSummaryData({
+                opdTotal24hr: '',
+                existingPatients: '',
+                newPatients: '',
+                admissions24hr: '',
+                supervisorName: ''
+            });
         } catch (error) {
             console.error('Error:', error);
             alert(`เกิดข้อผิดพลาด: ${error.message}`);
@@ -204,7 +219,8 @@ const ShiftForm = () => {
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => [
                 key,
-                value === '' ? '' : Math.max(0, parseInt(value) || 0)
+                // Special handling for remarks field
+                key === 'remarks' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0))
             ])
         );
         setFormData(prev => ({
@@ -331,7 +347,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, numberOfPatients: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -342,7 +358,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, manager: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -353,7 +369,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, RN: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -364,7 +380,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, PN: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -375,7 +391,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, NA: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -386,7 +402,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, admin: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -397,7 +413,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, newAdmissions: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -408,7 +424,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, transfers: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -419,7 +435,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, referIn: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -430,7 +446,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, referOut: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -441,7 +457,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, discharge: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -452,7 +468,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, deaths: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -463,7 +479,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, currentPatients: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -474,7 +490,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, availableBeds: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -485,7 +501,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, plannedDischarge: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -496,7 +512,7 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, maintainanceRooms: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
                                     />
                                 </td>
                                 <td className="border border-gray-200 p-2">
@@ -506,7 +522,8 @@ const ShiftForm = () => {
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, remarks: element.target.value })
                                         }
-                                        className="w-full text-center focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        placeholder="หมายเหตุ"
                                     />
                                 </td>
                             </tr>
@@ -544,7 +561,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -556,7 +573,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -568,7 +585,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -580,7 +597,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -596,7 +613,7 @@ const ShiftForm = () => {
                                     type="text"
                                     value={summaryData.supervisorName}
                                     onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]" /* Changed: Added fixed width */
+                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white" /* Changed: Added fixed width */
                                     placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
                                 />
                             </div>
@@ -634,7 +651,7 @@ const ShiftForm = () => {
                                                 onChange={(e) =>
                                                     handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
                                                 }
-                                                className="w-full rounded border p-1 text-center"
+                                                className="w-full rounded border p-1 text-center text-black"
                                             />
                                         </div>
                                     ))}
@@ -662,14 +679,92 @@ const ShiftForm = () => {
                                                 onChange={(e) =>
                                                     handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
                                                 }
-                                                className="w-full rounded border p-1 text-center"
+                                                className="w-full rounded border p-1 text-center text-black"
                                             />
                                         </div>
                                     ))}
                                 </div>
                             </div>
+
+                            {/* Additional Information Section */}
+                            <div className="space-y-4 mt-6">
+                                <h4 className="font-medium text-black text-center">ข้อมูลเพิ่มเติม</h4>
+                                <div className="grid grid-cols-2 text-black gap-3">
+                                    {[
+                                        { key: 'currentPatients', label: 'คงพยาบาล' },
+                                        { key: 'availableBeds', label: 'ห้องว่าง' },
+                                        { key: 'plannedDischarge', label: 'Plan D/C' },
+                                        { key: 'maintainanceRooms', label: 'ห้องชำรุด' }
+                                    ].map((field) => (
+                                        <div key={field.key} className="text-center">
+                                            <label className="block text-sm">{field.label}</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={data[field.key]}
+                                                onChange={(e) =>
+                                                    handleInputChange('wards', ward, { ...data, [field.key]: e.target.value })
+                                                }
+                                                className="w-full rounded border p-1 text-center text-black"
+                                            />
+                                        </div>
+                                    ))}
+                                    {/* Remarks field - full width */}
+                                    <div className="col-span-2 text-center mt-2">
+                                        <label className="block text-sm">หมายเหตุ</label>
+                                        <input
+                                            type="text"
+                                            value={data.remarks}
+                                            onChange={(e) =>
+                                                handleInputChange('wards', ward, { ...data, remarks: e.target.value })
+                                            }
+                                            className="w-full rounded border p-1 text-center text-black"
+                                            placeholder="หมายเหตุ"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     ))}
+                </div>
+
+                {/* 24 Hour Summary Section - Mobile */}
+                <div className="bg-white rounded-lg shadow-lg p-4 mt-6">
+                    <h4 className="font-medium text-black text-center mb-4">ข้อมูลสรุป 24 ชั่วโมง</h4>
+                    <div className="grid grid-cols-1 gap-4">
+                        {[
+                            { key: 'opdTotal24hr', label: 'ยอด OPD 24 hour' },
+                            { key: 'existingPatients', label: 'คนไข้เก่า' },
+                            { key: 'newPatients', label: 'คนไข้ใหม่' },
+                            { key: 'admissions24hr', label: 'Admit 24 ชม.' }
+                        ].map((field) => (
+                            <div key={field.key} className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-black">{field.label}</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={summaryData[field.key]}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                    className="w-1/2 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black"
+                                    placeholder="ยอดรวม"
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Supervisor Section - Mobile */}
+                <div className="bg-[#0ab4ab]/50 rounded-lg shadow-lg p-4 mt-4 mb-6">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-black">ลงชื่อผู้ตรวจการ</label>
+                        <input
+                            type="text"
+                            value={summaryData.supervisorName}
+                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
+                            className="w-full px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
+                            placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
+                        />
+                    </div>
                 </div>
             </div>
 
