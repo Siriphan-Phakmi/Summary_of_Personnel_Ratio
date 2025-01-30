@@ -17,78 +17,35 @@ const ShiftForm = () => {
         admissions24hr: '',// Admit 24 ชม. - จำนวนผู้ป่วยที่รับไว้ใน 24 ชั่วโมง
         supervisorName: '', // ลงชื่อผู้ตรวจการ - ชื่อผู้รับผิดชอบประจำกะ
     });
+
+    // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
+    const initialWardData = {
+        numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
+        newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
+        currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
+    };
+
+    // ปรับปรุง formData state
     const [formData, setFormData] = useState({
         date: '',
         shift: '',
         wards: {
-            Ward6: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            Ward7: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            Ward8: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            Ward9: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            WardGI: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            Ward10B: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-
-            Ward11: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            Ward12: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            ICU: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            CCU: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            LR: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            },
-            NSY: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-                currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-            }
+            Ward6: { ...initialWardData },
+            Ward7: { ...initialWardData },
+            Ward8: { ...initialWardData },
+            Ward9: { ...initialWardData },
+            WardGI: { ...initialWardData },
+            Ward10B: { ...initialWardData },
+            Ward11: { ...initialWardData },
+            Ward12: { ...initialWardData },
+            ICU: { ...initialWardData },
+            CCU: { ...initialWardData },
+            LR: { ...initialWardData },
+            NSY: { ...initialWardData }
         },
-        totals: {
-            numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-            currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
-        }
+        totals: { ...initialWardData }
     });
+
     // ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็น dd/mm/yyyy โดยไม่สนใจ locale ของ browser
     const formatThaiDate = (isoDate) => {
         if (!isoDate) return '';
@@ -122,22 +79,17 @@ const ShiftForm = () => {
         setThaiDate(formatThaiDate(newDate));
     };
 
+    // ปรับปรุงฟังก์ชัน calculateTotals
     const calculateTotals = () => {
         const totals = Object.values(formData.wards).reduce((acc, ward) => {
             Object.keys(ward).forEach(key => {
-                const value = parseInt(ward[key]) || 0;
-                // ถ้าทุกค่าเป็นค่าว่าง ให้ acc[key] เป็นค่าว่าง
-                if (value === 0 && acc[key] === 0) {
-                    acc[key] = '';
-                } else {
+                if (key !== 'remarks') {  // ไม่รวมช่องหมายเหตุในการคำนวณ
+                    const value = parseInt(ward[key]) || 0;
                     acc[key] = (parseInt(acc[key]) || 0) + value;
                 }
             });
             return acc;
-        }, {
-            numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-            newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
-        });
+        }, { ...initialWardData });
         setFormData(prev => ({ ...prev, totals }));
     };
 
@@ -748,7 +700,7 @@ const ShiftForm = () => {
                 </div>
 
                 {/* 24 Hour Summary Section - Mobile */}
-                <div className="bg-white rounded-lg shadow-lg p-4 mt-6">
+                <div className="bg-white rounded-lg shadow-lg p-4 mt-2">
                     <h4 className="font-medium text-black text-center mb-4">ข้อมูลสรุป 24 ชั่วโมง</h4>
                     <div className="grid grid-cols-1 gap-4">
                         {[
