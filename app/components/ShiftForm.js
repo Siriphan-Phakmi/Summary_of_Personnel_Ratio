@@ -95,7 +95,7 @@ const ShiftForm = () => {
 
     const validateForm = () => {
         if (!formData.date || !formData.shift) {
-            alert('กรุณากรอกวันที่และกะงาน');
+            alert('กรุณาเลือกวันที่และกะงาน');
             return false;
         }
         const hasData = Object.values(formData.wards).some(ward =>
@@ -105,6 +105,11 @@ const ShiftForm = () => {
             alert('กรุณากรอกข้อมูลอย่างน้อย 1 Ward');
             return false;
         }
+        if (!summaryData.supervisorName.trim()) {
+            alert('กรุณาลงชื่อผู้ตรวจการก่อนบันทึกข้อมูล');
+            return false;
+        }
+
         return true;
     };
 
@@ -148,7 +153,7 @@ const ShiftForm = () => {
             };
 
             await addDoc(collection(db, 'staffRecords'), dataToSubmit);
-            
+
             // รีเซ็ตข้อมูลทั้งหมด
             setFormData({
                 date: '',
@@ -169,7 +174,7 @@ const ShiftForm = () => {
                 },
                 totals: { ...initialWardData }
             });
-            
+
             setSummaryData({
                 opdTotal24hr: '',
                 existingPatients: '',
@@ -177,7 +182,7 @@ const ShiftForm = () => {
                 admissions24hr: '',
                 supervisorName: ''
             });
-            
+
             alert('บันทึกข้อมูลสำเร็จ');
         } catch (error) {
             console.error('Error:', error);
@@ -230,7 +235,7 @@ const ShiftForm = () => {
 
     return (
 
-        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-4 text-center">
+        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-2 text-center">
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
                 <h1 className="text-2xl font-semibold text-[#0ab4ab] mb-6">
@@ -255,7 +260,7 @@ const ShiftForm = () => {
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                         <div className="flex gap-4 justify-center">
                             <div className="flex gap-4">
-    
+
                                 {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
                                     <label
                                         key={shiftTime}
