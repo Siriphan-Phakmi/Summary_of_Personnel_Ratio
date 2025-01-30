@@ -148,9 +148,28 @@ const ShiftForm = () => {
             };
 
             await addDoc(collection(db, 'staffRecords'), dataToSubmit);
-            alert('บันทึกข้อมูลสำเร็จ');
-            resetForm();
-            // Reset summaryData after successful submission
+            
+            // รีเซ็ตข้อมูลทั้งหมด
+            setFormData({
+                date: '',
+                shift: '',
+                wards: {
+                    Ward6: { ...initialWardData },
+                    Ward7: { ...initialWardData },
+                    Ward8: { ...initialWardData },
+                    Ward9: { ...initialWardData },
+                    WardGI: { ...initialWardData },
+                    Ward10B: { ...initialWardData },
+                    Ward11: { ...initialWardData },
+                    Ward12: { ...initialWardData },
+                    ICU: { ...initialWardData },
+                    CCU: { ...initialWardData },
+                    LR: { ...initialWardData },
+                    NSY: { ...initialWardData }
+                },
+                totals: { ...initialWardData }
+            });
+            
             setSummaryData({
                 opdTotal24hr: '',
                 existingPatients: '',
@@ -158,6 +177,8 @@ const ShiftForm = () => {
                 admissions24hr: '',
                 supervisorName: ''
             });
+            
+            alert('บันทึกข้อมูลสำเร็จ');
         } catch (error) {
             console.error('Error:', error);
             alert(`เกิดข้อผิดพลาด: ${error.message}`);
@@ -488,25 +509,59 @@ const ShiftForm = () => {
                                 </td>
                             </tr>
                         ))}
-                        <tr>
-                            <td className="border border-gray-200 text-center text-black p-2">Total</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.numberOfPatients}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.manager}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.RN}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.PN}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.NA}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.admin}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.newAdmissions}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.transfers}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.referIn}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.referOut}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.discharge}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.deaths}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.currentPatients}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.availableBeds}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.plannedDischarge}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.maintainanceRooms}</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">{formData.totals.remarks}</td>
+                        <tr className="bg-gray-50">
+                            <td className="border border-gray-200 text-center text-black p-2 font-semibold">Total</td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.manager > 0 ? formData.totals.manager : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.RN > 0 ? formData.totals.RN : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.PN > 0 ? formData.totals.PN : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.NA > 0 ? formData.totals.NA : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.admin > 0 ? formData.totals.admin : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.newAdmissions > 0 ? formData.totals.newAdmissions : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.transfers > 0 ? formData.totals.transfers : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.referIn > 0 ? formData.totals.referIn : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.referOut > 0 ? formData.totals.referOut : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.discharge > 0 ? formData.totals.discharge : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.deaths > 0 ? formData.totals.deaths : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.currentPatients > 0 ? formData.totals.currentPatients : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.maintainanceRooms > 0 ? formData.totals.maintainanceRooms : '-'}
+                            </td>
+                            <td className="border border-gray-200 p-2 text-center text-black">
+                                {formData.totals.remarks ? formData.totals.remarks : '-'}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
