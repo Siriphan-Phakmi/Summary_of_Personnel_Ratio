@@ -12,6 +12,8 @@ const Dashboard = () => {
     const [totalPatients, setTotalPatients] = useState(0);
     const [wardData, setWardData] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
+    const [recordedDate, setRecordedDate] = useState('');
+    const [recordedTime, setRecordedTime] = useState('');
 
     // สีสำหรับกราฟ
     const colors = {
@@ -61,6 +63,8 @@ const Dashboard = () => {
                 setWardData(wards);
                 setTotalPatients(wards.reduce((sum, ward) => sum + ward.patients, 0));
                 setSelectedDate(data.date);
+                setRecordedDate(data.recordedDate);
+                setRecordedTime(data.recordedTime);
             }
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -118,9 +122,15 @@ const Dashboard = () => {
                     <h1 className="text-2xl font-semibold text-gray-800">
                         รายงานยอดผู้ป่วยประจำวัน
                     </h1>
-                    <div className="text-lg">
-                        <span className="font-medium">วันที่: </span>
-                        <span>{selectedDate}</span>
+                    <div className="text-lg space-y-1">
+                        <div>
+                            <span className="font-medium">วันที่: </span>
+                            <span>{selectedDate}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                            <span className="font-medium">บันทึกเมื่อ: </span>
+                            <span>{recordedDate} {recordedTime}</span>
+                        </div>
                     </div>
                 </div>
 

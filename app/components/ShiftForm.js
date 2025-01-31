@@ -145,11 +145,26 @@ const ShiftForm = () => {
 
         setIsLoading(true);
         try {
-            // Include summaryData in the submission
+            // เพิ่มเวลาปัจจุบันในรูปแบบที่อ่านได้
+            const now = new Date();
+            const formattedTime = now.toLocaleTimeString('th-TH', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+
+            // Include summaryData and time in the submission
             const dataToSubmit = {
                 ...formData,
                 summaryData,
-                timestamp: serverTimestamp()
+                timestamp: serverTimestamp(),
+                recordedTime: formattedTime, // เวลาที่บันทึก
+                recordedDate: now.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                })
             };
 
             await addDoc(collection(db, 'staffRecords'), dataToSubmit);

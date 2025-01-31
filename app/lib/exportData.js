@@ -16,6 +16,8 @@ export function formatDataForExcel(records) {
     const flattenedData = records.flatMap(record =>
         Object.entries(record.wards).map(([ward, data]) => ({
             'วันที่': record.date,
+            'เวลาที่บันทึก': record.recordedTime || '',
+            'วันที่บันทึก': record.recordedDate || '',
             'กะ': record.shift,
             'วอร์ด': ward,
             'จำนวนผู้ป่วย': data.numberOfPatients,
