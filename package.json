@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "next build && firebase deploy --only hosting"
+    "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.4.0",
