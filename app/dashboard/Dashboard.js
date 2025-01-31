@@ -16,7 +16,17 @@ const Dashboard = () => {
     const [recordedTime, setRecordedTime] = useState('');
     const [currentPatients, setCurrentPatients] = useState({
         total: 0,
-        byWard: {}
+        byWard: {},
+        summaryData: {
+            opdTotal24hr: 0,
+            existingPatients: 0,
+            newPatients: 0,
+            admissions24hr: 0
+        },
+        calculations: {
+            admissionRate: 0,
+            conversionRatio: 0
+        }
     });
 
     // เพิ่ม state สำหรับตัวกรอง
@@ -63,6 +73,20 @@ const Dashboard = () => {
         ]
     };
 
+    // Calculate rates and ratios
+    const calculateRates = (currentTotal, summaryData) => {
+        const { opdTotal24hr } = summaryData;
+        
+        // Prevent division by zero
+        const admissionRate = opdTotal24hr ? ((currentTotal * 100) / opdTotal24hr).toFixed(2) : 0;
+        const conversionRatio = currentTotal ? (opdTotal24hr / currentTotal).toFixed(2) : 0;
+
+        return {
+            admissionRate,
+            conversionRatio
+        };
+    };
+
     // โหลดข้อมูลจาก Firebase
     const fetchAllData = async () => {
         try {
@@ -80,7 +104,13 @@ const Dashboard = () => {
                     timestamp: data.timestamp?.toDate() || new Date(),
                     recordedDate: data.recordedDate || '',
                     recordedTime: data.recordedTime || '',
-                    wards: data.wards || {}
+                    wards: data.wards || {},
+                    summaryData: data.summaryData || {
+                        opdTotal24hr: 0,
+                        existingPatients: 0,
+                        newPatients: 0,
+                        admissions24hr: 0
+                    }
                 };
             });
 
@@ -152,7 +182,7 @@ const Dashboard = () => {
             console.log('Wards to show:', wardsToShow); // เพิ่ม log เพื่อดูข้อมูล ward
 
             // Calculate current patients
-            calculateCurrentPatients(wardsToShow);
+            calculateCurrentPatients(wardsToShow, data.summaryData || {});
 
             const wards = Object.entries(wardsToShow).map(([name, ward]) => ({
                 name,
@@ -184,24 +214,25 @@ const Dashboard = () => {
             setSelectedDate('');
             setRecordedDate('');
             setRecordedTime('');
-            setCurrentPatients({ total: 0, byWard: {} });
+            setCurrentPatients({
+                total: 0,
+                byWard: {},
+                summaryData: {
+                    opdTotal24hr: 0,
+                    existingPatients: 0,
+                    newPatients: 0,
+                    admissions24hr: 0
+                },
+                calculations: {
+                    admissionRate: 0,
+                    conversionRatio: 0
+                }
+            });
         }
     };
 
-    // คำนวณผลรวมของข้อมูล
-    const calculateTotals = (wards) => {
-        return wards.reduce((totals, ward) => {
-            return {
-                patients: (totals.patients || 0) + (ward.patients || 0),
-                RN: (totals.RN || 0) + (ward.RN || 0),
-                PN: (totals.PN || 0) + (ward.PN || 0),
-                NA: (totals.NA || 0) + (ward.NA || 0)
-            };
-        }, {});
-    };
-
     // Calculate current patients when filtered data changes
-    const calculateCurrentPatients = (wards) => {
+    const calculateCurrentPatients = (wards, summaryData = {}) => {
         const byWard = {};
         let total = 0;
 
@@ -219,7 +250,27 @@ const Dashboard = () => {
             total += current;
         });
 
-        setCurrentPatients({ total, byWard });
+        // Calculate rates
+        const rates = calculateRates(total, summaryData);
+
+        setCurrentPatients({
+            total,
+            byWard,
+            summaryData,
+            calculations: rates
+        });
+    };
+
+    // คำนวณผลรวมของข้อมูล
+    const calculateTotals = (wards) => {
+        return wards.reduce((totals, ward) => {
+            return {
+                patients: (totals.patients || 0) + (ward.patients || 0),
+                RN: (totals.RN || 0) + (ward.RN || 0),
+                PN: (totals.PN || 0) + (ward.PN || 0),
+                NA: (totals.NA || 0) + (ward.NA || 0)
+            };
+        }, {});
     };
 
     // โหลดข้อมูลเมื่อเริ่มต้น
@@ -273,182 +324,127 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Current Patients Summary Card */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Total Current Patients */}
-                    <div className="bg-gradient-to-br from-[#0ab4ab]/10 to-white rounded-lg p-6 shadow-md">
-                        <h3 className="text-xl font-semibold text-[#0ab4ab] mb-2">จำนวนผู้ป่วยทั้งหมด</h3>
-                        <div className="text-4xl font-bold text-gray-800">{currentPatients.total}</div>
-                        <div className="text-sm text-gray-600 mt-2">
-                            {recordedDate && recordedTime ? `อัพเดทล่าสุด: ${recordedDate} ${recordedTime}` : 'ไม่มีข้อมูล'}
-                        </div>
+        <div className="p-4">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold mb-4 text-gray-800">Dashboard</h1>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    {/* Summary Cards */}
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คงพยาบาล (จำนวนผู้ป่วย)</h3>
+                        <p className="text-3xl font-bold text-blue-600">{currentPatients.total}</p>
                     </div>
-
-                    {/* Ward-wise Current Patients */}
-                    <div className="bg-white rounded-lg p-6 shadow-md">
-                        <h3 className="text-xl font-semibold text-[#0ab4ab] mb-4">จำนวนผู้ป่วยแยกตามวอร์ด</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {Object.entries(currentPatients.byWard).map(([ward, count]) => (
-                                <div key={ward} className="text-center p-2 bg-gray-50 rounded">
-                                    <div className="font-semibold text-gray-700">{ward}</div>
-                                    <div className="text-2xl font-bold text-[#0ab4ab]">{count}</div>
-                                </div>
-                            ))}
-                        </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 ชั่วโมง</h3>
+                        <p className="text-3xl font-bold text-green-600">{currentPatients.summaryData.opdTotal24hr}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Admission Rate</h3>
+                        <p className="text-3xl font-bold text-purple-600">{currentPatients.calculations.admissionRate}%</p>
+                        <p className="text-sm text-gray-600">คงพยาบาล x 100 / OPD 24hr</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Conversion Ratio</h3>
+                        <p className="text-3xl font-bold text-orange-600">{currentPatients.calculations.conversionRatio}</p>
+                        <p className="text-sm text-gray-600">OPD 24hr / คงพยาบาล</p>
                     </div>
                 </div>
-            </div>
 
-            {/* Existing filter controls */}
-            <div className="max-w-7xl mx-auto p-4">
-                <div className="bg-gradient-to-b from-pink-200 to-white rounded-lg shadow-lg p-6 mb-6">
-                    {/* ส่วนตัวกรอง */}
-                    <div className="mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">วันที่</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 text-black focus:ring-blue-500"
-                                value={filters.date}
-                                onChange={(e) => setFilters(prev => ({ ...prev, date: e.target.value }))}
+                {/* Additional Summary Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คนไข้เก่า</h3>
+                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.existingPatients}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คนไข้ใหม่</h3>
+                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.newPatients}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Admit 24 ชั่วโมง</h3>
+                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.admissions24hr}</p>
+                    </div>
+                </div>
+
+                {/* Ward-wise Breakdown */}
+                <div className="bg-white p-6 rounded-lg shadow-md mb-8">
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">คงพยาบาล (จำนวนผู้ป่วย) แยกตาม Ward</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {Object.entries(currentPatients.byWard).map(([ward, count]) => (
+                            <button
+                                key={ward}
+                                onClick={() => setFilters(prev => ({ ...prev, ward }))}
+                                className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                             >
-                                <option value="">ทั้งหมด</option>
-                                {availableDates.map(date => (
-                                    <option key={date} value={date}>{date}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">กะ</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 text-black focus:ring-blue-500"
-                                value={filters.shift}
-                                onChange={(e) => setFilters(prev => ({ ...prev, shift: e.target.value }))}
-                            >
-                                <option value="">ทั้งหมด</option>
-                                <option value="07:00-19:00">เช้า (07:00-19:00)</option>
-                                <option value="19:00-07:00">ดึก (19:00-07:00)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">แผนก</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 text-black focus:ring-blue-500"
-                                value={filters.ward}
-                                onChange={(e) => setFilters(prev => ({ ...prev, ward: e.target.value }))}
-                            >
-                                <option value="">ทั้งหมด</option>
-                                {wardList.map(ward => (
-                                    <option key={ward} value={ward}>{ward}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">เวลาเริ่มต้น</label>
-                            <input
-                                type="time"
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 text-black focus:ring-blue-500"
-                                value={filters.startTime}
-                                onChange={(e) => setFilters(prev => ({ ...prev, startTime: e.target.value }))}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">เวลาสิ้นสุด</label>
-                            <input
-                                type="time"
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 text-black focus:ring-blue-500"
-                                value={filters.endTime}
-                                onChange={(e) => setFilters(prev => ({ ...prev, endTime: e.target.value }))}
-                            />
-                        </div>
+                                <h3 className="font-semibold text-lg text-gray-800">{ward}</h3>
+                                <p className="text-2xl font-bold text-blue-600">{count}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Last Update Time */}
+                <div className="text-sm text-gray-600 mb-4">
+                    Last updated: {recordedDate} {recordedTime}
+                </div>
+
+                {/* Charts and Graphs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Pie Chart */}
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h2 className="text-lg font-bold mb-4 text-gray-800">ห้องว่าง</h2>
+                        <Pie data={pieData} />
                     </div>
 
-                    <div className="flex justify-between items-center mb-6">
-                        <h1 className="text-2xl font-semibold text-gray-800">
-                            รายงานยอดผู้ป่วยประจำวัน
-                        </h1>
-                        <div className="text-lg space-y-1">
-                            <div>
-                                <span className="font-medium text-black">วันที่: </span>
-                                <span className="text-black">{selectedDate}</span>
-                            </div>
-                            <div className="text-sm text-gray-600">
-                                <span className="font-medium">บันทึกเมื่อ: </span>
-                                <span>{recordedDate} {recordedTime}</span>
-                            </div>
-                        </div>
+                    {/* Bar Chart */}
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h2 className="text-lg font-bold mb-4 text-gray-800">สถิติแยกตาม Ward</h2>
+                        <Bar options={barOptions} data={barData} />
                     </div>
+                </div>
 
-                    {/* แสดงจำนวนผู้ป่วยทั้งหมด */}
-                    <div className="bg-blue-100 rounded-xl p-4 mb-6">
-                        <div className="text-center">
-                            <span className="text-xl font-semibold text-black">Total</span>
-                            <div className="text-4xl font-bold text-blue-600">
-                                {totalPatients}
-                            </div>
-                            <span className="text-gray-600">ไม่มีข้อมูล</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Pie Chart */}
-                        <div className="bg-white p-4 rounded-lg shadow">
-                            <h2 className="text-lg text-black font-semibold mb-4">ห้องว่าง</h2>
-                            <Pie data={pieData} />
-                        </div>
-
-                        {/* Bar Chart */}
-                        <div className="bg-white p-4 rounded-lg shadow">
-                            <Bar options={barOptions} data={barData} />
-                        </div>
-                    </div>
-
-                    {/* ตารางแสดงข้อมูล */}
-                    <div className="mt-6 overflow-x-auto">
-                        <table className="min-w-full bg-white">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Ward
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        คงพยาบาล
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        RN
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        PN
-                                    </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        NA
-                                    </th>
+                {/* Table */}
+                <div className="mt-6 overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                    Ward
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                    คงพยาบาล
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                    RN
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                    PN
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                    NA
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {wardData.map((ward, index) => (
+                                <tr key={index} className="text-gray-800">
+                                    <td className="px-6 py-4 whitespace-nowrap">{ward.name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{ward.patients}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{ward.RN}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{ward.PN}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{ward.NA}</td>
                                 </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200 text-black">
-                                {wardData.map((ward, index) => (
-                                    <tr key={index}>
-                                        <td className="px-6 py-4 whitespace-nowrap">{ward.name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{ward.patients}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{ward.RN}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{ward.PN}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{ward.NA}</td>
-                                    </tr>
-                                ))}
-                                {/* แถวผลรวม */}
-                                {wardData.length > 0 && (
-                                    <tr className="bg-gray-50 font-semibold">
-                                        <td className="px-6 py-4 whitespace-nowrap">Total</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).patients}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).RN}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).PN}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).NA}</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                            ))}
+                            {wardData.length > 0 && (
+                                <tr className="bg-gray-50 font-semibold text-gray-800">
+                                    <td className="px-6 py-4 whitespace-nowrap">Total</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).patients}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).RN}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).PN}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).NA}</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
