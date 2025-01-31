@@ -9,31 +9,27 @@ export default function Home() {
   return (
     <div>
       {/* Navigation */}
-      <nav className="bg-white shadow-lg mb-4">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-between h-16">
-            <div className="flex space-x-4 items-center">
-              <button
-                onClick={() => setCurrentPage('form')}
-                className={`px-4 py-2 rounded-md ${
-                  currentPage === 'form'
-                    ? 'bg-pink-200 text-gray-800'
-                    : 'text-gray-600 hover:bg-gray-100'
+      <nav className="bg-[#0ab4ab] p-4">
+        <div className="container mx-auto">
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => setCurrentPage('form')}
+              className={`px-4 py-2 rounded-lg ${currentPage === 'form'
+                ? 'bg-white text-[#0ab4ab]'
+                : 'text-white hover:bg-[#0ab4ab]/80'
                 }`}
-              >
-                บันทึกข้อมูล
-              </button>
-              <button
-                onClick={() => setCurrentPage('dashboard')}
-                className={`px-4 py-2 rounded-md ${
-                  currentPage === 'dashboard'
-                    ? 'bg-pink-200 text-gray-800'
-                    : 'text-gray-600 hover:bg-gray-100'
+            >
+              บันทึกข้อมูล
+            </button>
+            <button
+              onClick={() => setCurrentPage('dashboard')}
+              className={`px-4 py-2 rounded-lg ${currentPage === 'dashboard'
+                ? 'bg-white text-[#0ab4ab]'
+                : 'text-white hover:bg-[#0ab4ab]/80'
                 }`}
-              >
-                Dashboard
-              </button>
-            </div>
+            >
+              Dashboard
+            </button>
           </div>
         </div>
       </nav>

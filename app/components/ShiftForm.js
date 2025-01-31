@@ -22,7 +22,7 @@ const ShiftForm = () => {
     const initialWardData = {
         numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
         newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-        currentPatients: '', availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
+        availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
     };
 
     // ปรับปรุง formData state
@@ -114,27 +114,45 @@ const ShiftForm = () => {
     };
 
     const resetForm = () => {
-        // Add confirmation dialog
-        if (!confirm('คุณต้องการล้างข้อมูลทั้งหมดใช่หรือไม่?')) {
-            return; // If user clicks Cancel, exit the function
+        // Check if there's any data in the form
+        const hasWardData = Object.values(formData.wards).some(ward =>
+            Object.values(ward).some(value => value !== '')
+        );
+
+        const hasSummaryData = Object.values(summaryData).some(value => value !== '');
+
+        const hasAnyData = hasWardData || hasSummaryData || formData.date !== '' || formData.shift !== '';
+
+        if (!hasAnyData) {
+            alert('ไม่มีข้อมูลให้เคลียร์');
+            return;
         }
 
+        // Show confirmation dialog if there is data
+        if (!confirm('คุณต้องการล้างข้อมูลทั้งหมดใช่หรือไม่?')) {
+            return;
+        }
+
+        // Reset all form data
         setFormData({
             date: '',
             shift: '',
             wards: Object.fromEntries(
                 Object.keys(formData.wards).map(ward => [
                     ward,
-                    {
-                        numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                        newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
-                    }
+                    { ...initialWardData }
                 ])
             ),
-            totals: {
-                numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-                newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: ''
-            }
+            totals: { ...initialWardData }
+        });
+
+        // Reset summary data
+        setSummaryData({
+            opdTotal24hr: '',
+            existingPatients: '',
+            newPatients: '',
+            admissions24hr: '',
+            supervisorName: ''
         });
     };
 
@@ -213,9 +231,22 @@ const ShiftForm = () => {
             Object.entries(data).map(([key, value]) => [
                 key,
                 // Special handling for remarks field
-                key === 'remarks' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0))
+                key === 'remarks' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0).toString())
             ])
         );
+
+        // Calculate currentPatients based on the formula
+        const numberOfPatients = parseInt(sanitizedData.numberOfPatients) || 0;
+        const newAdmissions = parseInt(sanitizedData.newAdmissions) || 0;
+        const referIn = parseInt(sanitizedData.referIn) || 0;
+        const transfers = parseInt(sanitizedData.transfers) || 0;
+        const referOut = parseInt(sanitizedData.referOut) || 0;
+        const discharge = parseInt(sanitizedData.discharge) || 0;
+        const deaths = parseInt(sanitizedData.deaths) || 0;
+
+        // จำนวนผู้ป่วย + รับใหม่ + Refer In + รับย้าย - Refer Out - กลับบ้าน - เสียชีวิต
+        sanitizedData.currentPatients = (numberOfPatients + newAdmissions + referIn + transfers - referOut - discharge - deaths).toString();
+
         setFormData(prev => ({
             ...prev,
             wards: {
@@ -308,18 +339,21 @@ const ShiftForm = () => {
                             <th rowSpan="2" className="border  p-3">Ward</th>
                             <th rowSpan="2" className="border p-3">
                                 <div className="whitespace-nowrap">คงพยาบาล</div>
-                                <div className="whitespace-nowrap text-xs">(จำนวนผู้ป่วย)</div>
                             </th>
                             <th colSpan="5" className="border  p-3">อัตรากำลัง</th>
                             <th colSpan="6" className="border  p-3">จำนวนผู้ป่วย</th>
                             <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">คงพยาบาล</div>
-                                <div className="whitespace-nowrap text-xs">(จำนวนผู้ป่วย)</div>
+                                <div className="whitespace-nowrap">ห้องว่าง</div>
                             </th>
-                            <th rowSpan="2" className="border  p-3">ห้องว่าง</th>
-                            <th rowSpan="2" className="border  p-3">Plan D/C</th>
-                            <th rowSpan="2" className="border  p-3">ห้องชำรุด</th>
-                            <th rowSpan="2" className="border  p-10">หมายเหตุ</th>
+                            <th rowSpan="2" className="border p-3">
+                                <div className="whitespace-nowrap">Plan D/C</div>
+                            </th>
+                            <th rowSpan="2" className="border p-3">
+                                <div className="whitespace-nowrap">ห้องชำรุด</div>
+                            </th>
+                            <th rowSpan="2" className="border p-3">
+                                <div className="whitespace-nowrap">หมายเหตุ</div>
+                            </th>
                         </tr>
                         <tr className="bg-[#0ab4ab] text-white">
                             <th className="border p-3">ผจก.</th>
@@ -476,17 +510,6 @@ const ShiftForm = () => {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.currentPatients}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, currentPatients: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
-                                    />
-                                </td>
-                                <td className="border border-gray-200 p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
                                         value={data.availableBeds}
                                         onChange={(element) =>
                                             handleInputChange('wards', ward, { ...data, availableBeds: element.target.value })
@@ -568,9 +591,6 @@ const ShiftForm = () => {
                                 {formData.totals.deaths > 0 ? formData.totals.deaths : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.currentPatients > 0 ? formData.totals.currentPatients : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
@@ -596,7 +616,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -608,7 +628,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -620,7 +640,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -632,7 +652,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
                                 placeholder="ยอดรวม"
                             />
                         </div>
@@ -648,7 +668,7 @@ const ShiftForm = () => {
                                     type="text"
                                     value={summaryData.supervisorName}
                                     onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] text-black bg-white" /* Changed: Added fixed width */
+                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white" /* Changed: Added fixed width */
                                     placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
                                 />
                             </div>
@@ -672,7 +692,7 @@ const ShiftForm = () => {
                                     {[
                                         {
                                             key: 'numberOfPatients',
-                                            label: 'คงพยาบาล',
+                                            label: 'จำนวนผู้ป่วย',
                                             placeholder: '    จำนวนผู้ป่วย',
                                         },
                                         { key: 'manager', label: 'ผจก.' },
@@ -733,13 +753,13 @@ const ShiftForm = () => {
                                     {[
                                         {
                                             key: 'numberOfPatients',
-                                            label: 'คงพยาบาล',
+                                            label: 'จำนวนผู้ป่วย',
                                             placeholder: '    จำนวนผู้ป่วย',
                                         },
 
-                                        { key: 'availableBeds', label: 'ห้องว่าง' },
+                                        { key: 'availableBeds', label: 'เตียงว่าง' },
                                         { key: 'plannedDischarge', label: 'Plan D/C' },
-                                        { key: 'maintainanceRooms', label: 'ห้องชำรุด' }
+                                        { key: 'maintainanceRooms', label: 'ห้องแยก' }
                                     ].map((field) => (
                                         <div key={field.key} className="text-center">
                                             <label className="block text-sm">{field.label}</label>
@@ -855,4 +875,4 @@ const ShiftForm = () => {
     );
 };
 
-export default ShiftForm; //ส่ง ShiftForm ออกไปใช้งาน
+export default ShiftForm; 
