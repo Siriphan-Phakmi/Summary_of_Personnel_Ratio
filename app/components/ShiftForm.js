@@ -3,11 +3,9 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
-import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../lib/exportData';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
-    const [isExporting, setIsExporting] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [thaiDate, setThaiDate] = useState('');
     const [summaryData, setSummaryData] = useState({
@@ -254,29 +252,6 @@ const ShiftForm = () => {
                 [ward]: sanitizedData
             }
         }));
-    };
-    // สร้างฟังก์ชัน handleExport สำหรับส่งข้อมูลไปยัง Excel
-    const handleExport = async () => {
-        if (!formData.date || !formData.shift) {
-            alert('กรุณาเลือกวันที่และกะงานก่อน Export');
-            return;
-        }
-        setIsExporting(true);
-        try {
-            const records = await fetchStaffRecords();
-            if (records.length === 0) {
-                alert('ไม่พบข้อมูลที่จะส่งออก');
-                return;
-            }
-            const formattedData = formatDataForExcel(records);
-            const fileName = `staff-records-${formData.date}-${formData.shift}`;
-            exportToExcel(formattedData, fileName);
-        } catch (error) {
-            console.error('Export error:', error);
-            alert(`เกิดข้อผิดพลาดในการส่งออกข้อมูล: ${error.message}`);
-        } finally {
-            setIsExporting(false);
-        }
     };
 
     return (
@@ -861,14 +836,6 @@ const ShiftForm = () => {
                     className="bg-red-500 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
                     {isLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
-                </button>
-                {/* ปุ่มส่งออกไปยัง Excel */}
-                <button
-                    onClick={handleExport}
-                    disabled={isExporting}
-                    className="bg-teal-500 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
-                >
-                    {isExporting ? 'กำลัง Export...' : 'Export to Excel'}
                 </button>
             </div>
         </form >
