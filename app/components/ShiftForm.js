@@ -23,15 +23,16 @@ const ShiftForm = () => {
         RN: '', 
         PN: '', 
         WC: '', 
-        newCase: '', 
+        newAdmit: '', 
         transferIn: '', 
         referIn: '', 
+        transferOut: '', 
         referOut: '', 
-        planDC: '', 
+        discharge: '', 
         dead: '', 
         availableBeds: '', 
         plannedDischarge: '', 
-        unavailable: '', // แก้ไขตัวแปร maintainanceRooms เป็น unavailable
+        unavailable: '', 
         comment: ''
     };
 
@@ -247,15 +248,16 @@ const ShiftForm = () => {
 
         // Calculate currentPatients based on the formula
         const numberOfPatients = parseInt(sanitizedData.numberOfPatients) || 0;
-        const newCase = parseInt(sanitizedData.newCase) || 0;
-        const referIn = parseInt(sanitizedData.referIn) || 0;
+        const newAdmit = parseInt(sanitizedData.newAdmit) || 0;
         const transferIn = parseInt(sanitizedData.transferIn) || 0;
+        const referIn = parseInt(sanitizedData.referIn) || 0;
+        const transferOut = parseInt(sanitizedData.transferOut) || 0;
         const referOut = parseInt(sanitizedData.referOut) || 0;
-        const planDC = parseInt(sanitizedData.planDC) || 0;
+        const discharge = parseInt(sanitizedData.discharge) || 0;
         const dead = parseInt(sanitizedData.dead) || 0;
 
         // จำนวนผู้ป่วย + รับใหม่ + Refer In + รับย้าย - Refer Out - กลับบ้าน - เสียชีวิต
-        sanitizedData.currentPatients = (numberOfPatients + newCase + referIn + transferIn - referOut - planDC - dead).toString();
+        sanitizedData.currentPatients = (numberOfPatients + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead).toString();
 
         setFormData(prev => ({
             ...prev,
@@ -268,10 +270,10 @@ const ShiftForm = () => {
 
     return (
 
-        <form onSubmit={handleSubmit} className="max-w-7xl mx-auto p-2 text-center">
+        <form onSubmit={handleSubmit} className="max-w-[1400px] mx-auto p-2">
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
-                <h1 className="text-2xl font-semibold text-[#0ab4ab] mb-6">
+                <h1 className="text-2xl text-center font-semibold text-[#0ab4ab] mb-6">
                     Daily Patient Census and Staffing
                 </h1>
                 {/*ส่วนของวันที่และกะงาน*/}
@@ -324,224 +326,239 @@ const ShiftForm = () => {
                 </div>
             </div>
 
-            {/* Desktop View - Table */}
-            <div className="hidden md:block w-full max-w-screen-xl mx-auto overflow-x-auto mt-4">
-                <table className="w-full bg-white rounded-lg overflow-hidden shadow-lg">
-                    <thead>
-                        <tr className="bg-[#0ab4ab] text-white">
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Ward</th>
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
-                            <th colSpan="4" className="border p-2 text-center whitespace-nowrap">Staff</th>
-                            <th colSpan="6" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
-                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap w-40">Comment</th>
-                        </tr>
-                        <tr className="bg-[#0ab4ab] text-white text-sm">
-                            <th className="border p-2 text-center whitespace-nowrap">Nurse Manager</th>
-                            <th className="border p-2 text-center whitespace-nowrap">RN</th>
-                            <th className="border p-2 text-center whitespace-nowrap">PN</th>
-                            <th className="border p-2 text-center whitespace-nowrap">WC</th>
-                            <th className="border p-2 text-center whitespace-nowrap">New Case</th>
-                            <th className="border p-2 text-center whitespace-nowrap">Refer In</th>
-                            <th className="border p-2 text-center whitespace-nowrap">Transfer In</th>
-                            <th className="border p-2 text-center whitespace-nowrap">Refer Out</th>
-                            <th className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
-                            <th className="border p-2 text-center whitespace-nowrap">Dead</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {Object.entries(formData.wards).map(([ward, data]) => (
-                            <tr key={ward} className="border-b hover:bg-gray-50">
-                                <td className="border p-2 text-black text-center">{ward}</td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.numberOfPatients}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+            {/* Desktop View */}
+            <div className="hidden md:block">
+                <div className="lg:max-w-[1920px] md:max-w-full mx-auto flex justify-center">
+                    <table className="w-full table-auto border-collapse border border-gray-200 text-sm shadow-lg">
+                        <thead>
+                            <tr className="bg-[#0ab4ab] text-white">
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Ward</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
+                                <th colSpan="4" className="border p-2 text-center whitespace-nowrap">Staff</th>
+                                <th colSpan="7" className="border p-2 text-center whitespace-nowrap">Patient Movement</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Comment</th>
+                            </tr>
+                            <tr className="bg-[#0ab4ab] text-white text-sm">
+                                <th className="border p-2 text-center whitespace-nowrap">Nurse Manager</th>
+                                <th className="border p-2 text-center whitespace-nowrap">RN</th>
+                                <th className="border p-2 text-center whitespace-nowrap">PN</th>
+                                <th className="border p-2 text-center whitespace-nowrap">WC</th>
+                                <th className="border p-2 text-center whitespace-nowrap">New Admit</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Transfer In</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Refer In</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Transfer Out</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Refer Out</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Discharge</th>
+                                <th className="border p-2 text-center whitespace-nowrap">Dead</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(formData.wards).map(([ward, data]) => (
+                                <tr key={ward} className="border-b hover:bg-gray-50">
+                                    <td className="border border-gray-200 text-center text-black p-2">{ward}</td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.numberOfPatients}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2 min-w-[80px]">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.nurseManager}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2 min-w-[80px]">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.RN}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2 min-w-[80px]">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.PN}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2 min-w-[80px]">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.WC}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.transferOut}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, transferOut: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.referOut}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.discharge}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.dead}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.newAdmit}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.transferIn}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.referIn}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.availableBeds}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.plannedDischarge}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.unavailable}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="text"
+                                            value={data.comment}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            placeholder="Comment"
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr className="bg-gray-50">
+                                <td className="border border-gray-200 text-center text-black p-2 font-semibold">Total</td>
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.nurseManager}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.nurseManager > 0 ? formData.totals.nurseManager : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.RN}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.RN > 0 ? formData.totals.RN : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.PN}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.PN > 0 ? formData.totals.PN : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.WC}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.WC > 0 ? formData.totals.WC : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.newCase}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newCase: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.transferOut > 0 ? formData.totals.transferOut : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.transferIn}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.referOut > 0 ? formData.totals.referOut : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.referIn}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.discharge > 0 ? formData.totals.discharge : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.referOut}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.dead > 0 ? formData.totals.dead : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.planDC}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, planDC: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.newAdmit > 0 ? formData.totals.newAdmit : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.dead}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.transferIn > 0 ? formData.totals.transferIn : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.availableBeds}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.referIn > 0 ? formData.totals.referIn : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.plannedDischarge}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.unavailable}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : '-'}
                                 </td>
-                                <td className="border p-2">
-                                    <input
-                                        type="text"
-                                        value={data.comment}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        placeholder="Comment"
-                                    />
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.unavailable > 0 ? formData.totals.unavailable : '-'}
+                                </td>
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.comment ? formData.totals.comment : '-'}
                                 </td>
                             </tr>
-                        ))}
-                        <tr className="bg-gray-50">
-                            <td className="border border-gray-200 text-center text-black p-2 font-semibold">Total</td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.nurseManager > 0 ? formData.totals.nurseManager : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.RN > 0 ? formData.totals.RN : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.PN > 0 ? formData.totals.PN : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.WC > 0 ? formData.totals.WC : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.newCase > 0 ? formData.totals.newCase : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.transferIn > 0 ? formData.totals.transferIn : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.referIn > 0 ? formData.totals.referIn : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.referOut > 0 ? formData.totals.referOut : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.planDC > 0 ? formData.totals.planDC : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.dead > 0 ? formData.totals.dead : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.unavailable > 0 ? formData.totals.unavailable : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.comment ? formData.totals.comment : '-'}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
                 {/*ส่วนของข้อมูลสรุป 24 ชั่วโมง*/}
                 <div className="mt-8 mb-4">
                     <h3 className="text-xl font-semibold mb-4 text-center text-black">24-hour Summary</h3>
@@ -553,7 +570,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="p-2 border rounded text-center text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -563,7 +580,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="p-2 border rounded text-center text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -573,7 +590,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="p-2 border rounded text-center text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -583,7 +600,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="p-2 border rounded text-center text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
                             />
                         </div>
                     </div>
@@ -678,17 +695,61 @@ const ShiftForm = () => {
                             {/* Patient Movement */}
                             <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
                                 <div>
-                                    <label className="block text-gray-600">New Case</label>
+                                    <label className="block text-gray-600">Transfer Out</label>
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.newCase}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newCase: e.target.value })}
+                                        value={data.transferOut}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferOut: e.target.value })}
                                         className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-600">Transfer</label>
+                                    <label className="block text-gray-600">Refer Out</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.referOut}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                    />
+                                </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                                <div>
+                                    <label className="block text-gray-600">Discharge</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.discharge}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-600">Dead</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.dead}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                    />
+                                </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                                <div>
+                                    <label className="block text-gray-600">New Admit</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.newAdmit}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-600">Transfer In</label>
                                     <input
                                         type="number"
                                         min="0"
@@ -698,7 +759,18 @@ const ShiftForm = () => {
                                     />
                                 </div>
                             </div>
-
+                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                                <div>
+                                    <label className="block text-gray-600">Refer In</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.referIn}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                    />
+                                </div>
+                            </div>
                             {/* Comment */}
                             <div className="mt-2">
                                 <input
