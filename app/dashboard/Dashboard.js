@@ -367,6 +367,25 @@ const Dashboard = () => {
         }, {});
     };
 
+    // เพิ่มฟังก์ชันคำนวณ overall
+    const calculateOverall = (wardData) => {
+        console.log('Ward Data:', wardData);
+        return Object.values(wardData).reduce((total, ward) => {
+            const sum = (
+                Number(ward.numberOfPatients || 0) + 
+                Number(ward.newAdmissions || 0) + 
+                Number(ward.transfers || 0) + 
+                Number(ward.referIn || 0) - 
+                Number(ward.transferOut || 0) - 
+                Number(ward.referOut || 0) - 
+                Number(ward.discharge || 0) - 
+                Number(ward.deaths || 0)
+            );
+            console.log('Ward:', ward, 'Sum:', sum);
+            return total + sum;
+        }, 0);
+    };
+
     // โหลดข้อมูลเมื่อเริ่มต้น
     useEffect(() => {
         fetchAllData();
@@ -579,8 +598,14 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     {/* Summary Cards */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Patient Census</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Current data</h3>
                         <p className="text-3xl font-bold text-blue-600">{currentPatients.total}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Overall data</h3>
+                        <p className="text-3xl font-bold text-blue-600">
+                            {currentPatients?.currentPatients || 0}
+                        </p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 hour</h3>

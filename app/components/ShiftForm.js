@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
@@ -168,37 +168,52 @@ const ShiftForm = () => {
     };
 
     // แก้ไขชื่อฟิลด์ของ collection และเพิ่มเงื่อนไขในฟังก์ชัน handleSubmit
-    const handleSubmit = async (element) => {
-        element.preventDefault();
+    const handleSubmit = async (e) => {
+        e.preventDefault();
         if (!validateForm()) return;
 
         setIsLoading(true);
         try {
-            // เพิ่มเวลาปัจจุบันในรูปแบบที่อ่านได้
             const now = new Date();
             const formattedTime = now.toLocaleTimeString('th-TH', {
                 hour: '2-digit',
                 minute: '2-digit',
-                second: '2-digit',
                 hour12: false
-            });
+            }).replace(':', '');
+            
+            const formattedDate = formData.date.replace(/-/g, '');
+            const docId = `data_${formattedTime}_${formattedDate}`;
 
-            // Include summaryData and time in the submission
-            const dataToSubmit = {
+            // คำนวณ currentPatients สำหรับแต่ละ ward
+            const wardTotals = {};
+            let totalCurrentPatients = 0;
+
+            Object.entries(formData.wards).forEach(([wardName, ward]) => {
+                const wardTotal = 
+                    Number(ward.numberOfPatients || 0) + 
+                    Number(ward.newAdmit || 0) + 
+                    Number(ward.transferIn || 0) + 
+                    Number(ward.referIn || 0) - 
+                    Number(ward.transferOut || 0) - 
+                    Number(ward.referOut || 0) - 
+                    Number(ward.discharge || 0) - 
+                    Number(ward.dead || 0);
+                
+                wardTotals[wardName] = wardTotal;
+                totalCurrentPatients += wardTotal;
+            });
+            
+            // บันทึกข้อมูลพร้อมกับ currentPatients และ wardTotals
+            await setDoc(doc(db, 'staffRecords', docId), {
                 ...formData,
                 summaryData,
                 timestamp: serverTimestamp(),
-                recordedTime: formattedTime, // เวลาที่บันทึก
-                recordedDate: now.toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                })
-            };
+                docId: docId,
+                currentPatients: totalCurrentPatients,
+                wardTotals: wardTotals
+            });
 
-            await addDoc(collection(db, 'staffRecords'), dataToSubmit);
-
-            // รีเซ็ตข้อมูลทั้งหมด
+            // รีเซ็ตฟอร์มหลังจากบันทึกสำเร็จ
             setFormData({
                 date: '',
                 shift: '',
