@@ -106,18 +106,18 @@ const ShiftForm = () => {
 
     const validateForm = () => {
         if (!formData.date || !formData.shift) {
-            alert('กรุณาเลือกวันที่และกะงาน');
+            alert('Please select a date and shift');
             return false;
         }
         const hasData = Object.values(formData.wards).some(ward =>
             Object.values(ward).some(value => value !== '')
         );
         if (!hasData) {
-            alert('กรุณากรอกข้อมูลอย่างน้อย 1 Ward');
+            alert('Please enter data for at least 1 Ward');
             return false;
         }
         if (!summaryData.supervisorName.trim()) {
-            alert('กรุณาลงชื่อผู้ตรวจการก่อนบันทึกข้อมูล');
+            alert('Please sign the supervisor before saving the data');
             return false;
         }
 
@@ -135,12 +135,12 @@ const ShiftForm = () => {
         const hasAnyData = hasWardData || hasSummaryData || formData.date !== '' || formData.shift !== '';
 
         if (!hasAnyData) {
-            alert('ไม่มีข้อมูลให้เคลียร์');
+            alert('No data to clear');
             return;
         }
 
         // Show confirmation dialog if there is data
-        if (!confirm('คุณต้องการล้างข้อมูลทั้งหมดใช่หรือไม่?')) {
+        if (!confirm('Are you sure you want to clear all data?')) {
             return;
         }
 
@@ -227,10 +227,10 @@ const ShiftForm = () => {
                 supervisorName: ''
             });
 
-            alert('บันทึกข้อมูลสำเร็จ');
+            alert('Saved successfully');
         } catch (error) {
             console.error('Error:', error);
-            alert(`เกิดข้อผิดพลาด: ${error.message}`);
+            alert(`Error: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -838,7 +838,7 @@ const ShiftForm = () => {
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                         <div className="bg-white p-6 rounded-lg shadow-lg">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
-                            <p className="mt-2">กำลังบันทึกข้อมูล...</p>
+                            <p className="mt-2">Saving...</p>
                         </div>
                     </div>
                 )
@@ -858,7 +858,7 @@ const ShiftForm = () => {
                     disabled={isLoading}
                     className="bg-red-500 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
                 >
-                    {isLoading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                    {isLoading ? 'Saving...' : 'Save Data'}
                 </button>
             </div>
         </form >

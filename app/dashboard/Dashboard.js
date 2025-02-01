@@ -394,7 +394,7 @@ const Dashboard = () => {
     const barData = {
         labels: wardData.map(ward => ward.name),
         datasets: [{
-            label: 'คงพยาบาล',
+            label: 'Patient Census',
             data: wardData.map(ward => ward.patients),
             backgroundColor: 'rgba(255, 99, 132, 0.5)',
         }]
@@ -408,13 +408,13 @@ const Dashboard = () => {
             },
             title: {
                 display: true,
-                text: 'คงพยาบาล ตามวอร์ด'
+                text: 'Patient Census By Ward',
             }
         }
     };
 
     if (loading) {
-        return <div className="flex justify-center items-center h-screen">กำลังโหลดข้อมูล...</div>;
+        return <div className="flex justify-center items-center h-screen">Loading Data...</div>;
     }
 
     return (
@@ -579,44 +579,44 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     {/* Summary Cards */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คงพยาบาล (จำนวนผู้ป่วย)</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Patient Census</h3>
                         <p className="text-3xl font-bold text-blue-600">{currentPatients.total}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 ชั่วโมง</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 hour</h3>
                         <p className="text-3xl font-bold text-green-600">{currentPatients.summaryData.opdTotal24hr}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Admission Rate</h3>
                         <p className="text-3xl font-bold text-purple-600">{currentPatients.calculations.admissionRate}%</p>
-                        <p className="text-sm text-gray-600">คงพยาบาล x 100 / OPD 24hr</p>
+                        <p className="text-sm text-gray-600">Patient Census x 100 / OPD 24 hour</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Conversion Ratio</h3>
                         <p className="text-3xl font-bold text-orange-600">{currentPatients.calculations.conversionRatio}</p>
-                        <p className="text-sm text-gray-600">OPD 24hr / คงพยาบาล</p>
+                        <p className="text-sm text-gray-600">OPD 24 hour / Patient Census</p>
                     </div>
                 </div>
 
                 {/* Additional Summary Statistics */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คนไข้เก่า</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Old Patient</h3>
                         <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.existingPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">คนไข้ใหม่</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">New Patient</h3>
                         <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.newPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Admit 24 ชั่วโมง</h3>
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Admit 24 hour</h3>
                         <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.admissions24hr}</p>
                     </div>
                 </div>
 
                 {/* Ward-wise Breakdown */}
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">คงพยาบาล (จำนวนผู้ป่วย) แยกตาม Ward</h2>
+                    <h2 className="text-xl font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {Object.entries(currentPatients.byWard).map(([ward, data]) => (
                             <button
@@ -640,13 +640,13 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Pie Chart */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h2 className="text-lg font-bold mb-4 text-gray-800">ห้องว่าง</h2>
+                        <h2 className="text-lg font-bold mb-4 text-gray-800">Available</h2>
                         <Pie data={pieData} />
                     </div>
 
                     {/* Bar Chart */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
-                        <h2 className="text-lg font-bold mb-4 text-gray-800">สถิติแยกตาม Ward</h2>
+                        <h2 className="text-lg font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
                         <Bar options={barOptions} data={barData} />
                     </div>
                 </div>
@@ -660,7 +660,7 @@ const Dashboard = () => {
                                     Ward
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    คงพยาบาล
+                                Patient Census
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                                     RN
