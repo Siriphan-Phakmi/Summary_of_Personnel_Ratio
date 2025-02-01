@@ -1,8 +1,9 @@
 // File: app/export/page.js
 'use client';
 import { useState } from 'react';
-import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../lib/exportData';
+import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../../lib/exportData';
 import { Box, Button, VStack, Heading, Text, useToast, Spinner } from '@chakra-ui/react';
+import Navigation from '../components/Navigation';
 
 export default function ExportPage() {
     const [isExporting, setIsExporting] = useState(false);
@@ -49,25 +50,28 @@ export default function ExportPage() {
     };
 
     return (
-        <Box p={8} maxW="800px" mx="auto">
-            <VStack spacing={6} align="stretch">
-                <Heading size="xl" color="blue.600">📤 Export ข้อมูล</Heading>
-                
-                <Text fontSize="lg">
-                    ส่งออกข้อมูลทั้งหมดเป็นไฟล์ Excel สำหรับการทำรายงาน
-                </Text>
+        <>
+            <Navigation />
+            <Box p={8} maxW="800px" mx="auto">
+                <VStack spacing={6} align="stretch">
+                    <Heading size="xl" color="blue.600">📤 Export ข้อมูล</Heading>
+                    
+                    <Text fontSize="lg">
+                        ส่งออกข้อมูลทั้งหมดเป็นไฟล์ Excel สำหรับการทำรายงาน
+                    </Text>
 
-                <Button 
-                    colorScheme="green" 
-                    size="lg" 
-                    onClick={handleExport}
-                    isLoading={isExporting}
-                    loadingText="กำลังประมวลผล..."
-                    leftIcon={<Spinner size="sm" />}
-                >
-                    ดาวน์โหลดไฟล์ Excel
-                </Button>
-            </VStack>
-        </Box>
+                    <Button 
+                        colorScheme="green" 
+                        size="lg" 
+                        onClick={handleExport}
+                        isLoading={isExporting}
+                        loadingText="กำลังประมวลผล..."
+                        leftIcon={<Spinner size="sm" />}
+                    >
+                        ดาวน์โหลดไฟล์ Excel
+                    </Button>
+                </VStack>
+            </Box>
+        </>
     );
 }

@@ -8,32 +8,50 @@ export default function Navigation() {
 
     const isActive = (path) => pathname === path;
 
-    const navItems = [
-        { path: '/', label: 'บันทึกข้อมูล' },
-        { path: '/dashboard', label: 'Dashboard' },
-        { path: '/export', label: 'Export ข้อมูล' },
-    ];
-
     return (
         <Box bg="blue.500" py={4} px={8} color="white">
             <Flex justify="flex-start" align="center" gap={4}>
-                {navItems.map((item) => (
-                    <Link
-                        key={item.path}
-                        as={NextLink}
-                        href={item.path}
-                        _hover={{ textDecoration: 'none' }}
+                <Link
+                    as={NextLink}
+                    href="/"
+                    _hover={{ textDecoration: 'none' }}
+                >
+                    <Button
+                        variant={isActive('/') ? "solid" : "ghost"}
+                        colorScheme="whiteAlpha"
+                        size="md"
                     >
-                        <Button
-                            variant={isActive(item.path) ? "solid" : "ghost"}
-                            colorScheme="whiteAlpha"
-                            size="md"
-                        >
-                            {item.label}
-                        </Button>
-                    </Link>
-                ))}
+                        บันทึกข้อมูล
+                    </Button>
+                </Link>
+                <Link
+                    as={NextLink}
+                    href="/dashboard"
+                    _hover={{ textDecoration: 'none' }}
+                >
+                    <Button
+                        variant={isActive('/dashboard') ? "solid" : "ghost"}
+                        colorScheme="whiteAlpha"
+                        size="md"
+                    >
+                        Dashboard
+                    </Button>
+                </Link>
+                <Link
+                    as={NextLink}
+                    href="/export"
+                    _hover={{ textDecoration: 'none' }}
+                >
+                    <Button
+                        variant={isActive('/export') ? "solid" : "ghost"}
+                        colorScheme="whiteAlpha"
+                        size="md"
+                    >
+                        Export ข้อมูล
+                    </Button>
+                </Link>
             </Flex>
         </Box>
     );
 }
+
