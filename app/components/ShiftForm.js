@@ -329,26 +329,26 @@ const ShiftForm = () => {
                 <table className="w-full bg-white rounded-lg overflow-hidden shadow-lg">
                     <thead>
                         <tr className="bg-[#0ab4ab] text-white">
-                            <th rowSpan="2" className="border p-2 text-center">Ward</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Ward</th>
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
-                            <th colSpan="4" className="border p-2 text-center">Staff</th>
-                            <th colSpan="6" className="border p-2 text-center">Patient Census</th>
+                            <th colSpan="4" className="border p-2 text-center whitespace-nowrap">Staff</th>
+                            <th colSpan="6" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap w-40">Comment</th>
                         </tr>
                         <tr className="bg-[#0ab4ab] text-white text-sm">
-                            <th className="border p-2 text-center">Nurse Manager</th>
-                            <th className="border p-2 text-center">RN</th>
-                            <th className="border p-2 text-center">PN</th>
-                            <th className="border p-2 text-center">WC</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Nurse Manager</th>
+                            <th className="border p-2 text-center whitespace-nowrap">RN</th>
+                            <th className="border p-2 text-center whitespace-nowrap">PN</th>
+                            <th className="border p-2 text-center whitespace-nowrap">WC</th>
                             <th className="border p-2 text-center whitespace-nowrap">New Case</th>
-                            <th className="border p-2 text-center">Refer In</th>
-                            <th className="border p-2 text-center">Transfer In</th>
-                            <th className="border p-2 text-center">Refer Out</th>
-                            <th className="border p-2 text-center">Plan D/C</th>
-                            <th className="border p-2 text-center">Dead</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Refer In</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Transfer In</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Refer Out</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
+                            <th className="border p-2 text-center whitespace-nowrap">Dead</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -543,55 +543,47 @@ const ShiftForm = () => {
                     </tbody>
                 </table>
                 {/*ส่วนของข้อมูลสรุป 24 ชั่วโมง*/}
-                <div className="mt-6 bg-white rounded-lg shadow-lg p-4">
-                    <h1 className="text-lg font-semibold text-[#0ab4ab] mt-1">24-hour Summary</h1>
-                    <div className="grid grid-cols-4 gap-4">
-
-                    <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">OPD 24 hour</label>
+                <div className="mt-8 mb-4">
+                    <h3 className="text-xl font-semibold mb-4 text-center text-black">24-hour Summary</h3>
+                    <div className="grid grid-cols-4 gap-8">
+                        <div className="flex flex-col">
+                            <label className="mb-2 text-center font-medium text-black">OPD 24 hour</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.opdTotal24hr}
-                                onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
-                                placeholder="Total"
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
+                                className="p-2 border rounded text-center text-black"
                             />
                         </div>
-
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">Old Patient</label>
+                        <div className="flex flex-col">
+                            <label className="mb-2 text-center font-medium text-black">Old Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.existingPatients}
-                                onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
-                                placeholder="Total"
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
+                                className="p-2 border rounded text-center text-black"
                             />
                         </div>
-
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">New Patient</label>
+                        <div className="flex flex-col">
+                            <label className="mb-2 text-center font-medium text-black">New Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.newPatients}
-                                onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
-                                placeholder="Total"
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
+                                className="p-2 border rounded text-center text-black"
                             />
                         </div>
-
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">Admit 24 Hours</label>
+                        <div className="flex flex-col">
+                            <label className="mb-2 text-center font-medium text-black">Admit 24 Hours</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.admissions24hr}
-                                onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
-                                placeholder="Total"
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
+                                className="p-2 border rounded text-center text-black"
                             />
                         </div>
                     </div>
