@@ -1,6 +1,5 @@
 'use client';
-import { Box, Flex, Link, Button } from '@chakra-ui/react';
-import NextLink from 'next/link';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export default function Navigation() {
@@ -9,49 +8,22 @@ export default function Navigation() {
     const isActive = (path) => pathname === path;
 
     return (
-        <Box bg="blue.500" py={4} px={8} color="white">
-            <Flex justify="flex-start" align="center" gap={4}>
-                <Link
-                    as={NextLink}
-                    href="/"
-                    _hover={{ textDecoration: 'none' }}
-                >
-                    <Button
-                        variant={isActive('/') ? "solid" : "ghost"}
-                        colorScheme="whiteAlpha"
-                        size="md"
-                    >
+        <nav className="bg-blue-500 shadow-md">
+            <div className="max-w-7xl mx-auto px-4 py-3">
+                <div className="flex justify-between items-center">
+                    <Link href="/" className={isActive('/') ? "text-xl font-bold text-white" : "text-gray-600 hover:text-white"}>
                         บันทึกข้อมูล
-                    </Button>
-                </Link>
-                <Link
-                    as={NextLink}
-                    href="/dashboard"
-                    _hover={{ textDecoration: 'none' }}
-                >
-                    <Button
-                        variant={isActive('/dashboard') ? "solid" : "ghost"}
-                        colorScheme="whiteAlpha"
-                        size="md"
-                    >
-                        Dashboard
-                    </Button>
-                </Link>
-                <Link
-                    as={NextLink}
-                    href="/export"
-                    _hover={{ textDecoration: 'none' }}
-                >
-                    <Button
-                        variant={isActive('/export') ? "solid" : "ghost"}
-                        colorScheme="whiteAlpha"
-                        size="md"
-                    >
-                        Export ข้อมูล
-                    </Button>
-                </Link>
-            </Flex>
-        </Box>
+                    </Link>
+                    <div className="space-x-4">
+                        <Link href="/dashboard" className={isActive('/dashboard') ? "text-gray-600 hover:text-white" : "text-gray-600 hover:text-white"}>
+                            Dashboard
+                        </Link>
+                        <Link href="/export" className={isActive('/export') ? "text-gray-600 hover:text-white" : "text-gray-600 hover:text-white"}>
+                            Export ข้อมูล
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        </nav>
     );
 }
-

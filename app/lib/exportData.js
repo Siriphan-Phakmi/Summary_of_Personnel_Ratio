@@ -40,7 +40,7 @@ export function formatDataForExcel(records) {
             'คงพยาบาล': data.currentPatients,
             'ห้องว่าง': data.availableBeds,
             'Plan D/C': data.plannedDischarge,
-            'ห้องชำรุด': data.maintainanceRooms,
+            'unavailable': data.maintainanceRooms,
             'หมายเหตุ': data.remarks
         }))
     );

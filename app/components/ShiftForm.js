@@ -19,19 +19,19 @@ const ShiftForm = () => {
     // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
     const initialWardData = {
         numberOfPatients: '', 
-        manager: '', 
+        nurseManager: '', 
         RN: '', 
         PN: '', 
-        admin: '',
-        newAdmissions: '', 
-        transfers: '', 
+        WC: '', 
+        newCase: '', 
+        transferIn: '', 
         referIn: '', 
         referOut: '', 
-        discharge: '', 
-        deaths: '',
+        planDC: '', 
+        dead: '', 
         availableBeds: '', 
         plannedDischarge: '', 
-        maintainanceRooms: '', 
+        unavailable: '', // แก้ไขตัวแปร maintainanceRooms เป็น unavailable
         comment: ''
     };
 
@@ -247,15 +247,15 @@ const ShiftForm = () => {
 
         // Calculate currentPatients based on the formula
         const numberOfPatients = parseInt(sanitizedData.numberOfPatients) || 0;
-        const newAdmissions = parseInt(sanitizedData.newAdmissions) || 0;
+        const newCase = parseInt(sanitizedData.newCase) || 0;
         const referIn = parseInt(sanitizedData.referIn) || 0;
-        const transfers = parseInt(sanitizedData.transfers) || 0;
+        const transferIn = parseInt(sanitizedData.transferIn) || 0;
         const referOut = parseInt(sanitizedData.referOut) || 0;
-        const discharge = parseInt(sanitizedData.discharge) || 0;
-        const deaths = parseInt(sanitizedData.deaths) || 0;
+        const planDC = parseInt(sanitizedData.planDC) || 0;
+        const dead = parseInt(sanitizedData.dead) || 0;
 
         // จำนวนผู้ป่วย + รับใหม่ + Refer In + รับย้าย - Refer Out - กลับบ้าน - เสียชีวิต
-        sanitizedData.currentPatients = (numberOfPatients + newAdmissions + referIn + transfers - referOut - discharge - deaths).toString();
+        sanitizedData.currentPatients = (numberOfPatients + newCase + referIn + transferIn - referOut - planDC - dead).toString();
 
         setFormData(prev => ({
             ...prev,
@@ -293,24 +293,30 @@ const ShiftForm = () => {
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                         <div className="flex gap-4 justify-center">
                             <div className="flex gap-4">
-
                                 {['07:00-19:00', '19:00-07:00'].map((shiftTime) => (
-                                    <label
-                                        key={shiftTime}
-                                        className="flex text-black text-sm items-center gap-2"
-                                    >
-                                        <input
-                                            type="radio"
-                                            name="shift"
-                                            value={shiftTime}
-                                            checked={formData.shift === shiftTime}
-                                            onChange={(element) =>
-                                                setFormData({ ...formData, shift: element.target.value })
-                                            }
-                                            className="rounded"
-                                        />
-                                        <span>{shiftTime === '07:00-19:00' ? 'Morning' : 'Night'} ({shiftTime})</span>
-                                    </label>
+                                    <div key={shiftTime} className="flex flex-col items-center md:block">
+                                        <span className="text-sm font-medium text-gray-700 mb-1 block md:hidden">
+                                            {shiftTime === '07:00-19:00' ? 'Morning' : 'Night'}
+                                        </span>
+                                        <label className="flex text-black text-sm items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="shift"
+                                                value={shiftTime}
+                                                checked={formData.shift === shiftTime}
+                                                onChange={(element) =>
+                                                    setFormData({ ...formData, shift: element.target.value })
+                                                }
+                                                className="rounded"
+                                            />
+                                            <span>
+                                                <span className="hidden md:inline">
+                                                    {shiftTime === '07:00-19:00' ? 'Morning' : 'Night'}{' '}
+                                                </span>
+                                                ({shiftTime})
+                                            </span>
+                                        </label>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -333,38 +339,38 @@ const ShiftForm = () => {
                             <th rowSpan="2" className="border p-2 text-center whitespace-nowrap w-40">Comment</th>
                         </tr>
                         <tr className="bg-[#0ab4ab] text-white text-sm">
-                            <th className="border p-2 text-center">Manager</th>
+                            <th className="border p-2 text-center">Nurse Manager</th>
                             <th className="border p-2 text-center">RN</th>
                             <th className="border p-2 text-center">PN</th>
                             <th className="border p-2 text-center">WC</th>
-                            <th className="border p-2 text-center whitespace-nowrap">New Admit</th>
+                            <th className="border p-2 text-center whitespace-nowrap">New Case</th>
                             <th className="border p-2 text-center">Refer In</th>
-                            <th className="border p-2 text-center">Transfer</th>
+                            <th className="border p-2 text-center">Transfer In</th>
                             <th className="border p-2 text-center">Refer Out</th>
-                            <th className="border p-2 text-center">D/C</th>
+                            <th className="border p-2 text-center">Plan D/C</th>
                             <th className="border p-2 text-center">Dead</th>
                         </tr>
                     </thead>
                     <tbody>
                         {Object.entries(formData.wards).map(([ward, data]) => (
                             <tr key={ward} className="border-b hover:bg-gray-50">
-                                <td className="border p-2 text-center">{ward}</td>
+                                <td className="border p-2 text-black text-center">{ward}</td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.numberOfPatients}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.manager}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, manager: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.nurseManager}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -373,7 +379,7 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.RN}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -382,34 +388,34 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.PN}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.admin}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, admin: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.WC}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.newAdmissions}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmissions: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.newCase}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newCase: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.transfers}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transfers: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.transferIn}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -418,7 +424,7 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.referIn}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -427,25 +433,25 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.referOut}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.discharge}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.planDC}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, planDC: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.deaths}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, deaths: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.dead}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -454,7 +460,7 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.availableBeds}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -463,16 +469,16 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.plannedDischarge}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.maintainanceRooms}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, maintainanceRooms: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        value={data.unavailable}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </td>
                                 <td className="border p-2">
@@ -480,7 +486,7 @@ const ShiftForm = () => {
                                         type="text"
                                         value={data.comment}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0"
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         placeholder="Comment"
                                     />
                                 </td>
@@ -492,7 +498,7 @@ const ShiftForm = () => {
                                 {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.manager > 0 ? formData.totals.manager : '-'}
+                                {formData.totals.nurseManager > 0 ? formData.totals.nurseManager : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.RN > 0 ? formData.totals.RN : '-'}
@@ -501,13 +507,13 @@ const ShiftForm = () => {
                                 {formData.totals.PN > 0 ? formData.totals.PN : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.admin > 0 ? formData.totals.admin : '-'}
+                                {formData.totals.WC > 0 ? formData.totals.WC : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.newAdmissions > 0 ? formData.totals.newAdmissions : '-'}
+                                {formData.totals.newCase > 0 ? formData.totals.newCase : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.transfers > 0 ? formData.totals.transfers : '-'}
+                                {formData.totals.transferIn > 0 ? formData.totals.transferIn : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.referIn > 0 ? formData.totals.referIn : '-'}
@@ -516,10 +522,10 @@ const ShiftForm = () => {
                                 {formData.totals.referOut > 0 ? formData.totals.referOut : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.discharge > 0 ? formData.totals.discharge : '-'}
+                                {formData.totals.planDC > 0 ? formData.totals.planDC : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.deaths > 0 ? formData.totals.deaths : '-'}
+                                {formData.totals.dead > 0 ? formData.totals.dead : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
@@ -528,7 +534,7 @@ const ShiftForm = () => {
                                 {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.maintainanceRooms > 0 ? formData.totals.maintainanceRooms : '-'}
+                                {formData.totals.unavailable > 0 ? formData.totals.unavailable : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.comment ? formData.totals.comment : '-'}
@@ -548,7 +554,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
                                 placeholder="Total"
                             />
                         </div>
@@ -560,7 +566,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
                                 placeholder="Total"
                             />
                         </div>
@@ -572,7 +578,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
                                 placeholder="Total"
                             />
                         </div>
@@ -584,7 +590,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
-                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
+                                className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900"
                                 placeholder="Total"
                             />
                         </div>
@@ -600,7 +606,7 @@ const ShiftForm = () => {
                                     type="text"
                                     value={summaryData.supervisorName}
                                     onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white" /* Changed: Added fixed width */
+                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900" /* Changed: Added fixed width */
                                     placeholder="Name - Surname : Supervisor"
                                 />
                             </div>
@@ -615,7 +621,7 @@ const ShiftForm = () => {
             <div className="md:hidden space-y-3 px-2">
                 <div className="grid grid-cols-2 gap-2">
                     {Object.entries(formData.wards).map(([ward, data]) => (
-                        <div key={ward} className="bg-white rounded-lg shadow p-3 border border-[#0ab4ab]/10">
+                        <div key={ward} className="bg-white rounded-lg text-black shadow p-3 border border-[#0ab4ab]/10">
                             <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">{ward}</h3>
                             
                             {/* Staff Section */}
@@ -628,17 +634,17 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.numberOfPatients}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                            className="w-full rounded border p-1 text-center"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-gray-600">Manager</label>
+                                        <label className="block text-gray-600">Nurse Manager</label>
                                         <input
                                             type="number"
                                             min="0"
-                                            value={data.manager}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, manager: e.target.value })}
-                                            className="w-full rounded border p-1 text-center"
+                                            value={data.nurseManager}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
                                 </div>
@@ -651,7 +657,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.RN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                            className="w-full rounded border p-1 text-center"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
                                     <div>
@@ -661,7 +667,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.PN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                            className="w-full rounded border p-1 text-center"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
                                     <div>
@@ -669,9 +675,9 @@ const ShiftForm = () => {
                                         <input
                                             type="number"
                                             min="0"
-                                            value={data.admin}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, admin: e.target.value })}
-                                            className="w-full rounded border p-1 text-center"
+                                            value={data.WC}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
                                 </div>
@@ -680,13 +686,13 @@ const ShiftForm = () => {
                             {/* Patient Movement */}
                             <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
                                 <div>
-                                    <label className="block text-gray-600">New Admit</label>
+                                    <label className="block text-gray-600">New Case</label>
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.newAdmissions}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmissions: e.target.value })}
-                                        className="w-full rounded border p-1 text-center"
+                                        value={data.newCase}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newCase: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </div>
                                 <div>
@@ -694,9 +700,9 @@ const ShiftForm = () => {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={data.transfers}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transfers: e.target.value })}
-                                        className="w-full rounded border p-1 text-center"
+                                        value={data.transferIn}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                     />
                                 </div>
                             </div>
@@ -707,7 +713,7 @@ const ShiftForm = () => {
                                     type="text"
                                     value={data.comment}
                                     onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                    className="w-full rounded border p-1 text-xs"
+                                    className="w-full rounded border p-1 text-xs text-gray-900"
                                     placeholder="Comment..."
                                 />
                             </div>
@@ -717,7 +723,7 @@ const ShiftForm = () => {
 
                 {/* 24 Hour Summary - Mobile */}
                 <div className="bg-white rounded-lg shadow p-3">
-                    <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">24-hour Summary</h3>
+                    <h3 className="text-base font-semibold mb-2 text-black text-center border-b pb-1">24-hour Summary</h3>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
                             <label className="block text-gray-600">OPD 24hr</label>
@@ -726,7 +732,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full rounded border p-1 text-center"
+                                className="w-full rounded border p-1 text-center text-gray-900"
                             />
                         </div>
                         <div>
@@ -734,9 +740,9 @@ const ShiftForm = () => {
                             <input
                                 type="number"
                                 min="0"
-                                value={summaryData.oldPatient}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, oldPatient: e.target.value }))}
-                                className="w-full rounded border p-1 text-center"
+                                value={summaryData.existingPatients}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
+                                className="w-full rounded border p-1 text-center text-gray-900"
                             />
                         </div>
                         <div>
@@ -744,18 +750,18 @@ const ShiftForm = () => {
                             <input
                                 type="number"
                                 min="0"
-                                value={summaryData.newPatient}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatient: e.target.value }))}
-                                className="w-full rounded border p-1 text-center"
+                                value={summaryData.newPatients}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
+                                className="w-full rounded border p-1 text-center text-gray-900"
                             />
                         </div>
                         <div>
                             <label className="block text-gray-600">Admit 24 Hours</label>
                             <input
                                 type="text"
-                                value={summaryData.admit24Hours}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, admit24Hours: e.target.value }))}
-                                className="w-full rounded border p-1 text-center"
+                                value={summaryData.admissions24hr}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
+                                className="w-full rounded border p-1 text-center text-gray-900"
                             />
                         </div>
                     </div>
