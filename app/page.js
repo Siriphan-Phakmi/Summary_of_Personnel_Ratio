@@ -23,7 +23,7 @@ export default function Home() {
                   : 'text-white hover:bg-[#0ab4ab]/80'
                   }`}
               >
-                บันทึกข้อมูล
+                FormData
               </button>
               <button
                 onClick={() => setCurrentPage('dashboard')}
@@ -38,7 +38,7 @@ export default function Home() {
           </div>
           {/* เวอร์ชันอยู่ขวาสุด */}
           <div className="absolute right-0 top-1/2 transform -translate-y-1/2 text-white text-sm">
-            v1.1.2.2025 beta
+            v1.1.2.2025
           </div>
         </div>
       </nav>

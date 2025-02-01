@@ -18,9 +18,21 @@ const ShiftForm = () => {
 
     // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
     const initialWardData = {
-        numberOfPatients: '', manager: '', RN: '', PN: '', NA: '', admin: '',
-        newAdmissions: '', transfers: '', referIn: '', referOut: '', discharge: '', deaths: '',
-        availableBeds: '', plannedDischarge: '', maintainanceRooms: '', remarks: ''
+        numberOfPatients: '', 
+        manager: '', 
+        RN: '', 
+        PN: '', 
+        admin: '',
+        newAdmissions: '', 
+        transfers: '', 
+        referIn: '', 
+        referOut: '', 
+        discharge: '', 
+        deaths: '',
+        availableBeds: '', 
+        plannedDischarge: '', 
+        maintainanceRooms: '', 
+        comment: ''
     };
 
     // ปรับปรุง formData state
@@ -81,7 +93,7 @@ const ShiftForm = () => {
     const calculateTotals = () => {
         const totals = Object.values(formData.wards).reduce((acc, ward) => {
             Object.keys(ward).forEach(key => {
-                if (key !== 'remarks') {  // ไม่รวมช่องหมายเหตุในการคำนวณ
+                if (key !== 'comment') {  // ไม่รวมช่องหมายเหตุในการคำนวณ
                     const value = parseInt(ward[key]) || 0;
                     acc[key] = (parseInt(acc[key]) || 0) + value;
                 }
@@ -229,7 +241,7 @@ const ShiftForm = () => {
             Object.entries(data).map(([key, value]) => [
                 key,
                 // Special handling for remarks field
-                key === 'remarks' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0).toString())
+                key === 'comment' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0).toString())
             ])
         );
 
@@ -260,13 +272,13 @@ const ShiftForm = () => {
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
                 <h1 className="text-2xl font-semibold text-[#0ab4ab] mb-6">
-                    สรุปอัตรากำลังและจำนวนผู้ป่วยประจำวัน
+                    Daily Patient Census and Staffing
                 </h1>
                 {/*ส่วนของวันที่และกะงาน*/}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
                         <div className="flex items-center gap-2 whitespace-nowrap text-sm justify-center">
-                            <label className="font-medium text-gray-700 whitespace-nowrap ">วันที่</label>
+                            <label className="font-medium text-gray-700 whitespace-nowrap ">Date</label>
                             <div className="flex gap-2 items-center">
                                 <input
                                     type="date"
@@ -297,7 +309,7 @@ const ShiftForm = () => {
                                             }
                                             className="rounded"
                                         />
-                                        <span>{shiftTime === '07:00-19:00' ? 'เช้า' : 'ดึก'} ({shiftTime})</span>
+                                        <span>{shiftTime === '07:00-19:00' ? 'Morning' : 'Night'} ({shiftTime})</span>
                                     </label>
                                 ))}
                             </div>
@@ -307,222 +319,169 @@ const ShiftForm = () => {
             </div>
 
             {/* Desktop View - Table */}
-            <div className="hidden md:block w-full overflow-x-auto mt-4">
-                <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-lg">
+            <div className="hidden md:block w-full max-w-screen-xl mx-auto overflow-x-auto mt-4">
+                <table className="w-full bg-white rounded-lg overflow-hidden shadow-lg">
                     <thead>
                         <tr className="bg-[#0ab4ab] text-white">
-                            <th rowSpan="2" className="border  p-3">Ward</th>
-                            <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">คงพยาบาล</div>
-                            </th>
-                            <th colSpan="5" className="border  p-3">อัตรากำลัง</th>
-                            <th colSpan="6" className="border  p-3">จำนวนผู้ป่วย</th>
-                            <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">ห้องว่าง</div>
-                            </th>
-                            <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">Plan D/C</div>
-                            </th>
-                            <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">ห้องชำรุด</div>
-                            </th>
-                            <th rowSpan="2" className="border p-3">
-                                <div className="whitespace-nowrap">หมายเหตุ</div>
-                            </th>
+                            <th rowSpan="2" className="border p-2 text-center">Ward</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
+                            <th colSpan="4" className="border p-2 text-center">Staff</th>
+                            <th colSpan="6" className="border p-2 text-center">Patient Census</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
+                            <th rowSpan="2" className="border p-2 text-center whitespace-nowrap w-40">Comment</th>
                         </tr>
-                        <tr className="bg-[#0ab4ab] text-white">
-                            <th className="border p-3">ผจก.</th>
-                            <th className="border p-3">RN</th>
-                            <th className="border  p-3">PN</th>
-                            <th className="border  p-3">NA</th>
-                            <th className="border  p-3">ธุรการ</th>
-                            <th className="border  p-3">รับใหม่</th>
-                            <th className="border  p-3">Refer In</th>
-                            <th className="border  p-3">รับย้าย</th>
-                            <th className="border  p-3">Refer Out</th>
-                            <th className="border  p-3">กลับบ้าน</th>
-                            <th className="border  p-3">dead</th>
+                        <tr className="bg-[#0ab4ab] text-white text-sm">
+                            <th className="border p-2 text-center">Manager</th>
+                            <th className="border p-2 text-center">RN</th>
+                            <th className="border p-2 text-center">PN</th>
+                            <th className="border p-2 text-center">WC</th>
+                            <th className="border p-2 text-center whitespace-nowrap">New Admit</th>
+                            <th className="border p-2 text-center">Refer In</th>
+                            <th className="border p-2 text-center">Transfer</th>
+                            <th className="border p-2 text-center">Refer Out</th>
+                            <th className="border p-2 text-center">D/C</th>
+                            <th className="border p-2 text-center">Dead</th>
                         </tr>
                     </thead>
                     <tbody>
                         {Object.entries(formData.wards).map(([ward, data]) => (
-                            <tr key={ward}>
-                                <td className="border border-gray-200 text-center text-black p-2">{ward}</td>
-                                <td className="border border-gray-200 p-2">
+                            <tr key={ward} className="border-b hover:bg-gray-50">
+                                <td className="border p-2 text-center">{ward}</td>
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.numberOfPatients}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, numberOfPatients: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
-
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.manager}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, manager: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, manager: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.RN}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, RN: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.PN}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, PN: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.NA}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, NA: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
-                                    />
-                                </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.admin}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, admin: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, admin: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.newAdmissions}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, newAdmissions: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmissions: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.transfers}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, transfers: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transfers: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.referIn}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, referIn: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.referOut}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, referOut: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.discharge}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, discharge: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.deaths}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, deaths: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, deaths: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.availableBeds}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, availableBeds: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.plannedDischarge}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, plannedDischarge: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="number"
                                         min="0"
                                         value={data.maintainanceRooms}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, maintainanceRooms: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, maintainanceRooms: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
                                     />
                                 </td>
-                                <td className="border border-gray-200 p-2">
+                                <td className="border p-2">
                                     <input
                                         type="text"
-                                        value={data.remarks}
-                                        onChange={(element) =>
-                                            handleInputChange('wards', ward, { ...data, remarks: element.target.value })
-                                        }
-                                        className="w-full text-center text-black focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab] rounded-md"
-                                        placeholder="หมายเหตุ"
+                                        value={data.comment}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
+                                        className="w-full text-center border-0 focus:ring-0"
+                                        placeholder="Comment"
                                     />
                                 </td>
                             </tr>
@@ -540,9 +499,6 @@ const ShiftForm = () => {
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.PN > 0 ? formData.totals.PN : '-'}
-                            </td>
-                            <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.NA > 0 ? formData.totals.NA : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
                                 {formData.totals.admin > 0 ? formData.totals.admin : '-'}
@@ -575,60 +531,61 @@ const ShiftForm = () => {
                                 {formData.totals.maintainanceRooms > 0 ? formData.totals.maintainanceRooms : '-'}
                             </td>
                             <td className="border border-gray-200 p-2 text-center text-black">
-                                {formData.totals.remarks ? formData.totals.remarks : '-'}
+                                {formData.totals.comment ? formData.totals.comment : '-'}
                             </td>
                         </tr>
                     </tbody>
                 </table>
                 {/*ส่วนของข้อมูลสรุป 24 ชั่วโมง*/}
                 <div className="mt-6 bg-white rounded-lg shadow-lg p-4">
-                    <h1 className="text-lg font-semibold text-[#0ab4ab] mt-1">ข้อมูลสรุป 24 ชั่วโมง</h1>
+                    <h1 className="text-lg font-semibold text-[#0ab4ab] mt-1">24-hour Summary</h1>
                     <div className="grid grid-cols-4 gap-4">
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">ยอด OPD 24 hour</label>
+
+                    <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black gap-4">OPD 24 hour</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, opdTotal24hr: element.target.value }))}
                                 className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
-                                placeholder="ยอดรวม"
+                                placeholder="Total"
                             />
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">คนไข้เก่า</label>
+                            <label className="text-sm font-medium text-black gap-4">Old Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, existingPatients: element.target.value }))}
                                 className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
-                                placeholder="ยอดรวม"
+                                placeholder="Total"
                             />
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">คนไข้ใหม่</label>
+                            <label className="text-sm font-medium text-black gap-4">New Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, newPatients: element.target.value }))}
                                 className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
-                                placeholder="ยอดรวม"
+                                placeholder="Total"
                             />
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black gap-4">Admit 24 ชม.</label>
+                            <label className="text-sm font-medium text-black gap-4">Admit 24 Hours</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(element) => setSummaryData(prev => ({ ...prev, admissions24hr: element.target.value }))}
                                 className="flex-1 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
-                                placeholder="ยอดรวม"
+                                placeholder="Total"
                             />
                         </div>
                     </div>
@@ -638,13 +595,13 @@ const ShiftForm = () => {
                     <div className="flex justify-end"> {/* Changed: Added flex and justify-end */}
                         <div className="w-fit"> {/* Changed: Added fixed width */}
                             <div className="flex items-center gap-4"> {/* Changed: Added flex layout */}
-                                <label className="text-sm font-medium text-black whitespace-nowrap">ลงชื่อผู้ตรวจการ</label>
+                                <label className="text-sm font-medium text-black whitespace-nowrap">Supervisor Signature</label>
                                 <input
                                     type="text"
                                     value={summaryData.supervisorName}
                                     onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
                                     className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white" /* Changed: Added fixed width */
-                                    placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
+                                    placeholder="Name - Surname : Supervisor"
                                 />
                             </div>
                         </div>
@@ -655,156 +612,152 @@ const ShiftForm = () => {
             </div>
 
             {/*แสดงผลแบบ Mobile*/}
-            <div className="md:hidden space-y-4">
-                <div className="grid grid-cols-1 gap-4">
+            <div className="md:hidden space-y-3 px-2">
+                <div className="grid grid-cols-2 gap-2">
                     {Object.entries(formData.wards).map(([ward, data]) => (
-                        <div key={ward} className="bg-white rounded-lg shadow-lg p-4 border border-[#0ab4ab]/10">
-                            <h3 className="text-lg font-semibold mb-4 text-center text-black border-b pb-2">{ward}</h3>
+                        <div key={ward} className="bg-white rounded-lg shadow p-3 border border-[#0ab4ab]/10">
+                            <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">{ward}</h3>
+                            
                             {/* Staff Section */}
-                            <div className="space-y-4 mb-6">
-                                <h4 className="font-medium text-black text-center">อัตรากำลัง</h4>
-                                <div className="grid grid-cols-2 text-black text-center gap-3">
-                                    {[
-                                        {
-                                            key: 'numberOfPatients',
-                                            label: 'จำนวนผู้ป่วย',
-                                            placeholder: '    จำนวนผู้ป่วย',
-                                        },
-                                        { key: 'manager', label: 'ผจก.' },
-                                        { key: 'RN', label: 'RN' },
-                                        { key: 'PN', label: 'PN' },
-                                        { key: 'NA', label: 'NA' },
-                                        { key: 'admin', label: 'ธุรการ' }
-                                    ].map((field) => (
-                                        <div key={field.key} className="text-center">
-                                            <label className="block text-sm">{field.label}</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={data[field.key]}
-                                                onChange={(element) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
-                                                }
-                                                className="w-full rounded border p-1 text-center text-black text-sm"
-                                                placeholder={field.placeholder}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Patient Movement Section */}
-                            <div className="space-y-4">
-                                <h4 className="font-medium text-black text-center">การเคลื่อนย้ายผู้ป่วย</h4>
-                                <div className="grid grid-cols-2 text-black gap-3">
-                                    {[
-                                        { key: 'newAdmissions', label: 'รับใหม่' },
-                                        { key: 'referIn', label: 'Refer In' },
-                                        { key: 'transfers', label: 'รับย้าย' },
-                                        { key: 'referOut', label: 'Refer Out' },
-                                        { key: 'discharge', label: 'กลับบ้าน' },
-                                        { key: 'deaths', label: 'เสียชีวิต' }
-                                    ].map((field) => (
-                                        <div key={field.key} className="text-center">
-                                            <label className="block text-sm">{field.label}</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={data[field.key]}
-                                                onChange={(element) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
-                                                }
-                                                className="w-full rounded border p-1 text-center text-black"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Additional Information Section */}
-                            <div className="space-y-4 mt-6">
-                                <h4 className="font-medium text-black text-center">ข้อมูลเพิ่มเติม</h4>
-                                <div className="grid grid-cols-2 text-black gap-3">
-                                    {[
-                                        {
-                                            key: 'numberOfPatients',
-                                            label: 'จำนวนผู้ป่วย',
-                                            placeholder: '    จำนวนผู้ป่วย',
-                                        },
-
-                                        { key: 'availableBeds', label: 'เตียงว่าง' },
-                                        { key: 'plannedDischarge', label: 'Plan D/C' },
-                                        { key: 'maintainanceRooms', label: 'ห้องแยก' }
-                                    ].map((field) => (
-                                        <div key={field.key} className="text-center">
-                                            <label className="block text-sm">{field.label}</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={data[field.key]}
-                                                onChange={(element) =>
-                                                    handleInputChange('wards', ward, { ...data, [field.key]: element.target.value })
-                                                }
-                                                className="w-full rounded border p-1 text-center text-black text-sm"
-                                                placeholder={field.placeholder}
-                                            />
-                                        </div>
-                                    ))}
-                                    {/* Remarks field - full width */}
-                                    <div className="col-span-2 text-center mt-2">
-                                        <label className="block text-sm">หมายเหตุ</label>
+                            <div className="space-y-2">
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                        <label className="block text-gray-600">Census</label>
                                         <input
-                                            type="text"
-                                            value={data.remarks}
-                                            onChange={(element) =>
-                                                handleInputChange('wards', ward, { ...data, remarks: element.target.value })
-                                            }
-                                            className="w-full rounded border p-1 text-center text-black"
-                                            placeholder="หมายเหตุ"
+                                            type="number"
+                                            min="0"
+                                            value={data.numberOfPatients}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
+                                            className="w-full rounded border p-1 text-center"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600">Manager</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.manager}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, manager: e.target.value })}
+                                            className="w-full rounded border p-1 text-center"
                                         />
                                     </div>
                                 </div>
+                                
+                                <div className="grid grid-cols-3 gap-1 text-xs">
+                                    <div>
+                                        <label className="block text-gray-600">RN</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.RN}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
+                                            className="w-full rounded border p-1 text-center"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600">PN</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.PN}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
+                                            className="w-full rounded border p-1 text-center"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-600">WC</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.admin}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, admin: e.target.value })}
+                                            className="w-full rounded border p-1 text-center"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Patient Movement */}
+                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                                <div>
+                                    <label className="block text-gray-600">New Admit</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.newAdmissions}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmissions: e.target.value })}
+                                        className="w-full rounded border p-1 text-center"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-600">Transfer</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.transfers}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transfers: e.target.value })}
+                                        className="w-full rounded border p-1 text-center"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Comment */}
+                            <div className="mt-2">
+                                <input
+                                    type="text"
+                                    value={data.comment}
+                                    onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
+                                    className="w-full rounded border p-1 text-xs"
+                                    placeholder="Comment..."
+                                />
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* 24 Hour Summary Section - Mobile */}
-                <div className="bg-white rounded-lg shadow-lg p-4 mt-2">
-                    <h4 className="font-medium text-black text-center mb-4">ข้อมูลสรุป 24 ชั่วโมง</h4>
-                    <div className="grid grid-cols-1 gap-4">
-                        {[
-                            { key: 'opdTotal24hr', label: 'ยอด OPD 24 hour' },
-                            { key: 'existingPatients', label: 'คนไข้เก่า' },
-                            { key: 'newPatients', label: 'คนไข้ใหม่' },
-                            { key: 'admissions24hr', label: 'Admit 24 ชม.' }
-                        ].map((field) => (
-                            <div key={field.key} className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-black">{field.label}</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={summaryData[field.key]}
-                                    onChange={(element) => setSummaryData(prev => ({ ...prev, [field.key]: element.target.value }))}
-                                    className="w-1/2 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black"
-                                    placeholder="ยอดรวม"
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Supervisor Section - Mobile */}
-                <div className="bg-[#0ab4ab]/50 rounded-lg shadow-lg p-4 mt-4 mb-6">
-                    <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-black">ลงชื่อผู้ตรวจการ</label>
-                        <input
-                            type="text"
-                            value={summaryData.supervisorName}
-                            onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                            className="w-full px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white"
-                            placeholder="ชื่อ-นามสกุล : ผู้ตรวจการ"
-                        />
+                {/* 24 Hour Summary - Mobile */}
+                <div className="bg-white rounded-lg shadow p-3">
+                    <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">24-hour Summary</h3>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <label className="block text-gray-600">OPD 24hr</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.opdTotal24hr}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
+                                className="w-full rounded border p-1 text-center"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-600">Old Patient</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.oldPatient}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, oldPatient: e.target.value }))}
+                                className="w-full rounded border p-1 text-center"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-600">New Patient</label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={summaryData.newPatient}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatient: e.target.value }))}
+                                className="w-full rounded border p-1 text-center"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-600">Admit 24 Hours</label>
+                            <input
+                                type="text"
+                                value={summaryData.admit24Hours}
+                                onChange={(e) => setSummaryData(prev => ({ ...prev, admit24Hours: e.target.value }))}
+                                className="w-full rounded border p-1 text-center"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -828,7 +781,7 @@ const ShiftForm = () => {
                     onClick={resetForm}
                     className="bg-gray-400 hover:bg-gray-600 text-white font-bold px-4 py-2 rounded-lg transition-colors"
                 >
-                    ล้างข้อมูล
+                    Clear Data
                 </button>
                 <button
                     type="submit"
