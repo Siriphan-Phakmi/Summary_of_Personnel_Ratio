@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
@@ -174,7 +174,7 @@ const Dashboard = () => {
                 
                 setOverallData({
                     total: totalPatients, // เปลี่ยนเป็นใช้ค่า total จาก numberOfPatients
-                    overallData: latestRecord.totalOverallData || 0, // เพิ่ม overallData
+                    overallData: latestRecord.overallData || 0, // เพิ่ม overallData
                     byWard: latestRecord.wardTotals,
                     summaryData: latestRecord.summaryData,
                     calculations: calculateRates(latestRecord.overallData, latestRecord.summaryData)
@@ -247,15 +247,34 @@ const Dashboard = () => {
         if (filteredRecords.length > 0) {
             const latestRecord = filteredRecords[0];
             
-            // ใช้ค่า totalOverallData จาก Firebase
-            const overallTotal = latestRecord.overallData || 0;
+            // คำนวณ total จาก numberOfPatients ของทุก ward
+            const totalPatients = Object.values(latestRecord.wards || {}).reduce((sum, ward) => {
+                return sum + (parseInt(ward.numberOfPatients) || 0);
+            }, 0);
 
             setOverallData({
-                total: overallTotal,
-                overallData: latestRecord.totalOverallData || 0, // เพิ่ม overallData
+                total: totalPatients, // ใช้ผลรวมของ numberOfPatients
+                overallData: latestRecord.overallData || 0, // ใช้ค่า overallData จาก Firebase
                 byWard: latestRecord.wardTotals || {},
                 summaryData: latestRecord.summaryData,
-                calculations: calculateRates(overallTotal, latestRecord.summaryData)
+                calculations: calculateRates(totalPatients, latestRecord.summaryData)
+            });
+        } else if (currentFilters.viewType === 'daily') {
+            // รีเซ็ตค่าเป็น 0 เมื่อไม่พบข้อมูลในวันที่เลือก (เฉพาะ daily view)
+            setOverallData({
+                total: 0,
+                overallData: 0,
+                byWard: {},
+                summaryData: {
+                    opdTotal24hr: 0,
+                    existingPatients: 0,
+                    newPatients: 0,
+                    admissions24hr: 0
+                },
+                calculations: {
+                    admissionRate: 0,
+                    conversionRatio: 0
+                }
             });
         }
 
@@ -384,29 +403,48 @@ const Dashboard = () => {
         }
     }, [filters, selectedMonth, selectedYear]);
 
-    // ข้อมูลสำหรับ Pie Chart
-    const pieData = {
-        labels: wardData.map(ward => ward.name),
-        datasets: [{
-            data: wardData.map(ward => ward.patients),
-            backgroundColor: colors.background,
-            borderColor: colors.border,
-            borderWidth: 1,
-        }]
-    };
+    // ข้อมูลสำหรับ Pie Chart และ Bar Chart
+    const chartData = useMemo(() => {
+        console.log('overallData.byWard:', overallData.byWard);
+        
+        // แปลงข้อมูลจาก byWard เป็น array
+        const wardEntries = Object.entries(overallData.byWard || {});
+        console.log('wardEntries:', wardEntries);
 
-    // ข้อมูลสำหรับ Bar Chart
-    const barData = {
-        labels: wardData.map(ward => ward.name),
-        datasets: [{
-            label: 'Patient Census',
-            data: wardData.map(ward => ward.patients),
-            backgroundColor: 'rgba(255, 99, 132, 0.5)',
-        }]
-    };
+        // สร้าง labels และ data
+        const labels = wardEntries.map(([ward]) => ward);
+        const data = wardEntries.map(([, value]) => value.totalPatients || 0);
+        
+        console.log('Chart labels:', labels);
+        console.log('Chart data:', data);
+
+        return {
+            pie: {
+                labels,
+                datasets: [{
+                    data,
+                    backgroundColor: colors.background.slice(0, labels.length),
+                    borderColor: colors.border.slice(0, labels.length),
+                    borderWidth: 1,
+                }]
+            },
+            bar: {
+                labels,
+                datasets: [{
+                    label: 'Patient Census',
+                    data,
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                }]
+            }
+        };
+    }, [overallData.byWard]);
+
+    const pieData = chartData.pie;
+    const barData = chartData.bar;
 
     const barOptions = {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             legend: {
                 position: 'top',
@@ -414,6 +452,28 @@ const Dashboard = () => {
             title: {
                 display: true,
                 text: 'Patient Census By Ward',
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
+            }
+        }
+    };
+
+    const pieOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right',
+            },
+            title: {
+                display: true,
+                text: 'Patient Distribution by Ward',
             }
         }
     };
@@ -557,23 +617,23 @@ const Dashboard = () => {
 
                 {/* Summary Info */}
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">Summary</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
-                            <span className="text-gray-600 text-sm">Total Records:</span>
-                            <span className="ml-2 font-medium">{wardData.length}</span>
+                            <span className="text-gray-900 text-sm font-medium">Total Records:</span>
+                            <span className="ml-2 font-semibold text-gray-900">{wardData.length}</span>
                         </div>
                         <div>
-                            <span className="text-gray-600 text-sm">Total Patients:</span>
-                            <span className="ml-2 font-medium">{totalPatients}</span>
+                            <span className="text-gray-900 text-sm font-medium">Total Patients:</span>
+                            <span className="ml-2 font-semibold text-gray-900">{totalPatients}</span>
                         </div>
                         <div>
-                            <span className="text-gray-600 text-sm">Total OPD:</span>
-                            <span className="ml-2 font-medium">{overallData.summaryData.opdTotal24hr}</span>
+                            <span className="text-gray-900 text-sm font-medium">Total OPD:</span>
+                            <span className="ml-2 font-semibold text-gray-900">{overallData.summaryData.opdTotal24hr}</span>
                         </div>
                         <div>
-                            <span className="text-gray-600 text-sm">Total Admissions:</span>
-                            <span className="ml-2 font-medium">{overallData.summaryData.admissions24hr}</span>
+                            <span className="text-gray-900 text-sm font-medium">Total Admissions:</span>
+                            <span className="ml-2 font-semibold text-gray-900">{overallData.summaryData.admissions24hr}</span>
                         </div>
                     </div>
                 </div>
@@ -650,15 +710,19 @@ const Dashboard = () => {
                 {/* Charts and Graphs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Pie Chart */}
-                    <div className="bg-white p-4 rounded-lg shadow-md">
+                    <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
                         <h2 className="text-lg font-bold mb-4 text-gray-800">Available</h2>
-                        <Pie data={pieData} />
+                        <div style={{ height: '320px' }}>
+                            <Pie data={pieData} options={pieOptions} />
+                        </div>
                     </div>
 
                     {/* Bar Chart */}
-                    <div className="bg-white p-4 rounded-lg shadow-md">
+                    <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
                         <h2 className="text-lg font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
-                        <Bar options={barOptions} data={barData} />
+                        <div style={{ height: '320px' }}>
+                            <Bar options={barOptions} data={barData} />
+                        </div>
                     </div>
                 </div>
 

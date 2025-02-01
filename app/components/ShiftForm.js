@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -18,22 +18,22 @@ const ShiftForm = () => {
 
     // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
     const initialWardData = {
-        numberOfPatients: '', 
-        nurseManager: '', 
-        RN: '', 
-        PN: '', 
-        WC: '', 
-        newAdmit: '', 
-        transferIn: '', 
-        referIn: '', 
-        transferOut: '', 
-        referOut: '', 
-        discharge: '', 
+        numberOfPatients: '',
+        nurseManager: '',
+        RN: '',
+        PN: '',
+        WC: '',
+        newAdmit: '',
+        transferIn: '',
+        referIn: '',
+        transferOut: '',
+        referOut: '',
+        discharge: '',
         dead: '',
-        overallData: '', 
-        availableBeds: '', 
-        plannedDischarge: '', 
-        unavailable: '', 
+        overallData: '',
+        availableBeds: '',
+        plannedDischarge: '',
+        unavailable: '',
         comment: '',
     };
 
@@ -81,8 +81,25 @@ const ShiftForm = () => {
     }, []);
 
     // เพิ่มฟังก์ชันคำนวณ totals
-    const calculateTotals = (wards) => {
-        const totals = {
+    const calculateTotals = useMemo(() => {
+        return Object.values(formData.wards).reduce((totals, ward) => ({
+            numberOfPatients: totals.numberOfPatients + (Number(ward.numberOfPatients) || 0),
+            nurseManager: totals.nurseManager + (Number(ward.nurseManager) || 0),
+            RN: totals.RN + (Number(ward.RN) || 0),
+            PN: totals.PN + (Number(ward.PN) || 0),
+            WC: totals.WC + (Number(ward.WC) || 0),
+            newAdmit: totals.newAdmit + (Number(ward.newAdmit) || 0),
+            transferIn: totals.transferIn + (Number(ward.transferIn) || 0),
+            referIn: totals.referIn + (Number(ward.referIn) || 0),
+            transferOut: totals.transferOut + (Number(ward.transferOut) || 0),
+            referOut: totals.referOut + (Number(ward.referOut) || 0),
+            discharge: totals.discharge + (Number(ward.discharge) || 0),
+            dead: totals.dead + (Number(ward.dead) || 0),
+            overallData: totals.overallData + (Number(ward.overallData) || 0),
+            availableBeds: totals.availableBeds + (Number(ward.availableBeds) || 0),
+            unavailable: totals.unavailable + (Number(ward.unavailable) || 0),
+            plannedDischarge: totals.plannedDischarge + (Number(ward.plannedDischarge) || 0)
+        }), {
             numberOfPatients: 0,
             nurseManager: 0,
             RN: 0,
@@ -97,39 +114,15 @@ const ShiftForm = () => {
             dead: 0,
             overallData: 0,
             availableBeds: 0,
-            plannedDischarge: 0,
-            unavailable: 0
-        };
-
-        Object.values(wards).forEach(ward => {
-            Object.keys(totals).forEach(key => {
-                if (key === 'overallData') {
-                    // คำนวณ overallData สำหรับแต่ละ ward
-                    const wardTotal = (
-                        parseInt(ward.numberOfPatients || 0) +
-                        parseInt(ward.newAdmit || 0) +
-                        parseInt(ward.transferIn || 0) +
-                        parseInt(ward.referIn || 0) -
-                        parseInt(ward.transferOut || 0) -
-                        parseInt(ward.referOut || 0) -
-                        parseInt(ward.discharge || 0) -
-                        parseInt(ward.dead || 0)
-                    );
-                    totals[key] += wardTotal;
-                } else {
-                    totals[key] += parseInt(ward[key] || 0);
-                }
-            });
+            unavailable: 0,
+            plannedDischarge: 0
         });
-
-        return totals;
-    };
+    }, [formData.wards]);
 
     // Add useEffect for automatic total calculation
     useEffect(() => {
-        const newTotals = calculateTotals(formData.wards);
-        setFormData(prev => ({ ...prev, totals: newTotals }));
-    }, [formData.wards]);
+        setFormData(prev => ({ ...prev, totals: calculateTotals }));
+    }, [calculateTotals]);
 
     const handleDateChange = (element) => {
         const newDate = element.target.value;
@@ -168,10 +161,10 @@ const ShiftForm = () => {
                     [ward]: sanitizedData
                 }
             };
-            
+
             // คำนวณ totals ใหม่
-            newData.totals = calculateTotals(newData.wards);
-            
+            newData.totals = calculateTotals;
+
             return newData;
         });
     };
@@ -252,12 +245,12 @@ const ShiftForm = () => {
                 minute: '2-digit',
                 hour12: false
             }).replace(':', '');
-            
+
             const formattedDate = formData.date.replace(/-/g, '');
             const docId = `data_${formattedTime}_${formattedDate}`;
 
             // คำนวณ totals ล่าสุดก่อนส่งข้อมูล
-            const finalTotals = calculateTotals(formData.wards);
+            const finalTotals = calculateTotals;
 
             // เตรียมข้อมูลสำหรับส่งไป Firebase
             const dataToSubmit = {
@@ -403,8 +396,8 @@ const ShiftForm = () => {
                                 <th colSpan="7" className="border p-2 text-center whitespace-nowrap">Patient Movement</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Overall Data</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
-                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Comment</th>
                             </tr>
                             <tr className="bg-[#0ab4ab] text-white text-sm">
@@ -551,8 +544,8 @@ const ShiftForm = () => {
                                         <input
                                             type="number"
                                             min="0"
-                                            value={data.plannedDischarge}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
+                                            value={data.unavailable}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </td>
@@ -560,8 +553,8 @@ const ShiftForm = () => {
                                         <input
                                             type="number"
                                             min="0"
-                                            value={data.unavailable}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
+                                            value={data.plannedDischarge}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </td>
@@ -621,10 +614,10 @@ const ShiftForm = () => {
                                     {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : ''}
+                                    {formData.totals.unavailable > 0 ? formData.totals.unavailable : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.unavailable > 0 ? formData.totals.unavailable : ''}
+                                    {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
                                     {formData.totals.comment ? formData.totals.comment : ''}
@@ -706,7 +699,7 @@ const ShiftForm = () => {
                     {Object.entries(formData.wards).map(([ward, data]) => (
                         <div key={ward} className="bg-white rounded-lg text-black shadow p-3 border border-[#0ab4ab]/10">
                             <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">{ward}</h3>
-                            
+
                             {/* Staff Section */}
                             <div className="space-y-2">
                                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -727,7 +720,7 @@ const ShiftForm = () => {
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-3 gap-1 text-xs">
                                     <div>
                                         <label className="block text-gray-600">Nurse Manager</label>
