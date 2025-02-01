@@ -84,7 +84,7 @@ const Dashboard = () => {
     // Calculate rates and ratios
     const calculateRates = (currentTotal, summaryData) => {
         const { opdTotal24hr } = summaryData;
-        
+
         // Prevent division by zero
         const admissionRate = opdTotal24hr ? ((currentTotal * 100) / opdTotal24hr).toFixed(2) : 0;
         const conversionRatio = currentTotal ? (opdTotal24hr / currentTotal).toFixed(2) : 0;
@@ -141,7 +141,7 @@ const Dashboard = () => {
         try {
             setLoading(true);
             const staffRef = collection(db, 'staffRecords');
-            
+
             // ดึงข้อมูลทั้งหมดเรียงตามเวลา
             const q = query(staffRef, orderBy('timestamp', 'desc'));
             const querySnapshot = await getDocs(q);
@@ -193,12 +193,12 @@ const Dashboard = () => {
                 }
                 break;
             case 'monthly':
-                filteredRecords = filteredRecords.filter(record => 
+                filteredRecords = filteredRecords.filter(record =>
                     record.date.startsWith(selectedMonth)
                 );
                 break;
             case 'yearly':
-                filteredRecords = filteredRecords.filter(record => 
+                filteredRecords = filteredRecords.filter(record =>
                     record.date.startsWith(selectedYear)
                 );
                 break;
@@ -289,8 +289,8 @@ const Dashboard = () => {
 
         // Transform data for Excel
         const excelData = dataToExport.map(record => {
-            const wardData = filters.ward ? 
-                { [filters.ward]: record.wards[filters.ward] } : 
+            const wardData = filters.ward ?
+                { [filters.ward]: record.wards[filters.ward] } :
                 record.wards;
 
             return {
@@ -372,13 +372,13 @@ const Dashboard = () => {
         console.log('Ward Data:', wardData);
         return Object.values(wardData).reduce((total, ward) => {
             const sum = (
-                Number(ward.numberOfPatients || 0) + 
-                Number(ward.newAdmissions || 0) + 
-                Number(ward.transfers || 0) + 
-                Number(ward.referIn || 0) - 
-                Number(ward.transferOut || 0) - 
-                Number(ward.referOut || 0) - 
-                Number(ward.discharge || 0) - 
+                Number(ward.numberOfPatients || 0) +
+                Number(ward.newAdmissions || 0) +
+                Number(ward.transfers || 0) +
+                Number(ward.referIn || 0) -
+                Number(ward.transferOut || 0) -
+                Number(ward.referOut || 0) -
+                Number(ward.discharge || 0) -
                 Number(ward.deaths || 0)
             );
             console.log('Ward:', ward, 'Sum:', sum);
@@ -685,7 +685,7 @@ const Dashboard = () => {
                                     Ward
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                Patient Census
+                                    Patient Census
                                 </th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
                                     RN
