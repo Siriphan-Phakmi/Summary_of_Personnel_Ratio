@@ -37,7 +37,7 @@ export function formatDataForExcel(records) {
             'คนไข้ใหม่': record.summaryData?.newPatients || '',
             'Admit 24hr': record.summaryData?.admissions24hr || '',
             'ผู้ตรวจการ': record.summaryData?.supervisorName || '',
-            'คงพยาบาล': data.currentPatients,
+            'Overall Data': data.overallData,
             'ห้องว่าง': data.availableBeds,
             'Plan D/C': data.plannedDischarge,
             'unavailable': data.maintainanceRooms,

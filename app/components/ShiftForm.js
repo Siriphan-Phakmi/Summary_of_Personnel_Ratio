@@ -29,11 +29,12 @@ const ShiftForm = () => {
         transferOut: '', 
         referOut: '', 
         discharge: '', 
-        dead: '', 
+        dead: '',
+        overallData: '', 
         availableBeds: '', 
         plannedDischarge: '', 
         unavailable: '', 
-        comment: ''
+        comment: '',
     };
 
     // ปรับปรุง formData state
@@ -79,9 +80,55 @@ const ShiftForm = () => {
         }
     }, []);
 
+    // เพิ่มฟังก์ชันคำนวณ totals
+    const calculateTotals = (wards) => {
+        const totals = {
+            numberOfPatients: 0,
+            nurseManager: 0,
+            RN: 0,
+            PN: 0,
+            WC: 0,
+            newAdmit: 0,
+            transferIn: 0,
+            referIn: 0,
+            transferOut: 0,
+            referOut: 0,
+            discharge: 0,
+            dead: 0,
+            overallData: 0,
+            availableBeds: 0,
+            plannedDischarge: 0,
+            unavailable: 0
+        };
+
+        Object.values(wards).forEach(ward => {
+            Object.keys(totals).forEach(key => {
+                if (key === 'overallData') {
+                    // คำนวณ overallData สำหรับแต่ละ ward
+                    const wardTotal = (
+                        parseInt(ward.numberOfPatients || 0) +
+                        parseInt(ward.newAdmit || 0) +
+                        parseInt(ward.transferIn || 0) +
+                        parseInt(ward.referIn || 0) -
+                        parseInt(ward.transferOut || 0) -
+                        parseInt(ward.referOut || 0) -
+                        parseInt(ward.discharge || 0) -
+                        parseInt(ward.dead || 0)
+                    );
+                    totals[key] += wardTotal;
+                } else {
+                    totals[key] += parseInt(ward[key] || 0);
+                }
+            });
+        });
+
+        return totals;
+    };
+
     // Add useEffect for automatic total calculation
     useEffect(() => {
-        calculateTotals();
+        const newTotals = calculateTotals(formData.wards);
+        setFormData(prev => ({ ...prev, totals: newTotals }));
     }, [formData.wards]);
 
     const handleDateChange = (element) => {
@@ -90,18 +137,43 @@ const ShiftForm = () => {
         setThaiDate(formatThaiDate(newDate));
     };
 
-    // ปรับปรุงฟังก์ชัน calculateTotals
-    const calculateTotals = () => {
-        const totals = Object.values(formData.wards).reduce((acc, ward) => {
-            Object.keys(ward).forEach(key => {
-                if (key !== 'comment') {  // ไม่รวมช่องหมายเหตุในการคำนวณ
-                    const value = parseInt(ward[key]) || 0;
-                    acc[key] = (parseInt(acc[key]) || 0) + value;
+    // อัพเดท handleInputChange
+    const handleInputChange = (section, ward, data) => {
+        const sanitizedData = Object.fromEntries(
+            Object.entries(data).map(([key, value]) => [
+                key,
+                key === 'comment' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0).toString())
+            ])
+        );
+
+        // คำนวณ overallData
+        const overallData = (
+            parseInt(sanitizedData.numberOfPatients || 0) +
+            parseInt(sanitizedData.newAdmit || 0) +
+            parseInt(sanitizedData.transferIn || 0) +
+            parseInt(sanitizedData.referIn || 0) -
+            parseInt(sanitizedData.transferOut || 0) -
+            parseInt(sanitizedData.referOut || 0) -
+            parseInt(sanitizedData.discharge || 0) -
+            parseInt(sanitizedData.dead || 0)
+        );
+
+        sanitizedData.overallData = overallData.toString();
+
+        setFormData(prev => {
+            const newData = {
+                ...prev,
+                wards: {
+                    ...prev.wards,
+                    [ward]: sanitizedData
                 }
-            });
-            return acc;
-        }, { ...initialWardData });
-        setFormData(prev => ({ ...prev, totals }));
+            };
+            
+            // คำนวณ totals ใหม่
+            newData.totals = calculateTotals(newData.wards);
+            
+            return newData;
+        });
     };
 
     const validateForm = () => {
@@ -184,33 +256,43 @@ const ShiftForm = () => {
             const formattedDate = formData.date.replace(/-/g, '');
             const docId = `data_${formattedTime}_${formattedDate}`;
 
-            // คำนวณ currentPatients สำหรับแต่ละ ward
-            const wardTotals = {};
-            let totalCurrentPatients = 0;
+            // คำนวณ totals ล่าสุดก่อนส่งข้อมูล
+            const finalTotals = calculateTotals(formData.wards);
 
+            // เตรียมข้อมูลสำหรับส่งไป Firebase
+            const dataToSubmit = {
+                date: formData.date,
+                shift: formData.shift,
+                wards: {},
+                totals: finalTotals,
+                overallData: finalTotals.overallData // เพิ่มฟิลด์นี้
+            };
+
+            // เพิ่ม overallData ในแต่ละ ward
             Object.entries(formData.wards).forEach(([wardName, ward]) => {
-                const wardTotal = 
-                    Number(ward.numberOfPatients || 0) + 
-                    Number(ward.newAdmit || 0) + 
-                    Number(ward.transferIn || 0) + 
-                    Number(ward.referIn || 0) - 
-                    Number(ward.transferOut || 0) - 
-                    Number(ward.referOut || 0) - 
-                    Number(ward.discharge || 0) - 
-                    Number(ward.dead || 0);
-                
-                wardTotals[wardName] = wardTotal;
-                totalCurrentPatients += wardTotal;
+                const overallData = (
+                    parseInt(ward.numberOfPatients || 0) +
+                    parseInt(ward.newAdmit || 0) +
+                    parseInt(ward.transferIn || 0) +
+                    parseInt(ward.referIn || 0) -
+                    parseInt(ward.transferOut || 0) -
+                    parseInt(ward.referOut || 0) -
+                    parseInt(ward.discharge || 0) -
+                    parseInt(ward.dead || 0)
+                );
+
+                dataToSubmit.wards[wardName] = {
+                    ...ward,
+                    overallData: overallData.toString()
+                };
             });
-            
-            // บันทึกข้อมูลพร้อมกับ currentPatients และ wardTotals
+
+            // บันทึกข้อมูลลง Firebase
             await setDoc(doc(db, 'staffRecords', docId), {
-                ...formData,
+                ...dataToSubmit,
                 summaryData,
                 timestamp: serverTimestamp(),
-                docId: docId,
-                currentPatients: totalCurrentPatients,
-                wardTotals: wardTotals
+                docId: docId
             });
 
             // รีเซ็ตฟอร์มหลังจากบันทึกสำเร็จ
@@ -249,38 +331,6 @@ const ShiftForm = () => {
         } finally {
             setIsLoading(false);
         }
-    };
-
-    // แก้ไขฟังก์ชัน handleInputChange ให้สามารถรับค่าที่เป็นเลขที่มากกว่าหรือเท่ากับ 0
-    const handleInputChange = (section, ward, data) => {
-        const sanitizedData = Object.fromEntries(
-            Object.entries(data).map(([key, value]) => [
-                key,
-                // Special handling for remarks field
-                key === 'comment' ? value : (value === '' ? '' : Math.max(0, parseInt(value) || 0).toString())
-            ])
-        );
-
-        // Calculate currentPatients based on the formula
-        const numberOfPatients = parseInt(sanitizedData.numberOfPatients) || 0;
-        const newAdmit = parseInt(sanitizedData.newAdmit) || 0;
-        const transferIn = parseInt(sanitizedData.transferIn) || 0;
-        const referIn = parseInt(sanitizedData.referIn) || 0;
-        const transferOut = parseInt(sanitizedData.transferOut) || 0;
-        const referOut = parseInt(sanitizedData.referOut) || 0;
-        const discharge = parseInt(sanitizedData.discharge) || 0;
-        const dead = parseInt(sanitizedData.dead) || 0;
-
-        // จำนวนผู้ป่วย + รับใหม่ + Refer In + รับย้าย - Refer Out - กลับบ้าน - เสียชีวิต
-        sanitizedData.currentPatients = (numberOfPatients + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead).toString();
-
-        setFormData(prev => ({
-            ...prev,
-            wards: {
-                ...prev.wards,
-                [ward]: sanitizedData
-            }
-        }));
     };
 
     return (
@@ -351,9 +401,10 @@ const ShiftForm = () => {
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Patient Census</th>
                                 <th colSpan="4" className="border p-2 text-center whitespace-nowrap">Staff</th>
                                 <th colSpan="7" className="border p-2 text-center whitespace-nowrap">Patient Movement</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Overall Data</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Available</th>
-                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Plan D/C</th>
+                                <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Unavailable</th>
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Comment</th>
                             </tr>
                             <tr className="bg-[#0ab4ab] text-white text-sm">
@@ -423,6 +474,33 @@ const ShiftForm = () => {
                                         <input
                                             type="number"
                                             min="0"
+                                            value={data.newAdmit}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.transferIn}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.referIn}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                        />
+                                    </td>
+                                    <td className="border border-gray-200 p-2">
+                                        <input
+                                            type="number"
+                                            min="0"
                                             value={data.transferOut}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, transferOut: e.target.value })}
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
@@ -455,32 +533,10 @@ const ShiftForm = () => {
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </td>
-                                    <td className="border border-gray-200 p-2">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.newAdmit}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
-                                    </td>
-                                    <td className="border border-gray-200 p-2">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.transferIn}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
-                                    </td>
-                                    <td className="border border-gray-200 p-2">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.referIn}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
+                                    <td className="border border-gray-200 p-2 bg-gray-100">
+                                        <div className="w-full p-1 text-center font-medium text-black">
+                                            {data.overallData ? data.overallData : ''}
+                                        </div>
                                     </td>
                                     <td className="border border-gray-200 p-2">
                                         <input
@@ -523,52 +579,55 @@ const ShiftForm = () => {
                             <tr className="bg-gray-50">
                                 <td className="border border-gray-200 text-center text-black p-2 font-semibold">Total</td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : '-'}
+                                    {formData.totals.numberOfPatients > 0 ? formData.totals.numberOfPatients : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.nurseManager > 0 ? formData.totals.nurseManager : '-'}
+                                    {formData.totals.nurseManager > 0 ? formData.totals.nurseManager : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.RN > 0 ? formData.totals.RN : '-'}
+                                    {formData.totals.RN > 0 ? formData.totals.RN : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.PN > 0 ? formData.totals.PN : '-'}
+                                    {formData.totals.PN > 0 ? formData.totals.PN : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.WC > 0 ? formData.totals.WC : '-'}
+                                    {formData.totals.WC > 0 ? formData.totals.WC : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.transferOut > 0 ? formData.totals.transferOut : '-'}
+                                    {formData.totals.newAdmit > 0 ? formData.totals.newAdmit : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.referOut > 0 ? formData.totals.referOut : '-'}
+                                    {formData.totals.transferIn > 0 ? formData.totals.transferIn : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.discharge > 0 ? formData.totals.discharge : '-'}
+                                    {formData.totals.referIn > 0 ? formData.totals.referIn : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.dead > 0 ? formData.totals.dead : '-'}
+                                    {formData.totals.transferOut > 0 ? formData.totals.transferOut : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.newAdmit > 0 ? formData.totals.newAdmit : '-'}
+                                    {formData.totals.referOut > 0 ? formData.totals.referOut : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.transferIn > 0 ? formData.totals.transferIn : '-'}
+                                    {formData.totals.discharge > 0 ? formData.totals.discharge : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.referIn > 0 ? formData.totals.referIn : '-'}
+                                    {formData.totals.dead > 0 ? formData.totals.dead : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : '-'}
+                                    {formData.totals.overallData > 0 ? formData.totals.overallData : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : '-'}
+                                    {formData.totals.availableBeds > 0 ? formData.totals.availableBeds : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.unavailable > 0 ? formData.totals.unavailable : '-'}
+                                    {formData.totals.plannedDischarge > 0 ? formData.totals.plannedDischarge : ''}
                                 </td>
                                 <td className="border border-gray-200 p-2 text-center text-black">
-                                    {formData.totals.comment ? formData.totals.comment : '-'}
+                                    {formData.totals.unavailable > 0 ? formData.totals.unavailable : ''}
+                                </td>
+                                <td className="border border-gray-200 p-2 text-center text-black">
+                                    {formData.totals.comment ? formData.totals.comment : ''}
                                 </td>
                             </tr>
                         </tbody>
@@ -662,6 +721,15 @@ const ShiftForm = () => {
                                         />
                                     </div>
                                     <div>
+                                        <label className="block text-black text-gray-600">Overall Data</label>
+                                        <div className="w-full p-1 text-center font-medium text-black">
+                                            {data.overallData || '0'}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-1 text-xs">
+                                    <div>
                                         <label className="block text-gray-600">Nurse Manager</label>
                                         <input
                                             type="number"
@@ -671,9 +739,6 @@ const ShiftForm = () => {
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-3 gap-1 text-xs">
                                     <div>
                                         <label className="block text-gray-600">RN</label>
                                         <input
@@ -691,16 +756,6 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.PN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-600">WC</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.WC}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
                                             className="w-full text-center border-0 focus:ring-0 text-gray-900"
                                         />
                                     </div>

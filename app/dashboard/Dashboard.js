@@ -15,8 +15,9 @@ const Dashboard = () => {
     const [selectedDate, setSelectedDate] = useState('');
     const [recordedDate, setRecordedDate] = useState('');
     const [recordedTime, setRecordedTime] = useState('');
-    const [currentPatients, setCurrentPatients] = useState({
+    const [overallData, setOverallData] = useState({
         total: 0,
+        overallData: 0, // เพิ่ม overallData
         byWard: {},
         summaryData: {
             opdTotal24hr: 0,
@@ -157,12 +158,28 @@ const Dashboard = () => {
                     recordedTime: data.recordedTime || '',
                     wards: data.wards || {},
                     summaryData: data.summaryData || {},
-                    recorder: data.supervisorName || ''
+                    recorder: data.supervisorName || '',
+                    overallData: data.overallData || 0,
+                    wardTotals: data.wardTotals || {}
                 };
             });
 
             // เก็บข้อมูลทั้งหมด
             setAllRecords(records);
+
+            // อัพเดท overallData state
+            if (records.length > 0) {
+                const latestRecord = records[0]; // เนื่องจากเรียงตาม timestamp desc แล้ว
+                const totalPatients = calculateTotalPatients(latestRecord.wards || {});
+                
+                setOverallData({
+                    total: totalPatients, // เปลี่ยนเป็นใช้ค่า total จาก numberOfPatients
+                    overallData: latestRecord.totalOverallData || 0, // เพิ่ม overallData
+                    byWard: latestRecord.wardTotals,
+                    summaryData: latestRecord.summaryData,
+                    calculations: calculateRates(latestRecord.overallData, latestRecord.summaryData)
+                });
+            }
 
             // สร้างรายการวันที่ที่มีข้อมูล
             const dates = [...new Set(records.map(record => record.date))];
@@ -179,6 +196,13 @@ const Dashboard = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // เพิ่มฟังก์ชันคำนวณ total numberOfPatients
+    const calculateTotalPatients = (wards) => {
+        return Object.values(wards).reduce((total, ward) => {
+            return total + (parseInt(ward.numberOfPatients) || 0);
+        }, 0);
     };
 
     // กรองและอัพเดทข้อมูล
@@ -202,17 +226,14 @@ const Dashboard = () => {
                     record.date.startsWith(selectedYear)
                 );
                 break;
-            case 'all':
-                // ไม่ต้องกรอง แสดงทั้งหมด
-                break;
         }
 
-        // กรองตามกะ
+        // กรองตาม shift ถ้ามีการระบุ
         if (currentFilters.shift) {
             filteredRecords = filteredRecords.filter(record => record.shift === currentFilters.shift);
         }
 
-        // กรองตาม ward
+        // กรองตาม ward ถ้ามีการระบุ
         if (currentFilters.ward) {
             filteredRecords = filteredRecords.filter(record => record.wards[currentFilters.ward]);
         }
@@ -222,58 +243,23 @@ const Dashboard = () => {
             filteredRecords = filteredRecords.filter(record => record.recorder === currentFilters.recorder);
         }
 
-        // คำนวณข้อมูลรวม
-        const summaryData = calculateSummaryData(filteredRecords);
-
+        // อัพเดทข้อมูลที่แสดงผล
         if (filteredRecords.length > 0) {
-            // แสดงข้อมูลสรุปทั้งหมด
-            const wardsData = Object.entries(summaryData.wards).map(([name, data]) => ({
-                name,
-                patients: parseInt(data.totalPatients) || 0,
-                RN: parseInt(data.totalRN) || 0,
-                PN: parseInt(data.totalPN) || 0,
-                NA: parseInt(data.totalAdmin) || 0,
-                admissions: parseInt(data.admissions) || 0,
-                discharges: parseInt(data.discharges) || 0
-            }));
+            const latestRecord = filteredRecords[0];
+            
+            // ใช้ค่า totalOverallData จาก Firebase
+            const overallTotal = latestRecord.overallData || 0;
 
-            setWardData(wardsData);
-            setTotalPatients(wardsData.reduce((sum, ward) => sum + ward.patients, 0));
-
-            // อัพเดท current patients state ด้วยข้อมูลสรุป
-            setCurrentPatients({
-                total: wardsData.reduce((sum, ward) => sum + ward.patients, 0),
-                byWard: summaryData.wards,
-                summaryData: {
-                    opdTotal24hr: parseInt(summaryData.totalOPD) || 0,
-                    existingPatients: parseInt(summaryData.totalExisting) || 0,
-                    newPatients: parseInt(summaryData.totalNew) || 0,
-                    admissions24hr: parseInt(summaryData.totalAdmissions) || 0
-                },
-                calculations: calculateRates(
-                    wardsData.reduce((sum, ward) => sum + ward.patients, 0),
-                    { opdTotal24hr: summaryData.totalOPD }
-                )
-            });
-        } else {
-            // ถ้าไม่มีข้อมูล
-            setWardData([]);
-            setTotalPatients(0);
-            setCurrentPatients({
-                total: 0,
-                byWard: {},
-                summaryData: {
-                    opdTotal24hr: 0,
-                    existingPatients: 0,
-                    newPatients: 0,
-                    admissions24hr: 0
-                },
-                calculations: {
-                    admissionRate: 0,
-                    conversionRatio: 0
-                }
+            setOverallData({
+                total: overallTotal,
+                overallData: latestRecord.totalOverallData || 0, // เพิ่ม overallData
+                byWard: latestRecord.wardTotals || {},
+                summaryData: latestRecord.summaryData,
+                calculations: calculateRates(overallTotal, latestRecord.summaryData)
             });
         }
+
+        return filteredRecords;
     };
 
     // Export to Excel function
@@ -347,7 +333,7 @@ const Dashboard = () => {
         // Calculate rates
         const rates = calculateRates(total, summaryData);
 
-        setCurrentPatients({
+        setOverallData({
             total,
             byWard,
             summaryData,
@@ -373,13 +359,13 @@ const Dashboard = () => {
         return Object.values(wardData).reduce((total, ward) => {
             const sum = (
                 Number(ward.numberOfPatients || 0) +
-                Number(ward.newAdmissions || 0) +
-                Number(ward.transfers || 0) +
+                Number(ward.newAdmit || 0) +        // เปลี่ยนจาก newAdmissions เป็น newAdmit
+                Number(ward.transferIn || 0) +      // เปลี่ยนจาก transfers เป็น transferIn
                 Number(ward.referIn || 0) -
                 Number(ward.transferOut || 0) -
                 Number(ward.referOut || 0) -
                 Number(ward.discharge || 0) -
-                Number(ward.deaths || 0)
+                Number(ward.dead || 0)             // เปลี่ยนจาก deaths เป็น dead
             );
             console.log('Ward:', ward, 'Sum:', sum);
             return total + sum;
@@ -583,11 +569,11 @@ const Dashboard = () => {
                         </div>
                         <div>
                             <span className="text-gray-600 text-sm">Total OPD:</span>
-                            <span className="ml-2 font-medium">{currentPatients.summaryData.opdTotal24hr}</span>
+                            <span className="ml-2 font-medium">{overallData.summaryData.opdTotal24hr}</span>
                         </div>
                         <div>
                             <span className="text-gray-600 text-sm">Total Admissions:</span>
-                            <span className="ml-2 font-medium">{currentPatients.summaryData.admissions24hr}</span>
+                            <span className="ml-2 font-medium">{overallData.summaryData.admissions24hr}</span>
                         </div>
                     </div>
                 </div>
@@ -599,26 +585,26 @@ const Dashboard = () => {
                     {/* Summary Cards */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Current data</h3>
-                        <p className="text-3xl font-bold text-blue-600">{currentPatients.total}</p>
+                        <p className="text-3xl font-bold text-blue-600">{overallData?.total}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Overall data</h3>
-                        <p className="text-3xl font-bold text-blue-600">
-                            {currentPatients?.currentPatients || 0}
+                        <p className="text-3xl font-bold text-green-600">
+                            {overallData?.overallData || 0}
                         </p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 hour</h3>
-                        <p className="text-3xl font-bold text-green-600">{currentPatients.summaryData.opdTotal24hr}</p>
+                        <p className="text-3xl font-bold text-green-600">{overallData.summaryData.opdTotal24hr}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Admission Rate</h3>
-                        <p className="text-3xl font-bold text-purple-600">{currentPatients.calculations.admissionRate}%</p>
+                        <p className="text-3xl font-bold text-purple-600">{overallData.calculations.admissionRate}%</p>
                         <p className="text-sm text-gray-600">Patient Census x 100 / OPD 24 hour</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Conversion Ratio</h3>
-                        <p className="text-3xl font-bold text-orange-600">{currentPatients.calculations.conversionRatio}</p>
+                        <p className="text-3xl font-bold text-orange-600">{overallData.calculations.conversionRatio}</p>
                         <p className="text-sm text-gray-600">OPD 24 hour / Patient Census</p>
                     </div>
                 </div>
@@ -627,15 +613,15 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Old Patient</h3>
-                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.existingPatients}</p>
+                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.existingPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">New Patient</h3>
-                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.newPatients}</p>
+                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.newPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Admit 24 hour</h3>
-                        <p className="text-2xl font-bold text-gray-700">{currentPatients.summaryData.admissions24hr}</p>
+                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.admissions24hr}</p>
                     </div>
                 </div>
 
@@ -643,7 +629,7 @@ const Dashboard = () => {
                 <div className="bg-white p-6 rounded-lg shadow-md mb-8">
                     <h2 className="text-xl font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {Object.entries(currentPatients.byWard).map(([ward, data]) => (
+                        {Object.entries(overallData.byWard).map(([ward, data]) => (
                             <button
                                 key={ward}
                                 onClick={() => setFilters(prev => ({ ...prev, ward }))}
