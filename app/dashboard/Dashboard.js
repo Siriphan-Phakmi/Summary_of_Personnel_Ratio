@@ -1,23 +1,25 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
-import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import * as XLSX from 'xlsx';
+import LoadingSkeleton from '../components/ui/LoadingSkeleton';
+import ErrorState from '../components/ui/ErrorState';
+import EmptyState from '../components/ui/EmptyState';
+import Toast from '../components/ui/Toast';
+import CustomTooltip from '../components/ui/Tooltip';
 
-ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
 const Dashboard = () => {
     const [loading, setLoading] = useState(true);
-    const [totalPatients, setTotalPatients] = useState(0);
-    const [wardData, setWardData] = useState([]);
-    const [selectedDate, setSelectedDate] = useState('');
-    const [recordedDate, setRecordedDate] = useState('');
-    const [recordedTime, setRecordedTime] = useState('');
+    const [error, setError] = useState(null);
+    const [allRecords, setAllRecords] = useState([]);
     const [overallData, setOverallData] = useState({
         total: 0,
-        overallData: 0, // เพิ่ม overallData
+        overallData: 0,
         byWard: {},
         summaryData: {
             opdTotal24hr: 0,
@@ -31,20 +33,30 @@ const Dashboard = () => {
         }
     });
 
-    // เพิ่ม state สำหรับตัวกรอง
     const [filters, setFilters] = useState({
-        date: new Date().toISOString().split('T')[0], // Set default to today
-        shift: '',
-        ward: '',
-        recorder: '', // เพิ่มตัวกรองผู้บันทึก
-        viewType: 'daily' // เพิ่ม viewType: 'daily', 'monthly', 'yearly', 'all'
+        date: new Date().toISOString().split('T')[0],
+        shift: 'All Shifts',
+        ward: 'All Wards',
+        recorder: 'All Recorders',
+        viewType: 'daily'
     });
 
-    // เพิ่ม state สำหรับเดือนและปี
-    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+    const [selectedDate, setSelectedDate] = useState('');
+    const [recordedDate, setRecordedDate] = useState('');
+    const [recordedTime, setRecordedTime] = useState('');
+    const [wardData, setWardData] = useState([]);
+    const [totalPatients, setTotalPatients] = useState(0);
+    const [availableDates, setAvailableDates] = useState([]);
+    const [recorders, setRecorders] = useState([]);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
 
-    // รายชื่อแผนกเรียงตามที่ต้องการ
+    const [selectedWard, setSelectedWard] = useState(null);
+    const [isWardModalOpen, setIsWardModalOpen] = useState(false);
+
+    const [showNoDataAlert, setShowNoDataAlert] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
+
     const wardList = [
         'Ward6', 'Ward7', 'Ward8', 'Ward9', 'WardGI',
         'Ward10B', 'Ward11', 'Ward12', 'ICU', 'CCU',
@@ -53,12 +65,6 @@ const Dashboard = () => {
 
     const shiftList = ['07:00-19:00', '19:00-07:00'];
 
-    // เพิ่ม state สำหรับเก็บข้อมูลทั้งหมด
-    const [allRecords, setAllRecords] = useState([]);
-    const [availableDates, setAvailableDates] = useState([]);
-    const [recorders, setRecorders] = useState([]); // เพิ่ม state สำหรับรายชื่อผู้บันทึก
-
-    // สีสำหรับกราฟ
     const colors = {
         background: [
             'rgba(255, 182, 193, 0.6)', // pink
@@ -82,365 +88,314 @@ const Dashboard = () => {
         ]
     };
 
-    // Calculate rates and ratios
-    const calculateRates = (currentTotal, summaryData) => {
-        const { opdTotal24hr } = summaryData;
+    const calculateRates = useCallback((currentTotal, opdTotal) => {
+        if (!currentTotal || !opdTotal) return { admissionRate: 0, conversionRatio: 0 };
+        const admissionRate = ((currentTotal * 100) / opdTotal).toFixed(2);
+        const conversionRatio = (opdTotal / currentTotal).toFixed(2);
+        return { admissionRate, conversionRatio };
+    }, []);
 
-        // Prevent division by zero
-        const admissionRate = opdTotal24hr ? ((currentTotal * 100) / opdTotal24hr).toFixed(2) : 0;
-        const conversionRatio = currentTotal ? (opdTotal24hr / currentTotal).toFixed(2) : 0;
-
-        return {
-            admissionRate,
-            conversionRatio
-        };
-    };
-
-    // ฟังก์ชันสำหรับคำนวณข้อมูลรวม
-    const calculateSummaryData = (records) => {
-        return records.reduce((summary, record) => {
-            // รวมข้อมูลผู้ป่วยและเจ้าหน้าที่
-            Object.entries(record.wards).forEach(([wardName, wardData]) => {
-                if (!summary.wards[wardName]) {
-                    summary.wards[wardName] = {
-                        totalPatients: 0,
-                        totalRN: 0,
-                        totalPN: 0,
-                        totalAdmin: 0,
-                        admissions: 0,
-                        discharges: 0
-                    };
-                }
-                summary.wards[wardName].totalPatients += parseInt(wardData.numberOfPatients) || 0;
-                summary.wards[wardName].totalRN += parseInt(wardData.RN) || 0;
-                summary.wards[wardName].totalPN += parseInt(wardData.PN) || 0;
-                summary.wards[wardName].totalAdmin += parseInt(wardData.admin) || 0;
-                summary.wards[wardName].admissions += parseInt(wardData.newAdmissions) || 0;
-                summary.wards[wardName].discharges += parseInt(wardData.discharge) || 0;
-            });
-
-            // รวมข้อมูล OPD และอื่นๆ
-            summary.totalOPD += parseInt(record.summaryData.opdTotal24hr) || 0;
-            summary.totalExisting += parseInt(record.summaryData.existingPatients) || 0;
-            summary.totalNew += parseInt(record.summaryData.newPatients) || 0;
-            summary.totalAdmissions += parseInt(record.summaryData.admissions24hr) || 0;
-            summary.recordCount++;
-
-            return summary;
-        }, {
-            wards: {},
-            totalOPD: 0,
-            totalExisting: 0,
-            totalNew: 0,
-            totalAdmissions: 0,
-            recordCount: 0
-        });
-    };
-
-    // โหลดข้อมูลจาก Firebase
     const fetchAllData = async () => {
         try {
             setLoading(true);
-            const staffRef = collection(db, 'staffRecords');
+            setError(null);
 
-            // ดึงข้อมูลทั้งหมดเรียงตามเวลา
+            const staffRef = collection(db, 'staffRecords');
             const q = query(staffRef, orderBy('timestamp', 'desc'));
             const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                setError('ไม่พบข้อมูลในระบบ');
+                return;
+            }
 
             const records = querySnapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    date: data.date || '',
-                    shift: data.shift || '',
-                    timestamp: data.timestamp?.toDate() || new Date(),
-                    recordedDate: data.recordedDate || '',
-                    recordedTime: data.recordedTime || '',
-                    wards: data.wards || {},
-                    summaryData: data.summaryData || {},
-                    recorder: data.supervisorName || '',
-                    overallData: data.overallData || 0,
-                    wardTotals: data.wardTotals || {}
+                    ...data,
+                    timestamp: data.timestamp?.toDate() || new Date()
                 };
             });
 
-            // เก็บข้อมูลทั้งหมด
             setAllRecords(records);
 
-            // อัพเดท overallData state
-            if (records.length > 0) {
-                const latestRecord = records[0]; // เนื่องจากเรียงตาม timestamp desc แล้ว
-                const totalPatients = calculateTotalPatients(latestRecord.wards || {});
-                
-                setOverallData({
-                    total: totalPatients, // เปลี่ยนเป็นใช้ค่า total จาก numberOfPatients
-                    overallData: latestRecord.overallData || 0, // เพิ่ม overallData
-                    byWard: latestRecord.wardTotals,
-                    summaryData: latestRecord.summaryData,
-                    calculations: calculateRates(latestRecord.overallData, latestRecord.summaryData)
-                });
+            // Get latest record
+            const latestRecord = records[0];
+            if (!latestRecord) {
+                setError('ไม่พบข้อมูลล่าสุด');
+                return;
             }
 
-            // สร้างรายการวันที่ที่มีข้อมูล
+            // Calculate total patients from wards
+            const totalPatients = Object.values(latestRecord.wards || {}).reduce((sum, ward) => {
+                return sum + (parseInt(ward.numberOfPatients) || 0);
+            }, 0);
+
+            // Update overall data
+            setOverallData({
+                total: totalPatients,
+                overallData: latestRecord.overallData || totalPatients,
+                byWard: latestRecord.wards || {},
+                summaryData: {
+                    opdTotal24hr: parseInt(latestRecord.summaryData?.opdTotal24hr) || 0,
+                    existingPatients: parseInt(latestRecord.summaryData?.existingPatients) || 0,
+                    newPatients: parseInt(latestRecord.summaryData?.newPatients) || 0,
+                    admissions24hr: parseInt(latestRecord.summaryData?.admissions24hr) || 0
+                },
+                calculations: calculateRates(
+                    totalPatients,
+                    parseInt(latestRecord.summaryData?.opdTotal24hr) || 0
+                )
+            });
+
+            // Update recorded date and time
+            setRecordedDate(latestRecord.recordedDate);
+            setRecordedTime(latestRecord.recordedTime);
+
+            // Create list of available dates
             const dates = [...new Set(records.map(record => record.date))];
             setAvailableDates(dates.sort().reverse());
 
-            // สร้างรายการผู้บันทึก
+            // Create list of recorders
             const uniqueRecorders = [...new Set(records.map(record => record.recorder))].filter(Boolean);
             setRecorders(uniqueRecorders.sort());
 
-            // กรองข้อมูลตาม filters ปัจจุบัน
-            filterData(records, filters);
-        } catch (error) {
-            console.error('Error fetching data:', error);
+        } catch (err) {
+            console.error('Error fetching data:', err);
+            setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
         } finally {
             setLoading(false);
         }
     };
 
-    // เพิ่มฟังก์ชันคำนวณ total numberOfPatients
-    const calculateTotalPatients = (wards) => {
-        return Object.values(wards).reduce((total, ward) => {
-            return total + (parseInt(ward.numberOfPatients) || 0);
-        }, 0);
-    };
-
-    // กรองและอัพเดทข้อมูล
-    const filterData = (records = allRecords, currentFilters = filters) => {
-        let filteredRecords = [...records];
-
-        // กรองตามประเภทการดูข้อมูล
-        switch (currentFilters.viewType) {
-            case 'daily':
-                if (currentFilters.date) {
-                    filteredRecords = filteredRecords.filter(record => record.date === currentFilters.date);
-                }
-                break;
-            case 'monthly':
-                filteredRecords = filteredRecords.filter(record =>
-                    record.date.startsWith(selectedMonth)
-                );
-                break;
-            case 'yearly':
-                filteredRecords = filteredRecords.filter(record =>
-                    record.date.startsWith(selectedYear)
-                );
-                break;
-        }
-
-        // กรองตาม shift ถ้ามีการระบุ
-        if (currentFilters.shift) {
-            filteredRecords = filteredRecords.filter(record => record.shift === currentFilters.shift);
-        }
-
-        // กรองตาม ward ถ้ามีการระบุ
-        if (currentFilters.ward) {
-            filteredRecords = filteredRecords.filter(record => record.wards[currentFilters.ward]);
-        }
-
-        // กรองตามผู้บันทึก
-        if (currentFilters.recorder) {
-            filteredRecords = filteredRecords.filter(record => record.recorder === currentFilters.recorder);
-        }
-
-        // อัพเดทข้อมูลที่แสดงผล
-        if (filteredRecords.length > 0) {
-            const latestRecord = filteredRecords[0];
-            
-            // คำนวณ total จาก numberOfPatients ของทุก ward
-            const totalPatients = Object.values(latestRecord.wards || {}).reduce((sum, ward) => {
-                return sum + (parseInt(ward.numberOfPatients) || 0);
-            }, 0);
-
-            setOverallData({
-                total: totalPatients, // ใช้ผลรวมของ numberOfPatients
-                overallData: latestRecord.overallData || 0, // ใช้ค่า overallData จาก Firebase
-                byWard: latestRecord.wardTotals || {},
-                summaryData: latestRecord.summaryData,
-                calculations: calculateRates(totalPatients, latestRecord.summaryData)
-            });
-        } else if (currentFilters.viewType === 'daily') {
-            // รีเซ็ตค่าเป็น 0 เมื่อไม่พบข้อมูลในวันที่เลือก (เฉพาะ daily view)
-            setOverallData({
-                total: 0,
-                overallData: 0,
-                byWard: {},
-                summaryData: {
-                    opdTotal24hr: 0,
-                    existingPatients: 0,
-                    newPatients: 0,
-                    admissions24hr: 0
-                },
-                calculations: {
-                    admissionRate: 0,
-                    conversionRatio: 0
-                }
-            });
-        }
-
-        return filteredRecords;
-    };
-
-    // Export to Excel function
-    const exportToExcel = () => {
-        // Filter data based on current filters
-        const dataToExport = allRecords.filter(record => {
-            const dateMatch = !filters.date || record.date === filters.date;
-            const shiftMatch = !filters.shift || record.shift === filters.shift;
-            const wardMatch = !filters.ward || record.wards[filters.ward];
-            const recorderMatch = !filters.recorder || record.recorder === filters.recorder;
-            return dateMatch && shiftMatch && wardMatch && recorderMatch;
-        });
-
-        // Transform data for Excel
-        const excelData = dataToExport.map(record => {
-            const wardData = filters.ward ?
-                { [filters.ward]: record.wards[filters.ward] } :
-                record.wards;
-
-            return {
-                Date: record.date,
-                Shift: record.shift,
-                'Recorded Date': record.recordedDate,
-                'Recorded Time': record.recordedTime,
-                'Recorder': record.recorder,
-                ...Object.entries(wardData).reduce((acc, [ward, data]) => ({
-                    ...acc,
-                    [`${ward} Patients`]: data.numberOfPatients,
-                    [`${ward} RN`]: data.RN,
-                    [`${ward} PN`]: data.PN,
-                    [`${ward} Admin`]: data.admin,
-                }), {}),
-                'OPD Total 24hr': record.summaryData.opdTotal24hr,
-                'Existing Patients': record.summaryData.existingPatients,
-                'New Patients': record.summaryData.newPatients,
-                'Admissions 24hr': record.summaryData.admissions24hr,
-            };
-        });
-
-        // Create worksheet
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Staff Records');
-
-        // Generate filename with current date
-        const fileName = `staff_records_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-        // Save file
-        XLSX.writeFile(wb, fileName);
-    };
-
-    // Calculate current patients when filtered data changes
-    const calculateCurrentPatients = (wards, summaryData = {}) => {
-        const byWard = {};
-        let total = 0;
-
-        Object.entries(wards).forEach(([wardName, data]) => {
-            const numberOfPatients = parseInt(data.numberOfPatients) || 0;
-            const newAdmissions = parseInt(data.newAdmissions) || 0;
-            const referIn = parseInt(data.referIn) || 0;
-            const transfers = parseInt(data.transfers) || 0;
-            const referOut = parseInt(data.referOut) || 0;
-            const discharge = parseInt(data.discharge) || 0;
-            const deaths = parseInt(data.deaths) || 0;
-
-            const current = numberOfPatients + newAdmissions + referIn + transfers - referOut - discharge - deaths;
-            byWard[wardName] = current;
-            total += current;
-        });
-
-        // Calculate rates
-        const rates = calculateRates(total, summaryData);
-
-        setOverallData({
-            total,
-            byWard,
-            summaryData,
-            calculations: rates
-        });
-    };
-
-    // คำนวณผลรวมของข้อมูล
-    const calculateTotals = (wards) => {
-        return wards.reduce((totals, ward) => {
-            return {
-                patients: (totals.patients || 0) + (ward.patients || 0),
-                RN: (totals.RN || 0) + (ward.RN || 0),
-                PN: (totals.PN || 0) + (ward.PN || 0),
-                NA: (totals.NA || 0) + (ward.NA || 0)
-            };
-        }, {});
-    };
-
-    // เพิ่มฟังก์ชันคำนวณ overall
-    const calculateOverall = (wardData) => {
-        console.log('Ward Data:', wardData);
-        return Object.values(wardData).reduce((total, ward) => {
-            const sum = (
-                Number(ward.numberOfPatients || 0) +
-                Number(ward.newAdmit || 0) +        // เปลี่ยนจาก newAdmissions เป็น newAdmit
-                Number(ward.transferIn || 0) +      // เปลี่ยนจาก transfers เป็น transferIn
-                Number(ward.referIn || 0) -
-                Number(ward.transferOut || 0) -
-                Number(ward.referOut || 0) -
-                Number(ward.discharge || 0) -
-                Number(ward.dead || 0)             // เปลี่ยนจาก deaths เป็น dead
-            );
-            console.log('Ward:', ward, 'Sum:', sum);
-            return total + sum;
-        }, 0);
-    };
-
-    // โหลดข้อมูลเมื่อเริ่มต้น
     useEffect(() => {
         fetchAllData();
     }, []);
 
-    // อัพเดทข้อมูลเมื่อ filters หรือ selectedMonth หรือ selectedYear เปลี่ยน
-    useEffect(() => {
-        if (allRecords.length > 0) {
-            filterData(allRecords, filters);
+    // Helper functions
+    const isValidWardData = (wardData) => {
+        if (!wardData) return false;
+        return (
+            wardData.numberOfPatients > 0 || 
+            wardData.RN > 0 || 
+            wardData.PN > 0 || 
+            wardData.NA > 0
+        );
+    };
+
+    const filterData = (records = allRecords, currentFilters = filters) => {
+        let filteredRecords = [...records];
+
+        // Date/Time based filtering
+        if (currentFilters.viewType === 'daily' && currentFilters.date) {
+            filteredRecords = filteredRecords.filter(record => record.date === currentFilters.date);
+        } else if (currentFilters.viewType === 'monthly' && selectedMonth) {
+            filteredRecords = filteredRecords.filter(record => 
+                record.date.startsWith(selectedMonth)
+            );
+        } else if (currentFilters.viewType === 'yearly' && selectedYear) {
+            filteredRecords = filteredRecords.filter(record => 
+                record.date.startsWith(selectedYear)
+            );
         }
-    }, [filters, selectedMonth, selectedYear]);
 
-    // ข้อมูลสำหรับ Pie Chart และ Bar Chart
-    const chartData = useMemo(() => {
-        console.log('overallData.byWard:', overallData.byWard);
-        
-        // แปลงข้อมูลจาก byWard เป็น array
-        const wardEntries = Object.entries(overallData.byWard || {});
-        console.log('wardEntries:', wardEntries);
+        // Shift filtering
+        if (currentFilters.shift !== 'All Shifts') {
+            filteredRecords = filteredRecords.filter(record => 
+                record.shift === currentFilters.shift
+            );
+        }
 
-        // สร้าง labels และ data
-        const labels = wardEntries.map(([ward]) => ward);
-        const data = wardEntries.map(([, value]) => value.totalPatients || 0);
+        // Enhanced ward filtering with validation
+        if (currentFilters.ward !== 'All Wards') {
+            filteredRecords = filteredRecords.filter(record => {
+                if (!record.wards || !record.wards[currentFilters.ward]) {
+                    return false;
+                }
+                return isValidWardData(record.wards[currentFilters.ward]);
+            });
+        }
+
+        // Sort results by date and shift
+        filteredRecords.sort((a, b) => {
+            const dateCompare = b.date.localeCompare(a.date);
+            if (dateCompare !== 0) return dateCompare;
+            if (a.shift && b.shift) {
+                return a.shift.localeCompare(b.shift);
+            }
+            return 0;
+        });
+
+        return filteredRecords;
+    };
+
+    // Function to aggregate data from filtered records
+    const aggregateData = useCallback((records) => {
+        if (!records.length) return {
+            total: 0,
+            overallData: 0,
+            byWard: {},
+            summaryData: {
+                opdTotal24hr: 0,
+                existingPatients: 0,
+                newPatients: 0,
+                admissions24hr: 0
+            },
+            calculations: {
+                admissionRate: 0,
+                conversionRatio: 0
+            }
+        };
+
+        // Get the latest record for the filtered set
+        const latestRecord = records[0];
         
-        console.log('Chart labels:', labels);
-        console.log('Chart data:', data);
+        // Calculate total patients from wards
+        const totalPatients = Object.values(latestRecord.wards || {}).reduce((sum, ward) => {
+            return sum + (parseInt(ward.numberOfPatients) || 0);
+        }, 0);
 
         return {
-            pie: {
+            total: totalPatients,
+            overallData: latestRecord.overallData || totalPatients,
+            byWard: latestRecord.wards || {},
+            summaryData: {
+                opdTotal24hr: parseInt(latestRecord.summaryData?.opdTotal24hr) || 0,
+                existingPatients: parseInt(latestRecord.summaryData?.existingPatients) || 0,
+                newPatients: parseInt(latestRecord.summaryData?.newPatients) || 0,
+                admissions24hr: parseInt(latestRecord.summaryData?.admissions24hr) || 0
+            },
+            calculations: calculateRates(
+                totalPatients,
+                parseInt(latestRecord.summaryData?.opdTotal24hr) || 0
+            )
+        };
+    }, [calculateRates]);
+
+    // Effect to update data when filters change
+    useEffect(() => {
+        const filtered = filterData();
+        if (filtered.length > 0) {
+            const aggregatedData = aggregateData(filtered);
+            setOverallData(aggregatedData);
+            
+            // Update recorded date and time from the latest filtered record
+            const latestFilteredRecord = filtered[0];
+            setRecordedDate(latestFilteredRecord.recordedDate);
+            setRecordedTime(latestFilteredRecord.recordedTime);
+        } else {
+            setAlertMessage('ไม่พบข้อมูลสำหรับตัวกรองที่เลือก');
+            setShowNoDataAlert(true);
+        }
+    }, [filters, selectedMonth, selectedYear, allRecords, aggregateData]);
+
+    // Check for today's data
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const hasTodayData = allRecords.some(record => record.date === today);
+        
+        if (!hasTodayData && allRecords.length > 0) {
+            setAlertMessage(`ไม่พบข้อมูลสำหรับวันที่ ${today} กรุณาเลือกวันที่อื่น`);
+            setShowNoDataAlert(true);
+            
+            // Set to latest available date
+            const latestRecord = allRecords[0];
+            setFilters(prev => ({
+                ...prev,
+                date: latestRecord.date
+            }));
+        }
+    }, [allRecords]);
+
+    // Alert component
+    const renderAlert = () => {
+        if (!showNoDataAlert) return null;
+        
+        return (
+            <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div className="ml-3">
+                        <p className="text-sm text-amber-700">
+                            {alertMessage}
+                        </p>
+                    </div>
+                    <div className="ml-auto pl-3">
+                        <div className="-mx-1.5 -my-1.5">
+                            <button
+                                onClick={() => setShowNoDataAlert(false)}
+                                className="inline-flex rounded-md p-1.5 text-amber-500 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                            >
+                                <span className="sr-only">Dismiss</span>
+                                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Filter summary component
+    const renderFilterSummary = () => {
+        const summary = [];
+        if (filters.viewType === 'daily') {
+            summary.push(`วันที่: ${filters.date}`);
+        } else if (filters.viewType === 'monthly') {
+            summary.push(`เดือน: ${selectedMonth}`);
+        } else if (filters.viewType === 'yearly') {
+            summary.push(`ปี: ${selectedYear}`);
+        }
+        if (filters.shift !== 'All Shifts') {
+            summary.push(`กะ: ${filters.shift}`);
+        }
+        if (filters.ward !== 'All Wards') {
+            summary.push(`วอร์ด: ${filters.ward}`);
+        }
+
+        if (summary.length === 0) return null;
+
+        return (
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                <p className="text-sm text-blue-700">
+                    📊 ตัวกรองปัจจุบัน: {summary.join(' | ')}
+                </p>
+            </div>
+        );
+    };
+
+    const { pieData, barData } = useMemo(() => {
+        const wardData = overallData.byWard;
+        const labels = Object.keys(wardData);
+        const patientData = labels.map(ward => wardData[ward]?.numberOfPatients || 0);
+
+        return {
+            pieData: {
                 labels,
                 datasets: [{
-                    data,
+                    data: patientData,
                     backgroundColor: colors.background.slice(0, labels.length),
                     borderColor: colors.border.slice(0, labels.length),
                     borderWidth: 1,
                 }]
             },
-            bar: {
+            barData: {
                 labels,
                 datasets: [{
                     label: 'Patient Census',
-                    data,
+                    data: patientData,
                     backgroundColor: 'rgba(255, 99, 132, 0.5)',
                 }]
             }
         };
     }, [overallData.byWard]);
-
-    const pieData = chartData.pie;
-    const barData = chartData.bar;
 
     const barOptions = {
         responsive: true,
@@ -478,30 +433,82 @@ const Dashboard = () => {
         }
     };
 
+    const [toastConfig, setToastConfig] = useState(null);
+
+    const showToast = (message, type = 'info') => {
+        setToastConfig({ message, type });
+    };
+
+    const handleExportError = (error) => {
+        showToast('เกิดข้อผิดพลาดในการส่งออกข้อมูล', 'error');
+    };
+
+    const handleWardClick = (wardName) => {
+        const wardDetails = overallData.byWard[wardName];
+        if (wardDetails) {
+            setSelectedWard({
+                name: wardName,
+                ...wardDetails
+            });
+            setIsWardModalOpen(true);
+        }
+    };
+
     if (loading) {
-        return <div className="flex justify-center items-center h-screen">Loading Data...</div>;
+        return <LoadingSkeleton />;
+    }
+
+    if (error) {
+        return (
+            <ErrorState
+                message={error}
+                onRetry={() => {
+                    fetchAllData();
+                    showToast('กำลังโหลดข้อมูลใหม่...', 'info');
+                }}
+            />
+        );
+    }
+
+    if (!allRecords || allRecords.length === 0) {
+        return (
+            <EmptyState
+                message="ยังไม่มีข้อมูลในระบบ"
+                actionLabel="เพิ่มข้อมูลใหม่"
+                onAction={() => {/* handle action */}}
+            />
+        );
     }
 
     return (
-        <div className="p-4">
+        <div className="container mx-auto px-4 py-8">
+            {renderAlert()}
+            {renderFilterSummary()}
+            
             {/* Filter Section */}
-            <div className="bg-white rounded-lg shadow p-4 mb-4">
-                <h2 className="text-lg text-black font-semibold mb-4">Filters</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                    {/* View Type Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">View Type</label>
+            <div className="bg-pastel-yellow-50 rounded-lg shadow p-6 mb-8">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">Filter Data</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="form-control">
+                        <label className="label">
+                            <span className="label-text text-gray-700">วันที่</span>
+                        </label>
+                        <input
+                            type="date"
+                            value={filters.date}
+                            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+                            className="input input-bordered w-full text-gray-700 bg-white border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div className="form-control">
+                        <label className="label">
+                            <span className="label-text text-gray-700">View Type</span>
+                        </label>
                         <select
                             value={filters.viewType}
-                            onChange={(e) => {
-                                const newViewType = e.target.value;
-                                setFilters(prev => ({ ...prev, viewType: newViewType }));
-                                // รีเซ็ตค่าวันที่เมื่อเปลี่ยน view type
-                                if (newViewType === 'daily') {
-                                    setFilters(prev => ({ ...prev, date: new Date().toISOString().split('T')[0] }));
-                                }
-                            }}
-                            className="w-full text-black rounded-md border border-gray-300 p-2"
+                            onChange={(e) => setFilters({ ...filters, viewType: e.target.value })}
+                            className="select select-bordered w-full text-gray-700 bg-white"
                         >
                             <option value="daily">Daily</option>
                             <option value="monthly">Monthly</option>
@@ -510,152 +517,102 @@ const Dashboard = () => {
                         </select>
                     </div>
 
-                    {/* Date Filter - แสดงเฉพาะเมื่อเลือก Daily */}
-                    {filters.viewType === 'daily' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                            <input
-                                type="date"
-                                value={filters.date}
-                                onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-                                className="w-full text-black rounded-md border border-gray-300 p-2"
-                            />
-                        </div>
-                    )}
-
-                    {/* Month Filter - แสดงเฉพาะเมื่อเลือก Monthly */}
-                    {filters.viewType === 'monthly' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
-                            <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={(e) => {
-                                    setSelectedMonth(e.target.value);
-                                }}
-                                className="w-full text-black rounded-md border border-gray-300 p-2"
-                            />
-                        </div>
-                    )}
-
-                    {/* Year Filter - แสดงเฉพาะเมื่อเลือก Yearly */}
-                    {filters.viewType === 'yearly' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                            <select
-                                value={selectedYear}
-                                onChange={(e) => {
-                                    setSelectedYear(e.target.value);
-                                }}
-                                className="w-full text-black rounded-md border border-gray-300 p-2"
-                            >
-                                {Array.from(
-                                    { length: 10 },
-                                    (_, i) => new Date().getFullYear() - i
-                                ).map(year => (
-                                    <option key={year} value={year}>{year}</option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    {/* Shift Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
+                    <div className="form-control">
+                        <label className="label">
+                            <span className="label-text text-gray-700">Shift</span>
+                        </label>
                         <select
                             value={filters.shift}
                             onChange={(e) => setFilters({ ...filters, shift: e.target.value })}
-                            className="w-full text-black rounded-md border border-gray-300 p-2"
+                            className="select select-bordered w-full text-gray-700 bg-white"
                         >
-                            <option value="">All Shifts</option>
+                            <option value="All Shifts">All Shifts</option>
                             {shiftList.map(shift => (
                                 <option key={shift} value={shift}>{shift}</option>
                             ))}
                         </select>
                     </div>
 
-                    {/* Ward Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Ward</label>
+                    <div className="form-control">
+                        <label className="label">
+                            <span className="label-text text-gray-700">Ward</span>
+                        </label>
                         <select
                             value={filters.ward}
                             onChange={(e) => setFilters({ ...filters, ward: e.target.value })}
-                            className="w-full text-black rounded-md border border-gray-300 p-2"
+                            className="select select-bordered w-full text-gray-700 bg-white"
                         >
-                            <option value="">All Wards</option>
+                            <option value="All Wards">All Wards</option>
                             {wardList.map(ward => (
                                 <option key={ward} value={ward}>{ward}</option>
                             ))}
                         </select>
                     </div>
 
-                    {/* Recorder Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Recorder</label>
+                    <div className="form-control">
+                        <label className="label">
+                            <span className="label-text text-gray-700">Recorder</span>
+                        </label>
                         <select
                             value={filters.recorder}
                             onChange={(e) => setFilters({ ...filters, recorder: e.target.value })}
-                            className="w-full text-black rounded-md border border-gray-300 p-2"
+                            className="select select-bordered w-full text-gray-700 bg-white"
                         >
-                            <option value="">All Recorders</option>
+                            <option value="All Recorders">All Recorders</option>
                             {recorders.map(recorder => (
                                 <option key={recorder} value={recorder}>{recorder}</option>
                             ))}
                         </select>
                     </div>
-
-                    {/* Export Button */}
-                    <div className="flex items-end">
-                        <button
-                            onClick={exportToExcel}
-                            className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors"
-                        >
-                            Export to Excel
-                        </button>
-                    </div>
                 </div>
+            </div>
 
-                {/* Summary Info */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <span className="text-gray-900 text-sm font-medium">Total Records:</span>
-                            <span className="ml-2 font-semibold text-gray-900">{wardData.length}</span>
-                        </div>
-                        <div>
-                            <span className="text-gray-900 text-sm font-medium">Total Patients:</span>
-                            <span className="ml-2 font-semibold text-gray-900">{totalPatients}</span>
-                        </div>
-                        <div>
-                            <span className="text-gray-900 text-sm font-medium">Total OPD:</span>
-                            <span className="ml-2 font-semibold text-gray-900">{overallData.summaryData.opdTotal24hr}</span>
-                        </div>
-                        <div>
-                            <span className="text-gray-900 text-sm font-medium">Total Admissions:</span>
-                            <span className="ml-2 font-semibold text-gray-900">{overallData.summaryData.admissions24hr}</span>
-                        </div>
+            {/* Summary Section */}
+            <div className="bg-pastel-blue-50 rounded-lg shadow p-6 mb-8">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">Summary</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Total Records</h3>
+                        <p className="text-3xl font-bold text-blue-600">{filterData().length}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Total Patients</h3>
+                        <p className="text-3xl font-bold text-green-600">{overallData.total}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Total OPD</h3>
+                        <p className="text-3xl font-bold text-purple-600">{overallData.summaryData.opdTotal24hr}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md">
+                        <h3 className="text-lg font-semibold mb-2 text-gray-800">Total Admissions</h3>
+                        <p className="text-3xl font-bold text-orange-600">{overallData.summaryData.admissions24hr}</p>
                     </div>
                 </div>
             </div>
 
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold mb-4 text-gray-800">Dashboard</h1>
+            {/* Notification for No Data */}
+            {filterData().length === 0 && (
+                <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-8">
+                    ไม่มีข้อมูลสำหรับตัวกรองที่เลือก
+                </div>
+            )}
+
+            {/* 24-hour Summary Section */}
+            <div className="bg-pastel-blue-50 rounded-lg shadow p-6 mb-8">
+                <h1 className="text-2xl font-bold mb-4 text-gray-800">24-hour Summary</h1>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     {/* Summary Cards */}
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Current data</h3>
-                        <p className="text-3xl font-bold text-blue-600">{overallData?.total}</p>
+                        <p className="text-3xl font-bold text-blue-600">{overallData.total}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Overall data</h3>
-                        <p className="text-3xl font-bold text-green-600">
-                            {overallData?.overallData || 0}
-                        </p>
+                        <p className="text-3xl font-bold text-green-600">{overallData.overallData}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">OPD 24 hour</h3>
-                        <p className="text-3xl font-bold text-green-600">{overallData.summaryData.opdTotal24hr}</p>
+                        <p className="text-3xl font-bold text-purple-600">{overallData.summaryData.opdTotal24hr}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Admission Rate</h3>
@@ -667,110 +624,153 @@ const Dashboard = () => {
                         <p className="text-3xl font-bold text-orange-600">{overallData.calculations.conversionRatio}</p>
                         <p className="text-sm text-gray-600">OPD 24 hour / Patient Census</p>
                     </div>
-                </div>
-
-                {/* Additional Summary Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Old Patient</h3>
-                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.existingPatients}</p>
+                        <p className="text-3xl font-bold text-gray-700">{overallData.summaryData.existingPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">New Patient</h3>
-                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.newPatients}</p>
+                        <p className="text-3xl font-bold text-gray-700">{overallData.summaryData.newPatients}</p>
                     </div>
                     <div className="bg-white p-4 rounded-lg shadow-md">
                         <h3 className="text-lg font-semibold mb-2 text-gray-800">Admit 24 hour</h3>
-                        <p className="text-2xl font-bold text-gray-700">{overallData.summaryData.admissions24hr}</p>
+                        <p className="text-3xl font-bold text-gray-700">{overallData.summaryData.admissions24hr}</p>
                     </div>
-                </div>
-
-                {/* Ward-wise Breakdown */}
-                <div className="bg-white p-6 rounded-lg shadow-md mb-8">
-                    <h2 className="text-xl font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {Object.entries(overallData.byWard).map(([ward, data]) => (
-                            <button
-                                key={ward}
-                                onClick={() => setFilters(prev => ({ ...prev, ward }))}
-                                className="p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                            >
-                                <h3 className="font-semibold text-lg text-gray-800">{ward}</h3>
-                                <p className="text-2xl font-bold text-blue-600">{data.totalPatients}</p>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Last Update Time */}
-                <div className="text-sm text-gray-600 mb-4">
-                    Last updated: {recordedDate} {recordedTime}
-                </div>
-
-                {/* Charts and Graphs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Pie Chart */}
-                    <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
-                        <h2 className="text-lg font-bold mb-4 text-gray-800">Available</h2>
-                        <div style={{ height: '320px' }}>
-                            <Pie data={pieData} options={pieOptions} />
-                        </div>
-                    </div>
-
-                    {/* Bar Chart */}
-                    <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
-                        <h2 className="text-lg font-bold mb-4 text-gray-800">Patient Census By Ward</h2>
-                        <div style={{ height: '320px' }}>
-                            <Bar options={barOptions} data={barData} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Table */}
-                <div className="mt-6 overflow-x-auto">
-                    <table className="min-w-full bg-white">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    Ward
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    Patient Census
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    RN
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    PN
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                    NA
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {wardData.map((ward, index) => (
-                                <tr key={index} className="text-gray-800">
-                                    <td className="px-6 py-4 whitespace-nowrap">{ward.name}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{ward.patients}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{ward.RN}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{ward.PN}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{ward.NA}</td>
-                                </tr>
-                            ))}
-                            {wardData.length > 0 && (
-                                <tr className="bg-gray-50 font-semibold text-gray-800">
-                                    <td className="px-6 py-4 whitespace-nowrap">Total</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).patients}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).RN}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).PN}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{calculateTotals(wardData).NA}</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
                 </div>
             </div>
+
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold mb-4 text-gray-800">Charts and Patient Census</h1>
+                {/* Charts and Patient Census Section */}
+                <div className="bg-white rounded-lg shadow p-6 mb-8">
+                    <h2 className="text-xl font-bold mb-6 text-gray-800">Patient Census By Ward</h2>
+                    
+                    {/* Ward Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+                        {Object.entries(overallData.byWard).map(([ward, data]) => (
+                            <div
+                                key={ward}
+                                onClick={() => handleWardClick(ward)}
+                                className="bg-pastel-green-50 p-4 rounded-lg cursor-pointer hover:bg-pastel-green-100 transition-colors border border-green-200"
+                            >
+                                <h3 className="font-semibold text-lg text-gray-800">{ward}</h3>
+                                <p className="text-2xl font-bold text-green-700">{data.numberOfPatients || 0}</p>
+                                <p className="text-sm text-gray-600">คลิกเพื่อดูรายละเอียด</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Charts */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                        {/* Pie Chart */}
+                        <div className="bg-white rounded-lg border border-gray-200 p-4" style={{ height: '400px' }}>
+                            <h3 className="text-lg font-bold mb-4 text-gray-800">Patient Distribution by Ward</h3>
+                            <div style={{ height: '320px' }}>
+                                <Pie data={pieData} options={pieOptions} />
+                            </div>
+                        </div>
+
+                        {/* Bar Chart */}
+                        <div className="bg-white rounded-lg border border-gray-200 p-4" style={{ height: '400px' }}>
+                            <h3 className="text-lg font-bold mb-4 text-gray-800">Patient Census By Ward</h3>
+                            <div style={{ height: '320px' }}>
+                                <Bar options={barOptions} data={barData} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Last Updated */}
+                    <div className="text-sm text-gray-600 mt-4">
+                        Last updated: {recordedDate} {recordedTime}
+                    </div>
+                </div>
+                
+                {/* Toast Notification */}
+                {toastConfig && (
+                    <Toast
+                        message={toastConfig.message}
+                        type={toastConfig.type}
+                        onClose={() => setToastConfig(null)}
+                    />
+                )}
+            </div>
+
+            {/* Ward Modal */}
+            {isWardModalOpen && selectedWard && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-11/12 max-w-6xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold text-gray-800">
+                                {selectedWard.name} - รายละเอียด
+                            </h2>
+                            <button
+                                onClick={() => setIsWardModalOpen(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                            {/* Patient Census */}
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                <h3 className="font-semibold mb-2 text-gray-800">Patient Census</h3>
+                                <p className="text-2xl font-bold text-blue-700">
+                                    {selectedWard.numberOfPatients || 0}
+                                </p>
+                            </div>
+
+                            {/* Staff */}
+                            <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                <h3 className="font-semibold mb-2 text-gray-800">Staff</h3>
+                                <div className="space-y-1 text-gray-700">
+                                    <p>Nurse Manager: <span className="font-semibold">{selectedWard.nurseManager || 0}</span></p>
+                                    <p>RN: <span className="font-semibold">{selectedWard.RN || 0}</span></p>
+                                    <p>PN: <span className="font-semibold">{selectedWard.PN || 0}</span></p>
+                                    <p>WC: <span className="font-semibold">{selectedWard.WC || 0}</span></p>
+                                </div>
+                            </div>
+
+                            {/* Patient Movement */}
+                            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                                <h3 className="font-semibold mb-2 text-gray-800">Patient Movement</h3>
+                                <div className="space-y-1 text-gray-700">
+                                    <p>New Admit: <span className="font-semibold">{selectedWard.newAdmit || 0}</span></p>
+                                    <p>Transfer In: <span className="font-semibold">{selectedWard.transferIn || 0}</span></p>
+                                    <p>Refer In: <span className="font-semibold">{selectedWard.referIn || 0}</span></p>
+                                    <p>Transfer Out: <span className="font-semibold">{selectedWard.transferOut || 0}</span></p>
+                                    <p>Refer Out: <span className="font-semibold">{selectedWard.referOut || 0}</span></p>
+                                    <p>Discharge: <span className="font-semibold">{selectedWard.discharge || 0}</span></p>
+                                    <p>Dead: <span className="font-semibold">{selectedWard.dead || 0}</span></p>
+                                </div>
+                            </div>
+
+                            {/* Overall Data */}
+                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                <h3 className="font-semibold mb-2 text-gray-800">Overall Data</h3>
+                                <div className="space-y-1 text-gray-700">
+                                    <p>Available: <span className="font-semibold">{selectedWard.available || 0}</span></p>
+                                    <p>Unavailable: <span className="font-semibold">{selectedWard.unavailable || 0}</span></p>
+                                    <p>Plan D/C: <span className="font-semibold">{selectedWard.planDC || 0}</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Comment Section */}
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <h3 className="font-semibold mb-2 text-gray-800">Comment</h3>
+                            <p className="text-gray-700">{selectedWard.comment || 'ไม่มีบันทึกเพิ่มเติม'}</p>
+                        </div>
+
+                        {/* Last Updated */}
+                        <div className="mt-4 text-sm text-gray-600">
+                            Last updated: {new Date(selectedWard.timestamp).toLocaleString('th-TH')}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

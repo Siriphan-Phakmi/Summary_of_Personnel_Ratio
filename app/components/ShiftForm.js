@@ -326,6 +326,8 @@ const ShiftForm = () => {
         }
     };
 
+    const [currentStep, setCurrentStep] = useState(0);
+
     return (
 
         <form onSubmit={handleSubmit} className="max-w-[1400px] mx-auto p-2">
@@ -424,7 +426,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.numberOfPatients}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2 min-w-[80px]">
@@ -433,7 +435,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.nurseManager}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2 min-w-[80px]">
@@ -442,7 +444,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.RN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2 min-w-[80px]">
@@ -451,7 +453,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.PN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2 min-w-[80px]">
@@ -460,7 +462,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.WC}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 px-2 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -469,7 +471,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.newAdmit}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -478,7 +480,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.transferIn}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -487,7 +489,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.referIn}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -496,7 +498,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.transferOut}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, transferOut: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -505,7 +507,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.referOut}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -514,7 +516,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.discharge}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -523,7 +525,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.dead}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2 bg-gray-100">
@@ -537,7 +539,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.availableBeds}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -546,7 +548,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.unavailable}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -555,7 +557,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.plannedDischarge}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                         />
                                     </td>
                                     <td className="border border-gray-200 p-2">
@@ -563,7 +565,7 @@ const ShiftForm = () => {
                                             type="text"
                                             value={data.comment}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                                             placeholder="Comment"
                                         />
                                     </td>
@@ -637,7 +639,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -647,7 +649,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -657,7 +659,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -667,7 +669,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
                             />
                         </div>
                     </div>
@@ -682,216 +684,188 @@ const ShiftForm = () => {
                                     type="text"
                                     value={summaryData.supervisorName}
                                     onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                                    className="w-64 px-3 py-2 border border-[#0ab4ab]/30 rounded-md text-black bg-white text-gray-900" /* Changed: Added fixed width */
+                                    className="w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                                     placeholder="Name - Surname : Supervisor"
                                 />
                             </div>
                         </div>
                     </div>
                 </div>
-
-
             </div>
 
             {/*แสดงผลแบบ Mobile*/}
-            <div className="md:hidden space-y-3 px-2">
-                <div className="grid grid-cols-2 gap-2">
+            <div className="md:hidden space-y-4">
+                {/* Ward Data */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
                     {Object.entries(formData.wards).map(([ward, data]) => (
-                        <div key={ward} className="bg-white rounded-lg text-black shadow p-3 border border-[#0ab4ab]/10">
-                            <h3 className="text-base font-semibold mb-2 text-center border-b pb-1">{ward}</h3>
-
-                            {/* Staff Section */}
-                            <div className="space-y-2">
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div>
-                                        <label className="block text-gray-600">Census</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.numberOfPatients}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-black text-gray-600">Overall Data</label>
-                                        <div className="w-full p-1 text-center font-medium text-black">
-                                            {data.overallData || '0'}
-                                        </div>
+                        <div key={ward} className="bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20">
+                            <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">{ward}</h3>
+                            
+                            {/* Census and Overall Data */}
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="bg-gray-50 rounded-lg p-2">
+                                    <label className="block text-sm font-medium text-black mb-1">Census</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={data.numberOfPatients}
+                                        onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
+                                        className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                    />
+                                </div>
+                                <div className="bg-gray-50 rounded-lg p-2">
+                                    <label className="block text-sm font-medium text-black mb-1">Overall Data</label>
+                                    <div className="w-full py-1.5 text-center font-medium text-black">
+                                        {data.overallData || '0'}
                                     </div>
                                 </div>
+                            </div>
 
-                                <div className="grid grid-cols-3 gap-1 text-xs">
-                                    <div>
-                                        <label className="block text-gray-600">Nurse Manager</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={data.nurseManager}
-                                            onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-gray-600">RN</label>
+                            {/* Staff Section */}
+                            <div className="mb-4">
+                                <h4 className="text-sm font-medium text-black mb-2">Staff</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs font-medium text-black mb-1">RN</label>
                                         <input
                                             type="number"
                                             min="0"
                                             value={data.RN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-gray-600">PN</label>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs font-medium text-black mb-1">PN</label>
                                         <input
                                             type="number"
                                             min="0"
                                             value={data.PN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                            className="w-full text-center border-0 focus:ring-0 text-gray-900"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs font-medium text-black mb-1">WC</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.WC}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                                         />
                                     </div>
                                 </div>
                             </div>
 
                             {/* Patient Movement */}
-                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-                                <div>
-                                    <label className="block text-gray-600">Transfer Out</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.transferOut}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferOut: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-600">Refer Out</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.referOut}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referOut: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-                                <div>
-                                    <label className="block text-gray-600">Discharge</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.discharge}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, discharge: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-600">Dead</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.dead}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, dead: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
+                            <div>
+                                <h4 className="text-sm font-medium text-black mb-2">Patient Movement</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: 'New Admit', value: data.newAdmit, key: 'newAdmit' },
+                                        { label: 'Transfer In', value: data.transferIn, key: 'transferIn' },
+                                        { label: 'Transfer Out', value: data.transferOut, key: 'transferOut' },
+                                        { label: 'Discharge', value: data.discharge, key: 'discharge' }
+                                    ].map((movement) => (
+                                        <div key={movement.key} className="bg-gray-50 rounded-lg p-2">
+                                            <label className="block text-xs font-medium text-black mb-1">{movement.label}</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={movement.value}
+                                                onChange={(e) => handleInputChange('wards', ward, { ...data, [movement.key]: e.target.value })}
+                                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-                                <div>
-                                    <label className="block text-gray-600">New Admit</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.newAdmit}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, newAdmit: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-600">Transfer In</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.transferIn}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, transferIn: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                            </div>
-                            <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-                                <div>
-                                    <label className="block text-gray-600">Refer In</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={data.referIn}
-                                        onChange={(e) => handleInputChange('wards', ward, { ...data, referIn: e.target.value })}
-                                        className="w-full text-center border-0 focus:ring-0 text-gray-900"
-                                    />
-                                </div>
-                            </div>
+
                             {/* Comment */}
-                            <div className="mt-2">
+                            <div className="mt-4">
                                 <input
                                     type="text"
                                     value={data.comment}
                                     onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                    className="w-full rounded border p-1 text-xs text-gray-900"
-                                    placeholder="Comment..."
+                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm text-black"
+                                    placeholder="Add comment..."
                                 />
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* 24 Hour Summary - Mobile */}
-                <div className="bg-white rounded-lg shadow p-3">
-                    <h3 className="text-base font-semibold mb-2 text-black text-center border-b pb-1">24-hour Summary</h3>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                            <label className="block text-gray-600">OPD 24hr</label>
+                {/* 24 Hour Summary */}
+                <div className="col-span-full bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20">
+                    <h3 className="text-lg font-semibold mb-4 text-center text-black">24-hour Summary</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1">OPD 24hr</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full rounded border p-1 text-center text-gray-900"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-600">Old Patient</label>
+                        <div className="bg-gray-50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1">Old Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full rounded border p-1 text-center text-gray-900"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-600">New Patient</label>
+                        <div className="bg-gray-50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1">New Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full rounded border p-1 text-center text-gray-900"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-600">Admit 24 Hours</label>
+                        <div className="bg-gray-50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1">Admit 24 Hours</label>
                             <input
-                                type="text"
+                                type="number"
+                                min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full rounded border p-1 text-center text-gray-900"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                             />
                         </div>
                     </div>
+                </div>
+
+                {/* Supervisor Signature */}
+                <div className="col-span-full bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20 mb-20">
+                    <h3 className="text-lg font-semibold mb-4 text-center text-black">Supervisor Signature</h3>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={summaryData.supervisorName}
+                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                            placeholder="Name - Surname"
+                        />
+                    </div>
+                </div>
+
+                {/* Submit Button - Mobile */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-lg border-t border-gray-200">
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isLoading}
+                        className="w-full bg-[#0ab4ab] text-white rounded-lg py-3 font-medium shadow-md hover:bg-[#0ab4ab]/90 focus:ring-2 focus:ring-[#0ab4ab] focus:ring-offset-2 disabled:opacity-50"
+                    >
+                        {isLoading ? 'Saving...' : 'Save Data'}
+                    </button>
                 </div>
             </div>
 

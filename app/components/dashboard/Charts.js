@@ -6,7 +6,7 @@ export function Charts({ overallData }) {
     const chartData = useMemo(() => {
         const wardEntries = Object.entries(overallData.byWard || {});
         const labels = wardEntries.map(([ward]) => ward);
-        const data = wardEntries.map(([, value]) => value.totalPatients || 0);
+        const data = wardEntries.map(([, value]) => value.numberOfPatients || 0);
 
         return {
             pie: {
@@ -23,7 +23,9 @@ export function Charts({ overallData }) {
                 datasets: [{
                     label: 'Patient Census',
                     data,
-                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    backgroundColor: CHART_COLORS.background.slice(0, labels.length),
+                    borderColor: CHART_COLORS.border.slice(0, labels.length),
+                    borderWidth: 1,
                 }]
             }
         };
@@ -35,10 +37,30 @@ export function Charts({ overallData }) {
         plugins: {
             legend: {
                 position: 'right',
+                labels: {
+                    font: {
+                        size: 12
+                    }
+                }
             },
             title: {
                 display: true,
                 text: 'Patient Distribution by Ward',
+                font: {
+                    size: 16,
+                    weight: 'bold'
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        const label = context.label || '';
+                        const value = context.raw || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = total ? ((value / total) * 100).toFixed(1) : 0;
+                        return `${label}: ${value} (${percentage}%)`;
+                    }
+                }
             }
         }
     };
@@ -52,33 +74,31 @@ export function Charts({ overallData }) {
             },
             title: {
                 display: true,
-                text: 'Patient Census By Ward',
+                text: 'Patient Census by Ward',
+                font: {
+                    size: 16,
+                    weight: 'bold'
+                }
             }
         },
         scales: {
             y: {
                 beginAtZero: true,
-                ticks: {
-                    stepSize: 1
+                title: {
+                    display: true,
+                    text: 'Number of Patients'
                 }
             }
         }
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className={COMMON_STYLES.chartContainer}>
-                <h2 className={COMMON_STYLES.title}>Available</h2>
-                <div style={{ height: '320px' }}>
-                    <Pie data={chartData.pie} options={pieOptions} />
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
+                <Pie data={chartData.pie} options={pieOptions} />
             </div>
-
-            <div className={COMMON_STYLES.chartContainer}>
-                <h2 className={COMMON_STYLES.title}>Patient Census By Ward</h2>
-                <div style={{ height: '320px' }}>
-                    <Bar options={barOptions} data={chartData.bar} />
-                </div>
+            <div className="bg-white p-4 rounded-lg shadow-md" style={{ height: '400px' }}>
+                <Bar data={chartData.bar} options={barOptions} />
             </div>
         </div>
     );
