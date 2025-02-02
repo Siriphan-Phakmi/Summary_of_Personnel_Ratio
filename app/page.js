@@ -38,7 +38,7 @@ export default function Home() {
           </div>
           {/* เวอร์ชันอยู่ขวาสุด */}
           <div className="absolute right-0 top-1/2 transform -translate-y-1/2 text-white text-sm">
-            v1.1.2.2025
+            v1.2.2.2025
           </div>
         </div>
       </nav>
