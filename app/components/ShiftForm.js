@@ -389,7 +389,7 @@ const ShiftForm = () => {
             {/* Desktop View */}
             <div className="hidden md:block">
                 <div className="lg:max-w-[1920px] md:max-w-full mx-auto flex justify-center">
-                    <table className="w-full table-auto border-collapse border border-gray-200 text-sm shadow-lg">
+                    <table className="w-full table-auto border-collapse border border-gray-200 text-sm shadow-lg bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl">
                         <thead>
                             <tr className="bg-[#0ab4ab] text-white">
                                 <th rowSpan="2" className="border p-2 text-center whitespace-nowrap">Ward</th>
@@ -698,13 +698,13 @@ const ShiftForm = () => {
                 {/* Ward Data */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
                     {Object.entries(formData.wards).map(([ward, data]) => (
-                        <div key={ward} className="bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20">
+                        <div key={ward} className="mb-6 bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl shadow-lg p-4">
                             <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">{ward}</h3>
                             
                             {/* Census and Overall Data */}
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-gray-50 rounded-lg p-2">
-                                    <label className="block text-sm font-medium text-black mb-1">Census</label>
+                                    <label className="block text-sm text-center font-medium text-black mb-1">Patient Census</label>
                                     <input
                                         type="number"
                                         min="0"
@@ -714,7 +714,7 @@ const ShiftForm = () => {
                                     />
                                 </div>
                                 <div className="bg-gray-50 rounded-lg p-2">
-                                    <label className="block text-sm font-medium text-black mb-1">Overall Data</label>
+                                    <label className="block text-sm text-center font-medium text-black mb-1">Overall Data</label>
                                     <div className="w-full py-1.5 text-center font-medium text-black">
                                         {data.overallData || '0'}
                                     </div>
@@ -723,10 +723,20 @@ const ShiftForm = () => {
 
                             {/* Staff Section */}
                             <div className="mb-4">
-                                <h4 className="text-sm font-medium text-black mb-2">Staff</h4>
-                                <div className="grid grid-cols-3 gap-2">
+                                <h4 className="text-sm font-medium text-black mb-2 text-center">Staff</h4>
+                                <div className="grid grid-cols-4 gap-2">
                                     <div className="bg-gray-50 rounded-lg p-2">
-                                        <label className="block text-xs font-medium text-black mb-1">RN</label>
+                                        <label className="block text-xs text-center font-medium text-black mb-1">Nurse Manager</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.nurseManager}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs text-center font-medium text-black mb-1">RN</label>
                                         <input
                                             type="number"
                                             min="0"
@@ -736,7 +746,7 @@ const ShiftForm = () => {
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
-                                        <label className="block text-xs font-medium text-black mb-1">PN</label>
+                                        <label className="block text-xs text-center font-medium text-black mb-1">PN</label>
                                         <input
                                             type="number"
                                             min="0"
@@ -746,7 +756,7 @@ const ShiftForm = () => {
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
-                                        <label className="block text-xs font-medium text-black mb-1">WC</label>
+                                        <label className="block text-xs text-center font-medium text-black mb-1">WC</label>
                                         <input
                                             type="number"
                                             min="0"
@@ -759,22 +769,25 @@ const ShiftForm = () => {
                             </div>
 
                             {/* Patient Movement */}
-                            <div>
-                                <h4 className="text-sm font-medium text-black mb-2">Patient Movement</h4>
-                                <div className="grid grid-cols-2 gap-2">
+                            <div className="mb-4">
+                                <h4 className="text-sm font-medium text-black mb-2 text-center">Patient Movement</h4>
+                                <div className="grid grid-cols-2 gap-2 text-center">
                                     {[
                                         { label: 'New Admit', value: data.newAdmit, key: 'newAdmit' },
                                         { label: 'Transfer In', value: data.transferIn, key: 'transferIn' },
+                                        { label: 'Refer In', value: data.referIn, key: 'referIn' },
                                         { label: 'Transfer Out', value: data.transferOut, key: 'transferOut' },
-                                        { label: 'Discharge', value: data.discharge, key: 'discharge' }
-                                    ].map((movement) => (
-                                        <div key={movement.key} className="bg-gray-50 rounded-lg p-2">
-                                            <label className="block text-xs font-medium text-black mb-1">{movement.label}</label>
+                                        { label: 'Refer Out', value: data.referOut, key: 'referOut' },
+                                        { label: 'Discharge', value: data.discharge, key: 'discharge' },
+                                        { label: 'Dead', value: data.dead, key: 'dead' }
+                                    ].map((item) => (
+                                        <div key={item.key} className="bg-gray-50 rounded-lg p-2">
+                                            <label className="block text-xs font-medium text-black mb-1">{item.label}</label>
                                             <input
                                                 type="number"
                                                 min="0"
-                                                value={movement.value}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, [movement.key]: e.target.value })}
+                                                value={item.value}
+                                                onChange={(e) => handleInputChange('wards', ward, { ...data, [item.key]: e.target.value })}
                                                 className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
                                             />
                                         </div>
@@ -782,76 +795,112 @@ const ShiftForm = () => {
                                 </div>
                             </div>
 
-                            {/* Comment */}
-                            <div className="mt-4">
-                                <input
-                                    type="text"
-                                    value={data.comment}
-                                    onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                    className="w-full rounded-lg border border-gray-200 p-2 text-sm text-black"
-                                    placeholder="Add comment..."
-                                />
+                            {/* Bed Management */}
+                            <div className="mb-4">
+                                <h4 className="text-sm font-medium text-black mb-2 text-center">Bed Management</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs text-center font-medium text-black mb-1">Available</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.availableBeds}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs text-center font-medium text-black mb-1">Unavailable</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.unavailable}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs text-center font-medium text-black mb-1">Plan D/C</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={data.plannedDischarge}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 rounded-lg p-2">
+                                        <label className="block text-xs text-center font-medium text-black mb-1">Comment</label>
+                                        <input
+                                            type="text"
+                                            value={data.comment}
+                                            onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            placeholder="Comment"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ))}
                 </div>
 
                 {/* 24 Hour Summary */}
-                <div className="col-span-full bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20">
+                <div className="bg-gradient-to-r from-pink-50 to-blue-50 p-4 rounded-xl shadow-lg mt-6">
                     <h3 className="text-lg font-semibold mb-4 text-center text-black">24-hour Summary</h3>
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1">OPD 24hr</label>
+                        <div className="bg-white/50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1 text-center">OPD 24hr</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
                             />
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1">Old Patient</label>
+                        <div className="bg-white/50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1 text-center">Old Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
                             />
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1">New Patient</label>
+                        <div className="bg-white/50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1 text-center">New Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
                             />
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1">Admit 24 Hours</label>
+                        <div className="bg-white/50 rounded-lg p-2">
+                            <label className="block text-sm font-medium text-black mb-1 text-center">Admit 24 Hours</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Supervisor Signature */}
-                <div className="col-span-full bg-white rounded-xl shadow-lg p-4 border-2 border-[#0ab4ab]/20 mb-20">
+                <div className="bg-gradient-to-r from-pink-50 to-blue-50 p-4 rounded-xl shadow-lg mt-6">
                     <h3 className="text-lg font-semibold mb-4 text-center text-black">Supervisor Signature</h3>
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
                             value={summaryData.supervisorName}
                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
                             placeholder="Name - Surname"
                         />
                     </div>
