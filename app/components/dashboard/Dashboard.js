@@ -367,36 +367,7 @@ const Dashboard = () => {
 
     return (
         <div className="p-4">
-            {/* Filters */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-black mb-1">Date</label>
-                    <input
-                        type="date"
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-black"
-                        value={adjustForTimezone(selectedDate).toISOString().split('T')[0]}
-                        onChange={(e) => {
-                            const newDate = new Date(e.target.value);
-                            const adjustedDate = adjustForTimezone(newDate);
-                            handleDateSelect(adjustedDate, filters.shift);
-                        }}
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-black mb-1">Shift</label>
-                    <select
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-black"
-                        value={filters.shift}
-                        onChange={(e) => setFilters(prev => ({ ...prev, shift: e.target.value }))}
-                    >
-                        <option value="all">All Shifts</option>
-                        <option value="07:00-19:00">Morning (07:00-19:00)</option>
-                        <option value="19:00-07:00">Night (19:00-07:00)</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Calendar */}
+            {/* Calendar Filters*/}
             <div className="mb-6">
                 <div className="flex items-center gap-4 mb-4">
                     <button
