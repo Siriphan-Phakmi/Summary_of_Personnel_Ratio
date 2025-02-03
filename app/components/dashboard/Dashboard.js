@@ -1,15 +1,17 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { db } from '../lib/firebase';
+import { db } from '@/app/lib/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import * as XLSX from 'xlsx';
-import LoadingSkeleton from '../components/ui/LoadingSkeleton';
-import ErrorState from '../components/ui/ErrorState';
-import EmptyState from '../components/ui/EmptyState';
-import Toast from '../components/ui/Toast';
-import CustomTooltip from '../components/ui/Tooltip';
+import LoadingSkeleton from '@/app/ui/LoadingSkeleton';
+import ErrorState from '@/app/ui/ErrorState';
+import EmptyState from '@/app/ui/EmptyState';
+import Toast from '@/app/ui/Toast';
+import CustomTooltip from '@/app/ui/Tooltip';
+
+
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 

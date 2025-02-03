@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
-import ShiftForm from './components/ShiftForm';
-import Dashboard from './dashboard/Dashboard';
-import Navigation from './components/Navigation';
-import exportData from './lib/exportData';
+import ShiftForm from './components/forms/ShiftForm';
+import Dashboard from './components/dashboard/Dashboard';
+import Navigation from './components/dashboard/Navigation';
+import exportData from './utils/exportData';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('form');
