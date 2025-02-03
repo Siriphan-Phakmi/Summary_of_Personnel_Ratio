@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
@@ -239,6 +239,24 @@ const ShiftForm = () => {
 
         setIsLoading(true);
         try {
+            // Check if data already exists for this date and shift
+            const q = query(
+                collection(db, 'staffRecords'),
+                where('date', '==', formData.date),
+                where('shift', '==', formData.shift)
+            );
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                const confirmOverwrite = window.confirm(
+                    'ข้อมูลของวันที่และกะนี้มีอยู่แล้ว ต้องการบันทึกทับข้อมูลเดิมหรือไม่?'
+                );
+                if (!confirmOverwrite) {
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             const now = new Date();
             const formattedTime = now.toLocaleTimeString('th-TH', {
                 hour: '2-digit',

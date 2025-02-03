@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Toast, Tooltip } from '../../ui';
+import { Toast, Tooltip } from '../ui';
 import PropTypes from 'prop-types';
 
 const WardForm = ({ wardData, wardName, onUpdate }) => {
