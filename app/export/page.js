@@ -1,8 +1,8 @@
 // File: app/export/page.js
 'use client';
 import { useState } from 'react';
-import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../../lib/exportData';
-import Navigation from '../dashboard/Navigation';
+import { fetchStaffRecords, formatDataForExcel, exportToExcel } from '../lib/exportData';
+import Navigation from '../components/dashboard/Navigation';
 
 export default function ExportPage() {
     const [isExporting, setIsExporting] = useState(false);

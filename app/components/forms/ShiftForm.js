@@ -3,10 +3,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
+import Calendar from '@/app/components/ui/Calendar';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
     const [isLoading, setIsLoading] = useState(false);
+    const [showCalendar, setShowCalendar] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [datesWithData, setDatesWithData] = useState([]);
     const [thaiDate, setThaiDate] = useState('');
     const [summaryData, setSummaryData] = useState({
         opdTotal24hr: '', //ยอด OPD 24 hour - รวมผู้ป่วยนอกใน 24 ชั่วโมง
@@ -58,27 +62,40 @@ const ShiftForm = () => {
         totals: { ...initialWardData }
     });
 
-    // ฟังก์ชันสำหรับจัดรูปแบบวันที่เป็น dd/mm/yyyy โดยไม่สนใจ locale ของ browser
-    const formatThaiDate = (isoDate) => {
-        if (!isoDate) return '';
-        // แยกส่วนประกอบของวันที่จาก ISO string
-        const [year, month, day] = isoDate.split('-').map(Number);
-        // จัดรูปแบบให้เป็น dd/mm/yyyy
-        const formattedDay = String(day).padStart(2, '0'); // ใส่ 0 ข้างหน้าถ้าเป็นเลขเดียว
-        const formattedMonth = String(month).padStart(2, '0');
-        const thaiYear = year + 543;
-        // ส่งคืนในรูปแบบ dd/mm/yyyy
-        return `${formattedDay}/${formattedMonth}/${thaiYear}`;
+    // ฟังก์ชันสำหรับแปลงวันที่เป็นรูปแบบไทย
+    const formatThaiDate = (date) => {
+        if (!date) return '';
+        const thaiMonths = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+        
+        // ถ้า date เป็น string (ISO format) แปลงเป็น Date object
+        const dateObj = typeof date === 'string' ? new Date(date) : date;
+        
+        const day = dateObj.getDate();
+        const month = thaiMonths[dateObj.getMonth()];
+        const year = dateObj.getFullYear() + 543;
+        return `วันที่: ${day} ${month} ${year}`;
     };
 
     useEffect(() => {
-        if (typeof window !== 'undefined') { // เช็คว่าอยู่ฝั่ง client
+        if (typeof window !== 'undefined') {
             const today = new Date();
+            setSelectedDate(today);
             const isoDate = today.toISOString().split('T')[0];
             setFormData(prev => ({ ...prev, date: isoDate }));
-            setThaiDate(formatThaiDate(isoDate));
+            setThaiDate(formatThaiDate(today));
         }
     }, []);
+
+    const handleDateChange = (element) => {
+        const newDate = element.target.value;
+        const dateObj = new Date(newDate);
+        setSelectedDate(dateObj);
+        setFormData(prev => ({ ...prev, date: newDate }));
+        setThaiDate(formatThaiDate(dateObj));
+    };
 
     // เพิ่มฟังก์ชันคำนวณ totals
     const calculateTotals = useMemo(() => {
@@ -124,13 +141,6 @@ const ShiftForm = () => {
         setFormData(prev => ({ ...prev, totals: calculateTotals }));
     }, [calculateTotals]);
 
-    const handleDateChange = (element) => {
-        const newDate = element.target.value;
-        setFormData(prev => ({ ...prev, date: newDate }));
-        setThaiDate(formatThaiDate(newDate));
-    };
-
-    // อัพเดท handleInputChange
     const handleInputChange = (section, ward, data) => {
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => [
@@ -347,7 +357,6 @@ const ShiftForm = () => {
     const [currentStep, setCurrentStep] = useState(0);
 
     return (
-
         <form onSubmit={handleSubmit} className="max-w-[1400px] mx-auto p-2">
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
@@ -357,16 +366,37 @@ const ShiftForm = () => {
                 {/*ส่วนของวันที่และกะงาน*/}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
-                        <div className="flex items-center gap-2 whitespace-nowrap text-sm justify-center">
-                            <label className="font-medium text-gray-700 whitespace-nowrap ">Date</label>
-                            <div className="flex gap-2 items-center">
-                                <input
-                                    type="date"
-                                    value={formData.date}
-                                    onChange={handleDateChange}
-                                    required
-                                    className="px-2 py-1 border border-[#0ab4ab]/30 rounded-md focus:ring-2 focus:ring-[#0ab4ab]/50 focus:border-[#0ab4ab]"
-                                />
+                        <div className="flex items-center gap-2 whitespace-nowrap text-sm justify-center">                            
+                            <div className="flex gap-2 items-center">                                
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCalendar(!showCalendar)}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                                >
+                                    {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
+                                </button>
+                                {showCalendar && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                        <div className="relative">
+                                            <Calendar
+                                                selectedDate={selectedDate}
+                                                onDateSelect={(date) => {
+                                                    setSelectedDate(date);
+                                                    const isoDate = date.toISOString().split('T')[0];
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        date: isoDate
+                                                    }));
+                                                    setThaiDate(formatThaiDate(date));
+                                                    setShowCalendar(false);
+                                                }}
+                                                onClickOutside={() => setShowCalendar(false)}
+                                                datesWithData={datesWithData}
+                                                variant="form"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 <span className="text-gray-700 font-medium">{thaiDate}</span>
                             </div>
                         </div>
@@ -657,7 +687,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -667,7 +697,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -677,7 +707,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-black"
                             />
                         </div>
                         <div className="flex flex-col">
@@ -687,7 +717,7 @@ const ShiftForm = () => {
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-gray-900 text-black"
+                                className="w-full text-center border-0 focus:ring-0 text-black"
                             />
                         </div>
                     </div>
@@ -701,8 +731,8 @@ const ShiftForm = () => {
                                 <input
                                     type="text"
                                     value={summaryData.supervisorName}
-                                    onChange={(element) => setSummaryData(prev => ({ ...prev, supervisorName: element.target.value }))}
-                                    className="w-64 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-offset-2 text-black"
                                     placeholder="Name - Surname : Supervisor"
                                 />
                             </div>
@@ -728,7 +758,7 @@ const ShiftForm = () => {
                                         min="0"
                                         value={data.numberOfPatients}
                                         onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
-                                        className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                        className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                     />
                                 </div>
                                 <div className="bg-gray-50 rounded-lg p-2">
@@ -750,7 +780,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.nurseManager}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, nurseManager: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -760,7 +790,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.RN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, RN: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -770,7 +800,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.PN}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, PN: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -780,7 +810,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.WC}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, WC: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                 </div>
@@ -800,13 +830,13 @@ const ShiftForm = () => {
                                         { label: 'Dead', value: data.dead, key: 'dead' }
                                     ].map((item) => (
                                         <div key={item.key} className="bg-gray-50 rounded-lg p-2">
-                                            <label className="block text-xs font-medium text-black mb-1">{item.label}</label>
+                                            <label className="block text-xs text-center font-medium text-black mb-1">{item.label}</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 value={item.value}
                                                 onChange={(e) => handleInputChange('wards', ward, { ...data, [item.key]: e.target.value })}
-                                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                             />
                                         </div>
                                     ))}
@@ -824,7 +854,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.availableBeds}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -834,7 +864,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.unavailable}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -844,7 +874,7 @@ const ShiftForm = () => {
                                             min="0"
                                             value={data.plannedDischarge}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                         />
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-2">
@@ -853,7 +883,7 @@ const ShiftForm = () => {
                                             type="text"
                                             value={data.comment}
                                             onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] text-black"
+                                            className="w-full text-center bg-white border border-gray-200 rounded-md py-1 text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 focus:border-[#0ab4ab] text-black"
                                             placeholder="Comment"
                                         />
                                     </div>
@@ -936,7 +966,7 @@ const ShiftForm = () => {
                 </div>
             </div>
 
-            {/* เพิ่ม loading overlay */}
+            {/*เพิ่ม loading overlay */}
             {
                 isLoading && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = [], selectedShift = 'all' }) => {
+const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = [], selectedShift = 'all', variant = 'dashboard' }) => {
     const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
     const [displayDate, setDisplayDate] = useState(selectedDate || new Date());
     const [shift, setShift] = useState(selectedShift);
@@ -140,7 +140,7 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
     }, [datesWithData]);
 
     return (
-        <div ref={calendarRef} className="bg-white p-4 rounded-lg shadow-lg w-[300px]">
+        <div ref={calendarRef} className="bg-white p-4 rounded-lg shadow-lg w-[300px] mx-auto">
             <div className="flex justify-between mb-4">
                 <select
                     value={displayDate.getMonth()}
@@ -192,38 +192,40 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
                     </button>
                 ))}
             </div>
-            <div className="mt-4 flex justify-center space-x-2">
-                <button
-                    onClick={() => handleShiftChange('07:00-19:00')}
-                    className={`px-4 py-2 rounded-lg ${
-                        shift === '07:00-19:00' 
-                        ? 'bg-[#0ab4ab] text-white' 
-                        : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                    }`}
-                >
-                    Morning
-                </button>
-                <button
-                    onClick={() => handleShiftChange('19:00-07:00')}
-                    className={`px-4 py-2 rounded-lg ${
-                        shift === '19:00-07:00' 
-                        ? 'bg-[#0ab4ab] text-white' 
-                        : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                    }`}
-                >
-                    Night
-                </button>
-                <button
-                    onClick={() => handleShiftChange('all')}
-                    className={`px-4 py-2 rounded-lg ${
-                        shift === 'all' 
-                        ? 'bg-[#0ab4ab] text-white' 
-                        : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                    }`}
-                >
-                    All
-                </button>
-            </div>
+            {variant === 'dashboard' && (
+                <div className="mt-4 flex justify-center space-x-2">
+                    <button
+                        onClick={() => handleShiftChange('07:00-19:00')}
+                        className={`px-4 py-2 rounded-lg ${
+                            shift === '07:00-19:00' 
+                            ? 'bg-[#0ab4ab] text-white' 
+                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
+                        }`}
+                    >
+                        Morning
+                    </button>
+                    <button
+                        onClick={() => handleShiftChange('19:00-07:00')}
+                        className={`px-4 py-2 rounded-lg ${
+                            shift === '19:00-07:00' 
+                            ? 'bg-[#0ab4ab] text-white' 
+                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
+                        }`}
+                    >
+                        Night
+                    </button>
+                    <button
+                        onClick={() => handleShiftChange('all')}
+                        className={`px-4 py-2 rounded-lg ${
+                            shift === 'all' 
+                            ? 'bg-[#0ab4ab] text-white' 
+                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
+                        }`}
+                    >
+                        All
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
