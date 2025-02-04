@@ -377,7 +377,7 @@ const ShiftForm = () => {
                                 </button>
                                 {showCalendar && (
                                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                                        <div className="relative">
+                                        <div className="relative bg-white rounded-lg">
                                             <Calendar
                                                 selectedDate={selectedDate}
                                                 onDateSelect={(date) => {

@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '@/app/lib/firebase';
-import { collection, query, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, getDocs, Timestamp, where } from 'firebase/firestore';
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import LoadingSkeleton from '@/app/components/ui/LoadingSkeleton';
@@ -26,94 +26,98 @@ const Dashboard = () => {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [showCalendar, setShowCalendar] = useState(false);
     const [datesWithData, setDatesWithData] = useState([]);
+    const [notification, setNotification] = useState(null);
 
-    useEffect(() => {
-        const fetchDatesWithData = async () => {
-            try {
-                const recordsRef = collection(db, 'staffRecords');
-                const querySnapshot = await getDocs(recordsRef);
-                
-                // Get unique dates from records and normalize them
-                const dates = new Set();
-                querySnapshot.docs.forEach(doc => {
-                    const record = doc.data();
-                    let date = record.date;
-                    if (!date && record.timestamp) {
-                        date = record.timestamp.toDate().toISOString().split('T')[0];
-                    }
-                    if (date) {
-                        // Normalize the date format
-                        const normalizedDate = new Date(date);
-                        const isoDate = normalizedDate.toISOString().split('T')[0];
-                        dates.add(isoDate);
-                    }
-                });
-                
-                setDatesWithData(Array.from(dates));
-            } catch (err) {
-                console.error('Error fetching dates with data:', err);
-            }
-        };
+    const getUTCDateString = (date) => {
+        const d = new Date(date);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
 
-        fetchDatesWithData();
-    }, []);
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const selectedDateStr = getUTCDateString(filters.startDate);
+            
+            // ดึงข้อมูลทั้งปีเพื่อเช็คว่าวันไหนมีข้อมูล
+            const startOfYear = new Date(filters.startDate.getFullYear(), 0, 1); // เริ่มต้นปี
+            const endOfYear = new Date(filters.startDate.getFullYear(), 11, 31); // สิ้นสุดปี
+            
+            const yearQuery = query(recordsRef,
+                where('date', '>=', getUTCDateString(startOfYear)),
+                where('date', '<=', getUTCDateString(endOfYear))
+            );
+            
+            const yearSnapshot = await getDocs(yearQuery);
+            const datesWithDataInYear = [...new Set(yearSnapshot.docs.map(doc => doc.data().date))];
+            setDatesWithData(datesWithDataInYear);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const recordsRef = collection(db, 'staffRecords');
+            // ดึงข้อมูลตาม filter ปกติ
+            let fetchedRecords = [];
+            if (filters.shift === 'all') {
+                const morningQuery = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', '07:00-19:00')
+                );
+                const nightQuery = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', '19:00-07:00')
+                );
                 
-                // ใช้ date string แทน timestamp เพื่อค้นหาข้อมูล
-                const dateStr = filters.startDate.toISOString().split('T')[0];
+                const [morningSnapshot, nightSnapshot] = await Promise.all([
+                    getDocs(morningQuery),
+                    getDocs(nightQuery)
+                ]);
                 
-                let q = query(recordsRef);
+                fetchedRecords = [
+                    ...morningSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })),
+                    ...nightSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }))
+                ];
+            } else {
+                const q = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', filters.shift)
+                );
                 const querySnapshot = await getDocs(q);
-                
-                // กรองข้อมูลหลังจากได้รับข้อมูลทั้งหมด
-                const fetchedRecords = querySnapshot.docs
-                    .map(doc => {
-                        try {
-                            const data = doc.data();
-                            return {
-                                id: doc.id,
-                                ...data,
-                                timestamp: data.timestamp?.toDate(),
-                                // Ensure date is always available
-                                date: data.date || 
-                                    (data.timestamp ? data.timestamp.toDate().toISOString().split('T')[0] : null)
-                            };
-                        } catch (err) {
-                            console.error('Error processing record:', err);
-                            return null;
-                        }
-                    })
-                    .filter(record => {
-                        if (!record) return false;
-                        const recordDate = record.date;
-                        return recordDate === dateStr && 
-                            (filters.shift === 'all' || record.shift === filters.shift);
-                    });
-
-                if (fetchedRecords.length === 0) {
-                    setRecords([]);
-                    setStats(resetStats());
-                } else {
-                    setRecords(fetchedRecords);
-                    const newStats = calculateStats(fetchedRecords);
-                    setStats(newStats);
-                }
-            } catch (err) {
-                console.error('Error fetching data:', err);
-                setError(err.message);
-                setStats(resetStats());
-            } finally {
-                setLoading(false);
+                fetchedRecords = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
             }
-        };
 
-        fetchData();
+            setRecords(fetchedRecords);
+            const newStats = calculateStats(fetchedRecords);
+            setStats(newStats);
+            
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setError('ไม่สามารถโหลดข้อมูลได้');
+            setStats(resetStats());
+            setDatesWithData([]);
+        } finally {
+            setLoading(false);
+        }
     }, [filters]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleDateSelect = (date, shift) => {
+        setFilters(prev => ({
+            ...prev,
+            startDate: date,
+            shift: shift
+        }));
+        fetchData();
+        setShowCalendar(false);
+    };
 
     const resetStats = () => {
         return {
@@ -135,48 +139,90 @@ const Dashboard = () => {
     };
 
     const calculateStats = (records) => {
-        if (!records || records.length === 0) {
+        if (!records || !Array.isArray(records) || records.length === 0) {
             return resetStats();
         }
 
         try {
-            const latestRecord = records[records.length - 1];
-            
-            // Calculate total records
-            const totalRecords = records.length;
-
-            // Calculate patients and ward data
             let totalPatients = 0;
             let totalStaff = 0;
             const byWard = {};
+            let wardRecords = {};
 
-            if (latestRecord.wards) {
-                Object.entries(latestRecord.wards).forEach(([ward, data]) => {
-                    if (!data) return; // Skip if ward data is null/undefined
-                    
-                    // Calculate patients in each ward
-                    const patients = parseNumberValue(data.numberOfPatients);
-                    byWard[ward] = patients;
-                    totalPatients += patients;
+            // จัดกลุ่มข้อมูลตาม ward และ shift
+            records.forEach(record => {
+                if (record.wards) {
+                    Object.entries(record.wards).forEach(([ward, data]) => {
+                        if (!data) return;
 
-                    // Calculate staff in each ward
-                    const rn = parseNumberValue(data.RN);
-                    const pn = parseNumberValue(data.PN);
-                    const na = parseNumberValue(data.NA);
-                    totalStaff += (rn + pn + na);
-                });
-            }
+                        if (!wardRecords[ward]) {
+                            wardRecords[ward] = {
+                                morning: null,
+                                night: null
+                            };
+                        }
 
-            // Calculate total attendance
-            const totalAttendance = parseNumberValue(latestRecord.totalAttendance);
+                        // เก็บข้อมูลแยกตามกะ
+                        if (record.shift === '07:00-19:00') {
+                            wardRecords[ward].morning = data;
+                        } else if (record.shift === '19:00-07:00') {
+                            wardRecords[ward].night = data;
+                        }
+                    });
+                }
+            });
+
+            // คำนวณข้อมูลรวมของแต่ละ ward
+            Object.entries(wardRecords).forEach(([ward, shifts]) => {
+                const morningData = shifts.morning || {};
+                const nightData = shifts.night || {};
+
+                // คำนวณจำนวนผู้ป่วยรวม
+                const morningPatients = parseNumberValue(morningData.numberOfPatients);
+                const nightPatients = parseNumberValue(nightData.numberOfPatients);
+                
+                if (filters.shift === 'all') {
+                    // แสดงข้อมูลทั้ง 2 กะ
+                    byWard[ward] = morningPatients + nightPatients;
+                    totalPatients += (morningPatients + nightPatients);
+                } else if (filters.shift === '07:00-19:00' && shifts.morning) {
+                    // แสดงข้อมูลกะเช้า
+                    byWard[ward] = morningPatients;
+                    totalPatients += morningPatients;
+                } else if (filters.shift === '19:00-07:00' && shifts.night) {
+                    // แสดงข้อมูลกะดึก
+                    byWard[ward] = nightPatients;
+                    totalPatients += nightPatients;
+                }
+
+                // คำนวณจำนวนเจ้าหน้าที่
+                if (filters.shift === 'all') {
+                    const morningStaff = parseNumberValue(morningData.RN) + 
+                                       parseNumberValue(morningData.PN) + 
+                                       parseNumberValue(morningData.NA);
+                    const nightStaff = parseNumberValue(nightData.RN) + 
+                                     parseNumberValue(nightData.PN) + 
+                                     parseNumberValue(nightData.NA);
+                    totalStaff += (morningStaff + nightStaff);
+                } else if (filters.shift === '07:00-19:00' && shifts.morning) {
+                    totalStaff += parseNumberValue(morningData.RN) + 
+                                 parseNumberValue(morningData.PN) + 
+                                 parseNumberValue(morningData.NA);
+                } else if (filters.shift === '19:00-07:00' && shifts.night) {
+                    totalStaff += parseNumberValue(nightData.RN) + 
+                                 parseNumberValue(nightData.PN) + 
+                                 parseNumberValue(nightData.NA);
+                }
+            });
 
             return {
-                totalRecords,
+                totalRecords: records.length,
                 totalPatients,
                 totalStaff,
-                totalAttendance,
+                totalAttendance: records.reduce((sum, record) => 
+                    sum + parseNumberValue(record.totalAttendance), 0),
                 byWard,
-                supervisorName: latestRecord.supervisorName || ''
+                supervisorName: records.map(r => r.supervisorName).filter(Boolean).join(', ')
             };
         } catch (err) {
             console.error('Error calculating stats:', err);
@@ -248,6 +294,7 @@ const Dashboard = () => {
 
     const chartOptions = {
         responsive: true,
+        maintainAspectRatio: false,  // เพิ่มบรรทัดนี้
         plugins: {
             legend: {
                 position: 'right',
@@ -256,6 +303,17 @@ const Dashboard = () => {
                 display: true,
                 text: 'Patient Distribution',
                 color: 'black',
+                font: {
+                    size: 16
+                }
+            }
+        },
+        scales: {  // เพิ่ม scales options
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
+                }
             }
         }
     };
@@ -274,24 +332,6 @@ const Dashboard = () => {
             ...latestRecord.wards[ward]
         });
         setIsWardModalOpen(true);
-    };
-
-    // เพิ่มฟังก์ชันใหม่สำหรับจัดการ timezone
-    const adjustForTimezone = (date) => {
-        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-        return new Date(date.getTime() - userTimezoneOffset);
-    };
-
-    const handleDateSelect = (date, shift) => {
-        // เพิ่มการตรวจสอบว่าถ้าวันที่เท่าเดิมและเปลี่ยนแค่ shift ไม่ต้อง update selectedDate
-        if (selectedDate.toDateString() !== date.toDateString()) {
-            setSelectedDate(date);
-        }
-        setFilters(prev => ({ 
-            ...prev, 
-            startDate: date,
-            shift: shift || prev.shift 
-        }));
     };
 
     const formatThaiDate = (date) => {
@@ -363,6 +403,38 @@ const Dashboard = () => {
         );
     };
 
+    // เพิ่ม Notification Component ปรับปรุงใหม่
+    const Notification = ({ message, type, onClose }) => (
+        <div 
+            className={`
+                fixed top-4 right-4 z-[60] p-4 rounded-lg shadow-lg
+                ${type === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-blue-50 text-blue-800'}
+                transition-all duration-300 ease-in-out
+            `}
+        >
+            <div className="flex items-center gap-2">
+                {type === 'warning' ? 
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    :
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                }
+                <span className="font-medium">{message}</span>
+                <button 
+                    onClick={onClose}
+                    className="ml-2 hover:text-gray-600"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    );
+
     if (loading) return <LoadingSkeleton />;
 
     return (
@@ -382,14 +454,25 @@ const Dashboard = () => {
                 </div>
 
                 <div className={`${showCalendar ? 'block' : 'hidden'} relative z-10`}>
-                    <div className="absolute left-0 top-0">
-                        <Calendar 
-                            selectedDate={selectedDate} 
-                            onDateSelect={handleDateSelect}
-                            onClickOutside={() => setShowCalendar(false)}
-                            datesWithData={datesWithData}
-                            selectedShift={filters.shift}
-                        />
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="relative bg-white rounded-lg p-4">
+                            <button 
+                                onClick={() => setShowCalendar(false)}
+                                className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <Calendar 
+                                selectedDate={filters.startDate}
+                                onDateSelect={handleDateSelect}
+                                onClickOutside={() => setShowCalendar(false)}
+                                datesWithData={datesWithData}
+                                selectedShift={filters.shift}
+                                variant="dashboard"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -479,6 +562,13 @@ const Dashboard = () => {
                         setIsWardModalOpen(false);
                         setSelectedWard(null);
                     }}
+                />
+            )}
+
+            {notification && (
+                <Notification 
+                    {...notification}
+                    onClose={() => setNotification(null)}
                 />
             )}
         </div>

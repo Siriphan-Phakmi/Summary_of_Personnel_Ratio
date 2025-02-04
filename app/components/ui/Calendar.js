@@ -22,11 +22,13 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [onClickOutside]);
+        if (variant === 'form') {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+            };
+        }
+    }, [onClickOutside, variant]);
 
     const months = [
         "January", "February", "March", "April", "May", "June",
@@ -50,7 +52,6 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
 
     const handleShiftChange = (newShift) => {
         setShift(newShift);
-        // ส่งวันที่ปัจจุบันที่เลือกไว้พร้อมกับ shift ใหม่
         if (onDateSelect && currentDate) {
             onDateSelect(currentDate, newShift);
         }
@@ -61,23 +62,26 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         
         const newDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
         setCurrentDate(newDate);
-        if (onDateSelect) {
+        
+        if (variant === 'dashboard') {
             onDateSelect(newDate, shift);
+        } else {
+            onDateSelect(newDate);
         }
+        
+        onClickOutside && onClickOutside();
     };
 
-    // ปรับปรุงฟังก์ชัน formatDateString เพื่อจัดการกับวันที่ให้ถูกต้อง
     const formatDateString = (date) => {
         const d = new Date(date);
-        // ปรับ timezone ให้เป็น local time
-        const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
-        return localDate.toISOString().split('T')[0];
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
 
-    // ฟังก์ชันตรวจสอบว่าวันที่มีข้อมูลหรือไม่
     const checkHasData = (date) => {
         const dateStr = formatDateString(date);
-        console.log('Checking date:', dateStr, 'Has data:', datesWithData.includes(dateStr));
         return datesWithData.includes(dateStr);
     };
 
@@ -92,140 +96,137 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
 
         const days = [];
 
-        // Previous month days
         const prevMonthLastDay = new Date(year, month, 0).getDate();
         for (let i = startingDay - 1; i >= 0; i--) {
-            const prevDate = new Date(year, month - 1, prevMonthLastDay - i);
+            const date = new Date(year, month - 1, prevMonthLastDay - i);
             days.push({
                 day: prevMonthLastDay - i,
                 isCurrentMonth: false,
-                isSelected: false,
-                hasData: checkHasData(prevDate),
-                disabled: false
+                hasData: checkHasData(date)
             });
         }
 
-        // Current month days
         for (let i = 1; i <= daysInMonth; i++) {
-            const currentDateInLoop = new Date(year, month, i);
+            const date = new Date(year, month, i);
             days.push({
                 day: i,
                 isCurrentMonth: true,
-                isSelected: currentDateInLoop.toDateString() === currentDate?.toDateString(),
-                hasData: checkHasData(currentDateInLoop),
-                disabled: false
+                hasData: checkHasData(date)
             });
         }
 
-        // Next month days
-        let nextMonthDay = 1;
-        while (days.length < 42) {
-            const nextDate = new Date(year, month + 1, nextMonthDay);
+        const remainingDays = 42 - days.length;
+        for (let i = 1; i <= remainingDays; i++) {
+            const date = new Date(year, month + 1, i);
             days.push({
-                day: nextMonthDay,
+                day: i,
                 isCurrentMonth: false,
-                isSelected: false,
-                hasData: checkHasData(nextDate),
-                disabled: false
+                hasData: checkHasData(date)
             });
-            nextMonthDay++;
         }
 
-        return days;
+        return days.map(({ day, isCurrentMonth, hasData }, index) => (
+            <button
+                key={index}
+                onClick={() => handleDateSelect(day, isCurrentMonth)}
+                disabled={!isCurrentMonth}
+                className={`
+                    relative p-2 text-sm rounded-lg
+                    ${!isCurrentMonth ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-gray-900 hover:bg-gray-100'}
+                    ${hasData ? 'bg-[#0ab4ab]/10 text-[#0ab4ab] font-medium hover:bg-[#0ab4ab]/20' : ''}
+                    ${currentDate &&
+                    day === currentDate.getDate() &&
+                    displayDate.getMonth() === currentDate.getMonth() &&
+                    displayDate.getFullYear() === currentDate.getFullYear()
+                        ? 'bg-[#0ab4ab] text-white hover:bg-[#0ab4ab]/90'
+                        : ''}
+                `}
+            >
+                {day}
+                {hasData && (
+                    <span 
+                        className={`absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse
+                            ${!isCurrentMonth ? 'opacity-50' : ''}`}
+                        title={`มีข้อมูล${!isCurrentMonth ? ' (เดือนอื่น)' : ''}`}
+                    />
+                )}
+            </button>
+        ));
     };
 
-    // Debug: แสดงวันที่ที่มีข้อมูลในคอนโซล
-    useEffect(() => {
-        console.log('Available dates:', datesWithData);
-    }, [datesWithData]);
+    const shiftButtons = [
+        { id: 'all', label: 'All Day', value: 'all' },
+        { id: 'morning', label: 'Morning', value: '07:00-19:00' },
+        { id: 'night', label: 'Night', value: '19:00-07:00' }
+    ];
 
     return (
-        <div ref={calendarRef} className="bg-white p-4 rounded-lg shadow-lg w-[300px] mx-auto">
-            <div className="flex justify-between mb-4">
-                <select
-                    value={displayDate.getMonth()}
-                    onChange={handleMonthChange}
-                    className="text-sm px-2 py-1 border rounded bg-white text-gray-800"
-                >
-                    {months.map((month, index) => (
-                        <option key={month} value={index}>
-                            {month}
-                        </option>
-                    ))}
-                </select>
-                <select
-                    value={displayDate.getFullYear()}
-                    onChange={handleYearChange}
-                    className="text-sm px-2 py-1 border rounded bg-white text-gray-800"
-                >
-                    {years.map(year => (
-                        <option key={year} value={year}>
-                            {year}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div className="grid grid-cols-7 gap-1 mb-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                    <div key={day} className="text-center text-xs font-semibold text-gray-800">
-                        {day}
+        <div 
+            ref={calendarRef} 
+            className={`bg-white rounded-lg shadow-lg ${variant === 'dashboard' ? 'w-[340px]' : 'w-full max-w-md'}`}
+        >
+            <div className="p-4">
+                {/* เพิ่ม header section */}
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900">Select Date</h2>
+                    {/* เพิ่ม year/month selectors */}
+                    <div className="flex gap-2">
+                        <select
+                            value={displayDate.getMonth()}
+                            onChange={handleMonthChange}
+                            className="text-sm px-2 py-1 border rounded bg-white text-gray-800"
+                        >
+                            {months.map((month, index) => (
+                                <option key={month} value={index}>
+                                    {month}
+                                </option>
+                            ))}
+                        </select>
+                        <select
+                            value={displayDate.getFullYear()}
+                            onChange={handleYearChange}
+                            className="text-sm px-2 py-1 border rounded bg-white text-gray-800"
+                        >
+                            {years.map(year => (
+                                <option key={year} value={year}>
+                                    {year}
+                                </option>
+                            ))}
+                        </select>
                     </div>
-                ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-                {renderCalendar().map((day, index) => (
-                    <button
-                        key={index}
-                        onClick={() => handleDateSelect(day.day, day.isCurrentMonth)}
-                        disabled={day.disabled}
-                        className={`
-                            relative w-8 h-8 text-xs flex items-center justify-center rounded
-                            ${!day.isCurrentMonth ? 'text-gray-400 bg-gray-50' : 'text-gray-800 hover:bg-gray-100'}
-                            ${day.isSelected ? 'bg-[#0ab4ab] text-white hover:bg-[#0ab4ab]/80' : ''}
-                            ${day.disabled ? 'cursor-not-allowed' : 'cursor-pointer'}
-                        `}
-                    >
-                        {day.day}
-                        {day.hasData && (
-                            <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                        )}
-                    </button>
-                ))}
-            </div>
-            {variant === 'dashboard' && (
-                <div className="mt-4 flex justify-center space-x-2">
-                    <button
-                        onClick={() => handleShiftChange('07:00-19:00')}
-                        className={`px-4 py-2 rounded-lg ${
-                            shift === '07:00-19:00' 
-                            ? 'bg-[#0ab4ab] text-white' 
-                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                        }`}
-                    >
-                        Morning
-                    </button>
-                    <button
-                        onClick={() => handleShiftChange('19:00-07:00')}
-                        className={`px-4 py-2 rounded-lg ${
-                            shift === '19:00-07:00' 
-                            ? 'bg-[#0ab4ab] text-white' 
-                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                        }`}
-                    >
-                        Night
-                    </button>
-                    <button
-                        onClick={() => handleShiftChange('all')}
-                        className={`px-4 py-2 rounded-lg ${
-                            shift === 'all' 
-                            ? 'bg-[#0ab4ab] text-white' 
-                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                        }`}
-                    >
-                        All
-                    </button>
                 </div>
-            )}
+                
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                        <div key={day} className="text-center text-xs font-semibold text-gray-800">
+                            {day}
+                        </div>
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                    {renderCalendar()}
+                </div>
+                {variant === 'dashboard' && (
+                    <div className="mt-4 p-4 border-t">
+                        <p className="text-sm text-gray-600 mb-2 text-center">กรุณาเลือกกะก่อนเลือกวันที่</p>
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {shiftButtons.map(({ id, label, value }) => (
+                                <button
+                                    key={id}
+                                    onClick={() => handleShiftChange(value)}
+                                    className={`px-4 py-2 rounded-lg transition-colors
+                                        ${shift === value 
+                                            ? 'bg-[#0ab4ab] text-white' 
+                                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
+                                        }`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
