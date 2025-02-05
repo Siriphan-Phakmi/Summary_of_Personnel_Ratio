@@ -7,6 +7,7 @@ import { Pie, Bar } from 'react-chartjs-2';
 import LoadingSkeleton from '@/app/components/ui/LoadingSkeleton';
 import Toast from '@/app/components/ui/Toast';
 import Calendar from '@/app/components/ui/Calendar';
+import LoadingScreen from '../ui/LoadingScreen';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
@@ -27,6 +28,7 @@ const Dashboard = () => {
     const [showCalendar, setShowCalendar] = useState(false);
     const [datesWithData, setDatesWithData] = useState([]);
     const [notification, setNotification] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     const getUTCDateString = (date) => {
         const d = new Date(date);
@@ -108,6 +110,15 @@ const Dashboard = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // เพิ่ม Initial Loading Effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsLoading(false);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, []);
 
     const handleDateSelect = (date, shift) => {
         setFilters(prev => ({
@@ -438,139 +449,143 @@ const Dashboard = () => {
     if (loading) return <LoadingSkeleton />;
 
     return (
-        <div className="p-4">
-            {/* Calendar Filters*/}
-            <div className="mb-6">
-                <div className="flex items-center gap-4 mb-4">
-                    <button
-                        onClick={() => setShowCalendar(!showCalendar)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                        {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
-                    </button>
-                    <span className="text-gray-700">
-                        วันที่: {formatThaiDate(selectedDate)}
-                    </span>
-                </div>
-
-                <div className={`${showCalendar ? 'block' : 'hidden'} relative z-10`}>
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                        <div className="relative bg-white rounded-lg p-4">
-                            <button 
-                                onClick={() => setShowCalendar(false)}
-                                className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                            <Calendar 
-                                selectedDate={filters.startDate}
-                                onDateSelect={handleDateSelect}
-                                onClickOutside={() => setShowCalendar(false)}
-                                datesWithData={datesWithData}
-                                selectedShift={filters.shift}
-                                variant="dashboard"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-black mb-1">Total Records</h3>
-                        <p className="text-2xl font-bold text-blue-600">{stats.totalRecords}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-black mb-1">Total Patients</h3>
-                        <p className="text-2xl font-bold text-blue-600">{stats.totalPatients}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-black mb-1">Total Staff</h3>
-                        <p className="text-2xl font-bold text-blue-600">{stats.totalStaff}</p>
-                    </div>
-                    <div className="bg-white p-6 rounded-lg shadow">
-                        <h3 className="text-sm font-medium text-black mb-1">Total Attendance</h3>
-                        <p className="text-2xl font-bold text-blue-600">{stats.totalAttendance}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Ward Census */}
-            <div className="bg-white p-6 rounded-lg shadow mb-6">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-medium text-black">Patient Census By Ward</h2>
-                    {stats?.supervisorName && (
-                        <div className="text-sm text-gray-600">
-                            Recorder: {stats.supervisorName}
-                        </div>
-                    )}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {Object.entries(stats.byWard).map(([ward, count]) => (
-                        <div
-                            key={ward}
-                            onClick={() => handleWardClick(ward)}
-                            className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+        <div className="container mx-auto px-4 py-8">
+            {isLoading && <LoadingScreen />}
+            
+            <div className="p-4">
+                {/* Calendar Filters*/}
+                <div className="mb-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <button
+                            onClick={() => setShowCalendar(!showCalendar)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                         >
-                            <h3 className="text-sm font-medium text-black mb-1">{ward}</h3>
-                            <p className="text-2xl font-bold text-blue-600">{count}</p>
-                            <p className="text-xs text-gray-500">Details...</p>
+                            {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
+                        </button>
+                        <span className="text-gray-700">
+                            แสดงข้อมูล วันที่: {formatThaiDate(selectedDate)}
+                        </span>
+                    </div>
+
+                    <div className={`${showCalendar ? 'block' : 'hidden'} relative z-10`}>
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                            <div className="relative bg-white rounded-lg p-4">
+                                <button 
+                                    onClick={() => setShowCalendar(false)}
+                                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                                <Calendar 
+                                    selectedDate={filters.startDate}
+                                    onDateSelect={handleDateSelect}
+                                    onClickOutside={() => setShowCalendar(false)}
+                                    datesWithData={datesWithData}
+                                    selectedShift={filters.shift}
+                                    variant="dashboard"
+                                />
+                            </div>
                         </div>
-                    ))}
+                    </div>
+
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-sm font-medium text-black mb-1">Total Records</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.totalRecords}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-sm font-medium text-black mb-1">Total Patients</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.totalPatients}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-sm font-medium text-black mb-1">Total Staff</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.totalStaff}</p>
+                        </div>
+                        <div className="bg-white p-6 rounded-lg shadow">
+                            <h3 className="text-sm font-medium text-black mb-1">Total Attendance</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.totalAttendance}</p>
+                        </div>
+                    </div>
                 </div>
+
+                {/* Ward Census */}
+                <div className="bg-white p-6 rounded-lg shadow mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-medium text-black">Patient Census By Ward</h2>
+                        {stats?.supervisorName && (
+                            <div className="text-sm text-gray-600">
+                                Recorder: {stats.supervisorName}
+                            </div>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {Object.entries(stats.byWard).map(([ward, count]) => (
+                            <div
+                                key={ward}
+                                onClick={() => handleWardClick(ward)}
+                                className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                                <h3 className="text-sm font-medium text-black mb-1">{ward}</h3>
+                                <p className="text-2xl font-bold text-blue-600">{count}</p>
+                                <p className="text-xs text-gray-500">Details...</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Charts */}
+                {chartData && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className="bg-white p-4 rounded-lg shadow">
+                            <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Pie)</h3>
+                            <div style={{ height: '300px' }}>
+                                <Pie data={chartData.pie} options={chartOptions} />
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow">
+                            <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Bar)</h3>
+                            <div style={{ height: '300px' }}>
+                                <Bar data={chartData.bar} options={chartOptions} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* No Data Message */}
+                {!loading && !stats?.totalRecords && (
+                    <div className="text-center py-8 bg-white rounded-lg shadow">
+                        <p className="text-black text-lg">No data found for the date... {formatThaiDate(filters.startDate)}</p>
+                    </div>
+                )}
+
+                {/* Toast */}
+                {showToast && (
+                    <Toast
+                        message={toastMessage}
+                        onClose={() => setShowToast(false)}
+                    />
+                )}
+
+                {/* Ward Modal */}
+                {isWardModalOpen && selectedWard && (
+                    <WardModal
+                        ward={selectedWard}
+                        onClose={() => {
+                            setIsWardModalOpen(false);
+                            setSelectedWard(null);
+                        }}
+                    />
+                )}
+
+                {notification && (
+                    <Notification 
+                        {...notification}
+                        onClose={() => setNotification(null)}
+                    />
+                )}
             </div>
-
-            {/* Charts */}
-            {chartData && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div className="bg-white p-4 rounded-lg shadow">
-                        <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Pie)</h3>
-                        <div style={{ height: '300px' }}>
-                            <Pie data={chartData.pie} options={chartOptions} />
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg shadow">
-                        <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Bar)</h3>
-                        <div style={{ height: '300px' }}>
-                            <Bar data={chartData.bar} options={chartOptions} />
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* No Data Message */}
-            {!loading && !stats?.totalRecords && (
-                <div className="text-center py-8 bg-white rounded-lg shadow">
-                    <p className="text-black text-lg">No data found for the date... {formatThaiDate(filters.startDate)}</p>
-                </div>
-            )}
-
-            {/* Toast */}
-            {showToast && (
-                <Toast
-                    message={toastMessage}
-                    onClose={() => setShowToast(false)}
-                />
-            )}
-
-            {/* Ward Modal */}
-            {isWardModalOpen && selectedWard && (
-                <WardModal
-                    ward={selectedWard}
-                    onClose={() => {
-                        setIsWardModalOpen(false);
-                        setSelectedWard(null);
-                    }}
-                />
-            )}
-
-            {notification && (
-                <Notification 
-                    {...notification}
-                    onClose={() => setNotification(null)}
-                />
-            )}
         </div>
     );
 };

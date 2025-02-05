@@ -7,6 +7,7 @@ import Calendar from '@/app/components/ui/Calendar';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [showCalendar, setShowCalendar] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -17,7 +18,12 @@ const ShiftForm = () => {
         existingPatients: '', // คนไข้เก่า - จำนวนผู้ป่วยที่รักษาต่อเนื่อง
         newPatients: '', // คนไข้ใหม่ - จำนวนผู้ป่วยที่มารับการรักษาครั้งแรก
         admissions24hr: '',// Admit 24 ชม. - จำนวนผู้ป่วยที่รับไว้ใน 24 ชั่วโมง
-        supervisorName: '', // ลงชื่อผู้ตรวจการ - ชื่อผู้รับผิดชอบประจำกะ
+        // แยกฟิลด์ชื่อและนามสกุลของ Supervisor
+        supervisorFirstName: '',
+        supervisorLastName: '',
+        // เพิ่มฟิลด์สำหรับผู้บันทึก
+        recorderFirstName: '',
+        recorderLastName: ''
     });
 
     // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
@@ -62,22 +68,32 @@ const ShiftForm = () => {
         totals: { ...initialWardData }
     });
 
+    const [showDataComparison, setShowDataComparison] = useState(false);
+    const [existingData, setExistingData] = useState(null);
+
     // ฟังก์ชันสำหรับแปลงวันที่เป็นรูปแบบไทย
     const formatThaiDate = (date) => {
-        if (!date) return '';
+        if (!date) {
+            return 'คุณยังไม่ได้เลือกวันที่เพื่อเพิ่มข้อมูล';
+        }
         const thaiMonths = [
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
         ];
         
-        // ถ้า date เป็น string (ISO format) แปลงเป็น Date object
         const dateObj = typeof date === 'string' ? new Date(date) : date;
-        
         const day = dateObj.getDate();
         const month = thaiMonths[dateObj.getMonth()];
         const year = dateObj.getFullYear() + 543;
-        return `วันที่: ${day} ${month} ${year}`;
+        return `เพิ่มข้อมูล วันที่: ${day} ${month} ${year}`;
     };
+
+    // เพิ่ม Initial Loading Effect
+    useEffect(() => {
+        setTimeout(() => {
+            setIsInitialLoading(false);
+        }, 1000);
+    }, []);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -91,6 +107,12 @@ const ShiftForm = () => {
 
     const handleDateChange = (element) => {
         const newDate = element.target.value;
+        if (!newDate) {
+            setSelectedDate(new Date());
+            setFormData(prev => ({ ...prev, date: '' }));
+            setThaiDate('คุณยังไม่ได้เลือกวันที่เพื่อเพิ่มข้อมูล');
+            return;
+        }
         const dateObj = new Date(newDate);
         setSelectedDate(dateObj);
         setFormData(prev => ({ ...prev, date: newDate }));
@@ -179,47 +201,67 @@ const ShiftForm = () => {
         });
     };
 
-    const validateForm = () => {
-        if (!formData.date || !formData.shift) {
-            alert('Please select a date and shift');
+    // เพิ่มฟังก์ชันตรวจสอบความสมบูรณ์ของข้อมูล
+    const validateFormData = () => {
+        const validationChecks = [
+            {
+                condition: !formData.date || formData.date.trim() === '',
+                message: 'กรุณาเลือกวันที่ก่อนดำเนินการต่อ'
+            },
+            {
+                condition: !formData.shift || formData.shift.trim() === '',
+                message: 'กรุณาเลือกกะการทำงาน'
+            },
+            {
+                condition: formData.shift === '19:00-07:00' && isCurrentDate(),
+                message: 'กรุณาเลือกวันที่ล่วงหน้าสำหรับกะกลางคืน'
+            },
+            {
+                condition: !hasWardData(),
+                message: 'กรุณากรอกข้อมูลอย่างน้อย 1 วอร์ด'
+            },
+            {
+                condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
+                message: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล'
+            },
+            {
+                condition: !summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim(),
+                message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
+            }
+        ];
+
+        for (const check of validationChecks) {
+            if (check.condition) {
+                alert(check.message);
             return false;
         }
-        const hasData = Object.values(formData.wards).some(ward =>
-            Object.values(ward).some(value => value !== '')
-        );
-        if (!hasData) {
-            alert('Please enter data for at least 1 Ward');
-            return false;
-        }
-        if (!summaryData.supervisorName.trim()) {
-            alert('Please sign the supervisor before saving the data');
-            return false;
         }
 
         return true;
     };
 
-    const resetForm = () => {
-        // Check if there's any data in the form
-        const hasWardData = Object.values(formData.wards).some(ward =>
-            Object.values(ward).some(value => value !== '')
+    const isCurrentDate = () => {
+        const selectedDate = new Date(formData.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        selectedDate.setHours(0, 0, 0, 0);
+        return selectedDate.getTime() === today.getTime();
+    };
+
+    const hasWardData = () => {
+        return Object.values(formData.wards).some(ward =>
+            Object.entries(ward).some(([key, value]) => 
+                key !== 'comment' && value !== '' && value !== '0'
+            )
         );
+    };
 
-        const hasSummaryData = Object.values(summaryData).some(value => value !== '');
-
-        const hasAnyData = hasWardData || hasSummaryData || formData.date !== '' || formData.shift !== '';
-
-        if (!hasAnyData) {
-            alert('No data to clear');
+    const resetForm = () => {
+        if (!confirm('คุณแน่ใจหรือไม่ที่จะล้างข้อมูลทั้งหมด?')) {
             return;
         }
 
-        // Show confirmation dialog if there is data
-        if (!confirm('Are you sure you want to clear all data?')) {
-            return;
-        }
-
-        // Reset all form data
+        // Reset all states to initial values
         setFormData({
             date: '',
             shift: '',
@@ -232,24 +274,40 @@ const ShiftForm = () => {
             totals: { ...initialWardData }
         });
 
-        // Reset summary data
         setSummaryData({
             opdTotal24hr: '',
             existingPatients: '',
             newPatients: '',
             admissions24hr: '',
-            supervisorName: ''
+            supervisorFirstName: '',
+            supervisorLastName: '',
+            recorderFirstName: '',
+            recorderLastName: ''
         });
+
+        setSelectedDate(new Date());
+        setThaiDate('');
+        setShowCalendar(false);
+        
+        // Force reload the page
+        window.location.reload();
     };
 
-    // แก้ไขชื่อฟิลด์ของ collection และเพิ่มเงื่อนไขในฟังก์ชัน handleSubmit
+    // แก้ไขฟังก์ชัน handleSubmit
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!validateForm()) return;
+
+        if (!validateFormData()) return;
+
+        const confirmSubmit = window.confirm(
+            'โปรดยืนยันว่าข้อมูลได้รับการตรวจสอบเรียบร้อยแล้วก่อนดำเนินการบันทึก\n\n❌ กด "Cancel" (ต้องการแก้ไขข้อมูลก่อน)\n✅ กด "OK" (ดำเนินการบันทึกข้อมูล)'
+        );
+
+        if (!confirmSubmit) return;
 
         setIsLoading(true);
         try {
-            // Check if data already exists for this date and shift
+            // ตรวจสอบข้อมูลที่มีอยู่
             const q = query(
                 collection(db, 'staffRecords'),
                 where('date', '==', formData.date),
@@ -258,15 +316,27 @@ const ShiftForm = () => {
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
-                const confirmOverwrite = window.confirm(
-                    'ข้อมูลของวันที่และกะนี้มีอยู่แล้ว ต้องการบันทึกทับข้อมูลเดิมหรือไม่?'
-                );
-                if (!confirmOverwrite) {
+                const existingDoc = querySnapshot.docs[0].data();
+                setExistingData(existingDoc);
+                setShowDataComparison(true);
                     setIsLoading(false);
                     return;
                 }
-            }
 
+            // ดำเนินการบันทึกข้อมูล
+            await saveData();
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert(`เกิดข้อผิดพลาด: ${error.message}`);
+            setIsLoading(false);
+        }
+    };
+
+    // เพิ่มฟังก์ชันใหม่สำหรับการบันทึกข้อมูล
+    const saveData = async () => {
+        setIsLoading(true);
+        try {
             const now = new Date();
             const formattedTime = now.toLocaleTimeString('th-TH', {
                 hour: '2-digit',
@@ -277,19 +347,15 @@ const ShiftForm = () => {
             const formattedDate = formData.date.replace(/-/g, '');
             const docId = `data_${formattedTime}_${formattedDate}`;
 
-            // คำนวณ totals ล่าสุดก่อนส่งข้อมูล
             const finalTotals = calculateTotals;
-
-            // เตรียมข้อมูลสำหรับส่งไป Firebase
             const dataToSubmit = {
                 date: formData.date,
                 shift: formData.shift,
                 wards: {},
                 totals: finalTotals,
-                overallData: finalTotals.overallData // เพิ่มฟิลด์นี้
+                overallData: finalTotals.overallData
             };
 
-            // เพิ่ม overallData ในแต่ละ ward
             Object.entries(formData.wards).forEach(([wardName, ward]) => {
                 const overallData = (
                     parseInt(ward.numberOfPatients || 0) +
@@ -308,7 +374,6 @@ const ShiftForm = () => {
                 };
             });
 
-            // บันทึกข้อมูลลง Firebase
             await setDoc(doc(db, 'staffRecords', docId), {
                 ...dataToSubmit,
                 summaryData,
@@ -316,48 +381,184 @@ const ShiftForm = () => {
                 docId: docId
             });
 
-            // รีเซ็ตฟอร์มหลังจากบันทึกสำเร็จ
-            setFormData({
-                date: '',
-                shift: '',
-                wards: {
-                    Ward6: { ...initialWardData },
-                    Ward7: { ...initialWardData },
-                    Ward8: { ...initialWardData },
-                    Ward9: { ...initialWardData },
-                    WardGI: { ...initialWardData },
-                    Ward10B: { ...initialWardData },
-                    Ward11: { ...initialWardData },
-                    Ward12: { ...initialWardData },
-                    ICU: { ...initialWardData },
-                    CCU: { ...initialWardData },
-                    LR: { ...initialWardData },
-                    NSY: { ...initialWardData }
-                },
-                totals: { ...initialWardData }
-            });
-
-            setSummaryData({
-                opdTotal24hr: '',
-                existingPatients: '',
-                newPatients: '',
-                admissions24hr: '',
-                supervisorName: ''
-            });
-
-            alert('Saved successfully');
+            resetForm();
+            alert('บันทึกข้อมูลเรียบร้อยแล้ว');
         } catch (error) {
             console.error('Error:', error);
             alert(`Error: ${error.message}`);
         } finally {
             setIsLoading(false);
+            setShowDataComparison(false);
         }
+    };
+
+    // อัพเดท DataComparisonModal component
+    const DataComparisonModal = () => {
+        if (!showDataComparison || !existingData) return null;
+
+        const formatTime = (timestamp) => {
+            if (!timestamp) return '';
+            const date = new Date(timestamp.seconds * 1000);
+            return date.toLocaleTimeString('th-TH', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        };
+
+        const renderWardComparison = (wardName) => {
+            const existingWard = existingData.wards[wardName] || {};
+            const newWard = formData.wards[wardName] || {};
+            const hasChanges = Object.keys(newWard).some(key => newWard[key] !== existingWard[key]);
+
+            if (!hasChanges) return null;
+
+            return (
+                <div key={`ward-${wardName}`} className="bg-white/80 p-4 rounded-lg border border-gray-200 mb-4">
+                    <h5 className="font-medium text-purple-800 mb-2">{wardName}</h5>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <h6 className="text-sm font-medium text-gray-600 mb-2">ข้อมูลเดิม</h6>
+                            <div className="space-y-1 text-sm">
+                                {Object.entries(existingWard).map(([key, value]) => (
+                                    <p key={`old-${wardName}-${key}`} className="grid grid-cols-2">
+                                        <span className="text-gray-500">{key}:</span>
+                                        <span className="text-purple-700">{value || '0'}</span>
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <h6 className="text-sm font-medium text-gray-600 mb-2">ข้อมูลใหม่</h6>
+                            <div className="space-y-1 text-sm">
+                                {Object.entries(newWard).map(([key, value]) => (
+                                    <p key={`new-${wardName}-${key}`} className="grid grid-cols-2">
+                                        <span className="text-gray-500">{key}:</span>
+                                        <span className="text-pink-700">{value || '0'}</span>
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8 rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-purple-100">
+                    <h3 className="text-2xl font-semibold mb-6 text-purple-800 text-center">เปรียบเทียบข้อมูล</h3>
+                    
+                    <div className="space-y-6">
+                        {/* ข้อมูลทั่วไป */}
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="bg-white/80 p-6 rounded-xl shadow-sm border border-purple-100">
+                                <div className="mb-4">
+                                    <h4 className="text-lg font-medium text-purple-700 mb-2">ข้อมูลเดิม</h4>
+                                    <p className="text-sm text-gray-600">
+                                        บันทึกเมื่อ: {formatTime(existingData.timestamp)}
+                                    </p>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="bg-purple-50/50 p-4 rounded-lg">
+                                        <h5 className="font-medium text-purple-800 mb-2">ข้อมูลทั่วไป</h5>
+                                        <div className="space-y-2 text-sm">
+                                            <p><span className="text-gray-600">วันที่:</span> <span className="text-purple-900">{existingData.date}</span></p>
+                                            <p><span className="text-gray-600">กะ:</span> <span className="text-purple-900">{existingData.shift}</span></p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-purple-50/50 p-4 rounded-lg">
+                                        <h5 className="font-medium text-purple-800 mb-2">ข้อมูลสรุป 24 ชั่วโมง</h5>
+                                        <div className="space-y-2 text-sm">
+                                            <p><span className="text-gray-600">OPD 24hr:</span> <span className="text-purple-900">{existingData.summaryData?.opdTotal24hr || '0'}</span></p>
+                                            <p><span className="text-gray-600">คนไข้เก่า:</span> <span className="text-purple-900">{existingData.summaryData?.existingPatients || '0'}</span></p>
+                                            <p><span className="text-gray-600">คนไข้ใหม่:</span> <span className="text-purple-900">{existingData.summaryData?.newPatients || '0'}</span></p>
+                                            <p><span className="text-gray-600">Admit 24hr:</span> <span className="text-purple-900">{existingData.summaryData?.admissions24hr || '0'}</span></p>
+                                            <p><span className="text-gray-600">ผู้ตรวจการ:</span> <span className="text-purple-900">{existingData.summaryData?.supervisorName || '-'}</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white/80 p-6 rounded-xl shadow-sm border border-pink-100">
+                                <div className="mb-4">
+                                    <h4 className="text-lg font-medium text-pink-700 mb-2">ข้อมูลใหม่</h4>
+                                    <p className="text-sm text-gray-600">กำลังจะบันทึก</p>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="bg-pink-50/50 p-4 rounded-lg">
+                                        <h5 className="font-medium text-pink-800 mb-2">ข้อมูลทั่วไป</h5>
+                                        <div className="space-y-2 text-sm">
+                                            <p><span className="text-gray-600">วันที่:</span> <span className="text-pink-900">{formData.date}</span></p>
+                                            <p><span className="text-gray-600">กะ:</span> <span className="text-pink-900">{formData.shift}</span></p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-pink-50/50 p-4 rounded-lg">
+                                        <h5 className="font-medium text-pink-800 mb-2">ข้อมูลสรุป 24 ชั่วโมง</h5>
+                                        <div className="space-y-2 text-sm">
+                                            <p><span className="text-gray-600">OPD 24hr:</span> <span className="text-pink-900">{summaryData.opdTotal24hr || '0'}</span></p>
+                                            <p><span className="text-gray-600">คนไข้เก่า:</span> <span className="text-pink-900">{summaryData.existingPatients || '0'}</span></p>
+                                            <p><span className="text-gray-600">คนไข้ใหม่:</span> <span className="text-pink-900">{summaryData.newPatients || '0'}</span></p>
+                                            <p><span className="text-gray-600">Admit 24hr:</span> <span className="text-pink-900">{summaryData.admissions24hr || '0'}</span></p>
+                                            <p><span className="text-gray-600">ผู้ตรวจการ:</span> <span className="text-pink-900">{summaryData.supervisorName || '-'}</span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ข้อมูลแต่ละวอร์ด */}
+                        <div className="mt-6">
+                            <h4 className="text-lg font-medium text-purple-800 mb-4">ข้อมูลรายวอร์ด (แสดงเฉพาะที่มีการเปลี่ยนแปลง)</h4>
+                            <div className="space-y-4">
+                                {Object.keys(formData.wards).map(wardName => renderWardComparison(wardName))}
+                            </div>
+                        </div>
+
+                        <div className="flex justify-center gap-4 mt-8">
+                            <button
+                                onClick={() => setShowDataComparison(false)}
+                                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-300 font-medium transition-colors"
+                            >
+                                ยกเลิก
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowDataComparison(false);
+                                    saveData();
+                                }}
+                                className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 focus:ring-2 focus:ring-purple-300 font-medium transition-all"
+                            >
+                                บันทึกทับข้อมูลเดิม
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const [currentStep, setCurrentStep] = useState(0);
 
     return (
         <form onSubmit={handleSubmit} className="max-w-[1400px] mx-auto p-2">
+            {/* Initial Loading Screen */}
+            {isInitialLoading && (
+                <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
+                    <div className="text-center">
+                        <img
+                            src="/images/BPK.jpg"
+                            alt="BPK Loading"
+                            className="w-32 h-32 mx-auto mb-4 animate-pulse"
+                        />
+                        <p className="text-gray-600">กำลังโหลด...</p>
+                    </div>
+                </div>
+            )}
+
+            {/* เพิ่ม DataComparisonModal ที่นี่ */}
+            <DataComparisonModal />
+            
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
                 <h1 className="text-2xl text-center font-semibold text-[#0ab4ab] mb-6">
@@ -722,18 +923,47 @@ const ShiftForm = () => {
                         </div>
                     </div>
                 </div>
-                {/*ส่วนของลงชื่อผู้ตรวจการ*/}
-                <div className="mt-6 bg-[#0ab4ab]/50 rounded-lg shadow-lg p-4">
-                    <div className="flex justify-end"> {/* Changed: Added flex and justify-end */}
-                        <div className="w-fit"> {/* Changed: Added fixed width */}
-                            <div className="flex items-center gap-4"> {/* Changed: Added flex layout */}
-                                <label className="text-sm font-medium text-black whitespace-nowrap">Supervisor Signature</label>
+                {/*ส่วนของลงชื่อผู้ตรวจการและผู้บันทึกข้อมูล*/}
+                <div className="mt-6 bg-[#0ab4ab]/10 rounded-lg shadow-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Supervisor Signature */}
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">Supervisor Signature</label>
+                            <div className="flex gap-2 flex-1">
                                 <input
                                     type="text"
-                                    value={summaryData.supervisorName}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:ring-offset-2 text-black"
-                                    placeholder="Name - Surname : Supervisor"
+                                    value={summaryData.supervisorFirstName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="ชื่อ"
+                                />
+                                <input
+                                    type="text"
+                                    value={summaryData.supervisorLastName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="นามสกุล"
+                                />
+                            </div>
+                        </div>
+
+                        {/* ผู้บันทึกข้อมูล */}
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">ผู้บันทึกข้อมูล</label>
+                            <div className="flex gap-2 flex-1">
+                                <input
+                                    type="text"
+                                    value={summaryData.recorderFirstName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="ชื่อ"
+                                />
+                                <input
+                                    type="text"
+                                    value={summaryData.recorderLastName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="นามสกุล"
                                 />
                             </div>
                         </div>
@@ -893,64 +1123,52 @@ const ShiftForm = () => {
                     ))}
                 </div>
 
-                {/* 24 Hour Summary */}
-                <div className="bg-gradient-to-r from-pink-50 to-blue-50 p-4 rounded-xl shadow-lg mt-6">
-                    <h3 className="text-lg font-semibold mb-4 text-center text-black">24-hour Summary</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1 text-center">OPD 24hr</label>
+                {/* เพิ่มส่วน Supervisor และผู้บันทึกข้อมูลสำหรับ Mobile */}
+                <div className="space-y-4 p-4">
+                    <div className="bg-[#0ab4ab]/10 rounded-lg p-4">
+                        <div className="space-y-4">
+                            {/* Supervisor */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-black">Supervisor Signature</label>
+                                <div className="grid grid-cols-2 gap-2">
                             <input
-                                type="number"
-                                min="0"
-                                value={summaryData.opdTotal24hr}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
+                                        type="text"
+                                        value={summaryData.supervisorFirstName}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                        placeholder="ชื่อ"
+                                    />
+                            <input
+                                        type="text"
+                                        value={summaryData.supervisorLastName}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                        placeholder="นามสกุล"
                             />
                         </div>
-                        <div className="bg-white/50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1 text-center">Old Patient</label>
+                            </div>
+
+                            {/* ผู้บันทึกข้อมูล */}
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-black">ผู้บันทึกข้อมูล</label>
+                                <div className="grid grid-cols-2 gap-2">
                             <input
-                                type="number"
-                                min="0"
-                                value={summaryData.existingPatients}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
-                            />
-                        </div>
-                        <div className="bg-white/50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1 text-center">New Patient</label>
+                                        type="text"
+                                        value={summaryData.recorderFirstName}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                        placeholder="ชื่อ"
+                                    />
                             <input
-                                type="number"
-                                min="0"
-                                value={summaryData.newPatients}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
-                            />
-                        </div>
-                        <div className="bg-white/50 rounded-lg p-2">
-                            <label className="block text-sm font-medium text-black mb-1 text-center">Admit 24 Hours</label>
-                            <input
-                                type="number"
-                                min="0"
-                                value={summaryData.admissions24hr}
-                                onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full text-center bg-white border border-gray-200 rounded-md py-1.5 text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
+                                        type="text"
+                                        value={summaryData.recorderLastName}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                        placeholder="นามสกุล"
                             />
                         </div>
                     </div>
                 </div>
-
-                {/* Supervisor Signature */}
-                <div className="bg-gradient-to-r from-pink-50 to-blue-50 p-4 rounded-xl shadow-lg mt-6">
-                    <h3 className="text-lg font-semibold mb-4 text-center text-black">Supervisor Signature</h3>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="text"
-                            value={summaryData.supervisorName}
-                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorName: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-300 focus:border-purple-500 text-black"
-                            placeholder="Name - Surname"
-                        />
                     </div>
                 </div>
 
@@ -995,8 +1213,9 @@ const ShiftForm = () => {
                     {isLoading ? 'Saving...' : 'Save Data'}
                 </button>
             </div>
-        </form >
+        </form>
     );
 };
 
 export default ShiftForm; 
+
