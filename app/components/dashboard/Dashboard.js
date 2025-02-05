@@ -94,7 +94,7 @@ const Dashboard = () => {
             }
 
             setRecords(fetchedRecords);
-            const newStats = calculateStats(fetchedRecords);
+            const newStats = calculateExtendedStats(fetchedRecords);
             setStats(newStats);
             
         } catch (error) {
@@ -241,36 +241,139 @@ const Dashboard = () => {
         }
     };
 
-    // สีสำหรับกราฟ
+    // เพิ่มฟังก์ชันคำนวณสถิติใหม่
+    const calculateExtendedStats = (records) => {
+        if (!records || !Array.isArray(records) || records.length === 0) {
+            return resetStats();
+        }
+
+        const stats = calculateStats(records);
+        const extendedStats = {
+            ...stats,
+            patientMovement: {
+                totalAdmits: 0,
+                totalDischarges: 0,
+                totalTransfers: 0,
+                totalDeaths: 0,
+            },
+            staffing: {
+                totalRN: 0,
+                totalPN: 0,
+                totalNA: 0,
+                staffToPatientRatio: 0,
+            },
+            bedManagement: {
+                totalBeds: 0,
+                occupiedBeds: 0,
+                availableBeds: 0,
+                unavailableBeds: 0,
+                occupancyRate: 0,
+            },
+            opd: {
+                total24Hr: 0,
+                newPatients: 0,
+                existingPatients: 0,
+                admissionRate: 0,
+            }
+        };
+
+        // คำนวณข้อมูลเพิ่มเติม
+        records.forEach(record => {
+            if (record.wards) {
+                Object.values(record.wards).forEach(ward => {
+                    // Patient Movement
+                    extendedStats.patientMovement.totalAdmits += parseNumberValue(ward.newAdmit);
+                    extendedStats.patientMovement.totalDischarges += parseNumberValue(ward.discharge);
+                    extendedStats.patientMovement.totalTransfers += 
+                        parseNumberValue(ward.transferIn) + 
+                        parseNumberValue(ward.transferOut) +
+                        parseNumberValue(ward.referIn) +
+                        parseNumberValue(ward.referOut);
+                    extendedStats.patientMovement.totalDeaths += parseNumberValue(ward.dead);
+
+                    // Staffing
+                    extendedStats.staffing.totalRN += parseNumberValue(ward.RN);
+                    extendedStats.staffing.totalPN += parseNumberValue(ward.PN);
+                    extendedStats.staffing.totalNA += parseNumberValue(ward.WC);
+
+                    // Bed Management
+                    extendedStats.bedManagement.availableBeds += parseNumberValue(ward.availableBeds);
+                    extendedStats.bedManagement.unavailableBeds += parseNumberValue(ward.unavailable);
+                });
+            }
+
+            // OPD Data
+            if (record.summaryData) {
+                extendedStats.opd.total24Hr += parseNumberValue(record.summaryData.opdTotal24hr);
+                extendedStats.opd.newPatients += parseNumberValue(record.summaryData.newPatients);
+                extendedStats.opd.existingPatients += parseNumberValue(record.summaryData.existingPatients);
+            }
+        });
+
+        // คำนวณอัตราส่วนต่างๆ
+        const totalStaff = extendedStats.staffing.totalRN + extendedStats.staffing.totalPN + extendedStats.staffing.totalNA;
+        extendedStats.staffing.staffToPatientRatio = totalStaff > 0 ? 
+            (stats.totalPatients / totalStaff).toFixed(2) : 0;
+
+        extendedStats.bedManagement.occupiedBeds = stats.totalPatients;
+        extendedStats.bedManagement.totalBeds = 
+            extendedStats.bedManagement.occupiedBeds + 
+            extendedStats.bedManagement.availableBeds + 
+            extendedStats.bedManagement.unavailableBeds;
+        
+        extendedStats.bedManagement.occupancyRate = 
+            extendedStats.bedManagement.totalBeds > 0 ?
+            ((extendedStats.bedManagement.occupiedBeds / extendedStats.bedManagement.totalBeds) * 100).toFixed(1) : 0;
+
+        return extendedStats;
+    };
+
+    // อัพเดทสีสำหรับกราฟให้เป็น Pastel
     const chartColors = {
         background: [
-            'rgba(255, 99, 132, 0.5)',
-            'rgba(54, 162, 235, 0.5)',
-            'rgba(255, 206, 86, 0.5)',
-            'rgba(75, 192, 192, 0.5)',
-            'rgba(153, 102, 255, 0.5)',
-            'rgba(255, 159, 64, 0.5)',
-            'rgba(255, 99, 132, 0.5)',
-            'rgba(54, 162, 235, 0.5)',
-            'rgba(255, 206, 86, 0.5)',
-            'rgba(75, 192, 192, 0.5)',
-            'rgba(153, 102, 255, 0.5)',
-            'rgba(255, 159, 64, 0.5)'
+            'rgba(255, 182, 193, 0.6)', // pastel pink
+            'rgba(176, 224, 230, 0.6)', // pastel blue
+            'rgba(255, 218, 185, 0.6)', // pastel peach
+            'rgba(221, 160, 221, 0.6)', // pastel purple
+            'rgba(176, 196, 222, 0.6)', // pastel steel blue
+            'rgba(152, 251, 152, 0.6)', // pastel green
+            'rgba(255, 239, 213, 0.6)', // pastel papaya
+            'rgba(230, 230, 250, 0.6)', // pastel lavender
+            'rgba(216, 191, 216, 0.6)', // pastel thistle
+            'rgba(255, 228, 225, 0.6)', // pastel misty rose
+            'rgba(240, 248, 255, 0.6)', // pastel alice blue
+            'rgba(245, 222, 179, 0.6)'  // pastel wheat
         ],
         border: [
-            'rgba(255, 99, 132, 1)',
-            'rgba(54, 162, 235, 1)',
-            'rgba(255, 206, 86, 1)',
-            'rgba(75, 192, 192, 1)',
-            'rgba(153, 102, 255, 1)',
-            'rgba(255, 159, 64, 1)',
-            'rgba(255, 99, 132, 1)',
-            'rgba(54, 162, 235, 1)',
-            'rgba(255, 206, 86, 1)',
-            'rgba(75, 192, 192, 1)',
-            'rgba(153, 102, 255, 1)',
-            'rgba(255, 159, 64, 1)'
+            'rgba(255, 182, 193, 1)',
+            'rgba(176, 224, 230, 1)',
+            'rgba(255, 218, 185, 1)',
+            'rgba(221, 160, 221, 1)',
+            'rgba(176, 196, 222, 1)',
+            'rgba(152, 251, 152, 1)',
+            'rgba(255, 239, 213, 1)',
+            'rgba(230, 230, 250, 1)',
+            'rgba(216, 191, 216, 1)',
+            'rgba(255, 228, 225, 1)',
+            'rgba(240, 248, 255, 1)',
+            'rgba(245, 222, 179, 1)'
         ]
+    };
+
+    // สีสำหรับ Ward Cards
+    const wardColors = {
+        Ward6: 'bg-pink-100 hover:bg-pink-200',
+        Ward7: 'bg-blue-100 hover:bg-blue-200',
+        Ward8: 'bg-purple-100 hover:bg-purple-200',
+        Ward9: 'bg-green-100 hover:bg-green-200',
+        WardGI: 'bg-yellow-100 hover:bg-yellow-200',
+        Ward10B: 'bg-indigo-100 hover:bg-indigo-200',
+        Ward11: 'bg-red-100 hover:bg-red-200',
+        Ward12: 'bg-cyan-100 hover:bg-cyan-200',
+        ICU: 'bg-violet-100 hover:bg-violet-200',
+        CCU: 'bg-orange-100 hover:bg-orange-200',
+        LR: 'bg-emerald-100 hover:bg-emerald-200',
+        NSY: 'bg-rose-100 hover:bg-rose-200'
     };
 
     // Chart data
@@ -490,31 +593,127 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* Summary Cards */}
+                    {/* Summary Cards with Pastel Colors */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-sm font-medium text-black mb-1">Total Records</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.totalRecords}</p>
+                        <div className="bg-gradient-to-br from-pink-100 to-pink-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+                            <h3 className="text-sm font-medium text-pink-800 mb-1">Total Records</h3>
+                            <p className="text-2xl font-bold text-pink-600">{stats.totalRecords}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-sm font-medium text-black mb-1">Total Patients</h3>
+                        <div className="bg-gradient-to-br from-blue-100 to-blue-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+                            <h3 className="text-sm font-medium text-blue-800 mb-1">Total Patients</h3>
                             <p className="text-2xl font-bold text-blue-600">{stats.totalPatients}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-sm font-medium text-black mb-1">Total Staff</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.totalStaff}</p>
+                        <div className="bg-gradient-to-br from-purple-100 to-purple-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+                            <h3 className="text-sm font-medium text-purple-800 mb-1">Total Staff</h3>
+                            <p className="text-2xl font-bold text-purple-600">{stats.totalStaff}</p>
                         </div>
-                        <div className="bg-white p-6 rounded-lg shadow">
-                            <h3 className="text-sm font-medium text-black mb-1">Total Attendance</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.totalAttendance}</p>
+                        <div className="bg-gradient-to-br from-green-100 to-green-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
+                            <h3 className="text-sm font-medium text-green-800 mb-1">Total Attendance</h3>
+                            <p className="text-2xl font-bold text-green-600">{stats.totalAttendance}</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Ward Census */}
-                <div className="bg-white p-6 rounded-lg shadow mb-6">
+                {/* Patient Movement Summary */}
+                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-lg font-medium text-gray-800 mb-4">Patient Movement Summary</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-yellow-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-yellow-800">Total Admits</h3>
+                            <p className="text-2xl font-bold text-yellow-600">{stats.patientMovement?.totalAdmits || 0}</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-green-800">Total Discharges</h3>
+                            <p className="text-2xl font-bold text-green-600">{stats.patientMovement?.totalDischarges || 0}</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-blue-800">Total Transfers</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.patientMovement?.totalTransfers || 0}</p>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-red-800">Total Deaths</h3>
+                            <p className="text-2xl font-bold text-red-600">{stats.patientMovement?.totalDeaths || 0}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Staff Summary */}
+                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-lg font-medium text-gray-800 mb-4">Staff Summary</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-indigo-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-indigo-800">Total RN</h3>
+                            <p className="text-2xl font-bold text-indigo-600">{stats.staffing?.totalRN || 0}</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-purple-800">Total PN</h3>
+                            <p className="text-2xl font-bold text-purple-600">{stats.staffing?.totalPN || 0}</p>
+                        </div>
+                        <div className="bg-pink-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-pink-800">Total NA</h3>
+                            <p className="text-2xl font-bold text-pink-600">{stats.staffing?.totalNA || 0}</p>
+                        </div>
+                        <div className="bg-cyan-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-cyan-800">Staff:Patient Ratio</h3>
+                            <p className="text-2xl font-bold text-cyan-600">{stats.staffing?.staffToPatientRatio || '0:0'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bed Management */}
+                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-lg font-medium text-gray-800 mb-4">Bed Management</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="bg-emerald-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-emerald-800">Total Beds</h3>
+                            <p className="text-2xl font-bold text-emerald-600">{stats.bedManagement?.totalBeds || 0}</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-blue-800">Occupied Beds</h3>
+                            <p className="text-2xl font-bold text-blue-600">{stats.bedManagement?.occupiedBeds || 0}</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-green-800">Available Beds</h3>
+                            <p className="text-2xl font-bold text-green-600">{stats.bedManagement?.availableBeds || 0}</p>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-red-800">Unavailable Beds</h3>
+                            <p className="text-2xl font-bold text-red-600">{stats.bedManagement?.unavailableBeds || 0}</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-purple-800">Occupancy Rate</h3>
+                            <p className="text-2xl font-bold text-purple-600">{stats.bedManagement?.occupancyRate || 0}%</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* OPD Summary */}
+                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
+                    <h2 className="text-lg font-medium text-gray-800 mb-4">OPD Summary (24 Hours)</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-orange-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-orange-800">Total OPD</h3>
+                            <p className="text-2xl font-bold text-orange-600">{stats.opd?.total24Hr || 0}</p>
+                        </div>
+                        <div className="bg-teal-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-teal-800">New Patients</h3>
+                            <p className="text-2xl font-bold text-teal-600">{stats.opd?.newPatients || 0}</p>
+                        </div>
+                        <div className="bg-cyan-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-cyan-800">Existing Patients</h3>
+                            <p className="text-2xl font-bold text-cyan-600">{stats.opd?.existingPatients || 0}</p>
+                        </div>
+                        <div className="bg-rose-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-rose-800">Admission Rate</h3>
+                            <p className="text-2xl font-bold text-rose-600">{stats.opd?.admissionRate || 0}%</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ward Census with Pastel Colors */}
+                <div className="bg-white p-6 rounded-lg shadow mb-6 mt-6">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-medium text-black">Patient Census By Ward</h2>
+                        <h2 className="text-lg font-medium text-gray-800">Patient Census By Ward</h2>
                         {stats?.supervisorName && (
                             <div className="text-sm text-gray-600">
                                 Recorder: {stats.supervisorName}
@@ -526,27 +725,27 @@ const Dashboard = () => {
                             <div
                                 key={ward}
                                 onClick={() => handleWardClick(ward)}
-                                className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                                className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${wardColors[ward]} shadow hover:shadow-lg`}
                             >
-                                <h3 className="text-sm font-medium text-black mb-1">{ward}</h3>
-                                <p className="text-2xl font-bold text-blue-600">{count}</p>
-                                <p className="text-xs text-gray-500">Details...</p>
+                                <h3 className="text-sm font-medium text-gray-800 mb-1">{ward}</h3>
+                                <p className="text-2xl font-bold text-gray-700">{count}</p>
+                                <p className="text-xs text-gray-500">Click for details...</p>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Charts */}
+                {/* Charts with Updated Pastel Colors */}
                 {chartData && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div className="bg-white p-4 rounded-lg shadow">
-                            <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Pie)</h3>
+                        <div className="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 className="text-lg font-medium text-gray-800 mb-4">Patient Distribution (Pie)</h3>
                             <div style={{ height: '300px' }}>
                                 <Pie data={chartData.pie} options={chartOptions} />
                             </div>
                         </div>
-                        <div className="bg-white p-4 rounded-lg shadow">
-                            <h3 className="text-lg font-medium text-black mb-4">Patient Distribution (Bar)</h3>
+                        <div className="bg-white p-6 rounded-lg shadow-lg">
+                            <h3 className="text-lg font-medium text-gray-800 mb-4">Patient Distribution (Bar)</h3>
                             <div style={{ height: '300px' }}>
                                 <Bar data={chartData.bar} options={chartOptions} />
                             </div>
