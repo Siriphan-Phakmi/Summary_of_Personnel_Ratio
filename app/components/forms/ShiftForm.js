@@ -540,6 +540,38 @@ const ShiftForm = () => {
 
     const [currentStep, setCurrentStep] = useState(0);
 
+    // เพิ่มฟังก์ชันสำหรับดึงข้อมูลวันที่มีการบันทึก
+    const fetchDatesWithData = async () => {
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+            const endOfYear = new Date(new Date().getFullYear(), 11, 31);
+            
+            const yearQuery = query(recordsRef,
+                where('date', '>=', getUTCDateString(startOfYear)),
+                where('date', '<=', getUTCDateString(endOfYear))
+            );
+            
+            const yearSnapshot = await getDocs(yearQuery);
+            const datesWithDataInYear = [...new Set(yearSnapshot.docs.map(doc => doc.data().date))];
+            setDatesWithData(datesWithDataInYear);
+        } catch (error) {
+            console.error('Error fetching dates with data:', error);
+            setDatesWithData([]);
+        }
+    };
+
+    // เพิ่ม useEffect เพื่อดึงข้อมูลเมื่อ component โหลด
+    useEffect(() => {
+        fetchDatesWithData();
+    }, []);
+
+    // Helper function for date formatting
+    const getUTCDateString = (date) => {
+        const d = new Date(date);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
     return (
         <form onSubmit={handleSubmit} className="max-w-[1400px] mx-auto p-2">
             {/* Initial Loading Screen */}
@@ -949,7 +981,7 @@ const ShiftForm = () => {
 
                         {/* ผู้บันทึกข้อมูล */}
                         <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">ผู้บันทึกข้อมูล</label>
+                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">เจ้าหน้าที่ผู้บันทึกข้อมูล</label>
                             <div className="flex gap-2 flex-1">
                                 <input
                                     type="text"
