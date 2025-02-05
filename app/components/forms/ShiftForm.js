@@ -80,7 +80,7 @@ const ShiftForm = () => {
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
         ];
-        
+
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         const day = dateObj.getDate();
         const month = thaiMonths[dateObj.getMonth()];
@@ -233,8 +233,8 @@ const ShiftForm = () => {
         for (const check of validationChecks) {
             if (check.condition) {
                 alert(check.message);
-            return false;
-        }
+                return false;
+            }
         }
 
         return true;
@@ -250,7 +250,7 @@ const ShiftForm = () => {
 
     const hasWardData = () => {
         return Object.values(formData.wards).some(ward =>
-            Object.entries(ward).some(([key, value]) => 
+            Object.entries(ward).some(([key, value]) =>
                 key !== 'comment' && value !== '' && value !== '0'
             )
         );
@@ -288,7 +288,7 @@ const ShiftForm = () => {
         setSelectedDate(new Date());
         setThaiDate('');
         setShowCalendar(false);
-        
+
         // Force reload the page
         window.location.reload();
     };
@@ -314,14 +314,14 @@ const ShiftForm = () => {
                 where('shift', '==', formData.shift)
             );
             const querySnapshot = await getDocs(q);
-            
+
             if (!querySnapshot.empty) {
                 const existingDoc = querySnapshot.docs[0].data();
                 setExistingData(existingDoc);
                 setShowDataComparison(true);
-                    setIsLoading(false);
-                    return;
-                }
+                setIsLoading(false);
+                return;
+            }
 
             // ดำเนินการบันทึกข้อมูล
             await saveData();
@@ -448,7 +448,7 @@ const ShiftForm = () => {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                 <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8 rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-purple-100">
                     <h3 className="text-2xl font-semibold mb-6 text-purple-800 text-center">เปรียบเทียบข้อมูล</h3>
-                    
+
                     <div className="space-y-6">
                         {/* ข้อมูลทั่วไป */}
                         <div className="grid grid-cols-2 gap-6">
@@ -546,12 +546,12 @@ const ShiftForm = () => {
             const recordsRef = collection(db, 'staffRecords');
             const startOfYear = new Date(new Date().getFullYear(), 0, 1);
             const endOfYear = new Date(new Date().getFullYear(), 11, 31);
-            
+
             const yearQuery = query(recordsRef,
                 where('date', '>=', getUTCDateString(startOfYear)),
                 where('date', '<=', getUTCDateString(endOfYear))
             );
-            
+
             const yearSnapshot = await getDocs(yearQuery);
             const datesWithDataInYear = [...new Set(yearSnapshot.docs.map(doc => doc.data().date))];
             setDatesWithData(datesWithDataInYear);
@@ -590,7 +590,7 @@ const ShiftForm = () => {
 
             {/* เพิ่ม DataComparisonModal ที่นี่ */}
             <DataComparisonModal />
-            
+
             {/*ส่วน*/}
             <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
                 <h1 className="text-2xl text-center font-semibold text-[#0ab4ab] mb-6">
@@ -599,38 +599,16 @@ const ShiftForm = () => {
                 {/*ส่วนของวันที่และกะงาน*/}
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-black justify-center">
-                        <div className="flex items-center gap-2 whitespace-nowrap text-sm justify-center">                            
-                            <div className="flex gap-2 items-center">                                
+                        <div className="flex flex-col md:flex-row items-center gap-2 whitespace-nowrap text-sm justify-center">
+                            <div className="flex flex-col md:flex-row gap-2 items-center w-full">
                                 <button
                                     type="button"
                                     onClick={() => setShowCalendar(!showCalendar)}
-                                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                                    className="w-full md:w-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
                                 >
                                     {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
                                 </button>
-                                {showCalendar && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                                        <div className="relative bg-white rounded-lg">
-                                            <Calendar
-                                                selectedDate={selectedDate}
-                                                onDateSelect={(date) => {
-                                                    setSelectedDate(date);
-                                                    const isoDate = date.toISOString().split('T')[0];
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        date: isoDate
-                                                    }));
-                                                    setThaiDate(formatThaiDate(date));
-                                                    setShowCalendar(false);
-                                                }}
-                                                onClickOutside={() => setShowCalendar(false)}
-                                                datesWithData={datesWithData}
-                                                variant="form"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                                <span className="text-gray-700 font-medium">{thaiDate}</span>
+                                <span className="text-gray-700 font-medium text-center w-full md:w-auto">{thaiDate}</span>
                             </div>
                         </div>
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
@@ -913,44 +891,44 @@ const ShiftForm = () => {
                 <div className="mt-8 mb-4">
                     <h3 className="text-xl font-semibold mb-4 text-center text-black">24-hour Summary</h3>
                     <div className="grid grid-cols-4 gap-8">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col bg-gradient-to-br from-pink-100 to-pink-50 p-4 rounded-lg shadow-lg">
                             <label className="mb-2 text-center font-medium text-black">OPD 24 hour</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.opdTotal24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-black"
+                                className="w-full text-center border border-gray-200 rounded-lg py-2 text-black bg-white/80"
                             />
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col bg-gradient-to-br from-blue-100 to-blue-50 p-4 rounded-lg shadow-lg">
                             <label className="mb-2 text-center font-medium text-black">Old Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.existingPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-black"
+                                className="w-full text-center border border-gray-200 rounded-lg py-2 text-black bg-white/80"
                             />
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col bg-gradient-to-br from-purple-100 to-purple-50 p-4 rounded-lg shadow-lg">
                             <label className="mb-2 text-center font-medium text-black">New Patient</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.newPatients}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-black"
+                                className="w-full text-center border border-gray-200 rounded-lg py-2 text-black bg-white/80"
                             />
                         </div>
-                        <div className="flex flex-col">
+                        <div className="flex flex-col bg-gradient-to-br from-green-100 to-green-50 p-4 rounded-lg shadow-lg">
                             <label className="mb-2 text-center font-medium text-black">Admit 24 Hours</label>
                             <input
                                 type="number"
                                 min="0"
                                 value={summaryData.admissions24hr}
                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                className="w-full text-center border-0 focus:ring-0 text-black"
+                                className="w-full text-center border border-gray-200 rounded-lg py-2 text-black bg-white/80"
                             />
                         </div>
                     </div>
@@ -958,27 +936,6 @@ const ShiftForm = () => {
                 {/*ส่วนของลงชื่อผู้ตรวจการและผู้บันทึกข้อมูล*/}
                 <div className="mt-6 bg-[#0ab4ab]/10 rounded-lg shadow-lg p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Supervisor Signature */}
-                        <div className="flex items-center gap-4">
-                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">Supervisor Signature</label>
-                            <div className="flex gap-2 flex-1">
-                                <input
-                                    type="text"
-                                    value={summaryData.supervisorFirstName}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                    placeholder="ชื่อ"
-                                />
-                                <input
-                                    type="text"
-                                    value={summaryData.supervisorLastName}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                    placeholder="นามสกุล"
-                                />
-                            </div>
-                        </div>
-
                         {/* ผู้บันทึกข้อมูล */}
                         <div className="flex items-center gap-4">
                             <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">เจ้าหน้าที่ผู้บันทึกข้อมูล</label>
@@ -999,6 +956,26 @@ const ShiftForm = () => {
                                 />
                             </div>
                         </div>
+                        {/* Supervisor Signature */}
+                        <div className="flex items-center gap-4">
+                            <label className="text-sm font-medium text-black whitespace-nowrap min-w-[140px]">Supervisor Signature</label>
+                            <div className="flex gap-2 flex-1">
+                                <input
+                                    type="text"
+                                    value={summaryData.supervisorFirstName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="ชื่อ"
+                                />
+                                <input
+                                    type="text"
+                                    value={summaryData.supervisorLastName}
+                                    onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                    placeholder="นามสกุล"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1010,7 +987,7 @@ const ShiftForm = () => {
                     {Object.entries(formData.wards).map(([ward, data]) => (
                         <div key={ward} className="mb-6 bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl shadow-lg p-4">
                             <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">{ward}</h3>
-                            
+
                             {/* Census and Overall Data */}
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-gray-50 rounded-lg p-2">
@@ -1163,44 +1140,44 @@ const ShiftForm = () => {
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-black">Supervisor Signature</label>
                                 <div className="grid grid-cols-2 gap-2">
-                            <input
+                                    <input
                                         type="text"
                                         value={summaryData.supervisorFirstName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="ชื่อ"
                                     />
-                            <input
+                                    <input
                                         type="text"
                                         value={summaryData.supervisorLastName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="นามสกุล"
-                            />
-                        </div>
+                                    />
+                                </div>
                             </div>
 
                             {/* ผู้บันทึกข้อมูล */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-black">ผู้บันทึกข้อมูล</label>
                                 <div className="grid grid-cols-2 gap-2">
-                            <input
+                                    <input
                                         type="text"
                                         value={summaryData.recorderFirstName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="ชื่อ"
                                     />
-                            <input
+                                    <input
                                         type="text"
                                         value={summaryData.recorderLastName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="นามสกุล"
-                            />
+                                    />
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
                     </div>
                 </div>
 
@@ -1249,5 +1226,5 @@ const ShiftForm = () => {
     );
 };
 
-export default ShiftForm; 
+export default ShiftForm;
 
