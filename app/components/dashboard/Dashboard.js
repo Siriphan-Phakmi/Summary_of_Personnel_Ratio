@@ -329,53 +329,69 @@ const Dashboard = () => {
         return extendedStats;
     };
 
-    // อัพเดทสีสำหรับกราฟให้เข้มขึ้นและชัดเจน
-    const chartColors = {
-        background: [
-            'rgba(255, 99, 132, 0.8)',    // ชมพูเข้ม
-            'rgba(54, 162, 235, 0.8)',    // น้ำเงิน
-            'rgba(255, 159, 64, 0.8)',    // ส้ม
-            'rgba(75, 192, 192, 0.8)',    // เขียวมิ้นต์
-            'rgba(153, 102, 255, 0.8)',   // ม่วง
-            'rgba(255, 206, 86, 0.8)',    // เหลือง
-            'rgba(231, 111, 81, 0.8)',    // ส้มแดง
-            'rgba(128, 0, 128, 0.8)',     // ม่วงเข้ม
-            'rgba(0, 128, 128, 0.8)',     // เขียวน้ำทะเล
-            'rgba(255, 0, 255, 0.8)',     // ชมพูสด
-            'rgba(0, 128, 0, 0.8)',       // เขียวเข้ม
-            'rgba(128, 0, 0, 0.8)'        // แดงเข้ม
-        ],
-        border: [
-            'rgb(255, 99, 132)',      // ชมพูเข้ม
-            'rgb(54, 162, 235)',      // น้ำเงิน
-            'rgb(255, 159, 64)',      // ส้ม
-            'rgb(75, 192, 192)',      // เขียวมิ้นต์
-            'rgb(153, 102, 255)',     // ม่วง
-            'rgb(255, 206, 86)',      // เหลือง
-            'rgb(231, 111, 81)',      // ส้มแดง
-            'rgb(128, 0, 128)',       // ม่วงเข้ม
-            'rgb(0, 128, 128)',       // เขียวน้ำทะเล
-            'rgb(255, 0, 255)',       // ชมพูสด
-            'rgb(0, 128, 0)',         // เขียวเข้ม
-            'rgb(128, 0, 0)'          // แดงเข้ม
-        ]
-    };
-
-    // สีสำหรับ Ward Cards
+    // สีสำหรับ Ward Cards และ Charts
     const wardColors = {
         Ward6: 'bg-pink-100 hover:bg-pink-200',
         Ward7: 'bg-blue-100 hover:bg-blue-200',
-        Ward8: 'bg-purple-100 hover:bg-purple-200',
+        Ward8: 'bg-violet-100 hover:bg-violet-200',
         Ward9: 'bg-green-100 hover:bg-green-200',
         WardGI: 'bg-yellow-100 hover:bg-yellow-200',
-        Ward10B: 'bg-indigo-100 hover:bg-indigo-200',
+        Ward10B: 'bg-sky-100 hover:bg-sky-200',
         Ward11: 'bg-red-100 hover:bg-red-200',
         Ward12: 'bg-cyan-100 hover:bg-cyan-200',
-        ICU: 'bg-violet-100 hover:bg-violet-200',
+        ICU: 'bg-indigo-100 hover:bg-indigo-200',
         CCU: 'bg-orange-100 hover:bg-orange-200',
         LR: 'bg-emerald-100 hover:bg-emerald-200',
         NSY: 'bg-rose-100 hover:bg-rose-200'
     };
+
+    // อัพเดทสีสำหรับกราฟให้ตรงกับ Ward Cards
+    const chartColors = {
+        background: [
+            'rgba(252, 231, 243, 0.8)',     // pink-100 (Ward6)
+            'rgba(219, 234, 254, 0.8)',     // blue-100 (Ward7)
+            'rgba(237, 233, 254, 0.8)',     // violet-100 (Ward8)
+            'rgba(220, 252, 231, 0.8)',     // green-100 (Ward9)
+            'rgba(254, 249, 195, 0.8)',     // yellow-100 (WardGI)
+            'rgba(224, 242, 254, 0.8)',     // sky-100 (Ward10B)
+            'rgba(254, 226, 226, 0.8)',     // red-100 (Ward11)
+            'rgba(207, 250, 254, 0.8)',     // cyan-100 (Ward12)
+            'rgba(224, 231, 255, 0.8)',     // indigo-100 (ICU)
+            'rgba(255, 237, 213, 0.8)',     // orange-100 (CCU)
+            'rgba(209, 250, 229, 0.8)',     // emerald-100 (LR)
+            'rgba(255, 228, 230, 0.8)'      // rose-100 (NSY)
+        ],
+        border: [
+            'rgb(252, 231, 243)',     // pink-100
+            'rgb(219, 234, 254)',     // blue-100
+            'rgb(237, 233, 254)',     // violet-100
+            'rgb(220, 252, 231)',     // green-100
+            'rgb(254, 249, 195)',     // yellow-100
+            'rgb(224, 242, 254)',     // sky-100
+            'rgb(254, 226, 226)',     // red-100
+            'rgb(207, 250, 254)',     // cyan-100
+            'rgb(224, 231, 255)',     // indigo-100
+            'rgb(255, 237, 213)',     // orange-100
+            'rgb(209, 250, 229)',     // emerald-100
+            'rgb(255, 228, 230)'      // rose-100
+        ]
+    };
+
+    // กำหนดลำดับ Ward
+    const wardOrder = [
+        'Ward6',
+        'Ward7',
+        'Ward8',
+        'Ward9',
+        'WardGI',
+        'Ward10B',
+        'Ward11',
+        'Ward12',
+        'ICU',
+        'CCU',
+        'LR',
+        'NSY'
+    ];
 
     // Chart data
     const chartData = useMemo(() => {
@@ -722,14 +738,14 @@ const Dashboard = () => {
                         )}
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {Object.entries(stats.byWard).map(([ward, count]) => (
+                        {wardOrder.map((ward) => (
                             <div
                                 key={ward}
                                 onClick={() => handleWardClick(ward)}
                                 className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${wardColors[ward]} shadow hover:shadow-lg`}
                             >
                                 <h3 className="text-sm font-medium text-gray-800 mb-1">{ward}</h3>
-                                <p className="text-2xl font-bold text-gray-700">{count}</p>
+                                <p className="text-2xl font-bold text-gray-700">{stats.byWard[ward] || 0}</p>
                                 <p className="text-xs text-gray-500">Click for details...</p>
                             </div>
                         ))}
