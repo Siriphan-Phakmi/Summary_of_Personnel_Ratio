@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
-import Calendar from '@/app/components/ui/Calendar';
+import Calendar from '../ui/Calendar';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
