@@ -80,7 +80,7 @@ const ShiftForm = () => {
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
         ];
-
+        
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         const day = dateObj.getDate();
         const month = thaiMonths[dateObj.getMonth()];
@@ -233,8 +233,8 @@ const ShiftForm = () => {
         for (const check of validationChecks) {
             if (check.condition) {
                 alert(check.message);
-                return false;
-            }
+            return false;
+        }
         }
 
         return true;
@@ -314,14 +314,14 @@ const ShiftForm = () => {
                 where('shift', '==', formData.shift)
             );
             const querySnapshot = await getDocs(q);
-
+            
             if (!querySnapshot.empty) {
                 const existingDoc = querySnapshot.docs[0].data();
                 setExistingData(existingDoc);
                 setShowDataComparison(true);
-                setIsLoading(false);
-                return;
-            }
+                    setIsLoading(false);
+                    return;
+                }
 
             // ดำเนินการบันทึกข้อมูล
             await saveData();
@@ -611,28 +611,28 @@ const ShiftForm = () => {
                                 <span className="text-gray-700 font-medium text-center w-full md:w-auto">{thaiDate}</span>
                             </div>
                         </div>
-                        {showCalendar && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                                <div className="relative bg-white rounded-lg">
-                                    <Calendar
-                                        selectedDate={selectedDate}
-                                        onDateSelect={(date) => {
-                                            setSelectedDate(date);
-                                            const isoDate = date.toISOString().split('T')[0];
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                date: isoDate
-                                            }));
-                                            setThaiDate(formatThaiDate(date));
-                                            setShowCalendar(false);
-                                        }}
-                                        onClickOutside={() => setShowCalendar(false)}
-                                        datesWithData={datesWithData}
-                                        variant="form"
-                                    />
-                                </div>
-                            </div>
-                        )}
+                                {showCalendar && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                        <div className="relative bg-white rounded-lg">
+                                            <Calendar
+                                                selectedDate={selectedDate}
+                                                onDateSelect={(date) => {
+                                                    setSelectedDate(date);
+                                                    const isoDate = date.toISOString().split('T')[0];
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        date: isoDate
+                                                    }));
+                                                    setThaiDate(formatThaiDate(date));
+                                                    setShowCalendar(false);
+                                                }}
+                                                onClickOutside={() => setShowCalendar(false)}
+                                                datesWithData={datesWithData}
+                                                variant="form"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                         <div className="flex gap-4 justify-center">
                             <div className="flex gap-4">
@@ -1009,7 +1009,7 @@ const ShiftForm = () => {
                     {Object.entries(formData.wards).map(([ward, data]) => (
                         <div key={ward} className="mb-6 bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl shadow-lg p-4">
                             <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">{ward}</h3>
-
+                            
                             {/* Census and Overall Data */}
                             <div className="grid grid-cols-2 gap-3 mb-4">
                                 <div className="bg-gray-50 rounded-lg p-2">
@@ -1162,44 +1162,44 @@ const ShiftForm = () => {
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-black">Supervisor Signature</label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <input
+                            <input
                                         type="text"
                                         value={summaryData.supervisorFirstName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="ชื่อ"
                                     />
-                                    <input
+                            <input
                                         type="text"
                                         value={summaryData.supervisorLastName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="นามสกุล"
-                                    />
-                                </div>
+                            />
+                        </div>
                             </div>
 
                             {/* ผู้บันทึกข้อมูล */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-black">ผู้บันทึกข้อมูล</label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <input
+                            <input
                                         type="text"
                                         value={summaryData.recorderFirstName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="ชื่อ"
                                     />
-                                    <input
+                            <input
                                         type="text"
                                         value={summaryData.recorderLastName}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
                                         placeholder="นามสกุล"
-                                    />
-                                </div>
-                            </div>
+                            />
                         </div>
+                    </div>
+                </div>
                     </div>
                 </div>
 
@@ -1248,5 +1248,5 @@ const ShiftForm = () => {
     );
 };
 
-export default ShiftForm;
+export default ShiftForm; 
 
