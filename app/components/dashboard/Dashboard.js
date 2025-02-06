@@ -1,12 +1,12 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { db } from '@/app/lib/firebase';
+import { db } from '../../lib/firebase';
 import { collection, query, getDocs, Timestamp, where } from 'firebase/firestore';
 import { Chart as ChartJS, ArcElement, CategoryScale, LinearScale, BarElement, Title, Tooltip as ChartTooltip, Legend } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
-import LoadingSkeleton from '@/app/components/ui/LoadingSkeleton';
-import Toast from '@/app/components/ui/Toast';
-import Calendar from '@/app/components/ui/Calendar';
+import LoadingSkeleton from '../ui/LoadingSkeleton';
+import Toast from '../ui/Toast';
+import Calendar from '../ui/Calendar';
 import LoadingScreen from '../ui/LoadingScreen';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
