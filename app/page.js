@@ -36,10 +36,6 @@ export default function Home() {
               </button>
             </div>
           </div>
-          {/* เวอร์ชันอยู่ขวาสุด */}
-          <div className="absolute right-0 top-1/2 transform -translate-y-1/2 text-white text-sm">
-            v1.5.2.2025
-          </div>
         </div>
       </nav>
 
@@ -47,6 +43,11 @@ export default function Home() {
       <main className="container mx-auto p-4">
         {currentPage === 'form' ? <ShiftForm /> : <Dashboard />}
       </main>
+
+      {/* Version number - Fixed at bottom right */}
+      <div className="fixed bottom-4 right-4 text-xs md:text-sm bg-[#0ab4ab] text-white px-2 py-1 rounded-lg shadow-md z-50">
+        v1.6.2.2025
+      </div>
     </div>
   );
 }
