@@ -120,15 +120,67 @@ const Dashboard = () => {
         return () => clearTimeout(timer);
     }, []);
 
-    const handleDateSelect = (date, shift) => {
+    const handleDateSelect = async (date, shift) => {
         setSelectedDate(date);
         setFilters(prev => ({
             ...prev,
             startDate: date,
             shift: shift
         }));
-        fetchData();
         setShowCalendar(false);
+        
+        // Fetch data immediately after setting the filters
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const selectedDateStr = getUTCDateString(date);
+            
+            let fetchedRecords = [];
+            if (shift === 'all') {
+                const morningQuery = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', '07:00-19:00')
+                );
+                const nightQuery = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', '19:00-07:00')
+                );
+                
+                const [morningSnapshot, nightSnapshot] = await Promise.all([
+                    getDocs(morningQuery),
+                    getDocs(nightQuery)
+                ]);
+                
+                fetchedRecords = [
+                    ...morningSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })),
+                    ...nightSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }))
+                ];
+            } else {
+                const q = query(recordsRef, 
+                    where('date', '==', selectedDateStr),
+                    where('shift', '==', shift)
+                );
+                const querySnapshot = await getDocs(q);
+                fetchedRecords = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+            }
+
+            setRecords(fetchedRecords);
+            const newStats = calculateExtendedStats(fetchedRecords);
+            setStats(newStats);
+            
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setError('ไม่สามารถโหลดข้อมูลได้');
+            setStats(resetStats());
+        }
     };
 
     const resetStats = () => {
@@ -248,85 +300,82 @@ const Dashboard = () => {
             return resetStats();
         }
 
-        const stats = calculateStats(records);
-        const extendedStats = {
-            ...stats,
-            patientMovement: {
-                totalAdmits: 0,
-                totalDischarges: 0,
-                totalTransfers: 0,
-                totalDeaths: 0,
-            },
-            staffing: {
-                totalRN: 0,
-                totalPN: 0,
-                totalNA: 0,
-                staffToPatientRatio: 0,
-            },
-            bedManagement: {
-                totalBeds: 0,
-                occupiedBeds: 0,
-                availableBeds: 0,
-                unavailableBeds: 0,
-                occupancyRate: 0,
-            },
-            opd: {
-                total24Hr: 0,
-                newPatients: 0,
-                existingPatients: 0,
-                admissionRate: 0,
-            }
+        const wardStats = {};
+        const totals = {
+            totalPatients: 0,
+            totalStaff: 0,
+            byWard: {},
+            wards: {}
         };
 
-        // คำนวณข้อมูลเพิ่มเติม
+        // Process each record
         records.forEach(record => {
             if (record.wards) {
-                Object.values(record.wards).forEach(ward => {
-                    // Patient Movement
-                    extendedStats.patientMovement.totalAdmits += parseNumberValue(ward.newAdmit);
-                    extendedStats.patientMovement.totalDischarges += parseNumberValue(ward.discharge);
-                    extendedStats.patientMovement.totalTransfers += 
-                        parseNumberValue(ward.transferIn) + 
-                        parseNumberValue(ward.transferOut) +
-                        parseNumberValue(ward.referIn) +
-                        parseNumberValue(ward.referOut);
-                    extendedStats.patientMovement.totalDeaths += parseNumberValue(ward.dead);
+                Object.entries(record.wards).forEach(([wardName, wardData]) => {
+                    if (!wardStats[wardName]) {
+                        wardStats[wardName] = {
+                            numberOfPatients: 0,
+                            RN: 0,
+                            PN: 0,
+                            WC: 0,
+                            newAdmit: 0,
+                            transferIn: 0,
+                            referIn: 0,
+                            transferOut: 0,
+                            referOut: 0,
+                            discharge: 0,
+                            dead: 0,
+                            overallData: 0,
+                            availableBeds: 0,
+                            unavailable: 0
+                        };
+                    }
 
-                    // Staffing
-                    extendedStats.staffing.totalRN += parseNumberValue(ward.RN);
-                    extendedStats.staffing.totalPN += parseNumberValue(ward.PN);
-                    extendedStats.staffing.totalNA += parseNumberValue(ward.WC);
+                    // Combine data based on shift
+                    if (filters.shift === 'all' || record.shift === filters.shift) {
+                        wardStats[wardName].numberOfPatients += parseNumberValue(wardData.numberOfPatients);
+                        wardStats[wardName].RN += parseNumberValue(wardData.RN);
+                        wardStats[wardName].PN += parseNumberValue(wardData.PN);
+                        wardStats[wardName].WC += parseNumberValue(wardData.WC);
+                        wardStats[wardName].newAdmit += parseNumberValue(wardData.newAdmit);
+                        wardStats[wardName].transferIn += parseNumberValue(wardData.transferIn);
+                        wardStats[wardName].referIn += parseNumberValue(wardData.referIn);
+                        wardStats[wardName].transferOut += parseNumberValue(wardData.transferOut);
+                        wardStats[wardName].referOut += parseNumberValue(wardData.referOut);
+                        wardStats[wardName].discharge += parseNumberValue(wardData.discharge);
+                        wardStats[wardName].dead += parseNumberValue(wardData.dead);
+                        wardStats[wardName].availableBeds += parseNumberValue(wardData.availableBeds);
+                        wardStats[wardName].unavailable += parseNumberValue(wardData.unavailable);
 
-                    // Bed Management
-                    extendedStats.bedManagement.availableBeds += parseNumberValue(ward.availableBeds);
-                    extendedStats.bedManagement.unavailableBeds += parseNumberValue(ward.unavailable);
+                        // Calculate overall data for each ward
+                        wardStats[wardName].overallData = 
+                            wardStats[wardName].numberOfPatients +
+                            wardStats[wardName].newAdmit +
+                            wardStats[wardName].transferIn +
+                            wardStats[wardName].referIn -
+                            wardStats[wardName].transferOut -
+                            wardStats[wardName].referOut -
+                            wardStats[wardName].discharge -
+                            wardStats[wardName].dead;
+                    }
                 });
-            }
-
-            // OPD Data
-            if (record.summaryData) {
-                extendedStats.opd.total24Hr += parseNumberValue(record.summaryData.opdTotal24hr);
-                extendedStats.opd.newPatients += parseNumberValue(record.summaryData.newPatients);
-                extendedStats.opd.existingPatients += parseNumberValue(record.summaryData.existingPatients);
             }
         });
 
-        // คำนวณอัตราส่วนต่างๆ
-        const totalStaff = extendedStats.staffing.totalRN + extendedStats.staffing.totalPN + extendedStats.staffing.totalNA;
-        extendedStats.staffing.staffToPatientRatio = totalStaff > 0 ? 
-            (stats.totalPatients / totalStaff).toFixed(2) : 0;
+        // Calculate totals and prepare final stats
+        Object.entries(wardStats).forEach(([wardName, stats]) => {
+            totals.totalPatients += stats.numberOfPatients;
+            totals.totalStaff += stats.RN + stats.PN + stats.WC;
+            totals.byWard[wardName] = stats.numberOfPatients;
+            totals.wards[wardName] = stats;
+        });
 
-        extendedStats.bedManagement.occupiedBeds = stats.totalPatients;
-        extendedStats.bedManagement.totalBeds = 
-            extendedStats.bedManagement.occupiedBeds + 
-            extendedStats.bedManagement.availableBeds + 
-            extendedStats.bedManagement.unavailableBeds;
-        
-        extendedStats.bedManagement.occupancyRate = 
-            extendedStats.bedManagement.totalBeds > 0 ?
-            ((extendedStats.bedManagement.occupiedBeds / extendedStats.bedManagement.totalBeds) * 100).toFixed(1) : 0;
-
-        return extendedStats;
+        return {
+            ...totals,
+            totalRecords: records.length,
+            totalAttendance: records.reduce((sum, record) => sum + parseNumberValue(record.totalAttendance), 0),
+            supervisorName: records.map(r => r.supervisorName).filter(Boolean).join(', ')
+        };
     };
 
     // สีสำหรับ Ward Cards และ Charts
@@ -395,55 +444,98 @@ const Dashboard = () => {
 
     // Chart data
     const chartData = useMemo(() => {
-        if (!stats) return null;
+        if (!stats?.wards || Object.keys(stats.wards).length === 0) {
+            return {
+                pie: null,
+                bar: null
+            };
+        }
 
-        const labels = Object.keys(stats.byWard);
-        const data = Object.values(stats.byWard);
+        const sortedWards = wardOrder.filter(ward => stats.wards[ward]); // Only include wards that have data
+        if (sortedWards.length === 0) {
+            return {
+                pie: null,
+                bar: null
+            };
+        }
+
+        const labels = sortedWards;
+        const availableBedsData = sortedWards.map(ward => stats.wards[ward]?.availableBeds || 0);
+        const overallData = sortedWards.map(ward => stats.wards[ward]?.overallData || 0);
+        const totalOverall = overallData.reduce((sum, val) => sum + val, 0);
 
         return {
             pie: {
                 labels,
                 datasets: [{
-                    data,
-                    backgroundColor: chartColors.background,
-                    borderColor: chartColors.border,
+                    data: availableBedsData,
+                    backgroundColor: chartColors.background.slice(0, labels.length),
+                    borderColor: chartColors.border.slice(0, labels.length),
                     borderWidth: 1,
                 }]
             },
             bar: {
-                labels,
+                labels: [...labels, 'Total'],
                 datasets: [{
-                    label: 'จำนวนผู้ป่วย',
-                    data,
-                    backgroundColor: chartColors.background,
-                    borderColor: chartColors.border,
+                    label: 'Overall Data',
+                    data: [...overallData, totalOverall],
+                    backgroundColor: [...chartColors.background.slice(0, labels.length), 'rgba(75, 192, 192, 0.8)'],
+                    borderColor: [...chartColors.border.slice(0, labels.length), 'rgb(75, 192, 192)'],
                     borderWidth: 1,
                 }]
             }
         };
-    }, [stats]);
+    }, [stats, wardOrder]);
 
-    const chartOptions = {
+    const pieOptions = {
         responsive: true,
-        maintainAspectRatio: false,  // เพิ่มบรรทัดนี้
+        maintainAspectRatio: false,
         plugins: {
             legend: {
                 position: 'right',
             },
             title: {
                 display: true,
-                text: 'Patient Distribution',
+                text: 'Available Beds by Ward',
+                color: 'black',
+                font: {
+                    size: 16
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => {
+                        const label = context.label || '';
+                        const value = context.raw || 0;
+                        return `${label}: ${value} beds available`;
+                    }
+                }
+            }
+        }
+    };
+
+    const barOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            title: {
+                display: true,
+                text: 'Overall Data by Ward',
                 color: 'black',
                 font: {
                     size: 16
                 }
             }
         },
-        scales: {  // เพิ่ม scales options
+        scales: {
             y: {
                 beginAtZero: true,
-                ticks: {
-                    stepSize: 1
+                title: {
+                    display: true,
+                    text: 'Number of Patients'
                 }
             }
         }
@@ -479,9 +571,112 @@ const Dashboard = () => {
     const WardModal = ({ ward, onClose }) => {
         if (!ward) return null;
 
+        // สร้างข้อมูลสำหรับ Pie Chart (เตียงว่าง)
+        const wardPieData = {
+            labels: ['Available Beds', 'Occupied Beds', 'Unavailable Beds'],
+            datasets: [{
+                data: [
+                    ward.availableBeds || 0,
+                    ward.numberOfPatients || 0,
+                    ward.unavailable || 0
+                ],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',  // สีเขียว - เตียงว่าง
+                    'rgba(59, 130, 246, 0.8)', // สีน้ำเงิน - เตียงที่มีคนไข้
+                    'rgba(239, 68, 68, 0.8)'   // สีแดง - เตียงใช้งานไม่ได้
+                ],
+                borderColor: [
+                    'rgb(34, 197, 94)',
+                    'rgb(59, 130, 246)',
+                    'rgb(239, 68, 68)'
+                ],
+                borderWidth: 1,
+            }]
+        };
+
+        // สร้างข้อมูลสำหรับ Bar Chart (Overall Data)
+        const wardBarData = {
+            labels: ['Patient Movement'],
+            datasets: [
+                {
+                    label: 'Admissions',
+                    data: [ward.newAdmit || 0],
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    borderColor: 'rgb(34, 197, 94)',
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Transfers In',
+                    data: [ward.transferIn || 0],
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    borderColor: 'rgb(59, 130, 246)',
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Transfers Out',
+                    data: [ward.transferOut || 0],
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    borderColor: 'rgb(239, 68, 68)',
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Discharges',
+                    data: [ward.discharge || 0],
+                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                    borderColor: 'rgb(245, 158, 11)',
+                    borderWidth: 1,
+                }
+            ]
+        };
+
+        const modalPieOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                },
+                title: {
+                    display: true,
+                    text: 'Bed Status Distribution',
+                    color: 'black',
+                    font: {
+                        size: 16
+                    }
+                }
+            }
+        };
+
+        const modalBarOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: 'Patient Movement',
+                    color: 'black',
+                    font: {
+                        size: 16
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Patients'
+                    }
+                }
+            }
+        };
+
         return (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-lg p-6 w-11/12 max-w-2xl">
+                <div className="bg-white rounded-lg p-6 w-11/12 max-w-4xl max-h-[90vh] overflow-y-auto">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-bold text-black">{ward.name}</h2>
                         <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -491,43 +686,55 @@ const Dashboard = () => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-3 gap-4 mb-6">
                         <div className="bg-blue-50 p-4 rounded-lg">
-                            <h3 className="font-semibold text-black mb-2">จำนวนผู้ป่วย</h3>
+                            <h3 className="text-sm font-medium text-blue-800">Patient Census</h3>
                             <p className="text-2xl font-bold text-blue-600">{ward.numberOfPatients || 0}</p>
                         </div>
                         <div className="bg-green-50 p-4 rounded-lg">
-                            <h3 className="font-semibold text-black mb-2">Overall Data</h3>
-                            <p className="text-2xl font-bold text-green-600">{ward.overallData || 0}</p>
+                            <h3 className="text-sm font-medium text-green-800">Available Beds</h3>
+                            <p className="text-2xl font-bold text-green-600">{ward.availableBeds || 0}</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <h3 className="text-sm font-medium text-purple-800">Overall Data</h3>
+                            <p className="text-2xl font-bold text-purple-600">{ward.overallData || 0}</p>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <h3 className="font-semibold text-black mb-2">บุคลากร</h3>
-                            <div className="space-y-1">
-                                <p className="text-gray-700">RN: {ward.RN || 0}</p>
-                                <p className="text-gray-700">PN: {ward.PN || 0}</p>
-                                <p className="text-gray-700">NA: {ward.NA || 0}</p>
+                    {/* Charts */}
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div className="bg-white p-4 rounded-lg shadow">
+                            <div style={{ height: '300px' }}>
+                                <Pie data={wardPieData} options={modalPieOptions} />
                             </div>
                         </div>
-                        <div>
-                            <h3 className="font-semibold text-black mb-2">การเคลื่อนย้าย</h3>
-                            <div className="space-y-1">
-                                <p className="text-gray-700">Admit: {ward.newAdmit || 0}</p>
-                                <p className="text-gray-700">Discharge: {ward.discharge || 0}</p>
-                                <p className="text-gray-700">Transfer In: {ward.transferIn || 0}</p>
-                                <p className="text-gray-700">Transfer Out: {ward.transferOut || 0}</p>
-                                <p className="text-gray-700">Refer In: {ward.referIn || 0}</p>
-                                <p className="text-gray-700">Refer Out: {ward.referOut || 0}</p>
-                                <p className="text-gray-700">Dead: {ward.dead || 0}</p>
+                        <div className="bg-white p-4 rounded-lg shadow">
+                            <div style={{ height: '300px' }}>
+                                <Bar data={wardBarData} options={modalBarOptions} />
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-4">
-                        <h3 className="font-semibold text-black mb-2">comments</h3>
-                        <p className="text-gray-700">{ward.comment || '-'}</p>
+                    {/* Staff Details */}
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <h3 className="font-semibold text-gray-800 mb-2">Staff Distribution</h3>
+                            <div className="space-y-2">
+                                <p className="text-gray-600">Nurse Manager: {ward.nurseManager || 0}</p>
+                                <p className="text-gray-600">RN: {ward.RN || 0}</p>
+                                <p className="text-gray-600">PN: {ward.PN || 0}</p>
+                                <p className="text-gray-600">WC: {ward.WC || 0}</p>
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-lg">
+                            <h3 className="font-semibold text-gray-800 mb-2">Additional Information</h3>
+                            <div className="space-y-2">
+                                <p className="text-gray-600">Plan D/C: {ward.plannedDischarge || 0}</p>
+                                <p className="text-gray-600">Dead: {ward.dead || 0}</p>
+                                <p className="text-gray-600">Comment: {ward.comment || '-'}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -573,7 +780,7 @@ const Dashboard = () => {
             {isLoading && <LoadingScreen />}
             
             <div className="p-4">
-                {/* Calendar Filters*/}
+                {/* Calendar and Filters Section */}
                 <div className="mb-6">
                     <div className="flex items-center gap-4 mb-4">
                         <button
@@ -587,19 +794,11 @@ const Dashboard = () => {
                         </span>
                     </div>
 
-                    <div className={`${showCalendar ? 'block' : 'hidden'} relative z-10`}>
+                    {showCalendar && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                            <div className="relative bg-white rounded-lg p-4">
-                                <button 
-                                    onClick={() => setShowCalendar(false)}
-                                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-                                >
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
+                            <div className="relative bg-white rounded-lg">
                                 <Calendar 
-                                    selectedDate={filters.startDate}
+                                    selectedDate={selectedDate}
                                     onDateSelect={handleDateSelect}
                                     onClickOutside={() => setShowCalendar(false)}
                                     datesWithData={datesWithData}
@@ -608,200 +807,184 @@ const Dashboard = () => {
                                 />
                             </div>
                         </div>
+                    )}
+
+                    {/* Total Patients Card */}
+                    <div className="bg-blue-100 rounded-xl p-6 mb-6">
+                        <div className="text-center">
+                            <h2 className="text-2xl font-bold text-blue-800">Patient Census</h2>
+                            <p className="text-4xl font-bold text-blue-600">{stats?.totalPatients || 0}</p>
+                        </div>
                     </div>
 
-                    {/* Summary Cards with Pastel Colors */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-pink-100 to-pink-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
-                            <h3 className="text-sm font-medium text-pink-800 mb-1">Total Records</h3>
-                            <p className="text-2xl font-bold text-pink-600">{stats.totalRecords}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-blue-100 to-blue-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
-                            <h3 className="text-sm font-medium text-blue-800 mb-1">Total Patients</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.totalPatients}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-purple-100 to-purple-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
-                            <h3 className="text-sm font-medium text-purple-800 mb-1">Total Staff</h3>
-                            <p className="text-2xl font-bold text-purple-600">{stats.totalStaff}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-green-100 to-green-50 p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow">
-                            <h3 className="text-sm font-medium text-green-800 mb-1">Total Attendance</h3>
-                            <p className="text-2xl font-bold text-green-600">{stats.totalAttendance}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Patient Movement Summary */}
-                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 className="text-lg font-medium text-gray-800 mb-4">Patient Movement Summary</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-yellow-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-yellow-800">Total Admits</h3>
-                            <p className="text-2xl font-bold text-yellow-600">{stats.patientMovement?.totalAdmits || 0}</p>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-green-800">Total Discharges</h3>
-                            <p className="text-2xl font-bold text-green-600">{stats.patientMovement?.totalDischarges || 0}</p>
-                        </div>
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-blue-800">Total Transfers</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.patientMovement?.totalTransfers || 0}</p>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-red-800">Total Deaths</h3>
-                            <p className="text-2xl font-bold text-red-600">{stats.patientMovement?.totalDeaths || 0}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Staff Summary */}
-                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 className="text-lg font-medium text-gray-800 mb-4">Staff Summary</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-indigo-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-indigo-800">Total RN</h3>
-                            <p className="text-2xl font-bold text-indigo-600">{stats.staffing?.totalRN || 0}</p>
-                        </div>
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-purple-800">Total PN</h3>
-                            <p className="text-2xl font-bold text-purple-600">{stats.staffing?.totalPN || 0}</p>
-                        </div>
-                        <div className="bg-pink-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-pink-800">Total NA</h3>
-                            <p className="text-2xl font-bold text-pink-600">{stats.staffing?.totalNA || 0}</p>
-                        </div>
-                        <div className="bg-cyan-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-cyan-800">Staff:Patient Ratio</h3>
-                            <p className="text-2xl font-bold text-cyan-600">{stats.staffing?.staffToPatientRatio || '0:0'}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bed Management */}
-                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 className="text-lg font-medium text-gray-800 mb-4">Bed Management</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                        <div className="bg-emerald-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-emerald-800">Total Beds</h3>
-                            <p className="text-2xl font-bold text-emerald-600">{stats.bedManagement?.totalBeds || 0}</p>
-                        </div>
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-blue-800">Occupied Beds</h3>
-                            <p className="text-2xl font-bold text-blue-600">{stats.bedManagement?.occupiedBeds || 0}</p>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-green-800">Available Beds</h3>
-                            <p className="text-2xl font-bold text-green-600">{stats.bedManagement?.availableBeds || 0}</p>
-                        </div>
-                        <div className="bg-red-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-red-800">Unavailable Beds</h3>
-                            <p className="text-2xl font-bold text-red-600">{stats.bedManagement?.unavailableBeds || 0}</p>
-                        </div>
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-purple-800">Occupancy Rate</h3>
-                            <p className="text-2xl font-bold text-purple-600">{stats.bedManagement?.occupancyRate || 0}%</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* OPD Summary */}
-                <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
-                    <h2 className="text-lg font-medium text-gray-800 mb-4">OPD Summary (24 Hours)</h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-orange-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-orange-800">Total OPD</h3>
-                            <p className="text-2xl font-bold text-orange-600">{stats.opd?.total24Hr || 0}</p>
-                        </div>
-                        <div className="bg-teal-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-teal-800">New Patients</h3>
-                            <p className="text-2xl font-bold text-teal-600">{stats.opd?.newPatients || 0}</p>
-                        </div>
-                        <div className="bg-cyan-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-cyan-800">Existing Patients</h3>
-                            <p className="text-2xl font-bold text-cyan-600">{stats.opd?.existingPatients || 0}</p>
-                        </div>
-                        <div className="bg-rose-50 p-4 rounded-lg">
-                            <h3 className="text-sm font-medium text-rose-800">Admission Rate</h3>
-                            <p className="text-2xl font-bold text-rose-600">{stats.opd?.admissionRate || 0}%</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Ward Census with Pastel Colors */}
-                <div className="bg-white p-6 rounded-lg shadow mb-6 mt-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-medium text-gray-800">Patient Census By Ward</h2>
-                        {stats?.supervisorName && (
-                            <div className="text-sm text-gray-600">
-                                Recorder: {stats.supervisorName}
-                            </div>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {wardOrder.map((ward) => (
+                    {/* Ward Quick Stats Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        {Object.entries(stats?.byWard || {}).map(([ward, count]) => (
                             <div
                                 key={ward}
-                                onClick={() => handleWardClick(ward)}
-                                className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ${wardColors[ward]} shadow hover:shadow-lg`}
+                                onClick={() => setSelectedWard(ward)}
+                                className={`${wardColors[ward]} p-4 rounded-xl shadow-md cursor-pointer transform transition-all duration-200 hover:scale-105 ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}`}
                             >
-                                <h3 className="text-sm font-medium text-gray-800 mb-1">{ward}</h3>
-                                <p className="text-2xl font-bold text-gray-700">{stats.byWard[ward] || 0}</p>
-                                <p className="text-xs text-gray-500">Click for details...</p>
+                                <h3 className="text-lg font-semibold text-black text-center">{ward}</h3>
+                                <p className="text-3xl font-bold text-black text-center">{count}</p>
                             </div>
                         ))}
                     </div>
-                </div>
 
-                {/* Charts with Updated Pastel Colors */}
-                {chartData && (
+                    {/* Charts Section */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div className="bg-white p-6 rounded-lg shadow-lg">
-                            <h3 className="text-lg font-medium text-gray-800 mb-4">Patient Distribution (Pie)</h3>
+                        {/* Pie Chart for Available Beds */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg">
+                            <h3 className="text-lg font-semibold mb-4 text-black">Available Beds Distribution</h3>
                             <div style={{ height: '300px' }}>
-                                <Pie data={chartData.pie} options={chartOptions} />
+                                {chartData?.pie && chartData.pie.labels && chartData.pie.labels.length > 0 ? (
+                                    <Pie data={chartData.pie} options={pieOptions} />
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-gray-500">
+                                        No data available
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <div className="bg-white p-6 rounded-lg shadow-lg">
-                            <h3 className="text-lg font-medium text-gray-800 mb-4">Patient Distribution (Bar)</h3>
+
+                        {/* Bar Chart for Overall Data */}
+                        <div className="bg-white p-6 rounded-xl shadow-lg">
+                            <h3 className="text-lg font-semibold mb-4 text-black">Overall Data by Ward</h3>
                             <div style={{ height: '300px' }}>
-                                <Bar data={chartData.bar} options={chartOptions} />
+                                {chartData?.bar && chartData.bar.labels && chartData.bar.labels.length > 0 ? (
+                                    <Bar data={chartData.bar} options={barOptions} />
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-gray-500">
+                                        No data available
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
-                )}
-                {/* No Data Message */}
-                {!loading && !stats?.totalRecords && (
-                    <div className="text-center py-8 bg-white rounded-lg shadow">
-                        <p className="text-black text-lg">No data found for the date... {formatThaiDate(filters.startDate)}</p>
+
+                    {/* Section Title for Table */}
+                    <div className="text-center mb-4">
+                        <h2 className="text-xl font-bold text-gray-800">Detailed Ward Information</h2>
                     </div>
-                )}
 
-                {/* Toast */}
-                {showToast && (
-                    <Toast
-                        message={toastMessage}
-                        onClose={() => setShowToast(false)}
-                    />
-                )}
+                    {/* Detailed Table */}
+                    <div className="bg-white rounded-xl shadow-lg">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-gradient-to-r from-blue-50 to-purple-50">
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Ward</th>                                    
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Patient Census</th>                                    
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">RN</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">PN</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">WC</th>      
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">New Admit</th>                              
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Transfer In</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Refer In</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Transfer Out</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Refer Out</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Discharge</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Dead</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Overall Data</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Available</th>
+                                    <th className="p-2 text-center text-xs font-semibold text-gray-800">Unavailable</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {Object.entries(stats?.byWard || {})
+                                    .filter(([ward]) => !selectedWard || ward === selectedWard)
+                                    .map(([ward, data], index) => {
+                                        const wardData = stats?.wards?.[ward] || {};
+                                        return (
+                                            <tr key={ward} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                <td className="p-2 text-xs font-medium text-gray-900 text-center">{ward}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.numberOfPatients || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.RN || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.PN || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.WC || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.newAdmit || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.transferIn || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.referIn || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.transferOut || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.referOut || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.discharge || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.dead || 0}</td>
+                                                <td className="p-2 text-xs font-medium text-gray-900 text-center bg-gray-50">{wardData.overallData || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.availableBeds || 0}</td>
+                                                <td className="p-2 text-xs text-gray-800 text-center">{wardData.unavailable || 0}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                {/* Total Row - Always shown */}
+                                <tr className="bg-gray-100 font-semibold">
+                                    <td className="p-2 text-xs font-medium text-gray-900 text-center">Total</td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.numberOfPatients || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.RN || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.PN || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.WC || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.newAdmit || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferIn || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referIn || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferOut || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referOut || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.discharge || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.dead || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs font-medium text-gray-900 text-center bg-gray-200">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.overallData || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.availableBeds || 0), 0)}
+                                    </td>
+                                    <td className="p-2 text-xs text-gray-800 text-center">
+                                        {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.unavailable || 0), 0)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-                {/* Ward Modal */}
-                {isWardModalOpen && selectedWard && (
-                    <WardModal
-                        ward={selectedWard}
-                        onClose={() => {
-                            setIsWardModalOpen(false);
-                            setSelectedWard(null);
-                        }}
-                    />
-                )}
-
-                {notification && (
-                    <Notification 
-                        {...notification}
-                        onClose={() => setNotification(null)}
-                    />
-                )}
+                    {/* Reset Selection Button - แสดงเมื่อมีการเลือกแผนก */}
+                    {selectedWard && (
+                        <div className="flex justify-center mb-6">
+                            <button
+                                onClick={() => setSelectedWard(null)}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors duration-200"
+                            >
+                                แสดงข้อมูลทุกแผนก
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
+
+            {/* Notification */}
+            {notification && (
+                <Notification 
+                    {...notification}
+                    onClose={() => setNotification(null)}
+                />
+            )}
         </div>
     );
 };
