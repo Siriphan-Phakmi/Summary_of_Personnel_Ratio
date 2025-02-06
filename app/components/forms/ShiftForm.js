@@ -611,6 +611,28 @@ const ShiftForm = () => {
                                 <span className="text-gray-700 font-medium text-center w-full md:w-auto">{thaiDate}</span>
                             </div>
                         </div>
+                        {showCalendar && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                <div className="relative bg-white rounded-lg">
+                                    <Calendar
+                                        selectedDate={selectedDate}
+                                        onDateSelect={(date) => {
+                                            setSelectedDate(date);
+                                            const isoDate = date.toISOString().split('T')[0];
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                date: isoDate
+                                            }));
+                                            setThaiDate(formatThaiDate(date));
+                                            setShowCalendar(false);
+                                        }}
+                                        onClickOutside={() => setShowCalendar(false)}
+                                        datesWithData={datesWithData}
+                                        variant="form"
+                                    />
+                                </div>
+                            </div>
+                        )}
                         {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                         <div className="flex gap-4 justify-center">
                             <div className="flex gap-4">
