@@ -293,7 +293,6 @@ const ShiftForm = () => {
         window.location.reload();
     };
 
-    // แก้ไขฟังก์ชัน handleSubmit
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -307,23 +306,28 @@ const ShiftForm = () => {
 
         setIsLoading(true);
         try {
-            // ตรวจสอบข้อมูลที่มีอยู่
+            // แก้ไขการตรวจสอบข้อมูลที่มีอยู่
+            const recordsRef = collection(db, 'staffRecords');
             const q = query(
-                collection(db, 'staffRecords'),
+                recordsRef,
                 where('date', '==', formData.date),
                 where('shift', '==', formData.shift)
             );
+            
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
-                const existingDoc = querySnapshot.docs[0].data();
-                setExistingData(existingDoc);
+                const existingDoc = querySnapshot.docs[0];
+                setExistingData({
+                    id: existingDoc.id,
+                    ...existingDoc.data()
+                });
                 setShowDataComparison(true);
-                    setIsLoading(false);
-                    return;
-                }
+                setIsLoading(false);
+                return;
+            }
 
-            // ดำเนินการบันทึกข้อมูล
+            // ถ้าไม่มีข้อมูลซ้ำ ดำเนินการบันทึกข้อมูล
             await saveData();
 
         } catch (error) {
@@ -334,7 +338,7 @@ const ShiftForm = () => {
     };
 
     // เพิ่มฟังก์ชันใหม่สำหรับการบันทึกข้อมูล
-    const saveData = async () => {
+    const saveData = async (overwrite = false) => {
         setIsLoading(true);
         try {
             const now = new Date();
@@ -345,41 +349,24 @@ const ShiftForm = () => {
             }).replace(':', '');
 
             const formattedDate = formData.date.replace(/-/g, '');
-            const docId = `data_${formattedTime}_${formattedDate}`;
+            const docId = overwrite && existingData 
+                ? existingData.id 
+                : `data_${formattedTime}_${formattedDate}`;
 
             const finalTotals = calculateTotals;
             const dataToSubmit = {
                 date: formData.date,
                 shift: formData.shift,
-                wards: {},
+                wards: formData.wards,
                 totals: finalTotals,
-                overallData: finalTotals.overallData
-            };
-
-            Object.entries(formData.wards).forEach(([wardName, ward]) => {
-                const overallData = (
-                    parseInt(ward.numberOfPatients || 0) +
-                    parseInt(ward.newAdmit || 0) +
-                    parseInt(ward.transferIn || 0) +
-                    parseInt(ward.referIn || 0) -
-                    parseInt(ward.transferOut || 0) -
-                    parseInt(ward.referOut || 0) -
-                    parseInt(ward.discharge || 0) -
-                    parseInt(ward.dead || 0)
-                );
-
-                dataToSubmit.wards[wardName] = {
-                    ...ward,
-                    overallData: overallData.toString()
-                };
-            });
-
-            await setDoc(doc(db, 'staffRecords', docId), {
-                ...dataToSubmit,
+                overallData: finalTotals.overallData,
                 summaryData,
                 timestamp: serverTimestamp(),
-                docId: docId
-            });
+                lastModified: serverTimestamp()
+            };
+
+            // ใช้ setDoc แทน addDoc เพื่อกำหนด ID เอง
+            await setDoc(doc(db, 'staffRecords', docId), dataToSubmit);
 
             resetForm();
             alert('บันทึกข้อมูลเรียบร้อยแล้ว');
@@ -396,49 +383,55 @@ const ShiftForm = () => {
     const DataComparisonModal = () => {
         if (!showDataComparison || !existingData) return null;
 
-        const formatTime = (timestamp) => {
-            if (!timestamp) return '';
-            const date = new Date(timestamp.seconds * 1000);
-            return date.toLocaleTimeString('th-TH', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            });
+        const ComparisonRow = ({ label, oldValue, newValue }) => {
+            const hasChanged = oldValue !== newValue;
+            return (
+                <div className={`grid grid-cols-3 gap-4 py-2 ${hasChanged ? 'bg-yellow-50' : ''}`}>
+                    <div className="text-sm font-medium text-gray-600">{label}</div>
+                    <div className="text-sm text-purple-600">{oldValue || '0'}</div>
+                    <div className="text-sm text-pink-600">{newValue || '0'}</div>
+                </div>
+            );
         };
 
-        const renderWardComparison = (wardName) => {
-            const existingWard = existingData.wards[wardName] || {};
+        const WardComparison = ({ wardName }) => {
+            const existingWard = existingData.wards?.[wardName] || {};
             const newWard = formData.wards[wardName] || {};
-            const hasChanges = Object.keys(newWard).some(key => newWard[key] !== existingWard[key]);
-
-            if (!hasChanges) return null;
-
+            
             return (
-                <div key={`ward-${wardName}`} className="bg-white/80 p-4 rounded-lg border border-gray-200 mb-4">
-                    <h5 className="font-medium text-purple-800 mb-2">{wardName}</h5>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <h6 className="text-sm font-medium text-gray-600 mb-2">ข้อมูลเดิม</h6>
-                            <div className="space-y-1 text-sm">
-                                {Object.entries(existingWard).map(([key, value]) => (
-                                    <p key={`old-${wardName}-${key}`} className="grid grid-cols-2">
-                                        <span className="text-gray-500">{key}:</span>
-                                        <span className="text-purple-700">{value || '0'}</span>
-                                    </p>
-                                ))}
+                <div className="border rounded-lg p-4 mb-4">
+                    <h4 className="font-medium text-lg mb-4 text-[#0ab4ab]">{wardName}</h4>
+                    <div className="grid grid-cols-3 gap-4 mb-2 font-semibold">
+                        <div>Field</div>
+                        <div>Current Data</div>
+                        <div>New Data</div>
+                    </div>
+                    <div className="space-y-1">
+                        <ComparisonRow label="Patient Census" oldValue={existingWard.numberOfPatients} newValue={newWard.numberOfPatients} />
+                        <ComparisonRow label="Nurse Manager" oldValue={existingWard.nurseManager} newValue={newWard.nurseManager} />
+                        <ComparisonRow label="RN" oldValue={existingWard.RN} newValue={newWard.RN} />
+                        <ComparisonRow label="PN" oldValue={existingWard.PN} newValue={newWard.PN} />
+                        <ComparisonRow label="WC" oldValue={existingWard.WC} newValue={newWard.WC} />
+                        <ComparisonRow label="New Admit" oldValue={existingWard.newAdmit} newValue={newWard.newAdmit} />
+                        <ComparisonRow label="Transfer In" oldValue={existingWard.transferIn} newValue={newWard.transferIn} />
+                        <ComparisonRow label="Refer In" oldValue={existingWard.referIn} newValue={newWard.referIn} />
+                        <ComparisonRow label="Transfer Out" oldValue={existingWard.transferOut} newValue={newWard.transferOut} />
+                        <ComparisonRow label="Refer Out" oldValue={existingWard.referOut} newValue={newWard.referOut} />
+                        <ComparisonRow label="Discharge" oldValue={existingWard.discharge} newValue={newWard.discharge} />
+                        <ComparisonRow label="Dead" oldValue={existingWard.dead} newValue={newWard.dead} />
+                        <ComparisonRow label="Overall Data" oldValue={existingWard.overallData} newValue={newWard.overallData} />
+                        <ComparisonRow label="Available Beds" oldValue={existingWard.availableBeds} newValue={newWard.availableBeds} />
+                        <ComparisonRow label="Unavailable" oldValue={existingWard.unavailable} newValue={newWard.unavailable} />
+                        <ComparisonRow label="Plan D/C" oldValue={existingWard.plannedDischarge} newValue={newWard.plannedDischarge} />
+                        {(existingWard.comment || newWard.comment) && (
+                            <div className="mt-2 pt-2 border-t">
+                                <div className="text-sm font-medium text-gray-600 mb-1">Comment:</div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="text-sm text-purple-600">{existingWard.comment || '-'}</div>
+                                    <div className="text-sm text-pink-600">{newWard.comment || '-'}</div>
+                                </div>
                             </div>
-                        </div>
-                        <div>
-                            <h6 className="text-sm font-medium text-gray-600 mb-2">ข้อมูลใหม่</h6>
-                            <div className="space-y-1 text-sm">
-                                {Object.entries(newWard).map(([key, value]) => (
-                                    <p key={`new-${wardName}-${key}`} className="grid grid-cols-2">
-                                        <span className="text-gray-500">{key}:</span>
-                                        <span className="text-pink-700">{value || '0'}</span>
-                                    </p>
-                                ))}
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             );
@@ -446,88 +439,84 @@ const ShiftForm = () => {
 
         return (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8 rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-purple-100">
-                    <h3 className="text-2xl font-semibold mb-6 text-purple-800 text-center">เปรียบเทียบข้อมูล</h3>
-
-                    <div className="space-y-6">
-                        {/* ข้อมูลทั่วไป */}
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="bg-white/80 p-6 rounded-xl shadow-sm border border-purple-100">
-                                <div className="mb-4">
-                                    <h4 className="text-lg font-medium text-purple-700 mb-2">ข้อมูลเดิม</h4>
-                                    <p className="text-sm text-gray-600">
-                                        บันทึกเมื่อ: {formatTime(existingData.timestamp)}
-                                    </p>
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="bg-purple-50/50 p-4 rounded-lg">
-                                        <h5 className="font-medium text-purple-800 mb-2">ข้อมูลทั่วไป</h5>
-                                        <div className="space-y-2 text-sm">
-                                            <p><span className="text-gray-600">วันที่:</span> <span className="text-purple-900">{existingData.date}</span></p>
-                                            <p><span className="text-gray-600">กะ:</span> <span className="text-purple-900">{existingData.shift}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-purple-50/50 p-4 rounded-lg">
-                                        <h5 className="font-medium text-purple-800 mb-2">ข้อมูลสรุป 24 ชั่วโมง</h5>
-                                        <div className="space-y-2 text-sm">
-                                            <p><span className="text-gray-600">OPD 24hr:</span> <span className="text-purple-900">{existingData.summaryData?.opdTotal24hr || '0'}</span></p>
-                                            <p><span className="text-gray-600">คนไข้เก่า:</span> <span className="text-purple-900">{existingData.summaryData?.existingPatients || '0'}</span></p>
-                                            <p><span className="text-gray-600">คนไข้ใหม่:</span> <span className="text-purple-900">{existingData.summaryData?.newPatients || '0'}</span></p>
-                                            <p><span className="text-gray-600">Admit 24hr:</span> <span className="text-purple-900">{existingData.summaryData?.admissions24hr || '0'}</span></p>
-                                            <p><span className="text-gray-600">ผู้ตรวจการ:</span> <span className="text-purple-900">{existingData.summaryData?.supervisorName || '-'}</span></p>
-                                        </div>
-                                    </div>
-                                </div>
+                <div className="bg-white rounded-lg shadow-xl w-[90%] max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+                        <div>
+                            <h3 className="text-xl font-semibold text-[#0ab4ab]">ข้อมูลซ้ำ - Data Comparison</h3>
+                            <p className="text-sm text-gray-600">
+                                วันที่ {formData.date} กะ {formData.shift}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-purple-600"></div>
+                                <span className="text-sm">ข้อมูลเดิม</span>
                             </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-pink-600"></div>
+                                <span className="text-sm">ข้อมูลใหม่</span>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div className="bg-white/80 p-6 rounded-xl shadow-sm border border-pink-100">
-                                <div className="mb-4">
-                                    <h4 className="text-lg font-medium text-pink-700 mb-2">ข้อมูลใหม่</h4>
-                                    <p className="text-sm text-gray-600">กำลังจะบันทึก</p>
+                    <div className="p-6">
+                        {/* Summary Data Section */}
+                        <div className="mb-8">
+                            <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ข้อมูลสรุป 24 ชั่วโมง</h4>
+                            <div className="bg-white rounded-lg p-4 border">
+                                <ComparisonRow label="OPD 24hr" oldValue={existingData.summaryData?.opdTotal24hr} newValue={summaryData.opdTotal24hr} />
+                                <ComparisonRow label="Old Patient" oldValue={existingData.summaryData?.existingPatients} newValue={summaryData.existingPatients} />
+                                <ComparisonRow label="New Patient" oldValue={existingData.summaryData?.newPatients} newValue={summaryData.newPatients} />
+                                <ComparisonRow label="Admit 24hr" oldValue={existingData.summaryData?.admissions24hr} newValue={summaryData.admissions24hr} />
+                            </div>
+                        </div>
+
+                        {/* Staff Information */}
+                        <div className="mb-8">
+                            <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ข้อมูลผู้บันทึกและผู้ตรวจการ</h4>
+                            <div className="bg-white rounded-lg p-4 border space-y-4">
+                                <div>
+                                    <div className="text-sm font-medium mb-2">Supervisor:</div>
+                                    <ComparisonRow 
+                                        label="ชื่อ-นามสกุล" 
+                                        oldValue={`${existingData.summaryData?.supervisorFirstName || ''} ${existingData.summaryData?.supervisorLastName || ''}`}
+                                        newValue={`${summaryData.supervisorFirstName || ''} ${summaryData.supervisorLastName || ''}`}
+                                    />
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="bg-pink-50/50 p-4 rounded-lg">
-                                        <h5 className="font-medium text-pink-800 mb-2">ข้อมูลทั่วไป</h5>
-                                        <div className="space-y-2 text-sm">
-                                            <p><span className="text-gray-600">วันที่:</span> <span className="text-pink-900">{formData.date}</span></p>
-                                            <p><span className="text-gray-600">กะ:</span> <span className="text-pink-900">{formData.shift}</span></p>
-                                        </div>
-                                    </div>
-                                    <div className="bg-pink-50/50 p-4 rounded-lg">
-                                        <h5 className="font-medium text-pink-800 mb-2">ข้อมูลสรุป 24 ชั่วโมง</h5>
-                                        <div className="space-y-2 text-sm">
-                                            <p><span className="text-gray-600">OPD 24hr:</span> <span className="text-pink-900">{summaryData.opdTotal24hr || '0'}</span></p>
-                                            <p><span className="text-gray-600">คนไข้เก่า:</span> <span className="text-pink-900">{summaryData.existingPatients || '0'}</span></p>
-                                            <p><span className="text-gray-600">คนไข้ใหม่:</span> <span className="text-pink-900">{summaryData.newPatients || '0'}</span></p>
-                                            <p><span className="text-gray-600">Admit 24hr:</span> <span className="text-pink-900">{summaryData.admissions24hr || '0'}</span></p>
-                                            <p><span className="text-gray-600">ผู้ตรวจการ:</span> <span className="text-pink-900">{summaryData.supervisorName || '-'}</span></p>
-                                        </div>
-                                    </div>
+                                <div>
+                                    <div className="text-sm font-medium mb-2">ผู้บันทึกข้อมูล:</div>
+                                    <ComparisonRow 
+                                        label="ชื่อ-นามสกุล"
+                                        oldValue={`${existingData.summaryData?.recorderFirstName || ''} ${existingData.summaryData?.recorderLastName || ''}`}
+                                        newValue={`${summaryData.recorderFirstName || ''} ${summaryData.recorderLastName || ''}`}
+                                    />
                                 </div>
                             </div>
                         </div>
 
-                        {/* ข้อมูลแต่ละวอร์ด */}
-                        <div className="mt-6">
-                            <h4 className="text-lg font-medium text-purple-800 mb-4">ข้อมูลรายวอร์ด (แสดงเฉพาะที่มีการเปลี่ยนแปลง)</h4>
+                        {/* Ward Data */}
+                        <div>
+                            <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ข้อมูลรายวอร์ด</h4>
                             <div className="space-y-4">
-                                {Object.keys(formData.wards).map(wardName => renderWardComparison(wardName))}
+                                {Object.keys(formData.wards).map(wardName => (
+                                    <WardComparison key={wardName} wardName={wardName} />
+                                ))}
                             </div>
                         </div>
 
-                        <div className="flex justify-center gap-4 mt-8">
+                        {/* Action Buttons */}
+                        <div className="sticky bottom-0 bg-white pt-4 mt-6 border-t flex justify-end gap-4">
                             <button
+                                type="button"
                                 onClick={() => setShowDataComparison(false)}
-                                className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-300 font-medium transition-colors"
+                                className="px-6 py-2.5 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 font-medium"
                             >
                                 ยกเลิก
                             </button>
                             <button
-                                onClick={() => {
-                                    setShowDataComparison(false);
-                                    saveData();
-                                }}
-                                className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 focus:ring-2 focus:ring-purple-300 font-medium transition-all"
+                                type="button"
+                                onClick={() => saveData(true)}
+                                className="px-6 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium"
                             >
                                 บันทึกทับข้อมูลเดิม
                             </button>
@@ -1248,5 +1237,5 @@ const ShiftForm = () => {
     );
 };
 
-export default ShiftForm; 
+export default ShiftForm;
 
