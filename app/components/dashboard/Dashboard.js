@@ -308,7 +308,6 @@ const Dashboard = () => {
             wards: {}
         };
 
-        // Process each record
         records.forEach(record => {
             if (record.wards) {
                 Object.entries(record.wards).forEach(([wardName, wardData]) => {
@@ -318,6 +317,7 @@ const Dashboard = () => {
                             RN: 0,
                             PN: 0,
                             WC: 0,
+                            NA: 0,
                             newAdmit: 0,
                             transferIn: 0,
                             referIn: 0,
@@ -331,41 +331,59 @@ const Dashboard = () => {
                         };
                     }
 
-                    // Combine data based on shift
+                    // ตรวจสอบ shift ก่อนการรวมข้อมูล
                     if (filters.shift === 'all' || record.shift === filters.shift) {
-                        wardStats[wardName].numberOfPatients += parseNumberValue(wardData.numberOfPatients);
-                        wardStats[wardName].RN += parseNumberValue(wardData.RN);
-                        wardStats[wardName].PN += parseNumberValue(wardData.PN);
-                        wardStats[wardName].WC += parseNumberValue(wardData.WC);
-                        wardStats[wardName].newAdmit += parseNumberValue(wardData.newAdmit);
-                        wardStats[wardName].transferIn += parseNumberValue(wardData.transferIn);
-                        wardStats[wardName].referIn += parseNumberValue(wardData.referIn);
-                        wardStats[wardName].transferOut += parseNumberValue(wardData.transferOut);
-                        wardStats[wardName].referOut += parseNumberValue(wardData.referOut);
-                        wardStats[wardName].discharge += parseNumberValue(wardData.discharge);
-                        wardStats[wardName].dead += parseNumberValue(wardData.dead);
-                        wardStats[wardName].availableBeds += parseNumberValue(wardData.availableBeds);
-                        wardStats[wardName].unavailable += parseNumberValue(wardData.unavailable);
+                        // แปลงค่าทั้งหมดเป็นตัวเลขก่อนการคำนวณ
+                        const numberOfPatients = parseInt(wardData.numberOfPatients) || 0;
+                        const RN = parseInt(wardData.RN) || 0;
+                        const PN = parseInt(wardData.PN) || 0;
+                        const WC = parseInt(wardData.WC) || 0;
+                        const NA = parseInt(wardData.NA) || 0;
+                        const newAdmit = parseInt(wardData.newAdmit) || 0;
+                        const transferIn = parseInt(wardData.transferIn) || 0;
+                        const referIn = parseInt(wardData.referIn) || 0;
+                        const transferOut = parseInt(wardData.transferOut) || 0;
+                        const referOut = parseInt(wardData.referOut) || 0;
+                        const discharge = parseInt(wardData.discharge) || 0;
+                        const dead = parseInt(wardData.dead) || 0;
+                        const availableBeds = parseInt(wardData.availableBeds) || 0;
+                        const unavailable = parseInt(wardData.unavailable) || 0;
 
-                        // Calculate overall data for each ward
+                        // รวมข้อมูล
+                        wardStats[wardName].numberOfPatients += numberOfPatients;
+                        wardStats[wardName].RN += RN;
+                        wardStats[wardName].PN += PN;
+                        wardStats[wardName].WC += WC;
+                        wardStats[wardName].NA += NA;
+                        wardStats[wardName].newAdmit += newAdmit;
+                        wardStats[wardName].transferIn += transferIn;
+                        wardStats[wardName].referIn += referIn;
+                        wardStats[wardName].transferOut += transferOut;
+                        wardStats[wardName].referOut += referOut;
+                        wardStats[wardName].discharge += discharge;
+                        wardStats[wardName].dead += dead;
+                        wardStats[wardName].availableBeds += availableBeds;
+                        wardStats[wardName].unavailable += unavailable;
+
+                        // คำนวณ overallData
                         wardStats[wardName].overallData = 
-                            wardStats[wardName].numberOfPatients +
-                            wardStats[wardName].newAdmit +
-                            wardStats[wardName].transferIn +
-                            wardStats[wardName].referIn -
-                            wardStats[wardName].transferOut -
-                            wardStats[wardName].referOut -
-                            wardStats[wardName].discharge -
-                            wardStats[wardName].dead;
+                            numberOfPatients +
+                            newAdmit +
+                            transferIn +
+                            referIn -
+                            transferOut -
+                            referOut -
+                            discharge -
+                            dead;
                     }
                 });
             }
         });
 
-        // Calculate totals and prepare final stats
+        // คำนวณผลรวมทั้งหมด
         Object.entries(wardStats).forEach(([wardName, stats]) => {
             totals.totalPatients += stats.numberOfPatients;
-            totals.totalStaff += stats.RN + stats.PN + stats.WC;
+            totals.totalStaff += stats.RN + stats.PN + stats.WC + stats.NA;
             totals.byWard[wardName] = stats.numberOfPatients;
             totals.wards[wardName] = stats;
         });
@@ -373,8 +391,13 @@ const Dashboard = () => {
         return {
             ...totals,
             totalRecords: records.length,
-            totalAttendance: records.reduce((sum, record) => sum + parseNumberValue(record.totalAttendance), 0),
-            supervisorName: records.map(r => r.supervisorName).filter(Boolean).join(', ')
+            totalAttendance: records.reduce((sum, record) => {
+                return sum + (parseInt(record.totalAttendance) || 0);
+            }, 0),
+            supervisorName: records
+                .map(r => r.supervisorName)
+                .filter(Boolean)
+                .join(', ')
         };
     };
 
@@ -1044,108 +1067,27 @@ const Dashboard = () => {
 
                     {/* Mobile Table View */}
                     <div className="md:hidden">
-                        <div className="overflow-x-auto">
-                            <div className="inline-block min-w-full">
-                                <div className="bg-white rounded-xl shadow-lg">
-                                    <table className="min-w-full">
-                                        <thead>
-                                            <tr className="bg-gradient-to-r from-blue-50 to-purple-50">
-                                                <th className="sticky left-0 bg-gradient-to-r from-blue-50 to-purple-50 p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Ward</th>                                    
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Patient Census</th>                                    
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">RN</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">PN</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">WC</th>      
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">New Admit</th>                              
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer In</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer In</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer Out</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer Out</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Discharge</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Dead</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Overall Data</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Available</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Unavailable</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {Object.entries(stats?.byWard || {})
-                                                .filter(([ward]) => !selectedWard || ward === selectedWard)
-                                                .map(([ward, data], index) => {
-                                                    const wardData = stats?.wards?.[ward] || {};
-                                                    return (
-                                                        <tr key={ward} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                            <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-inherit">{ward}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.numberOfPatients || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.RN || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.PN || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.WC || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.newAdmit || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferIn || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referIn || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferOut || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referOut || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.discharge || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.dead || 0}</td>
-                                                            <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-50">{wardData.overallData || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.availableBeds || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.unavailable || 0}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            {/* Total Row - Always shown */}
-                                            <tr className="bg-gray-100 font-semibold">
-                                                <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-100">Total</td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.numberOfPatients || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.RN || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.PN || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.WC || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.newAdmit || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferIn || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referIn || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferOut || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referOut || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.discharge || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.dead || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-200">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.overallData || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.availableBeds || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.unavailable || 0), 0)}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                </div>
-                            </div>
-                        </div>
-                        {/* Scroll Indicator */}
-                        <div className="mt-2 text-center text-xs text-gray-500 md:hidden">
-                            ← เลื่อนซ้าย-ขวาเพื่อดูข้อมูลเพิ่มเติม →
+                        <div className="space-y-4">
+                            {Object.entries(stats?.byWard || {})
+                                .filter(([ward]) => !selectedWard || ward === selectedWard)
+                                .map(([ward]) => {
+                                    const wardData = stats?.wards?.[ward] || {};
+                                    return (
+                                        <div key={ward} className="bg-white p-4 rounded-lg shadow">
+                                            <h3 className="text-lg font-semibold mb-2">{ward}</h3>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Patient Census</p>
+                                                    <p className="text-lg font-medium">{wardData.numberOfPatients || 0}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-600">Overall Data</p>
+                                                    <p className="text-lg font-medium">{wardData.overallData || 0}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </div>
 
@@ -1158,8 +1100,8 @@ const Dashboard = () => {
                             >
                                 แสดงข้อมูลทุกแผนก
                             </button>
-                </div>
-            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
