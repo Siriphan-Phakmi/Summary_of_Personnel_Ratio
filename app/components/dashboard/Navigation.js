@@ -18,9 +18,6 @@ export default function Navigation() {
                         <Link href="/dashboard" className={isActive('/dashboard') ? "text-gray-600 hover:text-white" : "text-gray-600 hover:text-white"}>
                             Dashboard
                         </Link>
-                        <Link href="/export" className={isActive('/export') ? "text-gray-600 hover:text-white" : "text-gray-600 hover:text-white"}>
-                            Export ข้อมูล
-                        </Link>
                     </div>
                 </div>
             </div>
