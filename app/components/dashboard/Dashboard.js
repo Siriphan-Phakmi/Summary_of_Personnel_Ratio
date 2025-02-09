@@ -125,17 +125,20 @@ const Dashboard = () => {
         setFilters(prev => ({
             ...prev,
             startDate: date,
-            shift: shift
+            shift: shift || prev.shift
         }));
         setShowCalendar(false);
         
         // Fetch data immediately after setting the filters
         try {
+            setLoading(true);
             const recordsRef = collection(db, 'staffRecords');
             const selectedDateStr = getUTCDateString(date);
             
             let fetchedRecords = [];
-            if (shift === 'all') {
+            const selectedShift = shift || filters.shift;
+            
+            if (selectedShift === 'all') {
                 const morningQuery = query(recordsRef, 
                     where('date', '==', selectedDateStr),
                     where('shift', '==', '07:00-19:00')
@@ -163,7 +166,7 @@ const Dashboard = () => {
             } else {
                 const q = query(recordsRef, 
                     where('date', '==', selectedDateStr),
-                    where('shift', '==', shift)
+                    where('shift', '==', selectedShift)
                 );
                 const querySnapshot = await getDocs(q);
                 fetchedRecords = querySnapshot.docs.map(doc => ({
@@ -180,6 +183,8 @@ const Dashboard = () => {
             console.error('Error fetching data:', error);
             setError('ไม่สามารถโหลดข้อมูลได้');
             setStats(resetStats());
+        } finally {
+            setLoading(false);
         }
     };
 
