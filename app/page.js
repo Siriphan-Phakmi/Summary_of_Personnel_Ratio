@@ -12,7 +12,7 @@ export default function Home() {
     <div>
       {/* Navigation */}
       <nav className="bg-[#0ab4ab] p-4">
-        <div className="container mx-auto relative">
+        <div className="w-full relative">
           {/* ปุ่มอยู่ตรงกลาง */}
           <div className="flex justify-center">
             <div className="flex space-x-4">
@@ -43,6 +43,7 @@ export default function Home() {
       <main className="container mx-auto p-4">
         {currentPage === 'form' ? <ShiftForm /> : <Dashboard />}
       </main>
+
 
       {/* Version number - Fixed at bottom right */}
       <div className="fixed bottom-4 right-4 text-xs md:text-sm bg-[#0ab4ab] text-white px-2 py-1 rounded-lg shadow-md z-50">
