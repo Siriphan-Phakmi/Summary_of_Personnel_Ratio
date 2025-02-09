@@ -3,7 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { FaCheckCircle } from 'react-icons/fa';
 
-export function FilterSection({ filters, setFilters, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, recorders, onExport, availableDates }) {
+export function FilterSection({ filters, setFilters, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, recorders, availableDates }) {
     const renderDayContents = (day, date) => {
         const formattedDate = date.toISOString().split('T')[0];
         const hasData = availableDates.includes(formattedDate);
@@ -135,16 +135,6 @@ export function FilterSection({ filters, setFilters, selectedMonth, setSelectedM
                             <option key={recorder} value={recorder}>{recorder}</option>
                         ))}
                     </select>
-                </div>
-
-                {/* Export Button */}
-                <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm flex items-end">
-                    <button
-                        onClick={onExport}
-                        className="w-full bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-500 hover:to-emerald-600 text-white font-bold py-2 px-4 rounded-md transition-all duration-200 shadow-sm hover:shadow-md"
-                    >
-                        Export Data
-                    </button>
                 </div>
             </div>
         </div>
