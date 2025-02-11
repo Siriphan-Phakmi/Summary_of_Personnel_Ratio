@@ -5,14 +5,31 @@ import { getFirestore } from 'firebase/firestore';
 
 // Firebase configuration and constants
 export const firebaseConfig = {
-  apiKey: "AIzaSyB9sZFJSn8cvkos5fysi47VpqJc5AsorA4",
-  authDomain: "manpower-patient-summary.firebaseapp.com",
-  projectId: "manpower-patient-summary",
-  storageBucket: "manpower-patient-summary.firebasestorage.app",
-  messagingSenderId: "644057496880",
-  appId: "1:644057496880:web:6270efc29187b9c025dcf5",
-  measurementId: "G-F34T2MDCFG"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
+
+// Initialize Firebase only if config is valid
+let app;
+let db;
+let auth;
+
+if (firebaseConfig.apiKey) {
+  try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } catch (error) {
+    console.error('Error initializing Firebase:', error);
+  }
+}
+
+export { db, auth };
 
 // Maximum number of records to fetch at once
 export const FETCH_LIMIT = 100;
@@ -32,13 +49,6 @@ export const ACCESS_LEVELS = {
   WRITE: 'write',
   ADMIN: 'admin',
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-
-// Initialize Firebase auth
-export const auth = getAuth(app);
 
 // Function to check if user has required access level
 export const checkUserAccess = async (user, requiredLevel) => {
