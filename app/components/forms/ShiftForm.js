@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -211,7 +211,8 @@ const ShiftForm = () => {
         return []; // ยังไม่มีการตรวจสอบเงื่อนไขเตียง
     };
 
-    const handleInputChange = (section, ward, data) => {
+    // Memoize handleInputChange
+    const handleInputChange = useCallback((section, ward, data) => {
         // Sanitize input values
         const sanitizedData = Object.fromEntries(
             Object.entries(data).map(([key, value]) => {
@@ -222,16 +223,19 @@ const ShiftForm = () => {
             })
         );
 
+        // Get current ward data
+        const currentWardData = formData.wards[ward];
+
         // Calculate overallData with validation
         const overallData = Math.max(0,
-            (parseInt(sanitizedData.numberOfPatients) || 0) +
-            (parseInt(sanitizedData.newAdmit) || 0) +
-            (parseInt(sanitizedData.transferIn) || 0) +
-            (parseInt(sanitizedData.referIn) || 0) -
-            (parseInt(sanitizedData.transferOut) || 0) -
-            (parseInt(sanitizedData.referOut) || 0) -
-            (parseInt(sanitizedData.discharge) || 0) -
-            (parseInt(sanitizedData.dead) || 0)
+            (parseInt(sanitizedData.numberOfPatients || currentWardData.numberOfPatients) || 0) +
+            (parseInt(sanitizedData.newAdmit || currentWardData.newAdmit) || 0) +
+            (parseInt(sanitizedData.transferIn || currentWardData.transferIn) || 0) +
+            (parseInt(sanitizedData.referIn || currentWardData.referIn) || 0) -
+            (parseInt(sanitizedData.transferOut || currentWardData.transferOut) || 0) -
+            (parseInt(sanitizedData.referOut || currentWardData.referOut) || 0) -
+            (parseInt(sanitizedData.discharge || currentWardData.discharge) || 0) -
+            (parseInt(sanitizedData.dead || currentWardData.dead) || 0)
         );
 
         sanitizedData.overallData = overallData.toString();
@@ -247,15 +251,18 @@ const ShiftForm = () => {
             ...prev,
             wards: {
                 ...prev.wards,
-                [ward]: sanitizedData
+                [ward]: {
+                    ...prev.wards[ward],
+                    ...sanitizedData,
+                    isReadOnly: false // Always ensure the field is editable
+                }
             }
         }));
-    };
+    }, [formData.wards]); // Add formData.wards as dependency
 
     // Add new function to display values
     const displayValue = (value) => {
-        if (!value || value === '0') return '';
-        return value;
+        return value === undefined || value === null || value === '' ? '0' : value;
     };
 
     // เพิ่มฟังก์ชันตรวจสอบวันที่
@@ -271,14 +278,8 @@ const ShiftForm = () => {
     };
 
     const isPastDate = () => {
-        if (!formData.date) return false;
-        const selected = new Date(formData.date);
-        const today = new Date();
-        
-        selected.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        
-        return selected.getTime() < today.getTime();
+        // Remove past date validation to allow historical data entry
+        return false;
     };
 
     const isFutureDateMoreThanOneDay = () => {
@@ -293,9 +294,62 @@ const ShiftForm = () => {
         return selected.getTime() > tomorrow.getTime();
     };
 
-    // แก้ไขฟังก์ชัน validateFormData
-    const validateFormData = () => {
+    // Move hasWardData function here, before validateFormData
+    const hasWardData = useCallback(() => {
+        return Object.values(formData.wards).some(ward =>
+            Object.entries(ward).some(([key, value]) =>
+                key !== 'comment' && value !== '' && value !== '0'
+            )
+        );
+    }, [formData.wards]);
+
+    // เพิ่มฟังก์ชันตรวจสอบการเปลี่ยนแปลงข้อมูล
+    const hasDataChanges = useCallback(() => {
+        let changes = {
+            staff: false,
+            movement: false,
+            additional: false
+        };
+
+        Object.values(formData.wards).forEach(ward => {
+            // ตรวจสอบการเปลี่ยนแปลงข้อมูล Staff
+            if (ward.nurseManager !== '0' || ward.RN !== '0' || ward.PN !== '0' || ward.WC !== '0') {
+                changes.staff = true;
+            }
+            // ตรวจสอบการเปลี่ยนแปลงข้อมูล Patient Movement
+            if (ward.newAdmit !== '0' || ward.transferIn !== '0' || ward.referIn !== '0' || 
+                ward.transferOut !== '0' || ward.referOut !== '0' || ward.discharge !== '0' || ward.dead !== '0') {
+                changes.movement = true;
+            }
+            // ตรวจสอบการเปลี่ยนแปลงข้อมูล Additional Information
+            if (ward.availableBeds !== '0' || ward.unavailable !== '0' || ward.plannedDischarge !== '0' || ward.comment.trim() !== '') {
+                changes.additional = true;
+            }
+        });
+
+        return changes;
+    }, [formData.wards]);
+
+    // แก้ไข validateFormData
+    const validateFormData = useCallback(() => {
         console.log('Validating form data...', formData);
+        
+        // ตรวจสอบการเปลี่ยนแปลงข้อมูล
+        const changes = hasDataChanges();
+        if (!changes.staff && !changes.movement && !changes.additional) {
+            const confirmNoChanges = window.confirm(
+                'คุณยังไม่ได้กรอกข้อมูลเพิ่มเติมในส่วนใดๆ\n\n' +
+                'กรุณาตรวจสอบและกรอกข้อมูลในส่วนต่างๆ:\n' +
+                '- ข้อมูลเจ้าหน้าที่ (Staff)\n' +
+                '- ข้อมูลการเคลื่อนย้ายผู้ป่วย (Patient Movement)\n' +
+                '- ข้อมูลเพิ่มเติม (Additional Information)\n\n' +
+                'ต้องการดำเนินการต่อหรือไม่?'
+            );
+            if (!confirmNoChanges) {
+                return false;
+            }
+        }
+
         const validationChecks = [
             {
                 condition: !formData.date || formData.date.trim() === '',
@@ -306,20 +360,12 @@ const ShiftForm = () => {
                 message: 'กรุณาเลือกกะการทำงาน'
             },
             {
-                condition: isPastDate(),
-                message: 'ไม่สามารถบันทึกข้อมูลย้อนหลังได้'
-            },
-            {
                 condition: isFutureDateMoreThanOneDay(),
                 message: 'ไม่สามารถบันทึกข้อมูลล่วงหน้าเกิน 1 วันได้'
             },
             {
                 condition: formData.shift === '19:00-07:00' && isCurrentDate(),
                 message: 'กรุณาเลือกวันที่ล่วงหน้าสำหรับกะกลางคืน'
-            },
-            {
-                condition: !hasWardData(),
-                message: 'กรุณากรอกข้อมูลอย่างน้อย 1 วอร์ด'
             },
             {
                 condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
@@ -340,15 +386,7 @@ const ShiftForm = () => {
         }
 
         return true;
-    };
-
-    const hasWardData = () => {
-        return Object.values(formData.wards).some(ward =>
-            Object.entries(ward).some(([key, value]) =>
-                key !== 'comment' && value !== '' && value !== '0'
-            )
-        );
-    };
+    }, [formData, summaryData, isCurrentDate, isFutureDateMoreThanOneDay, hasDataChanges]);
 
     const resetForm = () => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะล้างข้อมูลทั้งหมด?')) {
@@ -746,7 +784,6 @@ const ShiftForm = () => {
             const formattedQueryDate = getUTCDateString(queryDate);
             const thaiQueryDate = formatThaiDate(queryDate).replace('เพิ่มข้อมูล วันที่: ', '');
             
-            // แสดงข้อความแจ้งเตือนการดึงข้อมูล
             setLoadingMessage(`กำลังดึงข้อมูล Patient Census\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
             
             const q = query(
@@ -761,28 +798,28 @@ const ShiftForm = () => {
                 const previousData = querySnapshot.docs[0].data();
                 console.log('Found previous shift data:', previousData);
 
-                // อัพเดทข้อมูลในฟอร์มแบบอัตโนมัติ
                 const updatedWards = {};
                 Object.entries(previousData.wards).forEach(([wardName, wardData]) => {
                     updatedWards[wardName] = {
                         ...formData.wards[wardName],
                         numberOfPatients: wardData.overallData || '0',
-                        isReadOnly: true
+                        isReadOnly: false // Ensure fields are editable
                     };
                 });
 
                 setFormData(prev => ({
                     ...prev,
-                    wards: updatedWards
+                    wards: {
+                        ...prev.wards,
+                        ...updatedWards
+                    }
                 }));
 
-                // แสดงข้อความแจ้งเตือนการดึงข้อมูลสำเร็จ
                 setLoadingMessage(`ดึงข้อมูลสำเร็จ\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
                 setTimeout(() => {
                     setLoadingMessage('');
                 }, 2000);
             } else {
-                // กรณีไม่พบข้อมูล
                 setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด...');
                 
                 const latestDataQuery = query(
@@ -799,19 +836,21 @@ const ShiftForm = () => {
                     
                     setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
                     
-                    // อัพเดทข้อมูลเหมือนด้านบน
                     const updatedWards = {};
                     Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
                         updatedWards[wardName] = {
                             ...formData.wards[wardName],
                             numberOfPatients: wardData.overallData || '0',
-                            isReadOnly: true
+                            isReadOnly: false // Ensure fields are editable
                         };
                     });
 
                     setFormData(prev => ({
                         ...prev,
-                        wards: updatedWards
+                        wards: {
+                            ...prev.wards,
+                            ...updatedWards
+                        }
                     }));
 
                     setTimeout(() => {
@@ -863,26 +902,19 @@ const ShiftForm = () => {
         <div className="w-full px-4 py-8">
             <LoadingIndicator />
             <form onSubmit={handleSubmit} className="w-full mx-auto">
-                {/* Initial Loading Screen */}
                 {isInitialLoading && (
                     <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
                         <div className="text-center">
-                            <img
-                                src="/images/BPK.jpg"
-                                alt="BPK Loading"
-                                className="w-32 h-32 mx-auto mb-4 animate-pulse"
-                            />
+                            <img src="/images/BPK.jpg" alt="BPK Loading" className="w-32 h-32 mx-auto mb-4 animate-pulse" />
                             <p className="text-gray-600">กำลังโหลด...</p>
                         </div>
                     </div>
                 )}
 
-                {/* เพิ่ม DataComparisonModal ที่นี่ */}
                 <DataComparisonModal />
 
-                {/*ส่วน*/}
                 <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
-                    <h1 className="text-2xl text-center font-semibold text-[#0ab4ab] mb-6">
+                    <h1 className="text-xl text-center font-semibold text-[#0ab4ab] mb-6 font-THSarabun">
                         Daily Patient Census and Staffing
                     </h1>
                     {/*ส่วนของวันที่และกะงาน*/}
@@ -893,11 +925,11 @@ const ShiftForm = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowCalendar(!showCalendar)}
-                                        className="w-full md:w-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                                        className="w-full md:w-auto px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 font-THSarabun"
                                     >
                                         {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
                                     </button>
-                                    <span className="text-gray-700 font-medium text-center w-full md:w-auto">{thaiDate}</span>
+                                    <span className="text-gray-700 font-medium text-center w-full md:w-auto font-THSarabun">{thaiDate}</span>
                                 </div>
                             </div>
                                     {showCalendar && (
@@ -958,181 +990,351 @@ const ShiftForm = () => {
                 <div className="hidden md:block w-full">
                     {/* Main Container Box */}
                     <div className="w-full mx-auto p-6 bg-white rounded-2xl shadow-lg border border-gray-200">
-                        <div className="grid grid-cols-1 gap-6">
-                            {/* Each section's container gets min-w-max to prevent text truncation */}
-                            
-                            {/* Main Grid Layout */}
-                            <div className="w-full mx-auto">
-                                {/* Row 1: Main Data Containers - Full Width Row */}
-                                <div className="flex gap-4 overflow-x-auto pb-4 min-w-full">
-                                    {/* Census Overview component */}
-                                    <CensusOverview 
-                                        WARD_ORDER={WARD_ORDER}
-                                        formData={formData}
-                                        handleInputChange={handleInputChange}
-                                        initialWardData={initialWardData}
-                                        formatWardName={formatWardName}
-                                        calculateTotals={calculateTotals}
-                                    />
-
-                                    {/* Staff component */}
-                                    <Staff 
-                                        WARD_ORDER={WARD_ORDER}
-                                        formData={formData}
-                                        handleInputChange={handleInputChange}
-                                        initialWardData={initialWardData}
-                                        displayValue={displayValue}
-                                        calculateTotals={calculateTotals}
-                                    />
-
-                                    <PatientMovement 
-                                        WARD_ORDER={WARD_ORDER}
-                                        formData={formData}
-                                        handleInputChange={handleInputChange}
-                                        initialWardData={initialWardData}
-                                        displayValue={displayValue}
-                                        calculateTotals={calculateTotals}
-                                    />
-
-                                    <AdditionalInformation 
-                                        WARD_ORDER={WARD_ORDER}
-                                        formData={formData}
-                                        handleInputChange={handleInputChange}
-                                        initialWardData={initialWardData}
-                                        displayValue={displayValue}
-                                        calculateTotals={calculateTotals}
-                                    />
+                        <div className="bg-gradient-to-r from-pink-400/20 to-white p-4 rounded-xl">
+                            <h2 className="text-xl font-bold text-pink-600 text-center mb-2">Form</h2>
+                        </div>
+                        {/* Scrollable Container for all wards */}
+                        <div className="overflow-x-auto">
+                            <div className="inline-flex gap-4 min-w-max p-4">
+                                {/* Headers Row */}
+                                <div className="flex flex-col gap-4">
+                                    <div className="h-20 flex items-center justify-center">
+                                        <h3 className="text-base font-bold text-gray-700 font-THSarabun">Wards</h3>
+                                    </div>
+                                    {WARD_ORDER.map((ward) => (
+                                        <div key={ward} className="h-16 flex items-center">
+                                            <span className="text-base font-semibold text-[#0ab4ab] font-THSarabun">{formatWardName(ward)}</span>
+                                        </div>
+                                    ))}
+                                    <div className="h-16 flex items-center">
+                                        <span className="text-base font-semibold text-purple-600 font-THSarabun">Total</span>
+                                    </div>
                                 </div>
 
-                                {/* Row 2: 24-hour Summary */}
-                                <div className="mt-6 overflow-x-auto">
-                                    <div className="bg-[#0ab4ab] text-white p-3">
-                                        <h3 className="text-lg font-semibold">24-hour Patient Care Summary Report</h3>
+                                {/* Patient Census */}
+                                <div className="flex flex-col gap-4">
+                                    <div className="h-20 flex items-center justify-center">
+                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Patient Census</h4>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-6 p-4 bg-white">
-                                        <div className="p-4 bg-white rounded-lg shadow-sm">
-                                            <label className="block text-sm font-medium text-gray-700 text-center mb-2">OPD 24 hour</label>
+                                    {WARD_ORDER.map((ward) => (
+                                        <div key={ward} className="bg-gradient-to-r from-[#0ab4ab]/20 to-[#0ab4ab]/10 rounded-xl p-4 text-[#0ab4ab] shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="number"
+                                                    value={displayValue(formData.wards[ward].numberOfPatients)}
+                                                    onChange={(e) => handleInputChange('census', ward, { numberOfPatients: e.target.value })}
+                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-[#0ab4ab] focus:outline-none focus:border-[#0ab4ab] text-[#0ab4ab] placeholder-[#0ab4ab]/50 font-THSarabun"
+                                                    placeholder="0"
+                                                    min="0"
+                                                    disabled={formData.wards[ward].isReadOnly === true}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Total Row */}
+                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                        <div className="text-center">
                                             <input
                                                 type="number"
+                                                value={displayValue(formData.totals.numberOfPatients)}
+                                                readOnly
+                                                className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Overall Data */}
+                                <div className="flex flex-col gap-4">
+                                    <div className="h-20 flex items-center justify-center">
+                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Overall Data</h4>
+                                    </div>
+                                    {WARD_ORDER.map((ward) => (
+                                        <div key={ward} className="bg-gradient-to-r from-blue-400/20 to-blue-500/10 rounded-xl p-4 text-blue-600 shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="number"
+                                                    value={displayValue(formData.wards[ward].overallData)}
+                                                    onChange={(e) => handleInputChange('overall', ward, { overallData: e.target.value })}
+                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-blue-500 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
+                                                    placeholder="0"
+                                                    min="0"
+                                                    disabled={formData.wards[ward].isReadOnly === true}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Total Row */}
+                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                        <div className="text-center">
+                                            <input
+                                                type="number"
+                                                value={displayValue(formData.totals.overallData)}
+                                                readOnly
+                                                className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                placeholder="0"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Staff Section */}
+                                {['nurseManager', 'RN', 'PN', 'WC'].map((staffType) => (
+                                    <div key={staffType} className="flex flex-col gap-4">
+                                        <div className="h-20 flex items-center justify-center">
+                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{staffType}</h4>
+                                        </div>
+                                        {WARD_ORDER.map((ward) => (
+                                            <div key={ward} className="bg-gradient-to-r from-green-400/20 to-green-500/10 rounded-xl p-4 text-green-600 shadow-lg h-16">
+                                                <div className="text-center">
+                                                    <input
+                                                        type="number"
+                                                        value={displayValue(formData.wards[ward][staffType])}
+                                                        onChange={(e) => handleInputChange('staff', ward, { [staffType]: e.target.value })}
+                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-green-500 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
+                                                        placeholder="0"
+                                                        min="0"
+                                                        disabled={formData.wards[ward].isReadOnly === true}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {/* Total Row */}
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="number"
+                                                    value={displayValue(formData.totals[staffType])}
+                                                    readOnly
+                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Patient Movement Section */}
+                                {['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].map((movementType) => (
+                                    <div key={movementType} className="flex flex-col gap-4">
+                                        <div className="h-20 flex items-center justify-center">
+                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{movementType}</h4>
+                                        </div>
+                                        {WARD_ORDER.map((ward) => (
+                                            <div key={ward} className="bg-gradient-to-r from-yellow-400/20 to-yellow-500/10 rounded-xl p-4 text-yellow-600 shadow-lg h-16">
+                                                <div className="text-center">
+                                                    <input
+                                                        type="number"
+                                                        value={displayValue(formData.wards[ward][movementType])}
+                                                        onChange={(e) => handleInputChange('movement', ward, { [movementType]: e.target.value })}
+                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-yellow-500 focus:outline-none focus:border-yellow-500 text-yellow-600 placeholder-yellow-300 font-THSarabun"
+                                                        placeholder="0"
+                                                        min="0"
+                                                        disabled={formData.wards[ward].isReadOnly === true}
+                                    />
+                                </div>
+                                            </div>
+                                        ))}
+                                        {/* Total Row */}
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="number"
+                                                    value={displayValue(formData.totals[movementType])}
+                                                    readOnly
+                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Additional Information Section */}
+                                {['availableBeds', 'unavailable', 'plannedDischarge'].map((infoType) => (
+                                    <div key={infoType} className="flex flex-col gap-4">
+                                        <div className="h-20 flex items-center justify-center">
+                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{infoType}</h4>
+                                    </div>
+                                        {WARD_ORDER.map((ward) => (
+                                            <div key={ward} className="bg-gradient-to-r from-pink-400/20 to-pink-500/10 rounded-xl p-4 text-pink-600 shadow-lg h-16">
+                                                <div className="text-center">
+                                            <input
+                                                type="number"
+                                                        value={displayValue(formData.wards[ward][infoType])}
+                                                        onChange={(e) => handleInputChange('info', ward, { [infoType]: e.target.value })}
+                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-pink-500 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
+                                                        placeholder="0"
                                                 min="0"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {/* Total Row */}
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="number"
+                                                    value={displayValue(formData.totals[infoType])}
+                                                    readOnly
+                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {/* Comment Section */}
+                                <div className="flex flex-col gap-4">
+                                    <div className="h-20 flex items-center justify-center">
+                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Comment</h4>
+                                    </div>
+                                    {WARD_ORDER.map((ward) => (
+                                        <div key={ward} className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl p-4 shadow-lg h-16">
+                                            <div className="text-center">
+                                                <input
+                                                    type="text"
+                                                    value={formData.wards[ward].comment}
+                                                    onChange={(e) => handleInputChange('comment', ward, { comment: e.target.value })}
+                                                    className="w-40 text-center text-sm bg-transparent border-b-2 border-gray-400 focus:outline-none focus:border-gray-600 text-gray-600 placeholder-gray-300 font-THSarabun"
+                                                    placeholder="Add comment..."
+                                                    disabled={formData.wards[ward].isReadOnly === true}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Empty Total Row for Comment */}
+                                    <div className="h-16"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* 24-hour Summary Section */}
+                    <div className="bg-white rounded-lg shadow-lg p-6 mt-12 mb-6">
+                        {/* 24-hour Summary */}
+                        <div className="bg-gradient-to-r from-[#0ab4ab]/30 to-white p-6 rounded-xl mb-6">
+                            <h2 className="text-2xl font-bold text-[#0ab4ab] text-center mb-8 font-THSarabun">24-hour Summary</h2>
+                            <div className="grid grid-cols-4 gap-8">
+                                {/* OPD 24hr */}
+                                <div className="bg-gradient-to-r from-pink-400/30 to-pink-400/20 rounded-xl p-6 shadow-lg">
+                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">OPD 24hr</label>
+                                    <input
+                                        type="number"
                                                 value={summaryData.opdTotal24hr}
                                                 onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                                className="w-full text-center border rounded-lg py-2"
+                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-pink-400 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
                                                 placeholder="0"
+                                        min="0"
                                             />
                                         </div>
-                                        <div className="p-4 bg-white rounded-lg shadow-sm">
-                                            <label className="block text-sm font-medium text-gray-700 text-center mb-2">Old Patient</label>
+                                {/* Old Patient */}
+                                <div className="bg-gradient-to-r from-purple-400/30 to-purple-400/20 rounded-xl p-6 shadow-lg">
+                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">Old Patient</label>
                                             <input
                                                 type="number"
-                                                min="0"
                                                 value={summaryData.existingPatients}
                                                 onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                                className="w-full text-center border rounded-lg py-2"
+                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-purple-400 focus:outline-none focus:border-purple-500 text-purple-600 placeholder-purple-300 font-THSarabun"
                                                 placeholder="0"
+                                        min="0"
                                             />
                                         </div>
-                                        <div className="p-4 bg-white rounded-lg shadow-sm">
-                                            <label className="block text-sm font-medium text-gray-700 text-center mb-2">New Patient</label>
+                                {/* New Patient */}
+                                <div className="bg-gradient-to-r from-blue-400/30 to-blue-400/20 rounded-xl p-6 shadow-lg">
+                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">New Patient</label>
                                             <input
                                                 type="number"
-                                                min="0"
                                                 value={summaryData.newPatients}
                                                 onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                                className="w-full text-center border rounded-lg py-2"
+                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-blue-400 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
                                                 placeholder="0"
+                                        min="0"
                                             />
                                         </div>
-                                        <div className="p-4 bg-white rounded-lg shadow-sm">
-                                            <label className="block text-sm font-medium text-gray-700 text-center mb-2">Admit 24 Hours</label>
+                                {/* Admit 24hr */}
+                                <div className="bg-gradient-to-r from-green-400/30 to-green-400/20 rounded-xl p-6 shadow-lg">
+                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">Admit 24hr</label>
                                             <input
                                                 type="number"
-                                                min="0"
                                                 value={summaryData.admissions24hr}
                                                 onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                                className="w-full text-center border rounded-lg py-2"
+                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-green-400 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
                                                 placeholder="0"
+                                        min="0"
                                             />
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Row 3: Staff Information */}
-                                <div className="mt-6 overflow-x-auto">
-                                    <div className="bg-[#0ab4ab] text-white p-3">
-                                        <h3 className="text-lg font-semibold">Staff Authorization and Documentation</h3>
+                        {/* Signature Section */}
+                        <div className="bg-gradient-to-r from-[#0ab4ab]/20 to-white p-8 rounded-xl">
+                            <div className="text-center mb-8">
+                                <h2 className="text-2xl font-bold text-[#0ab4ab] font-THSarabun">Signature</h2>
+                                <div className="w-24 h-1 bg-gradient-to-r from-[#0ab4ab] to-transparent mx-auto mt-2"></div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-6 p-4 bg-white">
-                                        {/* Supervisor Information */}
-                                        <div>
-                                            <h4 className="font-medium mb-4">Supervisor Authorization Signature</h4>
+                            <div className="grid grid-cols-2 gap-12">
+
+
+                                {/* Recorder Section */}
+                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-xl p-6 shadow-lg">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-2 h-8 bg-[#0ab4ab] rounded-full"></div>
+                                        <label className="text-base font-medium text-gray-700 font-THSarabun">ผู้บันทึกข้อมูล</label>
+                                    </div>
                                             <div className="space-y-4">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm text-gray-600 mb-1">First Name</label>
                                                         <input
                                                             type="text"
-                                                            value={summaryData.supervisorFirstName}
-                                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                                            className="w-full p-2 border rounded-lg"
+                                            value={summaryData.recorderFirstName}
+                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
+                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                                             placeholder="First Name"
                                                         />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm text-gray-600 mb-1">Last Name</label>
                                                         <input
                                                             type="text"
-                                                            value={summaryData.supervisorLastName}
-                                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                                            className="w-full p-2 border rounded-lg"
+                                            value={summaryData.recorderLastName}
+                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
+                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                                             placeholder="Last Name"
                                                         />
                                                     </div>
                                                 </div>
+                                {/* Supervisor Section */}
+                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-xl p-6 shadow-lg">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-2 h-8 bg-[#0ab4ab] rounded-full"></div>
+                                        <label className="text-base font-medium text-gray-700 font-THSarabun">Supervisor</label>
                                             </div>
-                                        </div>
-                                        {/* Recorder Information */}
-                                        <div>
-                                            <h4 className="font-medium mb-4">Data Recorder Information</h4>
                                             <div className="space-y-4">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm text-gray-600 mb-1">First Name</label>
                                                         <input
                                                             type="text"
-                                                            value={summaryData.recorderFirstName}
-                                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
-                                                            className="w-full p-2 border rounded-lg"
+                                            value={summaryData.supervisorFirstName}
+                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
+                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                                             placeholder="First Name"
                                                         />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm text-gray-600 mb-1">Last Name</label>
                                                         <input
                                                             type="text"
-                                                            value={summaryData.recorderLastName}
-                                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
-                                                            className="w-full p-2 border rounded-lg"
+                                            value={summaryData.supervisorLastName}
+                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
+                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                                             placeholder="Last Name"
                                                         />
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+
+
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/*แสดงผลแบบ Mobile*/}
+                {/* Mobile View */}
                 <div className="md:hidden space-y-4">
                     {/* Mobile Ward Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 max-h-[calc(100vh-400px)] overflow-y-auto">
-                        {WARD_ORDER.map((ward) => {
-                            const data = formData.wards[ward] || { ...initialWardData };
-                            return (
+                        {WARD_ORDER.map((ward) => (
                                 <div key={ward} className="mb-6 bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl shadow-lg p-4">
                                     <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">
                                         <span className="whitespace-nowrap">
@@ -1142,63 +1344,29 @@ const ShiftForm = () => {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="text-center">
                                             <p className="text-sm text-gray-600">Patient Census</p>
-                                            <p className="text-lg font-medium text-black">{data.numberOfPatients}</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-sm text-gray-600">Overall Data</p>
-                                            <p className="text-lg font-medium text-black">{data.overallData}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Mobile 24-hour Summary */}
-                    <div className="p-4 space-y-4">
-                        <h3 className="text-lg font-semibold text-center text-black">24-hour Summary</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-gradient-to-br from-pink-100 to-pink-50 p-4 rounded-lg">
-                                <label className="block text-sm font-medium text-black text-center mb-2">OPD 24 hour</label>
                                 <input
                                     type="number"
+                                            value={displayValue(formData.wards[ward].numberOfPatients)}
+                                            onChange={(e) => handleInputChange('census', ward, { numberOfPatients: e.target.value || '0' })}
+                                            className="w-full text-center text-lg font-medium text-black bg-transparent border-b border-gray-300 focus:outline-none focus:border-[#0ab4ab]"
                                     min="0"
-                                    value={summaryData.opdTotal24hr}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                    className="w-full text-center border rounded-lg py-2 text-black bg-white/80"
+                                            placeholder="0"
                                 />
                             </div>
-                            <div className="bg-gradient-to-br from-blue-100 to-blue-50 p-4 rounded-lg">
-                                <label className="block text-sm font-medium text-black text-center mb-2">Old Patient</label>
+                                    <div className="text-center">
+                                        <p className="text-sm text-gray-600">Overall Data</p>
                                 <input
                                     type="number"
+                                            value={displayValue(formData.wards[ward].overallData)}
+                                            onChange={(e) => handleInputChange('overall', ward, { overallData: e.target.value })}
+                                            className="w-full text-center text-lg font-medium text-black bg-transparent border-b border-gray-300 focus:outline-none focus:border-[#0ab4ab]"
                                     min="0"
-                                    value={summaryData.existingPatients}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                    className="w-full text-center border rounded-lg py-2 text-black bg-white/80"
+                                            placeholder="0"
                                 />
                             </div>
-                            <div className="bg-gradient-to-br from-purple-100 to-purple-50 p-4 rounded-lg">
-                                <label className="block text-sm font-medium text-black text-center mb-2">New Patient</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={summaryData.newPatients}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                    className="w-full text-center border rounded-lg py-2 text-black bg-white/80"
-                                />
                             </div>
-                            <div className="bg-gradient-to-br from-green-100 to-green-50 p-4 rounded-lg">
-                                <label className="block text-sm font-medium text-black text-center mb-2">Admit 24 Hours</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={summaryData.admissions24hr}
-                                    onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                    className="w-full text-center border rounded-lg py-2 text-black bg-white/80"
-                                />
                             </div>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Mobile Staff Information */}
@@ -1214,14 +1382,14 @@ const ShiftForm = () => {
                                             value={summaryData.supervisorFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                            placeholder="ชื่อ"
+                                            placeholder="First Name"
                                         />
                                         <input
                                             type="text"
                                             value={summaryData.supervisorLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                            placeholder="นามสกุล"
+                                            placeholder="Last Name"
                                         />
                                     </div>
                                 </div>
@@ -1235,14 +1403,14 @@ const ShiftForm = () => {
                                             value={summaryData.recorderFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                            placeholder="ชื่อ"
+                                            placeholder="First Name"
                                         />
                                         <input
                                             type="text"
                                             value={summaryData.recorderLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
                                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
-                                            placeholder="นามสกุล"
+                                            placeholder="Last Name"
                                         />
                                     </div>
                                 </div>
@@ -1251,22 +1419,11 @@ const ShiftForm = () => {
                     </div>
                 </div>
 
-                {/* Loading Overlay */}
-                {isLoading && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white p-6 rounded-lg shadow-lg">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
-                            <p className="mt-2">Saving...</p>
-                        </div>
-                    </div>
-                )}
-
-                {/* Desktop Submit Buttons */}
-                <div className="mt-4 flex justify-end gap-4">
+                <div className="mt-8 flex justify-center p-6 bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg">
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="bg-red-500 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                        className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
                     >
                         {isLoading ? 'Saving...' : 'Save Data'}
                     </button>
