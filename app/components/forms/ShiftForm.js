@@ -899,7 +899,7 @@ const ShiftForm = () => {
     };
 
     return (
-        <div className="w-full px-4 py-8">
+        <div className="w-full px-2 py-2">
             <LoadingIndicator />
             <form onSubmit={handleSubmit} className="w-full mx-auto">
                 {isInitialLoading && (
@@ -913,8 +913,8 @@ const ShiftForm = () => {
 
                 <DataComparisonModal />
 
-                <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-6 mb-6">
-                    <h1 className="text-xl text-center font-semibold text-[#0ab4ab] mb-6 font-THSarabun">
+                <div className="bg-gradient-to-b from-[#0ab4ab]/10 to-white rounded-lg shadow-lg p-4 mb-4">
+                    <h1 className="text-lg text-center font-medium text-[#0ab4ab] mb-4 font-THSarabun">
                         Daily Patient Census and Staffing
                     </h1>
                     {/*ส่วนของวันที่และกะงาน*/}
@@ -989,41 +989,41 @@ const ShiftForm = () => {
                 {/* Desktop View */}
                 <div className="hidden md:block w-full">
                     {/* Main Container Box */}
-                    <div className="w-full mx-auto p-6 bg-white rounded-2xl shadow-lg border border-gray-200">
-                        <div className="bg-gradient-to-r from-pink-400/20 to-white p-4 rounded-xl">
-                            <h2 className="text-xl font-bold text-pink-600 text-center mb-2">Form</h2>
+                    <div className="w-full mx-auto p-4 bg-white rounded-xl shadow-lg border border-gray-200">
+                        <div className="bg-gradient-to-r from-pink-400/20 to-white p-2 rounded-lg">
+                            <h2 className="text-lg font-bold text-pink-600 text-center mb-1">Form</h2>
                         </div>
                         {/* Scrollable Container for all wards */}
                         <div className="overflow-x-auto">
-                            <div className="inline-flex gap-4 min-w-max p-4">
+                            <div className="inline-flex gap-1 min-w-max p-1">
                                 {/* Headers Row */}
-                                <div className="flex flex-col gap-4">
-                                    <div className="h-20 flex items-center justify-center">
-                                        <h3 className="text-base font-bold text-gray-700 font-THSarabun">Wards</h3>
+                                <div className="flex flex-col gap-1">
+                                    <div className="h-12 flex items-center justify-center">
+                                        <h3 className="text-xs font-bold text-gray-700 font-THSarabun">Wards</h3>
                                     </div>
                                     {WARD_ORDER.map((ward) => (
-                                        <div key={ward} className="h-16 flex items-center">
-                                            <span className="text-base font-semibold text-[#0ab4ab] font-THSarabun">{formatWardName(ward)}</span>
+                                        <div key={ward} className="h-8 flex items-center">
+                                            <span className="text-xs font-semibold text-[#0ab4ab] font-THSarabun">{formatWardName(ward)}</span>
                                         </div>
                                     ))}
-                                    <div className="h-16 flex items-center">
-                                        <span className="text-base font-semibold text-purple-600 font-THSarabun">Total</span>
+                                    <div className="h-8 flex items-center">
+                                        <span className="text-xs font-semibold text-purple-600 font-THSarabun">Total</span>
                                     </div>
                                 </div>
 
                                 {/* Patient Census */}
-                                <div className="flex flex-col gap-4">
-                                    <div className="h-20 flex items-center justify-center">
-                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Patient Census</h4>
+                                <div className="flex flex-col gap-1">
+                                    <div className="h-12 flex items-center justify-center">
+                                        <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">Patient Census</h4>
                                     </div>
                                     {WARD_ORDER.map((ward) => (
-                                        <div key={ward} className="bg-gradient-to-r from-[#0ab4ab]/20 to-[#0ab4ab]/10 rounded-xl p-4 text-[#0ab4ab] shadow-lg h-16">
+                                        <div key={ward} className="bg-gradient-to-r from-[#0ab4ab]/20 to-[#0ab4ab]/10 rounded-md p-1 text-[#0ab4ab] shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.wards[ward].numberOfPatients)}
                                                     onChange={(e) => handleInputChange('census', ward, { numberOfPatients: e.target.value })}
-                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-[#0ab4ab] focus:outline-none focus:border-[#0ab4ab] text-[#0ab4ab] placeholder-[#0ab4ab]/50 font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-[#0ab4ab] focus:outline-none focus:border-[#0ab4ab] text-[#0ab4ab] placeholder-[#0ab4ab]/50 font-THSarabun"
                                                     placeholder="0"
                                                     min="0"
                                                     disabled={formData.wards[ward].isReadOnly === true}
@@ -1032,13 +1032,13 @@ const ShiftForm = () => {
                                         </div>
                                     ))}
                                     {/* Total Row */}
-                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-md p-1 text-white shadow h-8">
                                         <div className="text-center">
                                             <input
                                                 type="number"
                                                 value={displayValue(formData.totals.numberOfPatients)}
                                                 readOnly
-                                                className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                className="w-16 text-center text-sm font-bold bg-transparent border-b border-white focus:outline-none text-white font-THSarabun"
                                                 placeholder="0"
                                             />
                                         </div>
@@ -1046,18 +1046,18 @@ const ShiftForm = () => {
                                 </div>
 
                                 {/* Overall Data */}
-                                <div className="flex flex-col gap-4">
-                                    <div className="h-20 flex items-center justify-center">
-                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Overall Data</h4>
+                                <div className="flex flex-col gap-1">
+                                    <div className="h-12 flex items-center justify-center">
+                                        <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">Overall Data</h4>
                                     </div>
                                     {WARD_ORDER.map((ward) => (
-                                        <div key={ward} className="bg-gradient-to-r from-blue-400/20 to-blue-500/10 rounded-xl p-4 text-blue-600 shadow-lg h-16">
+                                        <div key={ward} className="bg-gradient-to-r from-blue-400/20 to-blue-500/10 rounded-md p-1 text-blue-600 shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.wards[ward].overallData)}
                                                     onChange={(e) => handleInputChange('overall', ward, { overallData: e.target.value })}
-                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-blue-500 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-blue-500 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
                                                     placeholder="0"
                                                     min="0"
                                                     disabled={formData.wards[ward].isReadOnly === true}
@@ -1066,13 +1066,13 @@ const ShiftForm = () => {
                                         </div>
                                     ))}
                                     {/* Total Row */}
-                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                    <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-md p-1 text-white shadow h-8">
                                         <div className="text-center">
                                             <input
                                                 type="number"
                                                 value={displayValue(formData.totals.overallData)}
                                                 readOnly
-                                                className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                className="w-16 text-center text-sm font-bold bg-transparent border-b border-white focus:outline-none text-white font-THSarabun"
                                                 placeholder="0"
                                             />
                                         </div>
@@ -1081,18 +1081,18 @@ const ShiftForm = () => {
 
                                 {/* Staff Section */}
                                 {['nurseManager', 'RN', 'PN', 'WC'].map((staffType) => (
-                                    <div key={staffType} className="flex flex-col gap-4">
-                                        <div className="h-20 flex items-center justify-center">
-                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{staffType}</h4>
+                                    <div key={staffType} className="flex flex-col gap-1">
+                                        <div className="h-12 flex items-center justify-center">
+                                            <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{staffType}</h4>
                                         </div>
                                         {WARD_ORDER.map((ward) => (
-                                            <div key={ward} className="bg-gradient-to-r from-green-400/20 to-green-500/10 rounded-xl p-4 text-green-600 shadow-lg h-16">
+                                            <div key={ward} className="bg-gradient-to-r from-green-400/20 to-green-500/10 rounded-md p-1 text-green-600 shadow h-8">
                                                 <div className="text-center">
                                                     <input
                                                         type="number"
                                                         value={displayValue(formData.wards[ward][staffType])}
                                                         onChange={(e) => handleInputChange('staff', ward, { [staffType]: e.target.value })}
-                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-green-500 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
+                                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-green-500 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
                                                         placeholder="0"
                                                         min="0"
                                                         disabled={formData.wards[ward].isReadOnly === true}
@@ -1101,13 +1101,13 @@ const ShiftForm = () => {
                                             </div>
                                         ))}
                                         {/* Total Row */}
-                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-md p-1 text-white shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.totals[staffType])}
                                                     readOnly
-                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-white focus:outline-none text-white font-THSarabun"
                                                     placeholder="0"
                                                 />
                                             </div>
@@ -1117,18 +1117,18 @@ const ShiftForm = () => {
 
                                 {/* Patient Movement Section */}
                                 {['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].map((movementType) => (
-                                    <div key={movementType} className="flex flex-col gap-4">
-                                        <div className="h-20 flex items-center justify-center">
-                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{movementType}</h4>
+                                    <div key={movementType} className="flex flex-col gap-1">
+                                        <div className="h-12 flex items-center justify-center">
+                                            <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{movementType}</h4>
                                         </div>
                                         {WARD_ORDER.map((ward) => (
-                                            <div key={ward} className="bg-gradient-to-r from-yellow-400/20 to-yellow-500/10 rounded-xl p-4 text-yellow-600 shadow-lg h-16">
+                                            <div key={ward} className="bg-gradient-to-r from-yellow-400/20 to-yellow-500/10 rounded-md p-1 text-yellow-600 shadow h-8">
                                                 <div className="text-center">
                                                     <input
                                                         type="number"
                                                         value={displayValue(formData.wards[ward][movementType])}
                                                         onChange={(e) => handleInputChange('movement', ward, { [movementType]: e.target.value })}
-                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-yellow-500 focus:outline-none focus:border-yellow-500 text-yellow-600 placeholder-yellow-300 font-THSarabun"
+                                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-yellow-500 focus:outline-none focus:border-yellow-500 text-yellow-600 placeholder-yellow-300 font-THSarabun"
                                                         placeholder="0"
                                                         min="0"
                                                         disabled={formData.wards[ward].isReadOnly === true}
@@ -1137,13 +1137,13 @@ const ShiftForm = () => {
                                             </div>
                                         ))}
                                         {/* Total Row */}
-                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-md p-1 text-white shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.totals[movementType])}
                                                     readOnly
-                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-white focus:outline-none text-white font-THSarabun"
                                                     placeholder="0"
                                                 />
                                             </div>
@@ -1153,18 +1153,18 @@ const ShiftForm = () => {
 
                                 {/* Additional Information Section */}
                                 {['availableBeds', 'unavailable', 'plannedDischarge'].map((infoType) => (
-                                    <div key={infoType} className="flex flex-col gap-4">
-                                        <div className="h-20 flex items-center justify-center">
-                                            <h4 className="text-base font-semibold text-gray-700 font-THSarabun">{infoType}</h4>
+                                    <div key={infoType} className="flex flex-col gap-1">
+                                        <div className="h-12 flex items-center justify-center">
+                                            <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{infoType}</h4>
                                     </div>
                                         {WARD_ORDER.map((ward) => (
-                                            <div key={ward} className="bg-gradient-to-r from-pink-400/20 to-pink-500/10 rounded-xl p-4 text-pink-600 shadow-lg h-16">
+                                            <div key={ward} className="bg-gradient-to-r from-pink-400/20 to-pink-500/10 rounded-md p-1 text-pink-600 shadow h-8">
                                                 <div className="text-center">
                                             <input
                                                 type="number"
                                                         value={displayValue(formData.wards[ward][infoType])}
                                                         onChange={(e) => handleInputChange('info', ward, { [infoType]: e.target.value })}
-                                                        className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-pink-500 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
+                                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-pink-500 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
                                                         placeholder="0"
                                                 min="0"
                                                     />
@@ -1172,13 +1172,13 @@ const ShiftForm = () => {
                                             </div>
                                         ))}
                                         {/* Total Row */}
-                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl p-4 text-white shadow-lg h-16">
+                                        <div className="bg-gradient-to-r from-purple-400 to-purple-500 rounded-md p-1 text-white shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.totals[infoType])}
                                                     readOnly
-                                                    className="w-24 text-center text-xl font-bold bg-transparent border-b-2 border-white focus:outline-none text-white font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-white focus:outline-none text-white font-THSarabun"
                                                     placeholder="0"
                                                 />
                                             </div>
@@ -1187,18 +1187,18 @@ const ShiftForm = () => {
                                 ))}
 
                                 {/* Comment Section */}
-                                <div className="flex flex-col gap-4">
-                                    <div className="h-20 flex items-center justify-center">
-                                        <h4 className="text-base font-semibold text-gray-700 font-THSarabun">Comment</h4>
+                                <div className="flex flex-col gap-1">
+                                    <div className="h-12 flex items-center justify-center">
+                                        <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">Comment</h4>
                                     </div>
                                     {WARD_ORDER.map((ward) => (
-                                        <div key={ward} className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl p-4 shadow-lg h-16">
+                                        <div key={ward} className="bg-gradient-to-r from-gray-100 to-gray-200 rounded-md p-1 shadow h-8">
                                             <div className="text-center">
                                                 <input
                                                     type="text"
                                                     value={formData.wards[ward].comment}
                                                     onChange={(e) => handleInputChange('comment', ward, { comment: e.target.value })}
-                                                    className="w-40 text-center text-sm bg-transparent border-b-2 border-gray-400 focus:outline-none focus:border-gray-600 text-gray-600 placeholder-gray-300 font-THSarabun"
+                                                    className="w-24 text-center text-xs bg-transparent border-b border-gray-400 focus:outline-none focus:border-gray-600 text-gray-600 placeholder-gray-300 font-THSarabun"
                                                     placeholder="Add comment..."
                                                     disabled={formData.wards[ward].isReadOnly === true}
                                                 />
@@ -1206,125 +1206,121 @@ const ShiftForm = () => {
                                         </div>
                                     ))}
                                     {/* Empty Total Row for Comment */}
-                                    <div className="h-16"></div>
+                                    <div className="h-8"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     {/* 24-hour Summary Section */}
-                    <div className="bg-white rounded-lg shadow-lg p-6 mt-12 mb-6">
+                    <div className="bg-white rounded-lg shadow-lg p-3 mt-6 mb-3">
                         {/* 24-hour Summary */}
-                        <div className="bg-gradient-to-r from-[#0ab4ab]/30 to-white p-6 rounded-xl mb-6">
-                            <h2 className="text-2xl font-bold text-[#0ab4ab] text-center mb-8 font-THSarabun">24-hour Summary</h2>
-                            <div className="grid grid-cols-4 gap-8">
+                        <div className="bg-gradient-to-r from-[#0ab4ab]/30 to-white p-3 rounded-lg mb-3">
+                            <h2 className="text-xl font-bold text-[#0ab4ab] text-center mb-4 font-THSarabun">24-hour Summary</h2>
+                            <div className="grid grid-cols-4 gap-4">
                                 {/* OPD 24hr */}
-                                <div className="bg-gradient-to-r from-pink-400/30 to-pink-400/20 rounded-xl p-6 shadow-lg">
-                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">OPD 24hr</label>
+                                <div className="bg-gradient-to-r from-pink-50 to-pink-400/20 rounded-lg p-3 shadow">
+                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">OPD 24hr</label>
                                     <input
                                         type="number"
-                                                value={summaryData.opdTotal24hr}
-                                                onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-pink-400 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
-                                                placeholder="0"
+                                        value={summaryData.opdTotal24hr}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
+                                        className="w-full text-center text-base font-bold bg-transparent border-b border-pink-400 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
+                                        placeholder="0"
                                         min="0"
-                                            />
-                                        </div>
-                                {/* Old Patient */}
-                                <div className="bg-gradient-to-r from-purple-400/30 to-purple-400/20 rounded-xl p-6 shadow-lg">
-                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">Old Patient</label>
-                                            <input
-                                                type="number"
-                                                value={summaryData.existingPatients}
-                                                onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-purple-400 focus:outline-none focus:border-purple-500 text-purple-600 placeholder-purple-300 font-THSarabun"
-                                                placeholder="0"
-                                        min="0"
-                                            />
-                                        </div>
-                                {/* New Patient */}
-                                <div className="bg-gradient-to-r from-blue-400/30 to-blue-400/20 rounded-xl p-6 shadow-lg">
-                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">New Patient</label>
-                                            <input
-                                                type="number"
-                                                value={summaryData.newPatients}
-                                                onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-blue-400 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
-                                                placeholder="0"
-                                        min="0"
-                                            />
-                                        </div>
-                                {/* Admit 24hr */}
-                                <div className="bg-gradient-to-r from-green-400/30 to-green-400/20 rounded-xl p-6 shadow-lg">
-                                    <label className="block text-base font-medium text-gray-700 font-THSarabun mb-3 text-center">Admit 24hr</label>
-                                            <input
-                                                type="number"
-                                                value={summaryData.admissions24hr}
-                                                onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                        className="w-full text-center text-xl font-bold bg-transparent border-b-2 border-green-400 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
-                                                placeholder="0"
-                                        min="0"
-                                            />
-                                        </div>
-                                    </div>
+                                    />
                                 </div>
+                                {/* Old Patient */}
+                                <div className="bg-gradient-to-r from-purple-50 to-purple-400/20 rounded-lg p-3 shadow">
+                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">Old Patient</label>
+                                    <input
+                                        type="number"
+                                        value={summaryData.existingPatients}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
+                                        className="w-full text-center text-base font-bold bg-transparent border-b border-purple-400 focus:outline-none focus:border-purple-500 text-purple-600 placeholder-purple-300 font-THSarabun"
+                                        placeholder="0"
+                                        min="0"
+                                    />
+                                </div>
+                                {/* New Patient */}
+                                <div className="bg-gradient-to-r from-blue-50 to-blue-400/20 rounded-lg p-3 shadow">
+                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">New Patient</label>
+                                    <input
+                                        type="number"
+                                        value={summaryData.newPatients}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
+                                        className="w-full text-center text-base font-bold bg-transparent border-b border-blue-400 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
+                                        placeholder="0"
+                                        min="0"
+                                    />
+                                </div>
+                                {/* Admit 24hr */}
+                                <div className="bg-gradient-to-r from-green-50 to-green-400/20 rounded-lg p-3 shadow">
+                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">Admit 24hr</label>
+                                    <input
+                                        type="number"
+                                        value={summaryData.admissions24hr}
+                                        onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
+                                        className="w-full text-center text-base font-bold bg-transparent border-b border-green-400 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
+                                        placeholder="0"
+                                        min="0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Signature Section */}
-                        <div className="bg-gradient-to-r from-[#0ab4ab]/20 to-white p-8 rounded-xl">
-                            <div className="text-center mb-8">
-                                <h2 className="text-2xl font-bold text-[#0ab4ab] font-THSarabun">Signature</h2>
-                                <div className="w-24 h-1 bg-gradient-to-r from-[#0ab4ab] to-transparent mx-auto mt-2"></div>
-                                    </div>
-                            <div className="grid grid-cols-2 gap-12">
-
-
+                        <div className="bg-gradient-to-r from-[#0ab4ab]/20 to-white p-4 rounded-lg">
+                            <div className="text-center mb-4">
+                                <h2 className="text-xl font-bold text-red-400 font-THSarabun">Signature</h2>
+                                <div className="w-16 h-0.5 bg-gradient-to-r from-[#0ab4ab] to-transparent mx-auto mt-1"></div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-6">
                                 {/* Recorder Section */}
-                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-xl p-6 shadow-lg">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-2 h-8 bg-[#0ab4ab] rounded-full"></div>
-                                        <label className="text-base font-medium text-gray-700 font-THSarabun">ผู้บันทึกข้อมูล</label>
+                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-lg p-3 shadow">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-1 h-6 bg-[#0ab4ab] rounded-full"></div>
+                                        <label className="text-sm font-medium text-gray-700 font-THSarabun">ผู้บันทึกข้อมูล</label>
                                     </div>
-                                            <div className="space-y-4">
-                                                        <input
-                                                            type="text"
+                                    <div className="space-y-2">
+                                        <input
+                                            type="text"
                                             value={summaryData.recorderFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
-                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                                            placeholder="First Name"
-                                                        />
-                                                        <input
-                                                            type="text"
+                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            placeholder="First Name"
+                                        />
+                                        <input
+                                            type="text"
                                             value={summaryData.recorderLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
-                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                                            placeholder="Last Name"
-                                                        />
-                                                    </div>
-                                                </div>
+                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            placeholder="Last Name"
+                                        />
+                                    </div>
+                                </div>
                                 {/* Supervisor Section */}
-                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-xl p-6 shadow-lg">
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-2 h-8 bg-[#0ab4ab] rounded-full"></div>
-                                        <label className="text-base font-medium text-gray-700 font-THSarabun">Supervisor</label>
-                                            </div>
-                                            <div className="space-y-4">
-                                                        <input
-                                                            type="text"
+                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-lg p-3 shadow">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-1 h-6 bg-[#0ab4ab] rounded-full"></div>
+                                        <label className="text-sm font-medium text-gray-700 font-THSarabun">Supervisor</label>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <input
+                                            type="text"
                                             value={summaryData.supervisorFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                                            placeholder="First Name"
-                                                        />
-                                                        <input
-                                                            type="text"
+                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            placeholder="First Name"
+                                        />
+                                        <input
+                                            type="text"
                                             value={summaryData.supervisorLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                            className="w-full px-4 py-3 text-black border-2 border-gray-100 rounded-lg text-base focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                                            placeholder="Last Name"
-                                                        />
-                                                    </div>
-                                                </div>
-
-
+                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            placeholder="Last Name"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1381,14 +1377,14 @@ const ShiftForm = () => {
                                             type="text"
                                             value={summaryData.supervisorFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="First Name"
                                         />
                                         <input
                                             type="text"
                                             value={summaryData.supervisorLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="Last Name"
                                         />
                                     </div>
@@ -1402,14 +1398,14 @@ const ShiftForm = () => {
                                             type="text"
                                             value={summaryData.recorderFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="First Name"
                                         />
                                         <input
                                             type="text"
                                             value={summaryData.recorderLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-purple-500 text-black"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="Last Name"
                                         />
                                     </div>
@@ -1419,6 +1415,7 @@ const ShiftForm = () => {
                     </div>
                 </div>
 
+                {/* Submit Button */}
                 <div className="mt-8 flex justify-center p-6 bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg">
                     <button
                         type="submit"
