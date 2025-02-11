@@ -39,7 +39,7 @@ export default function Home() {
       </nav>
 
       {/* Content */}
-      <main className="container mx-auto p-4">
+      <main className="container mx-auto">
         {currentPage === 'form' ? <ShiftForm /> : <Dashboard />}
       </main>
 
