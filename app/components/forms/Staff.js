@@ -7,8 +7,17 @@ const Staff = ({
     handleInputChange,
     initialWardData,
     displayValue,
-    calculateTotals
+    calculateTotals,
+    isReadOnly // เพิ่ม prop สำหรับควบคุมการแก้ไขข้อมูล
 }) => {
+    const staffTypes = ['nurseManager', 'RN', 'PN', 'WC'];
+    const staffLabels = {
+        nurseManager: 'Nurse Manager',
+        RN: 'RN',
+        PN: 'PN',
+        WC: 'WC'
+    };
+
     return (
         <div className="min-w-[500px] flex-1">
             <div className="overflow-x-visible">
@@ -30,7 +39,7 @@ const Staff = ({
                                 const data = formData.wards[ward] || { ...initialWardData };
                                 return (
                                     <React.Fragment key={`staff-${ward}`}>
-                                        {['nurseManager', 'RN', 'PN', 'WC'].map((field) => (
+                                        {staffTypes.map((field) => (
                                             <div key={`${ward}-${field}`} className="border border-gray-200/50 p-1.5 bg-white/80">
                                                 <input
                                                     type="number"
@@ -39,6 +48,7 @@ const Staff = ({
                                                     onChange={(e) => handleInputChange('wards', ward, { ...data, [field]: e.target.value })}
                                                     className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
                                                     placeholder="0"
+                                                    disabled={isReadOnly}
                                                 />
                                             </div>
                                         ))}

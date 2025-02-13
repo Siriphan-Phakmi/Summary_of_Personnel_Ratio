@@ -5,6 +5,12 @@ import { CHART_COLORS, COMMON_STYLES } from '../../constants/dashboard';
 export function Charts({ overallData }) {
     const chartData = useMemo(() => {
         const wardEntries = Object.entries(overallData.byWard || {});
+        if (wardEntries.length === 0) {
+            return {
+                pie: { labels: [], datasets: [{ data: [] }] },
+                bar: { labels: [], datasets: [{ data: [] }] }
+            };
+        }
         const labels = wardEntries.map(([ward]) => ward);
         const data = wardEntries.map(([, value]) => value.numberOfPatients || 0);
 
@@ -39,7 +45,8 @@ export function Charts({ overallData }) {
                 position: 'right',
                 labels: {
                     font: {
-                        size: 12
+                        size: 14,  // เพิ่มขนาดตัวอักษร
+                        family: "'Kanit', sans-serif"  // เพิ่มฟอนต์ไทย
                     }
                 }
             },
@@ -52,13 +59,21 @@ export function Charts({ overallData }) {
                 }
             },
             tooltip: {
+                titleFont: {
+                    size: 14,
+                    family: "'Kanit', sans-serif"
+                },
+                bodyFont: {
+                    size: 13,
+                    family: "'Kanit', sans-serif"
+                },
                 callbacks: {
                     label: (context) => {
                         const label = context.label || '';
                         const value = context.raw || 0;
                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                         const percentage = total ? ((value / total) * 100).toFixed(1) : 0;
-                        return `${label}: ${value} (${percentage}%)`;
+                        return `จำนวนผู้ป่วย: ${value} คน (${percentage}%)`;
                     }
                 }
             }
@@ -71,6 +86,12 @@ export function Charts({ overallData }) {
         plugins: {
             legend: {
                 position: 'top',
+                labels: {
+                    font: {
+                        size: 14,
+                        family: "'Kanit', sans-serif"
+                    }
+                }
             },
             title: {
                 display: true,
@@ -79,6 +100,16 @@ export function Charts({ overallData }) {
                     size: 16,
                     weight: 'bold'
                 }
+            },
+            tooltip: {
+                titleFont: {
+                    size: 14,
+                    family: "'Kanit', sans-serif"
+                },
+                bodyFont: {
+                    size: 13,
+                    family: "'Kanit', sans-serif"
+                }
             }
         },
         scales: {
@@ -86,9 +117,30 @@ export function Charts({ overallData }) {
                 beginAtZero: true,
                 title: {
                     display: true,
-                    text: 'Number of Patients'
+                    text: 'จำนวนผู้ป่วย (คน)',
+                    font: {
+                        size: 14,
+                        family: "'Kanit', sans-serif"
+                    }
+                },
+                ticks: {
+                    font: {
+                        size: 12,
+                        family: "'Kanit', sans-serif"
+                    }
+                }
+            },
+            x: {
+                ticks: {
+                    font: {
+                        size: 12,
+                        family: "'Kanit', sans-serif"
+                    }
                 }
             }
+        },
+        onHover: (event, chartElement) => {
+            event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
         }
     };
 
