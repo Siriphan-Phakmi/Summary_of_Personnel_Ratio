@@ -134,12 +134,12 @@ const ShiftForm = () => {
             setFormData(prev => ({ 
                 ...prev, 
                 date: isoDate,
-                shift: '07:00-19:00' // ตั้งค่าเริ่มต้นเป็นกะเช้า
+                shift: '' // Remove default shift selection
             }));
             setThaiDate(formatThaiDate(today));
             
-            // ดึงข้อมูลอัตโนมัติ
-            fetchPreviousShiftData(isoDate, '07:00-19:00');
+            // เรียกใช้ฟังก์ชันดึงข้อมูลล่าสุดเมื่อโหลดแอพ
+            fetchLatestData();
         }
     }, []);
 
@@ -155,11 +155,6 @@ const ShiftForm = () => {
         setSelectedDate(dateObj);
         setFormData(prev => ({ ...prev, date: newDate }));
         setThaiDate(formatThaiDate(dateObj));
-
-        // ถ้ามีการเลือกกะแล้ว ให้ดึงข้อมูลจากกะก่อนหน้า
-        if (formData.shift) {
-            await fetchPreviousShiftData(newDate, formData.shift);
-        }
     };
 
     // เพิ่มฟังก์ชันคำนวณ totals
@@ -223,42 +218,35 @@ const ShiftForm = () => {
             })
         );
 
-        // Get current ward data
-        const currentWardData = formData.wards[ward];
+        setFormData(prev => {
+            const currentWardData = prev.wards[ward];
+            
+            // Calculate overallData with validation
+            const overallData = Math.max(0,
+                (parseInt(currentWardData.numberOfPatients) || 0) +
+                (parseInt(sanitizedData.newAdmit || currentWardData.newAdmit) || 0) +
+                (parseInt(sanitizedData.transferIn || currentWardData.transferIn) || 0) +
+                (parseInt(sanitizedData.referIn || currentWardData.referIn) || 0) -
+                (parseInt(sanitizedData.transferOut || currentWardData.transferOut) || 0) -
+                (parseInt(sanitizedData.referOut || currentWardData.referOut) || 0) -
+                (parseInt(sanitizedData.discharge || currentWardData.discharge) || 0) -
+                (parseInt(sanitizedData.dead || currentWardData.dead) || 0)
+            );
 
-        // Calculate overallData with validation
-        const overallData = Math.max(0,
-            (parseInt(sanitizedData.numberOfPatients || currentWardData.numberOfPatients) || 0) +
-            (parseInt(sanitizedData.newAdmit || currentWardData.newAdmit) || 0) +
-            (parseInt(sanitizedData.transferIn || currentWardData.transferIn) || 0) +
-            (parseInt(sanitizedData.referIn || currentWardData.referIn) || 0) -
-            (parseInt(sanitizedData.transferOut || currentWardData.transferOut) || 0) -
-            (parseInt(sanitizedData.referOut || currentWardData.referOut) || 0) -
-            (parseInt(sanitizedData.discharge || currentWardData.discharge) || 0) -
-            (parseInt(sanitizedData.dead || currentWardData.dead) || 0)
-        );
-
-        sanitizedData.overallData = overallData.toString();
-
-        // ตรวจสอบความสัมพันธ์ของจำนวนเตียงทันที
-        const bedErrors = validateBedCapacity(sanitizedData);
-        if (bedErrors.length > 0) {
-            // แสดง warning แต่ยังอนุญาตให้บันทึกข้อมูลได้
-            console.warn(`${ward}: ${bedErrors.join(', ')}`);
-        }
-
-        setFormData(prev => ({
-            ...prev,
-            wards: {
-                ...prev.wards,
-                [ward]: {
-                    ...prev.wards[ward],
-                    ...sanitizedData,
-                    isReadOnly: false // Always ensure the field is editable
+            return {
+                ...prev,
+                wards: {
+                    ...prev.wards,
+                    [ward]: {
+                        ...prev.wards[ward],
+                        ...sanitizedData,
+                        overallData: overallData.toString(),
+                        isReadOnly: false
+                    }
                 }
-            }
-        }));
-    }, [formData.wards]); // Add formData.wards as dependency
+            };
+        });
+    }, []); // Remove formData.wards dependency
 
     // Add new function to display values
     const displayValue = (value) => {
@@ -271,6 +259,7 @@ const ShiftForm = () => {
         const selected = new Date(formData.date);
         const today = new Date();
         
+        // Reset time to midnight for accurate date comparison
         selected.setHours(0, 0, 0, 0);
         today.setHours(0, 0, 0, 0);
         
@@ -278,8 +267,16 @@ const ShiftForm = () => {
     };
 
     const isPastDate = () => {
-        // Remove past date validation to allow historical data entry
-        return false;
+        if (!formData.date) return false;
+        const selected = new Date(formData.date);
+        const today = new Date();
+        
+        // Reset time to midnight for accurate date comparison
+        selected.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        
+        // Allow saving data for current date and future dates (within 1 day)
+        return selected < today;
     };
 
     const isFutureDateMoreThanOneDay = () => {
@@ -288,10 +285,11 @@ const ShiftForm = () => {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         
+        // Reset time to midnight for accurate date comparison
         selected.setHours(0, 0, 0, 0);
         tomorrow.setHours(0, 0, 0, 0);
         
-        return selected.getTime() > tomorrow.getTime();
+        return selected > tomorrow;
     };
 
     // Move hasWardData function here, before validateFormData
@@ -364,10 +362,6 @@ const ShiftForm = () => {
                 message: 'ไม่สามารถบันทึกข้อมูลล่วงหน้าเกิน 1 วันได้'
             },
             {
-                condition: formData.shift === '19:00-07:00' && isCurrentDate(),
-                message: 'กรุณาเลือกวันที่ล่วงหน้าสำหรับกะกลางคืน'
-            },
-            {
                 condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
                 message: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล'
             },
@@ -386,7 +380,7 @@ const ShiftForm = () => {
         }
 
         return true;
-    }, [formData, summaryData, isCurrentDate, isFutureDateMoreThanOneDay, hasDataChanges]);
+    }, [formData, summaryData, isFutureDateMoreThanOneDay, hasDataChanges]);
 
     const resetForm = () => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะล้างข้อมูลทั้งหมด?')) {
@@ -841,7 +835,8 @@ const ShiftForm = () => {
                         updatedWards[wardName] = {
                             ...formData.wards[wardName],
                             numberOfPatients: wardData.overallData || '0',
-                            isReadOnly: false // Ensure fields are editable
+                            overallData: wardData.overallData || '0',
+                            isReadOnly: false
                         };
                     });
 
@@ -873,12 +868,8 @@ const ShiftForm = () => {
     };
 
     // Update the handleShiftChange function
-    const handleShiftChange = async (shift) => {
+    const handleShiftChange = (shift) => {
         setFormData(prev => ({ ...prev, shift }));
-        if (formData.date) {
-            // Remove the fetchPreviousShiftData call since we don't want to show data fetching
-            // await fetchPreviousShiftData(formData.date, shift);
-        }
     };
 
     // เพิ่มฟังก์ชันสำหรับจัดรูปแบบชื่อ Ward
@@ -895,6 +886,69 @@ const ShiftForm = () => {
                 return ward;
             default:
                 return ward.replace(/Ward(\d+)/, 'Ward $1');
+        }
+    };
+
+    // เพิ่มฟังก์ชันสำหรับดึงข้อมูลล่าสุด
+    const fetchLatestData = async () => {
+        setLoadingMessage('กำลังดึงข้อมูลล่าสุด...');
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const latestDataQuery = query(
+                recordsRef,
+                orderBy('date', 'desc'),
+                limit(1)
+            );
+
+            const latestSnapshot = await getDocs(latestDataQuery);
+            if (!latestSnapshot.empty) {
+                const latestData = latestSnapshot.docs[0].data();
+                const latestDate = formatThaiDate(new Date(latestData.date)).replace('เพิ่มข้อมูล วันที่: ', '');
+                
+                setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
+                
+                // อัพเดทข้อมูลในฟอร์ม
+                const updatedWards = {};
+                Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
+                    updatedWards[wardName] = {
+                        ...formData.wards[wardName],
+                        numberOfPatients: wardData.overallData || '0',
+                        overallData: wardData.overallData || '0',
+                        isReadOnly: false
+                    };
+                });
+
+                setFormData(prev => ({
+                    ...prev,
+                    wards: {
+                        ...prev.wards,
+                        ...updatedWards
+                    }
+                }));
+
+                // อัพเดท Summary Data
+                if (latestData.summaryData) {
+                    setSummaryData(prev => ({
+                        ...prev,
+                        ...latestData.summaryData
+                    }));
+                }
+
+                setTimeout(() => {
+                    setLoadingMessage('');
+                }, 2000);
+            } else {
+                setLoadingMessage('ไม่พบข้อมูลที่บันทึกไว้');
+                setTimeout(() => {
+                    setLoadingMessage('');
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Error fetching latest data:', error);
+            setLoadingMessage(`เกิดข้อผิดพลาด: ${error.message}`);
+            setTimeout(() => {
+                setLoadingMessage('');
+            }, 3000);
         }
     };
 
@@ -937,7 +991,7 @@ const ShiftForm = () => {
                                             <div className="relative bg-white rounded-lg">
                                                 <Calendar
                                                     selectedDate={selectedDate}
-                                                    onDateSelect={(date) => {
+                                                    onDateSelect={async (date) => {
                                                         setSelectedDate(date);
                                                         const isoDate = date.toISOString().split('T')[0];
                                                         setFormData(prev => ({
@@ -1022,11 +1076,10 @@ const ShiftForm = () => {
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.wards[ward].numberOfPatients)}
-                                                    onChange={(e) => handleInputChange('census', ward, { numberOfPatients: e.target.value })}
-                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-[#0ab4ab] focus:outline-none focus:border-[#0ab4ab] text-[#0ab4ab] placeholder-[#0ab4ab]/50 font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-gray-100 border-b border-[#0ab4ab] focus:outline-none text-[#0ab4ab] placeholder-[#0ab4ab]/50 font-THSarabun cursor-not-allowed"
                                                     placeholder="0"
-                                                    min="0"
-                                                    disabled={formData.wards[ward].isReadOnly === true}
+                                                    readOnly
+                                                    disabled
                                                 />
                                             </div>
                                         </div>
@@ -1056,11 +1109,10 @@ const ShiftForm = () => {
                                                 <input
                                                     type="number"
                                                     value={displayValue(formData.wards[ward].overallData)}
-                                                    onChange={(e) => handleInputChange('overall', ward, { overallData: e.target.value })}
-                                                    className="w-16 text-center text-sm font-bold bg-transparent border-b border-blue-500 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
+                                                    className="w-16 text-center text-sm font-bold bg-gray-100 border-b border-blue-500 focus:outline-none text-blue-600 placeholder-blue-300 font-THSarabun cursor-not-allowed"
                                                     placeholder="0"
-                                                    min="0"
-                                                    disabled={formData.wards[ward].isReadOnly === true}
+                                                    readOnly
+                                                    disabled
                                                 />
                                             </div>
                                         </div>
@@ -1080,7 +1132,7 @@ const ShiftForm = () => {
                                 </div>
 
                                 {/* Staff Section */}
-                                {['nurseManager', 'RN', 'PN', 'WC'].map((staffType) => (
+                                {['Nurse Manager', 'RN', 'PN', 'WC'].map((staffType) => (
                                     <div key={staffType} className="flex flex-col gap-1">
                                         <div className="h-12 flex items-center justify-center">
                                             <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{staffType}</h4>
@@ -1116,7 +1168,7 @@ const ShiftForm = () => {
                                 ))}
 
                                 {/* Patient Movement Section */}
-                                {['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].map((movementType) => (
+                                {['New Admit', 'Transfer In', 'Refer In', 'Transfer Out', 'Refer Out', 'Discharge', 'Dead'].map((movementType) => (
                                     <div key={movementType} className="flex flex-col gap-1">
                                         <div className="h-12 flex items-center justify-center">
                                             <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{movementType}</h4>
@@ -1152,7 +1204,7 @@ const ShiftForm = () => {
                                 ))}
 
                                 {/* Additional Information Section */}
-                                {['availableBeds', 'unavailable', 'plannedDischarge'].map((infoType) => (
+                                {['Available', 'Unavailable', 'Planned Discharge'].map((infoType) => (
                                     <div key={infoType} className="flex flex-col gap-1">
                                         <div className="h-12 flex items-center justify-center">
                                             <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{infoType}</h4>
@@ -1211,201 +1263,108 @@ const ShiftForm = () => {
                             </div>
                         </div>
                     </div>
-                    {/* 24-hour Summary Section */}
-                    <div className="bg-white rounded-lg shadow-lg p-3 mt-6 mb-3">
-                        {/* 24-hour Summary */}
-                        <div className="bg-gradient-to-r from-[#0ab4ab]/30 to-white p-3 rounded-lg mb-3">
-                            <h2 className="text-xl font-bold text-[#0ab4ab] text-center mb-4 font-THSarabun">24-hour Summary</h2>
-                            <div className="grid grid-cols-4 gap-4">
-                                {/* OPD 24hr */}
-                                <div className="bg-gradient-to-r from-pink-50 to-pink-400/20 rounded-lg p-3 shadow">
-                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">OPD 24hr</label>
+                </div>
+
+                {/* Summary Data and Signature Section - Desktop */}
+                <div className="hidden md:block mt-8">
+                    <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg p-6">
+                        {/* 24-Hour Summary Section */}
+                        <div className="mb-8">
+                            <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ข้อมูลสรุป 24 ชั่วโมง</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">OPD 24hr</label>
                                     <input
                                         type="number"
                                         value={summaryData.opdTotal24hr}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, opdTotal24hr: e.target.value }))}
-                                        className="w-full text-center text-base font-bold bg-transparent border-b border-pink-400 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                         placeholder="0"
-                                        min="0"
                                     />
                                 </div>
-                                {/* Old Patient */}
-                                <div className="bg-gradient-to-r from-purple-50 to-purple-400/20 rounded-lg p-3 shadow">
-                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">Old Patient</label>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Old Patient</label>
                                     <input
                                         type="number"
                                         value={summaryData.existingPatients}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, existingPatients: e.target.value }))}
-                                        className="w-full text-center text-base font-bold bg-transparent border-b border-purple-400 focus:outline-none focus:border-purple-500 text-purple-600 placeholder-purple-300 font-THSarabun"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                         placeholder="0"
-                                        min="0"
                                     />
                                 </div>
-                                {/* New Patient */}
-                                <div className="bg-gradient-to-r from-blue-50 to-blue-400/20 rounded-lg p-3 shadow">
-                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">New Patient</label>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">New Patient</label>
                                     <input
                                         type="number"
                                         value={summaryData.newPatients}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, newPatients: e.target.value }))}
-                                        className="w-full text-center text-base font-bold bg-transparent border-b border-blue-400 focus:outline-none focus:border-blue-500 text-blue-600 placeholder-blue-300 font-THSarabun"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                         placeholder="0"
-                                        min="0"
                                     />
                                 </div>
-                                {/* Admit 24hr */}
-                                <div className="bg-gradient-to-r from-green-50 to-green-400/20 rounded-lg p-3 shadow">
-                                    <label className="block text-sm font-medium text-gray-700 font-THSarabun mb-2 text-center">Admit 24hr</label>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Admit 24hr</label>
                                     <input
                                         type="number"
                                         value={summaryData.admissions24hr}
                                         onChange={(e) => setSummaryData(prev => ({ ...prev, admissions24hr: e.target.value }))}
-                                        className="w-full text-center text-base font-bold bg-transparent border-b border-green-400 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
+                                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                         placeholder="0"
-                                        min="0"
                                     />
                                 </div>
                             </div>
                         </div>
 
                         {/* Signature Section */}
-                        <div className="bg-gradient-to-r from-[#0ab4ab]/20 to-white p-4 rounded-lg">
-                            <div className="text-center mb-4">
-                                <h2 className="text-xl font-bold text-red-400 font-THSarabun">Signature</h2>
-                                <div className="w-16 h-0.5 bg-gradient-to-r from-[#0ab4ab] to-transparent mx-auto mt-1"></div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-6">
-                                {/* Recorder Section */}
-                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-lg p-3 shadow">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-1 h-6 bg-[#0ab4ab] rounded-full"></div>
-                                        <label className="text-sm font-medium text-gray-700 font-THSarabun">ผู้บันทึกข้อมูล</label>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <input
-                                            type="text"
-                                            value={summaryData.recorderFirstName}
-                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                            placeholder="First Name"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={summaryData.recorderLastName}
-                                            onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                            placeholder="Last Name"
-                                        />
-                                    </div>
-                                </div>
-                                {/* Supervisor Section */}
-                                <div className="bg-gradient-to-br from-white to-[#0ab4ab]/5 rounded-lg p-3 shadow">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-1 h-6 bg-[#0ab4ab] rounded-full"></div>
-                                        <label className="text-sm font-medium text-gray-700 font-THSarabun">Supervisor</label>
-                                    </div>
-                                    <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Supervisor */}
+                            <div>
+                                <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">Supervisor Signature</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                                         <input
                                             type="text"
                                             value={summaryData.supervisorFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="First Name"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                                         <input
                                             type="text"
                                             value={summaryData.supervisorLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 text-sm border border-gray-100 rounded-lg focus:ring-1 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="Last Name"
                                         />
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Mobile View */}
-                <div className="md:hidden space-y-4">
-                    {/* Mobile Ward Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 max-h-[calc(100vh-400px)] overflow-y-auto">
-                        {WARD_ORDER.map((ward) => (
-                                <div key={ward} className="mb-6 bg-gradient-to-r from-pink-50 to-blue-50 rounded-xl shadow-lg p-4">
-                                    <h3 className="text-lg font-semibold mb-3 text-center text-[#0ab4ab] border-b-2 border-[#0ab4ab]/20 pb-2">
-                                        <span className="whitespace-nowrap">
-                                            {formatWardName(ward)}
-                                        </span>
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="text-center">
-                                            <p className="text-sm text-gray-600">Patient Census</p>
-                                <input
-                                    type="number"
-                                            value={displayValue(formData.wards[ward].numberOfPatients)}
-                                            onChange={(e) => handleInputChange('census', ward, { numberOfPatients: e.target.value || '0' })}
-                                            className="w-full text-center text-lg font-medium text-black bg-transparent border-b border-gray-300 focus:outline-none focus:border-[#0ab4ab]"
-                                    min="0"
-                                            placeholder="0"
-                                />
-                            </div>
-                                    <div className="text-center">
-                                        <p className="text-sm text-gray-600">Overall Data</p>
-                                <input
-                                    type="number"
-                                            value={displayValue(formData.wards[ward].overallData)}
-                                            onChange={(e) => handleInputChange('overall', ward, { overallData: e.target.value })}
-                                            className="w-full text-center text-lg font-medium text-black bg-transparent border-b border-gray-300 focus:outline-none focus:border-[#0ab4ab]"
-                                    min="0"
-                                            placeholder="0"
-                                />
-                            </div>
-                            </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Mobile Staff Information */}
-                    <div className="space-y-4 p-4 mb-20">
-                        <div className="bg-[#0ab4ab]/10 rounded-lg p-4">
-                            <div className="space-y-4">
-                                {/* Supervisor */}
-                                <div>
-                                    <label className="block text-sm font-medium text-black">Supervisor Signature</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input
-                                            type="text"
-                                            value={summaryData.supervisorFirstName}
-                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                            placeholder="First Name"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={summaryData.supervisorLastName}
-                                            onChange={(e) => setSummaryData(prev => ({ ...prev, supervisorLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
-                                            placeholder="Last Name"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Recorder */}
-                                <div>
-                                    <label className="block text-sm font-medium text-black">ผู้บันทึกข้อมูล</label>
-                                    <div className="grid grid-cols-2 gap-2">
+                            {/* Recorder */}
+                            <div>
+                                <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ผู้บันทึกข้อมูล</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                                         <input
                                             type="text"
                                             value={summaryData.recorderFirstName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderFirstName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="First Name"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                                         <input
                                             type="text"
                                             value={summaryData.recorderLastName}
                                             onChange={(e) => setSummaryData(prev => ({ ...prev, recorderLastName: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] font-THSarabun bg-white/50 hover:bg-white transition-colors"
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0ab4ab] focus:border-[#0ab4ab] text-black font-THSarabun bg-white/50 hover:bg-white transition-colors"
                                             placeholder="Last Name"
                                         />
                                     </div>

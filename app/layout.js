@@ -2,7 +2,7 @@ import './globals.css'
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'ระบบรายงานอัตรากำลัง',
+  title: 'ระบบรายงานอัตรากำลังและจำนวนผู้ป่วย',
   description: 'ระบบรายงานอัตรากำลังและจำนวนผู้ป่วย',
 }
 
