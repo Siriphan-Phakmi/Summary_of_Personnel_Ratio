@@ -7,8 +7,18 @@ const CensusOverview = ({
     handleInputChange, 
     initialWardData, 
     formatWardName,
-    calculateTotals 
+    calculateTotals,
+    isReadOnly // เพิ่ม prop สำหรับควบคุมการแก้ไขข้อมูล
 }) => {
+    const handleCensusChange = (ward, value) => {
+        const data = formData.wards[ward] || { ...initialWardData };
+        handleInputChange('wards', ward, { 
+            ...data, 
+            numberOfPatients: value,
+            overallData: value // Set initial overallData to match numberOfPatients
+        });
+    };
+
     return (
         <div className="min-w-[350px] flex-1">
             <div className="overflow-x-visible">
@@ -47,9 +57,10 @@ const CensusOverview = ({
                                                 min="0"
                                                 max="99999"
                                                 value={data.numberOfPatients}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, numberOfPatients: e.target.value })}
+                                                onChange={(e) => handleCensusChange(ward, e.target.value)}
                                                 className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
                                                 placeholder="0"
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         {/* Overall Data Column */}

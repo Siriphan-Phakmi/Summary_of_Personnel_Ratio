@@ -1,9 +1,51 @@
 'use client';
 import React from 'react';
 
-const PatientMovement = ({ WARD_ORDER, formData, handleInputChange, initialWardData, displayValue, calculateTotals }) => {
-    const headers = ['New Admit', 'Transfer In', 'Refer In', 'Transfer Out', 'Refer Out', 'Discharge', 'Dead'];
-    const fields = ['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'];
+const PatientMovement = ({ 
+    WARD_ORDER, 
+    formData, 
+    handleInputChange, 
+    initialWardData, 
+    displayValue, 
+    calculateTotals,
+    isReadOnly // เพิ่ม prop สำหรับควบคุมการแก้ไขข้อมูล
+}) => {
+    const movementFields = {
+        newAdmit: 'New Admit',
+        transferIn: 'Transfer In',
+        referIn: 'Refer In',
+        transferOut: 'Transfer Out',
+        referOut: 'Refer Out',
+        discharge: 'Discharge',
+        dead: 'Dead'
+    };
+
+    // เพิ่มฟังก์ชันคำนวณ overallData
+    const calculateOverallData = (data) => {
+        return Math.max(0,
+            (parseInt(data.numberOfPatients) || 0) +
+            (parseInt(data.newAdmit) || 0) +
+            (parseInt(data.transferIn) || 0) +
+            (parseInt(data.referIn) || 0) -
+            (parseInt(data.transferOut) || 0) -
+            (parseInt(data.referOut) || 0) -
+            (parseInt(data.discharge) || 0) -
+            (parseInt(data.dead) || 0)
+        );
+    };
+
+    const handleMovementChange = (ward, field, value) => {
+        const updatedData = {
+            ...formData.wards[ward],
+            [field]: value
+        };
+        
+        // คำนวณ overallData ใหม่
+        const newOverallData = calculateOverallData(updatedData);
+        updatedData.overallData = newOverallData.toString();
+        
+        handleInputChange('wards', ward, updatedData);
+    };
 
     return (
         <div className="min-w-[800px] flex-1">
@@ -15,7 +57,7 @@ const PatientMovement = ({ WARD_ORDER, formData, handleInputChange, initialWardD
                     <div className="p-4">
                         <div className="grid grid-cols-7 divide-y-0">
                             {/* Headers with better contrast */}
-                            {headers.map((header) => (
+                            {Object.values(movementFields).map((header) => (
                                 <div key={header} className="border border-gray-200/50 p-1 text-center font-medium bg-gradient-to-br from-[#0ab4ab] to-[#0ab4ab]/90 text-white shadow-sm">
                                     {header}
                                 </div>
@@ -26,15 +68,16 @@ const PatientMovement = ({ WARD_ORDER, formData, handleInputChange, initialWardD
                                 const data = formData.wards[ward] || { ...initialWardData };
                                 return (
                                     <React.Fragment key={`movement-${ward}`}>
-                                        {fields.map((field) => (
+                                        {Object.entries(movementFields).map(([field, label]) => (
                                             <div key={`${ward}-${field}`} className="border border-gray-200/50 p-1.5 bg-white/80">
                                                 <input
                                                     type="number"
                                                     min="0"
                                                     value={displayValue(data[field])}
-                                                    onChange={(e) => handleInputChange('wards', ward, { ...data, [field]: e.target.value })}
+                                                    onChange={(e) => handleMovementChange(ward, field, e.target.value)}
                                                     className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
                                                     placeholder="0"
+                                                    disabled={isReadOnly}
                                                 />
                                             </div>
                                         ))}
@@ -46,7 +89,7 @@ const PatientMovement = ({ WARD_ORDER, formData, handleInputChange, initialWardD
                     {/* Totals Row with improved visibility */}
                     <div className="border-t-2 border-[#0ab4ab] mt-2 p-2 bg-gray-50">
                         <div className="grid grid-cols-7 gap-0">
-                            {fields.map((field) => (
+                            {Object.keys(movementFields).map((field) => (
                                 <div key={`total-${field}`} className="p-1.5 text-center font-semibold text-gray-800 bg-white/90 rounded">
                                     {calculateTotals[field]}
                                 </div>

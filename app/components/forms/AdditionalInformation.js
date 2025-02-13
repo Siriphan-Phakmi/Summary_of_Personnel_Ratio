@@ -7,8 +7,15 @@ const AdditionalInformation = ({
     handleInputChange, 
     initialWardData, 
     displayValue,
-    calculateTotals 
+    calculateTotals,
+    isReadOnly // เพิ่ม prop สำหรับควบคุมการแก้ไขข้อมูล
 }) => {
+    const additionalFields = {
+        availableBeds: 'Available Beds',
+        unavailable: 'Unavailable',
+        plannedDischarge: 'Plan D/C'
+    };
+
     return (
         <div className="min-w-[500px] flex-1"> {/* ปรับความกว้างให้รองรับคอลัมน์เพิ่ม */}
             <div className="overflow-x-visible">
@@ -37,39 +44,19 @@ const AdditionalInformation = ({
                                 const data = formData.wards[ward] || { ...initialWardData };
                                 return (
                                     <React.Fragment key={`additional-${ward}`}>
-                                        <div className="border border-gray-200/50 p-1.5 bg-white/80">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="99999"
-                                                value={displayValue(data.availableBeds)}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, availableBeds: e.target.value })}
-                                                className="w-full text-center border-0 focus:ring-0 text-gray-800 px-2 font-medium bg-transparent"
-                                                placeholder="0"
-                                            />
-                                        </div>
-                                        <div className="border border-gray-200/50 p-1.5 bg-white/80">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="99999"
-                                                value={displayValue(data.unavailable)}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, unavailable: e.target.value })}
-                                                className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
-                                                placeholder="0"
-                                            />
-                                        </div>
-                                        <div className="border border-gray-200/50 p-1.5 bg-white/80">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="99999"
-                                                value={displayValue(data.plannedDischarge)}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, plannedDischarge: e.target.value })}
-                                                className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
-                                                placeholder="0"
-                                            />
-                                        </div>
+                                        {Object.entries(additionalFields).map(([field, label]) => (
+                                            <div key={`${ward}-${field}`} className="border border-gray-200/50 p-1.5 bg-white/80">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={displayValue(data[field])}
+                                                    onChange={(e) => handleInputChange('wards', ward, { ...data, [field]: e.target.value })}
+                                                    className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
+                                                    placeholder="0"
+                                                    disabled={isReadOnly}
+                                                />
+                                            </div>
+                                        ))}
                                         <div className="border border-gray-200/50 p-1.5 bg-white/80">
                                             <input
                                                 type="text"
@@ -77,6 +64,7 @@ const AdditionalInformation = ({
                                                 onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
                                                 className="w-full text-left border-0 focus:ring-0 text-gray-800 px-2 font-medium bg-transparent"
                                                 placeholder="Add comment..."
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                     </React.Fragment>

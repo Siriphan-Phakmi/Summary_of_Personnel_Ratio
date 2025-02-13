@@ -9,6 +9,8 @@ import CensusOverview from './CensusOverview';
 import Staff from './Staff';
 import PatientMovement from './PatientMovement';
 import AdditionalInformation from './AdditionalInformation';
+import { number } from 'prop-types';
+import { set } from 'date-fns';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
@@ -111,7 +113,7 @@ const ShiftForm = () => {
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
         ];
-        
+
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         const day = dateObj.getDate();
         const month = thaiMonths[dateObj.getMonth()];
@@ -131,17 +133,23 @@ const ShiftForm = () => {
             const today = new Date();
             setSelectedDate(today);
             const isoDate = today.toISOString().split('T')[0];
-            setFormData(prev => ({ 
-                ...prev, 
+            setFormData(prev => ({
+                ...prev,
                 date: isoDate,
                 shift: '' // Remove default shift selection
             }));
             setThaiDate(formatThaiDate(today));
-            
+
             // เรียกใช้ฟังก์ชันดึงข้อมูลล่าสุดเมื่อโหลดแอพ
             fetchLatestData();
         }
     }, []);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            fetchLatestData(); // เรียกฟังก์ชันดึงข้อมูลล่าสุด
+        }
+    }, []); // เรียกครั้งเดียวเมื่อโหลดคอมโพเนนต์
 
     const handleDateChange = async (element) => {
         const newDate = element.target.value;
@@ -219,29 +227,36 @@ const ShiftForm = () => {
         );
 
         setFormData(prev => {
-            const currentWardData = prev.wards[ward];
-            
-            // Calculate overallData with validation
-            const overallData = Math.max(0,
+            const currentWardData = {
+                ...prev.wards[ward],
+                ...sanitizedData
+            };
+
+            // คำนวณ overallData ใหม่
+            const newOverallData = Math.max(0,
                 (parseInt(currentWardData.numberOfPatients) || 0) +
-                (parseInt(sanitizedData.newAdmit || currentWardData.newAdmit) || 0) +
-                (parseInt(sanitizedData.transferIn || currentWardData.transferIn) || 0) +
-                (parseInt(sanitizedData.referIn || currentWardData.referIn) || 0) -
-                (parseInt(sanitizedData.transferOut || currentWardData.transferOut) || 0) -
-                (parseInt(sanitizedData.referOut || currentWardData.referOut) || 0) -
-                (parseInt(sanitizedData.discharge || currentWardData.discharge) || 0) -
-                (parseInt(sanitizedData.dead || currentWardData.dead) || 0)
+                (parseInt(currentWardData.newAdmit) || 0) +
+                (parseInt(currentWardData.transferIn) || 0) +
+                (parseInt(currentWardData.referIn) || 0) -
+                (parseInt(currentWardData.transferOut) || 0) -
+                (parseInt(currentWardData.referOut) || 0) -
+                (parseInt(currentWardData.discharge) || 0) -
+                (parseInt(currentWardData.dead) || 0)
             );
 
+            // เพิ่ม console.log เพื่อตรวจสอบการคำนวณ
+            console.log('Calculating overallData for ward:', ward);
+            console.log('Current ward data:', currentWardData);
+            console.log('New overall data:', newOverallData);
+
+            // อัพเดทข้อมูล ward พร้อม overallData ใหม่
             return {
                 ...prev,
                 wards: {
                     ...prev.wards,
                     [ward]: {
-                        ...prev.wards[ward],
-                        ...sanitizedData,
-                        overallData: overallData.toString(),
-                        isReadOnly: false
+                        ...currentWardData,
+                        overallData: newOverallData.toString()
                     }
                 }
             };
@@ -258,11 +273,11 @@ const ShiftForm = () => {
         if (!formData.date) return false;
         const selected = new Date(formData.date);
         const today = new Date();
-        
+
         // Reset time to midnight for accurate date comparison
         selected.setHours(0, 0, 0, 0);
         today.setHours(0, 0, 0, 0);
-        
+
         return selected.getTime() === today.getTime();
     };
 
@@ -270,11 +285,11 @@ const ShiftForm = () => {
         if (!formData.date) return false;
         const selected = new Date(formData.date);
         const today = new Date();
-        
+
         // Reset time to midnight for accurate date comparison
         selected.setHours(0, 0, 0, 0);
         today.setHours(0, 0, 0, 0);
-        
+
         // Allow saving data for current date and future dates (within 1 day)
         return selected < today;
     };
@@ -284,11 +299,11 @@ const ShiftForm = () => {
         const selected = new Date(formData.date);
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
+
         // Reset time to midnight for accurate date comparison
         selected.setHours(0, 0, 0, 0);
         tomorrow.setHours(0, 0, 0, 0);
-        
+
         return selected > tomorrow;
     };
 
@@ -315,7 +330,7 @@ const ShiftForm = () => {
                 changes.staff = true;
             }
             // ตรวจสอบการเปลี่ยนแปลงข้อมูล Patient Movement
-            if (ward.newAdmit !== '0' || ward.transferIn !== '0' || ward.referIn !== '0' || 
+            if (ward.newAdmit !== '0' || ward.transferIn !== '0' || ward.referIn !== '0' ||
                 ward.transferOut !== '0' || ward.referOut !== '0' || ward.discharge !== '0' || ward.dead !== '0') {
                 changes.movement = true;
             }
@@ -331,7 +346,7 @@ const ShiftForm = () => {
     // แก้ไข validateFormData
     const validateFormData = useCallback(() => {
         console.log('Validating form data...', formData);
-        
+
         // ตรวจสอบการเปลี่ยนแปลงข้อมูล
         const changes = hasDataChanges();
         if (!changes.staff && !changes.movement && !changes.additional) {
@@ -445,9 +460,9 @@ const ShiftForm = () => {
                 where('date', '==', formData.date),
                 where('shift', '==', formData.shift)
             );
-            
+
             const querySnapshot = await getDocs(q);
-            
+
             if (!querySnapshot.empty) {
                 console.log('Found duplicate data:', querySnapshot.docs[0].data());
                 const existingDoc = querySnapshot.docs[0];
@@ -467,10 +482,10 @@ const ShiftForm = () => {
         } catch (error) {
             console.error('Error checking duplicates:', error);
             alert(`เกิดข้อผิดพลาด: ${error.message}`);
-            setLoadingStates(prev => ({ 
-                ...prev, 
+            setLoadingStates(prev => ({
+                ...prev,
                 checkingDuplicates: false,
-                savingData: false 
+                savingData: false
             }));
             setLoadingMessage('');
         }
@@ -489,8 +504,8 @@ const ShiftForm = () => {
             }).replace(':', '');
 
             const formattedDate = formData.date.replace(/-/g, '');
-            const docId = overwrite && existingData 
-                ? existingData.id 
+            const docId = overwrite && existingData
+                ? existingData.id
                 : `data_${formattedTime}_${formattedDate}`;
 
             console.log('Saving data with ID:', docId);
@@ -533,10 +548,10 @@ const ShiftForm = () => {
             console.error('Error saving data:', error);
             alert(`เกิดข้อผิดพลาด: ${error.message}`);
         } finally {
-            setLoadingStates(prev => ({ 
-                ...prev, 
+            setLoadingStates(prev => ({
+                ...prev,
                 savingData: false,
-                checkingDuplicates: false 
+                checkingDuplicates: false
             }));
             setLoadingMessage('');
             setShowDataComparison(false);
@@ -561,7 +576,7 @@ const ShiftForm = () => {
         const WardComparison = ({ wardName }) => {
             const existingWard = existingData.wards?.[wardName] || {};
             const newWard = formData.wards[wardName] || {};
-            
+
             return (
                 <div className="border rounded-lg p-4 mb-4">
                     <h4 className="font-medium text-lg mb-4 text-[#0ab4ab]">{wardName}</h4>
@@ -641,15 +656,15 @@ const ShiftForm = () => {
                             <div className="bg-white rounded-lg p-4 border space-y-4">
                                 <div>
                                     <div className="text-sm font-medium mb-2">Supervisor:</div>
-                                    <ComparisonRow 
-                                        label="ชื่อ-นามสกุล" 
+                                    <ComparisonRow
+                                        label="ชื่อ-นามสกุล"
                                         oldValue={`${existingData.summaryData?.supervisorFirstName || ''} ${existingData.summaryData?.supervisorLastName || ''}`}
                                         newValue={`${summaryData.supervisorFirstName || ''} ${summaryData.supervisorLastName || ''}`}
                                     />
                                 </div>
                                 <div>
                                     <div className="text-sm font-medium mb-2">ผู้บันทึกข้อมูล:</div>
-                                    <ComparisonRow 
+                                    <ComparisonRow
                                         label="ชื่อ-นามสกุล"
                                         oldValue={`${existingData.summaryData?.recorderFirstName || ''} ${existingData.summaryData?.recorderLastName || ''}`}
                                         newValue={`${summaryData.recorderFirstName || ''} ${summaryData.recorderLastName || ''}`}
@@ -777,9 +792,9 @@ const ShiftForm = () => {
 
             const formattedQueryDate = getUTCDateString(queryDate);
             const thaiQueryDate = formatThaiDate(queryDate).replace('เพิ่มข้อมูล วันที่: ', '');
-            
+
             setLoadingMessage(`กำลังดึงข้อมูล Patient Census\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
-            
+
             const q = query(
                 recordsRef,
                 where('date', '==', formattedQueryDate),
@@ -787,7 +802,7 @@ const ShiftForm = () => {
             );
 
             const querySnapshot = await getDocs(q);
-            
+
             if (!querySnapshot.empty) {
                 const previousData = querySnapshot.docs[0].data();
                 console.log('Found previous shift data:', previousData);
@@ -815,7 +830,7 @@ const ShiftForm = () => {
                 }, 2000);
             } else {
                 setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด...');
-                
+
                 const latestDataQuery = query(
                     recordsRef,
                     where('date', '<=', formattedQueryDate),
@@ -827,9 +842,9 @@ const ShiftForm = () => {
                 if (!latestSnapshot.empty) {
                     const latestData = latestSnapshot.docs[0].data();
                     const latestDate = formatThaiDate(new Date(latestData.date)).replace('เพิ่มข้อมูล วันที่: ', '');
-                    
+
                     setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
-                    
+
                     const updatedWards = {};
                     Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
                         updatedWards[wardName] = {
@@ -903,46 +918,67 @@ const ShiftForm = () => {
             const latestSnapshot = await getDocs(latestDataQuery);
             if (!latestSnapshot.empty) {
                 const latestData = latestSnapshot.docs[0].data();
-                const latestDate = formatThaiDate(new Date(latestData.date)).replace('เพิ่มข้อมูล วันที่: ', '');
+                const latestDate = formatThaiDate(new Date(latestData.date));
                 
                 setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
                 
-                // อัพเดทข้อมูลในฟอร์ม
+                // อัพเดทข้อมูลทุก field ในฟอร์ม
                 const updatedWards = {};
                 Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
                     updatedWards[wardName] = {
-                        ...formData.wards[wardName],
-                        numberOfPatients: wardData.overallData || '0',
+                        numberOfPatients: wardData.numberOfPatients || '0',
+                        nurseManager: wardData.nurseManager || '0',
+                        RN: wardData.RN || '0',
+                        PN: wardData.PN || '0',
+                        WC: wardData.WC || '0',
+                        newAdmit: wardData.newAdmit || '0',
+                        transferIn: wardData.transferIn || '0',
+                        referIn: wardData.referIn || '0',
+                        transferOut: wardData.transferOut || '0',
+                        referOut: wardData.referOut || '0',
+                        discharge: wardData.discharge || '0',
+                        dead: wardData.dead || '0',
                         overallData: wardData.overallData || '0',
-                        isReadOnly: false
+                        availableBeds: wardData.availableBeds || '0',
+                        unavailable: wardData.unavailable || '0',
+                        plannedDischarge: wardData.plannedDischarge || '0',
+                        comment: wardData.comment || ''
                     };
                 });
 
+                // อัพเดท formData ทั้งหมด
                 setFormData(prev => ({
                     ...prev,
-                    wards: {
-                        ...prev.wards,
-                        ...updatedWards
-                    }
+                    date: latestData.date,
+                    shift: latestData.shift,
+                    wards: updatedWards
                 }));
 
-                // อัพเดท Summary Data
+                // อัพเดท summaryData
                 if (latestData.summaryData) {
                     setSummaryData(prev => ({
                         ...prev,
-                        ...latestData.summaryData
+                        opdTotal24hr: latestData.summaryData.opdTotal24hr || '',
+                        existingPatients: latestData.summaryData.existingPatients || '',
+                        newPatients: latestData.summaryData.newPatients || '',
+                        admissions24hr: latestData.summaryData.admissions24hr || '',
+                        supervisorFirstName: latestData.summaryData.supervisorFirstName || '',
+                        supervisorLastName: latestData.summaryData.supervisorLastName || '',
+                        recorderFirstName: latestData.summaryData.recorderFirstName || '',
+                        recorderLastName: latestData.summaryData.recorderLastName || ''
                     }));
                 }
 
-                setTimeout(() => {
-                    setLoadingMessage('');
-                }, 2000);
-            } else {
-                setLoadingMessage('ไม่พบข้อมูลที่บันทึกไว้');
-                setTimeout(() => {
-                    setLoadingMessage('');
-                }, 2000);
+                setThaiDate(formatThaiDate(new Date(latestData.date)));
+                setSelectedDate(new Date(latestData.date));
+
+                console.log('Data loaded successfully:', updatedWards);
             }
+
+            setTimeout(() => {
+                setLoadingMessage('');
+            }, 2000);
+
         } catch (error) {
             console.error('Error fetching latest data:', error);
             setLoadingMessage(`เกิดข้อผิดพลาด: ${error.message}`);
@@ -986,28 +1022,28 @@ const ShiftForm = () => {
                                     <span className="text-gray-700 font-medium text-center w-full md:w-auto font-THSarabun">{thaiDate}</span>
                                 </div>
                             </div>
-                                    {showCalendar && (
-                                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                                            <div className="relative bg-white rounded-lg">
-                                                <Calendar
-                                                    selectedDate={selectedDate}
-                                                    onDateSelect={async (date) => {
-                                                        setSelectedDate(date);
-                                                        const isoDate = date.toISOString().split('T')[0];
-                                                        setFormData(prev => ({
-                                                            ...prev,
-                                                            date: isoDate
-                                                        }));
-                                                        setThaiDate(formatThaiDate(date));
-                                                        setShowCalendar(false);
-                                                    }}
-                                                    onClickOutside={() => setShowCalendar(false)}
-                                                    datesWithData={datesWithData}
-                                                    variant="form"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
+                            {showCalendar && (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                                    <div className="relative bg-white rounded-lg">
+                                        <Calendar
+                                            selectedDate={selectedDate}
+                                            onDateSelect={async (date) => {
+                                                setSelectedDate(date);
+                                                const isoDate = date.toISOString().split('T')[0];
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    date: isoDate
+                                                }));
+                                                setThaiDate(formatThaiDate(date));
+                                                setShowCalendar(false);
+                                            }}
+                                            onClickOutside={() => setShowCalendar(false)}
+                                            datesWithData={datesWithData}
+                                            variant="form"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                             {/* สร้างส่วนของฟอร์มที่ใช้ในการเลือกกะงาน */}
                             <div className="flex gap-4 justify-center">
                                 <div className="flex gap-4">
@@ -1184,8 +1220,8 @@ const ShiftForm = () => {
                                                         placeholder="0"
                                                         min="0"
                                                         disabled={formData.wards[ward].isReadOnly === true}
-                                    />
-                                </div>
+                                                    />
+                                                </div>
                                             </div>
                                         ))}
                                         {/* Total Row */}
@@ -1208,17 +1244,17 @@ const ShiftForm = () => {
                                     <div key={infoType} className="flex flex-col gap-1">
                                         <div className="h-12 flex items-center justify-center">
                                             <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">{infoType}</h4>
-                                    </div>
+                                        </div>
                                         {WARD_ORDER.map((ward) => (
                                             <div key={ward} className="bg-gradient-to-r from-pink-400/20 to-pink-500/10 rounded-md p-1 text-pink-600 shadow h-8">
                                                 <div className="text-center">
-                                            <input
-                                                type="number"
+                                                    <input
+                                                        type="number"
                                                         value={displayValue(formData.wards[ward][infoType])}
                                                         onChange={(e) => handleInputChange('info', ward, { [infoType]: e.target.value })}
                                                         className="w-16 text-center text-sm font-bold bg-transparent border-b border-pink-500 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
                                                         placeholder="0"
-                                                min="0"
+                                                        min="0"
                                                     />
                                                 </div>
                                             </div>
