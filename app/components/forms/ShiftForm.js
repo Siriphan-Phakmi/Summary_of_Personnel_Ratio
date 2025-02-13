@@ -9,8 +9,6 @@ import CensusOverview from './CensusOverview';
 import Staff from './Staff';
 import PatientMovement from './PatientMovement';
 import AdditionalInformation from './AdditionalInformation';
-import { number } from 'prop-types';
-import { set } from 'date-fns';
 
 //คือส่วนของฟอร์มที่ใช้ในการกรอกข้อมูลของแต่ละวอร์ด
 const ShiftForm = () => {
@@ -34,7 +32,7 @@ const ShiftForm = () => {
     });
 
     // เพิ่มฟิลด์ใหม่ในส่วนของ ward data
-    const initialWardData = {
+    const initialWardData = { //initialWardData คือข้อมูลเริ่มต้นของแต่ละวอร์ด
         numberOfPatients: '0',
         nurseManager: '0',
         RN: '0',
@@ -90,14 +88,14 @@ const ShiftForm = () => {
 
     // เพิ่มค่าคงที่สำหรับลำดับ Ward ที่ถูกต้อง
     const WARD_ORDER = [
-        'Ward6',
-        'Ward7',
-        'Ward8',
-        'Ward9',
-        'WardGI',
-        'Ward10B',
-        'Ward11',
-        'Ward12',
+        'Ward 6',
+        'Ward 7',
+        'Ward 8',
+        'Ward 9',
+        'Ward GI',
+        'Ward 10B',
+        'Ward 11',
+        'Ward 12',
         'ICU',
         'CCU',
         'LR',
@@ -117,8 +115,8 @@ const ShiftForm = () => {
         const dateObj = typeof date === 'string' ? new Date(date) : date;
         const day = dateObj.getDate();
         const month = thaiMonths[dateObj.getMonth()];
-        const year = dateObj.getFullYear() + 543;
-        return `เพิ่มข้อมูล วันที่: ${day} ${month} ${year}`;
+        const year = dateObj.getFullYear() + 543; // แปลงเป็น พ.ศ.
+        return `วันที่เพิ่มข้อมูลล่าสุด: ${day} ${month} ${year}`;
     };
 
     // เพิ่ม Initial Loading Effect
@@ -130,20 +128,24 @@ const ShiftForm = () => {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            // สร้าง Date object สำหรับวันที่ปัจจุบัน
             const today = new Date();
+            // เซ็ตค่าวันที่ที่เลือก
             setSelectedDate(today);
+            // แปลงวันที่เป็นรูปแบบ ISO string และเอาเฉพาะส่วนวันที่
             const isoDate = today.toISOString().split('T')[0];
+            // อัพเดท formData ด้วยวันที่ปัจจุบัน
             setFormData(prev => ({
                 ...prev,
                 date: isoDate,
-                shift: '' // Remove default shift selection
+                shift: '' // ล้างค่ากะการทำงาน
             }));
+            // แปลงวันที่เป็นรูปแบบไทย
             setThaiDate(formatThaiDate(today));
-
-            // เรียกใช้ฟังก์ชันดึงข้อมูลล่าสุดเมื่อโหลดแอพ
+            // เรียกดึงข้อมูลล่าสุด
             fetchLatestData();
         }
-    }, []);
+    }, []); // เรียกใช้เมื่อ component โหลดครั้งแรก
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -216,47 +218,38 @@ const ShiftForm = () => {
 
     // Memoize handleInputChange
     const handleInputChange = useCallback((section, ward, data) => {
-        // Sanitize input values
-        const sanitizedData = Object.fromEntries(
-            Object.entries(data).map(([key, value]) => {
-                if (key === 'comment') return [key, value];
-                if (value === '') return [key, '0'];
-                const numValue = parseInt(value) || 0;
-                return [key, Math.max(0, numValue).toString()];
-            })
-        );
-
         setFormData(prev => {
             const currentWardData = {
                 ...prev.wards[ward],
-                ...sanitizedData
+                ...data
             };
+
+            // Sanitize input values
+            Object.keys(data).forEach(key => {
+                if (key !== 'comment') {
+                    currentWardData[key] = (data[key] === '' ? '0' : data[key]).toString();
+                }
+            });
 
             // คำนวณ overallData ใหม่
             const newOverallData = Math.max(0,
-                (parseInt(currentWardData.numberOfPatients) || 0) +
-                (parseInt(currentWardData.newAdmit) || 0) +
-                (parseInt(currentWardData.transferIn) || 0) +
-                (parseInt(currentWardData.referIn) || 0) -
-                (parseInt(currentWardData.transferOut) || 0) -
-                (parseInt(currentWardData.referOut) || 0) -
-                (parseInt(currentWardData.discharge) || 0) -
-                (parseInt(currentWardData.dead) || 0)
-            );
+                parseInt(currentWardData.numberOfPatients || '0') +
+                parseInt(currentWardData.newAdmit || '0') +
+                parseInt(currentWardData.transferIn || '0') +
+                parseInt(currentWardData.referIn || '0') -
+                parseInt(currentWardData.transferOut || '0') -
+                parseInt(currentWardData.referOut || '0') -
+                parseInt(currentWardData.discharge || '0') -
+                parseInt(currentWardData.dead || '0')
+            ).toString();
 
-            // เพิ่ม console.log เพื่อตรวจสอบการคำนวณ
-            console.log('Calculating overallData for ward:', ward);
-            console.log('Current ward data:', currentWardData);
-            console.log('New overall data:', newOverallData);
-
-            // อัพเดทข้อมูล ward พร้อม overallData ใหม่
             return {
                 ...prev,
                 wards: {
                     ...prev.wards,
                     [ward]: {
                         ...currentWardData,
-                        overallData: newOverallData.toString()
+                        overallData: newOverallData
                     }
                 }
             };
@@ -517,20 +510,37 @@ const ShiftForm = () => {
                 wards: Object.fromEntries(
                     Object.entries(formData.wards).map(([wardName, wardData]) => [
                         wardName,
-                        Object.fromEntries(
-                            Object.entries(wardData).map(([key, value]) => [
-                                key,
-                                key === 'comment' ? value : (value === '' ? '0' : value)
-                            ])
-                        )
+                        {
+                            numberOfPatients: wardData.numberOfPatients || '0',       // Patient Census
+                            nurseManager: wardData.nurseManager || '0',               // Nurse Manager
+                            RN: wardData.RN || '0',                                  // RN
+                            PN: wardData.PN || '0',                                  // PN
+                            WC: wardData.WC || '0',                                  // WC
+                            newAdmit: wardData.newAdmit || '0',                      // New Admit
+                            transferIn: wardData.transferIn || '0',                   // Transfer In
+                            referIn: wardData.referIn || '0',                        // Refer In
+                            transferOut: wardData.transferOut || '0',                 // Transfer Out
+                            referOut: wardData.referOut || '0',                      // Refer Out
+                            discharge: wardData.discharge || '0',                     // Discharge
+                            dead: wardData.dead || '0',                              // Dead
+                            overallData: wardData.overallData || '0',                // Overall Data
+                            availableBeds: wardData.availableBeds || '0',            // Available Beds
+                            plannedDischarge: wardData.plannedDischarge || '0',      // Plan D/C
+                            unavailable: wardData.unavailable || '0',                 // Unavailable
+                            comment: wardData.comment || ''                          // Comment
+                        }
                     ])
                 ),
-                summaryData: Object.fromEntries(
-                    Object.entries(summaryData).map(([key, value]) => [
-                        key,
-                        typeof value === 'string' ? value.trim() : value
-                    ])
-                ),
+                summaryData: {
+                    opdTotal24hr: summaryData.opdTotal24hr || '',
+                    existingPatients: summaryData.existingPatients || '',
+                    newPatients: summaryData.newPatients || '',
+                    admissions24hr: summaryData.admissions24hr || '',
+                    supervisorFirstName: summaryData.supervisorFirstName || '',
+                    supervisorLastName: summaryData.supervisorLastName || '',
+                    recorderFirstName: summaryData.recorderFirstName || '',
+                    recorderLastName: summaryData.recorderLastName || ''
+                },
                 timestamp: serverTimestamp(),
                 lastModified: serverTimestamp()
             };
@@ -911,7 +921,7 @@ const ShiftForm = () => {
             const recordsRef = collection(db, 'staffRecords');
             const latestDataQuery = query(
                 recordsRef,
-                orderBy('date', 'desc'),
+                orderBy('timestamp', 'desc'), // เปลี่ยนจาก 'date' เป็น 'timestamp'
                 limit(1)
             );
 
@@ -919,39 +929,45 @@ const ShiftForm = () => {
             if (!latestSnapshot.empty) {
                 const latestData = latestSnapshot.docs[0].data();
                 const latestDate = formatThaiDate(new Date(latestData.date));
-                
+
                 setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
-                
-                // อัพเดทข้อมูลทุก field ในฟอร์ม
+
+                // อัพเดทข้อมูลทุก ward
                 const updatedWards = {};
-                Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
+                Object.entries(latestData.wards || {}).forEach(([wardName, wardData]) => {
                     updatedWards[wardName] = {
-                        numberOfPatients: wardData.numberOfPatients || '0',
-                        nurseManager: wardData.nurseManager || '0',
-                        RN: wardData.RN || '0',
-                        PN: wardData.PN || '0',
-                        WC: wardData.WC || '0',
-                        newAdmit: wardData.newAdmit || '0',
-                        transferIn: wardData.transferIn || '0',
-                        referIn: wardData.referIn || '0',
-                        transferOut: wardData.transferOut || '0',
-                        referOut: wardData.referOut || '0',
-                        discharge: wardData.discharge || '0',
-                        dead: wardData.dead || '0',
-                        overallData: wardData.overallData || '0',
-                        availableBeds: wardData.availableBeds || '0',
-                        unavailable: wardData.unavailable || '0',
-                        plannedDischarge: wardData.plannedDischarge || '0',
-                        comment: wardData.comment || ''
+                        ...initialWardData, // ใช้ค่าเริ่มต้นเป็นพื้นฐาน
+                        ...wardData, // อัพเดทด้วยข้อมูลจาก Firebase
+                        // แปลงค่าเป็น string และกำหนดค่าเริ่มต้นเป็น '0' ถ้าไม่มีข้อมูล
+                        numberOfPatients: (wardData?.numberOfPatients || '0').toString(),
+                        nurseManager: (wardData?.nurseManager || '0').toString(),
+                        RN: (wardData?.RN || '0').toString(),
+                        PN: (wardData?.PN || '0').toString(),
+                        WC: (wardData?.WC || '0').toString(),
+                        newAdmit: (wardData?.newAdmit || '0').toString(),
+                        transferIn: (wardData?.transferIn || '0').toString(),
+                        referIn: (wardData?.referIn || '0').toString(),
+                        transferOut: (wardData?.transferOut || '0').toString(),
+                        referOut: (wardData?.referOut || '0').toString(),
+                        discharge: (wardData?.discharge || '0').toString(),
+                        dead: (wardData?.dead || '0').toString(),
+                        overallData: (wardData?.overallData || '0').toString(),
+                        availableBeds: (wardData?.availableBeds || '0').toString(),
+                        unavailable: (wardData?.unavailable || '0').toString(),
+                        plannedDischarge: (wardData?.plannedDischarge || '0').toString(),
+                        comment: wardData?.comment || ''
                     };
                 });
 
-                // อัพเดท formData ทั้งหมด
+                // อัพเดท formData
                 setFormData(prev => ({
                     ...prev,
-                    date: latestData.date,
-                    shift: latestData.shift,
-                    wards: updatedWards
+                    date: latestData.date || new Date().toISOString().split('T')[0],
+                    shift: latestData.shift || '',
+                    wards: {
+                        ...prev.wards,
+                        ...updatedWards
+                    }
                 }));
 
                 // อัพเดท summaryData
@@ -969,22 +985,24 @@ const ShiftForm = () => {
                     }));
                 }
 
-                setThaiDate(formatThaiDate(new Date(latestData.date)));
-                setSelectedDate(new Date(latestData.date));
+                // อัพเดทวันที่และการแสดงผล
+                const dateObj = new Date(latestData.date);
+                setSelectedDate(dateObj);
+                setThaiDate(formatThaiDate(dateObj));
 
                 console.log('Data loaded successfully:', updatedWards);
+            } else {
+                console.log('No data found');
+                setLoadingMessage('ไม่พบข้อมูล');
             }
-
-            setTimeout(() => {
-                setLoadingMessage('');
-            }, 2000);
 
         } catch (error) {
             console.error('Error fetching latest data:', error);
             setLoadingMessage(`เกิดข้อผิดพลาด: ${error.message}`);
+        } finally {
             setTimeout(() => {
                 setLoadingMessage('');
-            }, 3000);
+            }, 2000);
         }
     };
 

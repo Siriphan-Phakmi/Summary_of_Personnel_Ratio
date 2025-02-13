@@ -1,98 +1,24 @@
 'use client';
-import React from 'react';
 
-const AdditionalInformation = ({ 
-    WARD_ORDER, 
-    formData, 
-    handleInputChange, 
-    initialWardData, 
-    displayValue,
-    calculateTotals,
-    isReadOnly // เพิ่ม prop สำหรับควบคุมการแก้ไขข้อมูล
-}) => {
-    const additionalFields = {
-        availableBeds: 'Available Beds',
-        unavailable: 'Unavailable',
-        plannedDischarge: 'Plan D/C'
-    };
+const AdditionalInformation = ({ ward, data, onChange }) => {
+  const infoTypes = ['Available', 'Unavailable', 'Planned Discharge'];
 
-    return (
-        <div className="min-w-[500px] flex-1"> {/* ปรับความกว้างให้รองรับคอลัมน์เพิ่ม */}
-            <div className="overflow-x-visible">
-                <div className="min-w-max bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 rounded-xl shadow-xl border border-gray-100">
-                    <div className="bg-[#0ab4ab] text-white p-3 font-semibold text-lg text-center whitespace-nowrap">
-                        Additional Information
-                    </div>
-                    <div className="p-4">
-                        <div className="grid grid-cols-4 divide-y-0"> {/* เปลี่ยนจาก 2 เป็น 4 คอลัมน์ */}
-                            {/* Header */}
-                            <div className="border border-gray-200/50 p-1 text-center font-medium bg-gradient-to-br from-[#0ab4ab] to-[#0ab4ab]/90 text-white shadow-sm">
-                                Available Beds
-                            </div>
-                            <div className="border border-gray-200/50 p-1 text-center font-medium bg-gradient-to-br from-[#0ab4ab] to-[#0ab4ab]/90 text-white shadow-sm">
-                                Unavailable
-                            </div>
-                            <div className="border border-gray-200/50 p-1 text-center font-medium bg-gradient-to-br from-[#0ab4ab] to-[#0ab4ab]/90 text-white shadow-sm">
-                                Plan D/C
-                            </div>
-                            <div className="border border-gray-200/50 p-1 text-center font-medium bg-gradient-to-br from-[#0ab4ab] to-[#0ab4ab]/90 text-white shadow-sm">
-                                Comment
-                            </div>
-
-                            {/* Data Rows */}
-                            {WARD_ORDER.map((ward) => {
-                                const data = formData.wards[ward] || { ...initialWardData };
-                                return (
-                                    <React.Fragment key={`additional-${ward}`}>
-                                        {Object.entries(additionalFields).map(([field, label]) => (
-                                            <div key={`${ward}-${field}`} className="border border-gray-200/50 p-1.5 bg-white/80">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={displayValue(data[field])}
-                                                    onChange={(e) => handleInputChange('wards', ward, { ...data, [field]: e.target.value })}
-                                                    className="w-full text-center border-0 focus:ring-0 text-gray-800 font-medium bg-transparent"
-                                                    placeholder="0"
-                                                    disabled={isReadOnly}
-                                                />
-                                            </div>
-                                        ))}
-                                        <div className="border border-gray-200/50 p-1.5 bg-white/80">
-                                            <input
-                                                type="text"
-                                                value={data.comment || ''}
-                                                onChange={(e) => handleInputChange('wards', ward, { ...data, comment: e.target.value })}
-                                                className="w-full text-left border-0 focus:ring-0 text-gray-800 px-2 font-medium bg-transparent"
-                                                placeholder="Add comment..."
-                                                disabled={isReadOnly}
-                                            />
-                                        </div>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    {/* Add Totals Row */}
-                    <div className="border-t-2 border-[#0ab4ab] mt-2 p-2 bg-gray-50">
-                        <div className="grid grid-cols-4 gap-0">
-                            <div className="p-1.5 text-center font-semibold text-gray-800 bg-white/90 rounded">
-                                {calculateTotals.availableBeds}
-                            </div>
-                            <div className="p-1.5 text-center font-semibold text-gray-800 bg-white/90 rounded">
-                                {calculateTotals.unavailable}
-                            </div>
-                            <div className="p-1.5 text-center font-semibold text-gray-800 bg-white/90 rounded">
-                                {calculateTotals.plannedDischarge}
-                            </div>
-                            <div className="p-1.5 text-center font-semibold text-gray-800">
-                                -
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  return (
+    <div className="flex flex-col gap-1">
+      {infoTypes.map(type => (
+        <div key={type} className="bg-gradient-to-r from-pink-400/20 to-pink-500/10 rounded-md p-1">
+          <input
+            type="number"
+            value={data[type]}
+            onChange={(e) => onChange('info', ward, { [type]: e.target.value })}
+            className="w-16 text-center text-sm font-bold bg-transparent border-b"
+            placeholder="0"
+            min="0"
+          />
         </div>
-    );
+      ))}
+    </div>
+  );
 };
 
 export default AdditionalInformation;
