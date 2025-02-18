@@ -8,6 +8,7 @@ import LoadingSkeleton from '../ui/LoadingSkeleton';
 import Toast from '../ui/Toast';
 import Calendar from '../ui/Calendar';
 import LoadingScreen from '../ui/LoadingScreen';
+import { formatThaiDate, getThaiDateNow } from '../../utils/dateUtils';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
@@ -25,10 +26,17 @@ const Dashboard = () => {
     const [selectedWard, setSelectedWard] = useState(null);
     const [isWardModalOpen, setIsWardModalOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [displayDate, setDisplayDate] = useState(getThaiDateNow());
     const [showCalendar, setShowCalendar] = useState(false);
     const [datesWithData, setDatesWithData] = useState([]);
     const [notification, setNotification] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const today = new Date();
+        setSelectedDate(today);
+        setDisplayDate(formatThaiDate(today));
+    }, []);
 
     const getUTCDateString = (date) => {
         const d = new Date(date);
@@ -857,7 +865,7 @@ const Dashboard = () => {
                         {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
                     </button>
                     <span className="text-gray-700">
-                        แสดงข้อมูล วันที่: {formatThaiDate(selectedDate)}
+                        แสดงข้อมูล วันที่: {displayDate}
                     </span>
                 </div>
 
