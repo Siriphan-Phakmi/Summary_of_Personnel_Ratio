@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatDateString, getMonths, getYearRange } from '../../utils/dateUtils';
 
 const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = [], selectedShift = 'all', variant = 'dashboard' }) => {
     const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
@@ -9,11 +10,21 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
     const calendarRef = useRef(null);
 
     useEffect(() => {
+        if (variant === 'form') {
+            const today = new Date();
+            setDisplayDate(today);
+            setCurrentDate(today);
+        }
+    }, [variant]);
+
+    useEffect(() => {
         if (selectedDate) {
             setCurrentDate(selectedDate);
-            setDisplayDate(selectedDate);
+            if (variant !== 'form') {
+                setDisplayDate(selectedDate);
+            }
         }
-    }, [selectedDate]);
+    }, [selectedDate, variant]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -30,24 +41,30 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         }
     }, [onClickOutside, variant]);
 
-    const months = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ];
-
+    const months = getMonths();
     const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+    const years = getYearRange(currentYear);
 
     const handleMonthChange = (e) => {
         const newDate = new Date(displayDate);
         newDate.setMonth(parseInt(e.target.value));
         setDisplayDate(newDate);
+        if (variant === 'form') {
+            const today = new Date();
+            newDate.setDate(today.getDate());
+            setDisplayDate(newDate);
+        }
     };
 
     const handleYearChange = (e) => {
         const newDate = new Date(displayDate);
         newDate.setFullYear(parseInt(e.target.value));
         setDisplayDate(newDate);
+        if (variant === 'form') {
+            const today = new Date();
+            newDate.setDate(today.getDate());
+            setDisplayDate(newDate);
+        }
     };
 
     const handleShiftChange = (newShift) => {
@@ -72,14 +89,6 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         onClickOutside && onClickOutside();
     };
 
-    const formatDateString = (date) => {
-        const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
     const checkHasData = (date) => {
         const dateStr = formatDateString(date);
         return datesWithData.includes(dateStr);
@@ -95,6 +104,8 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         startingDay = startingDay === 0 ? 6 : startingDay - 1;
 
         const days = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         const prevMonthLastDay = new Date(year, month, 0).getDate();
         for (let i = startingDay - 1; i >= 0; i--) {
@@ -108,10 +119,12 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
 
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(year, month, i);
+            const isToday = date.getTime() === today.getTime();
             days.push({
                 day: i,
                 isCurrentMonth: true,
-                hasData: checkHasData(date)
+                hasData: checkHasData(date),
+                isToday
             });
         }
 
@@ -125,15 +138,16 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
             });
         }
 
-        return days.map(({ day, isCurrentMonth, hasData }, index) => (
+        return days.map(({ day, isCurrentMonth, hasData, isToday }, index) => (
             <button
                 key={index}
                 onClick={() => handleDateSelect(day, isCurrentMonth)}
                 disabled={!isCurrentMonth}
                 className={`
-                    relative p-2 text-sm rounded-lg
+                    relative p-2 text-sm rounded-lg transition-all duration-200
                     ${!isCurrentMonth ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-gray-900 hover:bg-gray-100'}
                     ${hasData ? 'bg-[#0ab4ab]/10 text-[#0ab4ab] font-medium hover:bg-[#0ab4ab]/20' : ''}
+                    ${isToday ? 'ring-2 ring-green-500' : ''}
                     ${currentDate &&
                     day === currentDate.getDate() &&
                     displayDate.getMonth() === currentDate.getMonth() &&
@@ -163,13 +177,16 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
     return (
         <div 
             ref={calendarRef} 
-            className={`bg-white rounded-lg shadow-lg ${variant === 'dashboard' ? 'w-[340px]' : 'w-full max-w-md'}`}
+            className={`bg-white rounded-lg shadow-lg ${variant === 'dashboard' ? 'w-[340px]' : 'w-[340px]'}`}
         >
             <div className="p-4">
-                {/* เพิ่ม header section */}
+                {/* Calendar Header */}
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">Select Date</h2>
-                    {/* เพิ่ม year/month selectors */}
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Select Date</h2>
+                        <p className="text-sm text-gray-600">วันที่ปัจจุบัน: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    </div>
+                    {/* Year/Month Selectors */}
                     <div className="flex gap-2">
                         <select
                             value={displayDate.getMonth()}
@@ -195,9 +212,10 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
                         </select>
                     </div>
                 </div>
-                
+
+                {/* Rest of the calendar */}
                 <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                    {['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'].map(day => (
                         <div key={day} className="text-center text-xs font-semibold text-gray-800">
                             {day}
                         </div>
