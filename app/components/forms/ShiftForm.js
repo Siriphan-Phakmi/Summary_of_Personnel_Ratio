@@ -72,6 +72,27 @@ const ShiftForm = () => {
 
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+    // Add mobile warning state
+    const [showMobileWarning, setShowMobileWarning] = useState(false);
+
+    // Check if device is mobile on component mount
+    useEffect(() => {
+        const checkMobile = () => {
+            return window.innerWidth < 768; // md breakpoint in Tailwind
+        };
+
+        const handleResize = () => {
+            setShowMobileWarning(checkMobile());
+        };
+
+        // Initial check
+        setShowMobileWarning(checkMobile());
+
+        // Add resize listener
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // เพิ่ม Initial Loading Effect
     useEffect(() => {
         setTimeout(() => {
@@ -111,11 +132,54 @@ const ShiftForm = () => {
         }
         const dateObj = new Date(newDate);
         setSelectedDate(dateObj);
-        setFormData(prev => ({ ...prev, date: newDate }));
+        setFormData(prev => {
+            // Create new wards object with reset values but preserve Patient Census and Overall Data
+            const resetWards = {};
+            Object.entries(prev.wards).forEach(([ward, data]) => {
+                resetWards[ward] = {
+                    ...initialWardData,
+                    numberOfPatients: data.numberOfPatients, // Preserve Patient Census
+                    overallData: data.overallData, // Preserve Overall Data
+                    nurseManager: '0',
+                    RN: '0',
+                    PN: '0',
+                    WC: '0',
+                    newAdmit: '0',
+                    transferIn: '0',
+                    referIn: '0',
+                    transferOut: '0',
+                    referOut: '0',
+                    discharge: '0',
+                    dead: '0',
+                    availableBeds: '0',
+                    unavailable: '0',
+                    plannedDischarge: '0',
+                    comment: ''
+                };
+            });
+
+            return {
+                ...prev,
+                date: newDate,
+                wards: resetWards
+            };
+        });
         setThaiDate(formatThaiDate(dateObj));
 
         // เช็คข้อมูลที่มีอยู่แล้วสำหรับวันที่เลือก
         await fetchPreviousShiftData(newDate, formData.shift);
+
+        // ล้างข้อมูลสรุปเมื่อเลือกวันที่ใหม่
+        setSummaryData({
+            opdTotal24hr: '',
+            existingPatients: '',
+            newPatients: '',
+            admissions24hr: '',
+            supervisorFirstName: '',
+            supervisorLastName: '',
+            recorderFirstName: '',
+            recorderLastName: ''
+        });
     };
 
     // เพิ่มฟังก์ชันคำนวณ totals
@@ -700,6 +764,8 @@ const ShiftForm = () => {
                 text: 'ข้อมูลถูกบันทึกเรียบร้อยแล้ว',
                 icon: 'success',
                 confirmButtonColor: '#0ab4ab'
+            }).then(() => {
+                window.location.reload();
             });
         } catch (error) {
             console.error('Error saving data:', error);
@@ -733,7 +799,24 @@ const ShiftForm = () => {
             );
 
             const yearSnapshot = await getDocs(yearQuery);
-            const datesWithDataInYear = [...new Set(yearSnapshot.docs.map(doc => doc.data().date))];
+            
+            // Create a map to store dates and their shifts
+            const dateShiftMap = {};
+            yearSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                if (!dateShiftMap[data.date]) {
+                    dateShiftMap[data.date] = new Set();
+                }
+                dateShiftMap[data.date].add(data.shift);
+            });
+
+            // Convert to array with shift information
+            const datesWithDataInYear = Object.entries(dateShiftMap).map(([date, shifts]) => ({
+                date,
+                shifts: Array.from(shifts),
+                isComplete: shifts.size === 2 // true if both shifts are recorded
+            }));
+
             setDatesWithData(datesWithDataInYear);
         } catch (error) {
             console.error('Error fetching dates with data:', error);
@@ -766,9 +849,11 @@ const ShiftForm = () => {
 
             // กำหนดวันที่และกะที่จะค้นหา
             if (selectedShift === '19:00-07:00') {
+                // ถ้าเป็นกะดึก ให้ดึงข้อมูลจากกะเช้าของวันเดียวกัน
                 queryShift = '07:00-19:00';
-                setLoadingMessage(`กำลังดึงข้อมูลจากกะเช้า (${queryShift})`);
+                setLoadingMessage(`กำลังดึงข้อมูลจากกะเช้า-บ่าย (${queryShift})`);
             } else {
+                // ถ้าเป็นกะเช้า ให้ดึงข้อมูลจากกะดึกของวันก่อนหน้า
                 queryDate.setDate(queryDate.getDate() - 1);
                 queryShift = '19:00-07:00';
                 setLoadingMessage(`กำลังดึงข้อมูลจากกะดึกของวันก่อนหน้า (${queryShift})`);
@@ -777,7 +862,7 @@ const ShiftForm = () => {
             const formattedQueryDate = getUTCDateString(queryDate);
             const thaiQueryDate = formatThaiDate(queryDate).replace('เพิ่มข้อมูล วันที่: ', '');
 
-            setLoadingMessage(`กำลังดึงข้อมูล Patient Census\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
+            setLoadingMessage(`กำลังดึงข้อมูล Overall Data\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
 
             const q = query(
                 recordsRef,
@@ -795,26 +880,24 @@ const ShiftForm = () => {
                 Object.entries(previousData.wards).forEach(([wardName, wardData]) => {
                     updatedWards[wardName] = {
                         ...formData.wards[wardName],
+                        // ดึง Overall Data จากกะก่อนหน้ามาเป็น Patient Census ของกะปัจจุบัน
                         numberOfPatients: wardData.overallData || '0',
-                        isReadOnly: false // Ensure fields are editable
+                        // เริ่มต้น overallData ด้วยค่าเดียวกับ numberOfPatients
+                        overallData: wardData.overallData || '0'
                     };
                 });
 
                 setFormData(prev => ({
                     ...prev,
-                    wards: {
-                        ...prev.wards,
-                        ...updatedWards
-                    }
+                    wards: updatedWards
                 }));
 
                 setLoadingMessage(`ดึงข้อมูลสำเร็จ\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
-                setTimeout(() => {
-                    setLoadingMessage('');
-                }, 2000);
+                setTimeout(() => setLoadingMessage(''), 2000);
             } else {
+                // ถ้าไม่พบข้อมูลกะก่อนหน้า ให้ค้นหาข้อมูลล่าสุด
                 setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด...');
-
+                
                 const latestDataQuery = query(
                     recordsRef,
                     where('date', '<=', formattedQueryDate),
@@ -834,35 +917,25 @@ const ShiftForm = () => {
                         updatedWards[wardName] = {
                             ...formData.wards[wardName],
                             numberOfPatients: wardData.overallData || '0',
-                            overallData: wardData.overallData || '0',
-                            isReadOnly: false
+                            overallData: wardData.overallData || '0'
                         };
                     });
 
                     setFormData(prev => ({
                         ...prev,
-                        wards: {
-                            ...prev.wards,
-                            ...updatedWards
-                        }
+                        wards: updatedWards
                     }));
 
-                    setTimeout(() => {
-                        setLoadingMessage('');
-                    }, 2000);
+                    setTimeout(() => setLoadingMessage(''), 2000);
                 } else {
                     setLoadingMessage('ไม่พบข้อมูลก่อนหน้า');
-                    setTimeout(() => {
-                        setLoadingMessage('');
-                    }, 2000);
+                    setTimeout(() => setLoadingMessage(''), 2000);
                 }
             }
         } catch (error) {
             console.error('Error fetching previous shift data:', error);
             setLoadingMessage(`เกิดข้อผิดพลาด: ${error.message}`);
-            setTimeout(() => {
-                setLoadingMessage('');
-            }, 3000);
+            setTimeout(() => setLoadingMessage(''), 3000);
         }
     };
 
@@ -1043,8 +1116,8 @@ const ShiftForm = () => {
                                 <li class="text-gray-600">ข้อมูลทั้งหมดในแบบฟอร์มจะถูกรีเซ็ต</li>
                                 <li class="text-gray-600">ท่านจะต้องเริ่มกรอกข้อมูลใหม่เมื่อกลับมายังหน้านี้</li>
                             </ul>
-                            <div class="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                <p class="text-sm text-yellow-700">
+                            <div className="mt-4 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <p className="text-sm text-yellow-700">
                                     <span class="font-medium">คำแนะนำ:</span> กรุณาบันทึกข้อมูลให้เรียบร้อยก่อนออกจากหน้านี้
                                 </p>
                                         </div>
@@ -1070,6 +1143,27 @@ const ShiftForm = () => {
 
     return (
         <div className="w-full px-2 py-2">
+            {/* Mobile Warning Popup */}
+            {showMobileWarning && (
+                <div className="fixed inset-0 z-50 bg-gradient-to-br from-[#0ab4ab]/95 to-blue-600/95 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center space-y-4">
+                        <img src="/images/BPK.jpg" alt="BPK Logo" className="w-24 h-24 mx-auto mb-4 animate-pulse" />
+                        <h2 className="text-2xl font-bold text-[#0ab4ab]">แจ้งเตือนการใช้งาน</h2>
+                        <div className="space-y-3 text-gray-600">
+                            <p className="font-medium">ระบบอยู่ระหว่างการพัฒนาสำหรับอุปกรณ์มือถือ</p>
+                            <div className="bg-yellow-50 p-4 rounded-xl">
+                                <p className="text-sm">เพื่อประสิทธิภาพในการใช้งานสูงสุด กรุณาใช้งานผ่าน:</p>
+                                <ul className="text-sm mt-2 space-y-1">
+                                    <li>• คอมพิวเตอร์ตั้งโต๊ะ (Desktop)</li>
+                                    <li>• คอมพิวเตอร์พกพา (Laptop)</li>
+                                </ul>
+                            </div>
+                            <p className="text-xs text-gray-500">หากมีข้อสงสัยกรุณาติดต่อผู้ดูแลระบบ</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="w-full mx-auto">
                 {isInitialLoading && (
                     <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
@@ -1159,4 +1253,3 @@ const ShiftForm = () => {
 };
 
 export default ShiftForm;
-
