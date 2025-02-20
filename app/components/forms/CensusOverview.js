@@ -6,7 +6,7 @@ const CensusOverview = ({ summaryData, setSummaryData }) => {
       <h4 className="text-lg font-medium mb-4 text-[#0ab4ab]">ข้อมูลสรุป 24 ชั่วโมง</h4>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">OPD 24hr</label>
+          <label className="block text-black text-sm font-medium text-gray-700 mb-1">OPD 24hr</label>
           <input
             type="number"
             value={summaryData.opdTotal24hr}
