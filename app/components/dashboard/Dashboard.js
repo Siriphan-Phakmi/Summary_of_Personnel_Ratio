@@ -40,7 +40,9 @@ const Dashboard = () => {
 
     const getUTCDateString = (date) => {
         const d = new Date(date);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        // ปรับเวลาให้เป็นเวลาท้องถิ่น
+        const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+        return localDate.toISOString().split('T')[0];
     };
 
     const fetchData = useCallback(async () => {
@@ -50,8 +52,8 @@ const Dashboard = () => {
             const selectedDateStr = getUTCDateString(filters.startDate);
             
             // ดึงข้อมูลทั้งปีเพื่อเช็คว่าวันไหนมีข้อมูล
-            const startOfYear = new Date(filters.startDate.getFullYear(), 0, 1); // เริ่มต้นปี
-            const endOfYear = new Date(filters.startDate.getFullYear(), 11, 31); // สิ้นสุดปี
+            const startOfYear = new Date(filters.startDate.getFullYear(), 0, 1);
+            const endOfYear = new Date(filters.startDate.getFullYear(), 11, 31);
             
             const yearQuery = query(recordsRef,
                 where('date', '>=', getUTCDateString(startOfYear)),
@@ -59,7 +61,35 @@ const Dashboard = () => {
             );
             
             const yearSnapshot = await getDocs(yearQuery);
-            const datesWithDataInYear = [...new Set(yearSnapshot.docs.map(doc => doc.data().date))];
+            
+            // สร้าง Map เพื่อเก็บข้อมูลของแต่ละวัน
+            const dateMap = new Map();
+            let latestDate = null;
+            
+            yearSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                const dateStr = data.date;
+                const shift = data.shift;
+                
+                if (!dateMap.has(dateStr)) {
+                    dateMap.set(dateStr, { shifts: new Set() });
+                }
+                
+                dateMap.get(dateStr).shifts.add(shift);
+
+                // เก็บวันที่ล่าสุดที่มีการบันทึกข้อมูล
+                if (!latestDate || dateStr > latestDate) {
+                    latestDate = dateStr;
+                }
+            });
+            
+            // แปลง Map เป็น Array ของวันที่พร้อมสถานะ
+            const datesWithDataInYear = Array.from(dateMap.entries()).map(([date, data]) => ({
+                date,
+                isComplete: data.shifts.size === 2,
+                shifts: Array.from(data.shifts)
+            }));
+            
             setDatesWithData(datesWithDataInYear);
 
             // ดึงข้อมูลตาม filter ปกติ
@@ -101,9 +131,23 @@ const Dashboard = () => {
                 }));
             }
 
-            setRecords(fetchedRecords);
-            const newStats = calculateExtendedStats(fetchedRecords);
-            setStats(newStats);
+            console.log('Fetched Records:', fetchedRecords);
+            console.log('Selected Date:', selectedDateStr);
+            console.log('Current Filter:', filters);
+
+            if (fetchedRecords.length > 0) {
+                setRecords(fetchedRecords);
+                const newStats = calculateExtendedStats(fetchedRecords);
+                setStats(newStats);
+            } else {
+                setStats(resetStats());
+            }
+            
+            // อัพเดทวันที่แสดงผลเป็นวันที่ล่าสุดที่มีการบันทึกข้อมูล
+            if (latestDate) {
+                const lastUpdatedDate = new Date(latestDate);
+                setDisplayDate(formatThaiDate(lastUpdatedDate));
+            }
             
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -137,12 +181,31 @@ const Dashboard = () => {
         }));
         setShowCalendar(false);
         
-        // Fetch data immediately after setting the filters
         try {
             setLoading(true);
             const recordsRef = collection(db, 'staffRecords');
             const selectedDateStr = getUTCDateString(date);
             
+            // ดึงข้อมูลทั้งปีเพื่อหาวันที่ล่าสุดที่มีการบันทึก
+            const startOfYear = new Date(date.getFullYear(), 0, 1);
+            const endOfYear = new Date(date.getFullYear(), 11, 31);
+            
+            const yearQuery = query(recordsRef,
+                where('date', '>=', getUTCDateString(startOfYear)),
+                where('date', '<=', getUTCDateString(endOfYear))
+            );
+            
+            const yearSnapshot = await getDocs(yearQuery);
+            let latestDate = null;
+            
+            yearSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                const dateStr = data.date;
+                if (!latestDate || dateStr > latestDate) {
+                    latestDate = dateStr;
+                }
+            });
+
             let fetchedRecords = [];
             const selectedShift = shift || filters.shift;
             
@@ -183,9 +246,19 @@ const Dashboard = () => {
                 }));
             }
 
-            setRecords(fetchedRecords);
-            const newStats = calculateExtendedStats(fetchedRecords);
-            setStats(newStats);
+            if (fetchedRecords.length > 0) {
+                setRecords(fetchedRecords);
+                const newStats = calculateExtendedStats(fetchedRecords);
+                setStats(newStats);
+            } else {
+                setStats(resetStats());
+            }
+
+            // อัพเดทวันที่แสดงผลเป็นวันที่ล่าสุดที่มีการบันทึกข้อมูล
+            if (latestDate) {
+                const lastUpdatedDate = new Date(latestDate);
+                setDisplayDate(formatThaiDate(lastUpdatedDate));
+            }
             
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -346,7 +419,7 @@ const Dashboard = () => {
 
                     // ตรวจสอบ shift ก่อนการรวมข้อมูล
                     if (filters.shift === 'all' || record.shift === filters.shift) {
-                        // แปลงค่าทั้งหมดเป็นตัวเลขก่อนการคำนวณ
+                        // แปลงค่าทั้งหมดเป็นตัวเลขและตรวจสอบว่าไม่เป็น NaN
                         const numberOfPatients = parseInt(wardData.numberOfPatients) || 0;
                         const RN = parseInt(wardData.RN) || 0;
                         const PN = parseInt(wardData.PN) || 0;
@@ -363,31 +436,23 @@ const Dashboard = () => {
                         const unavailable = parseInt(wardData.unavailable) || 0;
 
                         // รวมข้อมูล
-                        wardStats[wardName].numberOfPatients += numberOfPatients;
-                        wardStats[wardName].RN += RN;
-                        wardStats[wardName].PN += PN;
-                        wardStats[wardName].WC += WC;
-                        wardStats[wardName].NA += NA;
-                        wardStats[wardName].newAdmit += newAdmit;
-                        wardStats[wardName].transferIn += transferIn;
-                        wardStats[wardName].referIn += referIn;
-                        wardStats[wardName].transferOut += transferOut;
-                        wardStats[wardName].referOut += referOut;
-                        wardStats[wardName].discharge += discharge;
-                        wardStats[wardName].dead += dead;
-                        wardStats[wardName].availableBeds += availableBeds;
-                        wardStats[wardName].unavailable += unavailable;
+                        wardStats[wardName].numberOfPatients = numberOfPatients;
+                        wardStats[wardName].RN = RN;
+                        wardStats[wardName].PN = PN;
+                        wardStats[wardName].WC = WC;
+                        wardStats[wardName].NA = NA;
+                        wardStats[wardName].newAdmit = newAdmit;
+                        wardStats[wardName].transferIn = transferIn;
+                        wardStats[wardName].referIn = referIn;
+                        wardStats[wardName].transferOut = transferOut;
+                        wardStats[wardName].referOut = referOut;
+                        wardStats[wardName].discharge = discharge;
+                        wardStats[wardName].dead = dead;
+                        wardStats[wardName].availableBeds = availableBeds;
+                        wardStats[wardName].unavailable = unavailable;
 
                         // คำนวณ overallData
-                        wardStats[wardName].overallData = 
-                            numberOfPatients +
-                            newAdmit +
-                            transferIn +
-                            referIn -
-                            transferOut -
-                            referOut -
-                            discharge -
-                            dead;
+                        wardStats[wardName].overallData = numberOfPatients;
                     }
                 });
             }
@@ -857,23 +922,27 @@ const Dashboard = () => {
         <div className="p-4">
                 {/* Calendar and Filters Section */}
             <div className="mb-6">
-                <div className="flex items-center gap-4 mb-4">
-                    <button
-                        onClick={() => setShowCalendar(!showCalendar)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                    >
-                        {showCalendar ? 'Hide Calendar' : 'Show Calendar'}
-                    </button>
-                    <span className="text-gray-700">
-                        แสดงข้อมูล วันที่: {displayDate}
-                    </span>
+                <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex flex-col md:flex-row items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowCalendar(!showCalendar)}
+                            className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-[#0ab4ab] to-blue-500 text-white rounded-lg hover:from-[#0ab4ab]/90 hover:to-blue-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 shadow-md text-sm"
+                        >
+                            {showCalendar ? 'ซ่อนปฏิทิน' : 'เลือกวันที่'}
+                        </button>
+                        <div className="text-gray-700 space-y-0.5 text-center md:text-left text-sm">
+                            <div className="font-medium text-[#0ab4ab]">วันที่ปัจจุบัน : {formatThaiDate(new Date())}</div>
+                            <div className="text-blue-600">อัพเดทข้อมูลล่าสุด : {displayDate}</div>
+                        </div>
+                    </div>
                 </div>
 
-                    {showCalendar && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                            <div className="relative bg-white rounded-lg">
-                            <Calendar 
-                                    selectedDate={selectedDate}
+                {showCalendar && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all">
+                            <Calendar
+                                selectedDate={selectedDate}
                                 onDateSelect={handleDateSelect}
                                 onClickOutside={() => setShowCalendar(false)}
                                 datesWithData={datesWithData}
@@ -882,62 +951,62 @@ const Dashboard = () => {
                             />
                         </div>
                     </div>
-                    )}
+                )}
 
-                    {/* Total Patients Card */}
-                    <div className="bg-blue-100 rounded-xl p-6 mb-6 cursor-pointer hover:bg-blue-200 transition-colors duration-200"
-                        onClick={() => {
-                            setSelectedWard(null);
-                            // Scroll to Detailed Ward Information
-                            document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
-                        }}>
-                        <div className="text-center">
-                            <h2 className="text-2xl font-bold text-blue-800">Patient Census</h2>
-                            <p className="text-4xl font-bold text-blue-600">{stats?.totalPatients || 0}</p>
-                    </div>
-                    </div>
+                {/* Total Patients Card */}
+                <div className="bg-blue-100 rounded-xl p-6 mb-6 cursor-pointer hover:bg-blue-200 transition-colors duration-200"
+                    onClick={() => {
+                        setSelectedWard(null);
+                        // Scroll to Detailed Ward Information
+                        document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
+                    }}>
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold text-blue-800">Patient Census</h2>
+                        <p className="text-4xl font-bold text-blue-600">{stats?.totalPatients || 0}</p>
+                </div>
+                </div>
 
-                    {/* Ward Quick Stats Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                        {Object.entries(stats?.byWard || {}).map(([ward, count]) => (
-                            <div
-                                key={ward}
-                                onClick={() => {
-                                    setSelectedWard(ward);
-                                    // Scroll to Detailed Ward Information
-                                    document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
-                                }}
-                                className={`${wardColors[ward]} p-3 rounded-xl shadow-md cursor-pointer transform transition-all duration-200 hover:scale-105 ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}`}
-                            >
-                                <h3 className="text-base font-semibold text-black text-center">{ward}</h3>
-                                <p className="text-2xl font-bold text-black text-center">{count}</p>
-                    </div>
-                        ))}
-                    </div>
+                {/* Ward Quick Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    {Object.entries(stats?.byWard || {}).map(([ward, count]) => (
+                        <div
+                            key={ward}
+                            onClick={() => {
+                                setSelectedWard(ward);
+                                // Scroll to Detailed Ward Information
+                                document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className={`${wardColors[ward]} p-3 rounded-xl shadow-md cursor-pointer transform transition-all duration-200 hover:scale-105 ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}`}
+                        >
+                            <h3 className="text-base font-semibold text-black text-center">{ward}</h3>
+                            <p className="text-2xl font-bold text-black text-center">{count}</p>
+                </div>
+                    ))}
+                </div>
 
-                    {/* Charts Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        {/* Pie Chart for Available Beds */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg">
-                            <h3 className="text-lg font-semibold mb-4 text-black">
-                                Available Beds Distribution
-                                {selectedWard && (
-                                    <button
-                                        onClick={() => setSelectedWard(null)}
-                                        className="ml-2 text-sm text-blue-600 hover:text-blue-800"
-                                    >
-                                        (Show All)
-                                    </button>
-                                )}
-                            </h3>
-                            <div style={{ height: '300px' }}>
-                                {chartData?.pie && chartData.pie.labels && chartData.pie.labels.length > 0 ? (
-                                    <Pie data={chartData.pie} options={pieOptions} />
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-gray-500">
-                                        No data available
-                                    </div>
-                                )}
+                {/* Charts Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* Pie Chart for Available Beds */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 className="text-lg font-semibold mb-4 text-black">
+                            Available Beds Distribution
+                            {selectedWard && (
+                                <button
+                                    onClick={() => setSelectedWard(null)}
+                                    className="ml-2 text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    (Show All)
+                                </button>
+                            )}
+                        </h3>
+                        <div style={{ height: '300px' }}>
+                            {chartData?.pie && chartData.pie.labels && chartData.pie.labels.length > 0 ? (
+                                <Pie data={chartData.pie} options={pieOptions} />
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-gray-500">
+                                    No data available
+                                </div>
+                            )}
                 </div>
             </div>
 
@@ -963,7 +1032,7 @@ const Dashboard = () => {
                         </div>
                     )}
                 </div>
-                        </div>
+                </div>
                 </div>
 
                     {/* Section Title for Table */}

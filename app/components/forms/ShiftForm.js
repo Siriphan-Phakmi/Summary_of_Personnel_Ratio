@@ -116,11 +116,87 @@ const ShiftForm = () => {
             }));
             
             setThaiDate(formatThaiDate(today));
+            checkMorningShiftExists(isoDate);
+            checkPreviousNightShift(isoDate);
             fetchLatestData();
             fetchDatesWithData();
         }
     }, []);
 
+    const [hasExistingMorningShift, setHasExistingMorningShift] = useState(false);
+    const [hasPreviousNightShift, setHasPreviousNightShift] = useState(false);
+
+    // เพิ่มฟังก์ชันใหม่สำหรับตรวจสอบข้อมูลกะเช้า
+    const checkMorningShiftExists = async (date) => {
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const q = query(
+                recordsRef,
+                where('date', '==', date),
+                where('shift', '==', '07:00-19:00')
+            );
+
+            const querySnapshot = await getDocs(q);
+            const exists = !querySnapshot.empty;
+            setHasExistingMorningShift(exists);
+            return exists;
+        } catch (error) {
+            console.error('Error checking morning shift data:', error);
+            setHasExistingMorningShift(false);
+            return false;
+        }
+    };
+
+    // เพิ่มฟังก์ชันใหม่สำหรับตรวจสอบข้อมูลกะดึกของวันก่อนหน้า
+    const checkPreviousNightShift = async (date) => {
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const previousDate = new Date(date);
+            previousDate.setDate(previousDate.getDate() - 1);
+            const formattedPreviousDate = previousDate.toISOString().split('T')[0];
+
+            const q = query(
+                recordsRef,
+                where('date', '==', formattedPreviousDate),
+                where('shift', '==', '19:00-07:00')
+            );
+
+            const querySnapshot = await getDocs(q);
+            const exists = !querySnapshot.empty;
+            setHasPreviousNightShift(exists);
+            return exists;
+        } catch (error) {
+            console.error('Error checking previous night shift data:', error);
+            setHasPreviousNightShift(false);
+            return false;
+        }
+    };
+
+    // เพิ่มฟังก์ชันใหม่สำหรับตรวจสอบว่าวันที่ระบุมีการบันทึกกะครบหรือไม่
+    const checkDateHasCompletedShifts = async (date) => {
+        try {
+            const recordsRef = collection(db, 'staffRecords');
+            const q = query(
+                recordsRef,
+                where('date', '==', date)
+            );
+
+            const querySnapshot = await getDocs(q);
+            const shifts = new Set(querySnapshot.docs.map(doc => doc.data().shift));
+            return {
+                hasMorningShift: shifts.has('07:00-19:00'),
+                hasNightShift: shifts.has('19:00-07:00')
+            };
+        } catch (error) {
+            console.error('Error checking date shifts:', error);
+            return {
+                hasMorningShift: false,
+                hasNightShift: false
+            };
+        }
+    };
+
+    // อัพเดทฟังก์ชัน handleDateChange
     const handleDateChange = async (element) => {
         const newDate = element.target.value;
         if (!newDate) {
@@ -130,56 +206,44 @@ const ShiftForm = () => {
             setThaiDate(formatThaiDate(today));
             return;
         }
+
         const dateObj = new Date(newDate);
         setSelectedDate(dateObj);
-        setFormData(prev => {
-            // Create new wards object with reset values but preserve Patient Census and Overall Data
-            const resetWards = {};
-            Object.entries(prev.wards).forEach(([ward, data]) => {
-                resetWards[ward] = {
-                    ...initialWardData,
-                    numberOfPatients: data.numberOfPatients, // Preserve Patient Census
-                    overallData: data.overallData, // Preserve Overall Data
-                    nurseManager: '0',
-                    RN: '0',
-                    PN: '0',
-                    WC: '0',
-                    newAdmit: '0',
-                    transferIn: '0',
-                    referIn: '0',
-                    transferOut: '0',
-                    referOut: '0',
-                    discharge: '0',
-                    dead: '0',
-                    availableBeds: '0',
-                    unavailable: '0',
-                    plannedDischarge: '0',
-                    comment: ''
-                };
+
+        // ตรวจสอบวันก่อนหน้า
+        const previousDate = new Date(dateObj);
+        previousDate.setDate(previousDate.getDate() - 1);
+        const formattedPreviousDate = previousDate.toISOString().split('T')[0];
+        
+        // ตรวจสอบการบันทึกกะของวันก่อนหน้า
+        const previousDateShifts = await checkDateHasCompletedShifts(formattedPreviousDate);
+        
+        if (!previousDateShifts.hasNightShift && previousDateShifts.hasMorningShift) {
+            // ถ้าวันก่อนหน้ามีแค่กะเช้า แต่ยังไม่มีกะดึก
+            await Swal.fire({
+                title: 'แจ้งเตือน',
+                html: `วันที่ ${formatThaiDate(previousDate)} ยังไม่ได้บันทึกข้อมูลกะดึก<br>กรุณาบันทึกข้อมูลกะดึกของวันที่ ${formatThaiDate(previousDate)} ก่อน`,
+                icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
             });
-
-            return {
+            
+            // Reset date selection
+            setSelectedDate(previousDate);
+            setFormData(prev => ({
                 ...prev,
-                date: newDate,
-                wards: resetWards
-            };
-        });
+                date: formattedPreviousDate,
+                shift: '19:00-07:00' // Set shift to night shift
+            }));
+            setThaiDate(formatThaiDate(previousDate));
+            return;
+        }
+
+        // ถ้าผ่านการตรวจสอบ อัพเดทข้อมูลตามปกติ
+        setFormData(prev => ({
+            ...prev,
+            date: newDate
+        }));
         setThaiDate(formatThaiDate(dateObj));
-
-        // เช็คข้อมูลที่มีอยู่แล้วสำหรับวันที่เลือก
-        await fetchPreviousShiftData(newDate, formData.shift);
-
-        // ล้างข้อมูลสรุปเมื่อเลือกวันที่ใหม่
-        setSummaryData({
-            opdTotal24hr: '',
-            existingPatients: '',
-            newPatients: '',
-            admissions24hr: '',
-            supervisorFirstName: '',
-            supervisorLastName: '',
-            recorderFirstName: '',
-            recorderLastName: ''
-        });
     };
 
     // เพิ่มฟังก์ชันคำนวณ totals
@@ -462,23 +526,26 @@ const ShiftForm = () => {
     }, [hasUnsavedChanges, router]);
 
     // แก้ไข validateFormData
-    const validateFormData = useCallback(() => {
+    const validateFormData = useCallback(async () => {
         console.log('Validating form data...', formData);
 
-        // ตรวจสอบการเปลี่ยนแปลงข้อมูล
-        const changes = hasDataChanges();
-        if (!changes.staff && !changes.movement && !changes.additional) {
-            const confirmNoChanges = window.confirm(
-                'คุณยังไม่ได้กรอกข้อมูลเพิ่มเติมในส่วนใดๆ\n\n' +
-                'กรุณาตรวจสอบและกรอกข้อมูลในส่วนต่างๆ:\n' +
-                '- ข้อมูลเจ้าหน้าที่ (Staff)\n' +
-                '- ข้อมูลการเคลื่อนย้ายผู้ป่วย (Patient Movement)\n' +
-                '- ข้อมูลเพิ่มเติม (Additional Information)\n\n' +
-                'ต้องการดำเนินการต่อหรือไม่?'
-            );
-            if (!confirmNoChanges) {
-                return false;
-            }
+        // ตรวจสอบวันก่อนหน้า
+        const currentDate = new Date(formData.date);
+        const previousDate = new Date(currentDate);
+        previousDate.setDate(previousDate.getDate() - 1);
+        const formattedPreviousDate = previousDate.toISOString().split('T')[0];
+        
+        // ตรวจสอบการบันทึกกะของวันก่อนหน้า
+        const previousDateShifts = await checkDateHasCompletedShifts(formattedPreviousDate);
+        
+        if (!previousDateShifts.hasNightShift && previousDateShifts.hasMorningShift) {
+            await Swal.fire({
+                title: 'ไม่สามารถบันทึกข้อมูลได้',
+                html: `วันที่ ${formatThaiDate(previousDate)} ยังไม่ได้บันทึกข้อมูลกะดึก<br>กรุณาบันทึกข้อมูลกะดึกของวันที่ ${formatThaiDate(previousDate)} ก่อน`,
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return false;
         }
 
         const validationChecks = [
@@ -493,6 +560,10 @@ const ShiftForm = () => {
             {
                 condition: isFutureDateMoreThanOneDay(),
                 message: 'ไม่สามารถบันทึกข้อมูลล่วงหน้าเกิน 1 วันได้'
+            },
+            {
+                condition: formData.shift === '19:00-07:00' && !hasExistingMorningShift,
+                message: 'ไม่สามารถบันทึกข้อมูลกะดึกได้ เนื่องจากยังไม่มีการบันทึกข้อมูลกะเช้าก่อน'
             },
             {
                 condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
@@ -513,7 +584,7 @@ const ShiftForm = () => {
         }
 
         return true;
-    }, [formData, summaryData, isFutureDateMoreThanOneDay, hasDataChanges]);
+    }, [formData, summaryData, isFutureDateMoreThanOneDay, hasExistingMorningShift]);
 
     const resetForm = () => {
         Swal.fire({
@@ -584,7 +655,8 @@ const ShiftForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!validateFormData()) return;
+        const isValid = await validateFormData();
+        if (!isValid) return;
 
         const result = await Swal.fire({
             title: 'ยืนยันการบันทึกข้อมูล',
@@ -1111,7 +1183,7 @@ const ShiftForm = () => {
                         <p class="font-semibold text-red-600">ข้อควรระวัง: พบข้อมูลที่ยังไม่ได้บันทึก</p>
                         <div class="mt-4 space-y-2">
                             <p class="text-gray-700">การเปลี่ยนไปยังหน้า Dashboard จะส่งผลดังนี้:</p>
-                            <ul class="list-disc pl-5 space-y-1">
+                            <ul className="list-disc pl-5 space-y-1">
                                 <li class="text-gray-600">ข้อมูลที่ท่านกรอกจะไม่ถูกบันทึก</li>
                                 <li class="text-gray-600">ข้อมูลทั้งหมดในแบบฟอร์มจะถูกรีเซ็ต</li>
                                 <li class="text-gray-600">ท่านจะต้องเริ่มกรอกข้อมูลใหม่เมื่อกลับมายังหน้านี้</li>
