@@ -5,10 +5,15 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  output: 'export',
   distDir: '.next',
   
   // ย้าย serverComponentsExternalPackages ออกมาจาก experimental
   serverExternalPackages: ['@prisma/client'],
+
+  images: {
+    unoptimized: true,
+  },
 
   webpack: (config, { isServer }) => {
     config.watchOptions = {

@@ -5,7 +5,15 @@ import { formatDateString, getMonths, getYearRange } from '../../utils/dateUtils
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
-const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = [], selectedShift = 'all', variant = 'dashboard' }) => {
+const Calendar = ({ 
+    selectedDate, 
+    onDateSelect, 
+    onClickOutside, 
+    datesWithData = [], 
+    selectedShift = 'all', 
+    variant = 'dashboard',
+    showFormStyle = false 
+}) => {
     const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
     const [displayDate, setDisplayDate] = useState(selectedDate || new Date());
     const [shift, setShift] = useState(selectedShift);
@@ -106,10 +114,11 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
 
     // Function to check if a date has data
     const getDateStatus = (date) => {
-        const dateStr = format(date, 'yyyy-MM-dd');
+        const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+        const dateStr = localDate.toISOString().split('T')[0];
         const dateData = datesWithData.find(d => d.date === dateStr);
         
-        if (!dateData) return { hasData: false };
+        if (!dateData) return { hasData: false, isComplete: false, shifts: [] };
         
         return {
             hasData: true,
@@ -118,9 +127,9 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         };
     };
 
-    // Function to get cell style based on date status
+    // Function to get cell style
     const getCellStyle = (date) => {
-        const { hasData, isComplete, shifts } = getDateStatus(date);
+        const { hasData, isComplete } = getDateStatus(date);
         const isToday = date.toDateString() === new Date().toDateString();
         const isSelected = selectedDate && 
             date.getDate() === selectedDate.getDate() &&
@@ -132,42 +141,25 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         let textColor = 'text-gray-700';
         let dotClass = '';
 
-        // แยกการแสดงผลตาม variant
-        if (variant === 'form') {
-            // สำหรับหน้า Form
-            if (isToday) {
-                bgColor = 'bg-[#0ab4ab]';
-                textColor = 'text-white';
-                dotClass = 'bg-white';
-            } else if (hasData) {
-                if (isComplete) {
-                    bgColor = 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
-                    dotClass = 'bg-[#0ab4ab]';
-                } else {
-                    bgColor = 'bg-orange-100 hover:bg-orange-200';
-                    dotClass = 'bg-orange-500';
-                }
-            }
-        } else {
-            // สำหรับหน้า Dashboard
-            if (isSelected) {
-                bgColor = 'bg-[#0ab4ab]';
-                textColor = 'text-white';
-                dotClass = 'bg-white';
-            } else if (hasData) {
-                if (isComplete) {
-                    bgColor = 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
-                    dotClass = 'bg-[#0ab4ab]';
-                } else {
-                    bgColor = 'bg-orange-100 hover:bg-orange-200';
-                    dotClass = 'bg-orange-500';
-                }
+        if (isToday) {
+            bgColor = 'bg-[#0ab4ab]';
+            textColor = 'text-white';
+        } else if (hasData) {
+            if (isComplete) {
+                bgColor = 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
+                dotClass = 'bg-[#0ab4ab]';
+            } else {
+                bgColor = 'bg-orange-100 hover:bg-orange-200';
+                dotClass = 'bg-orange-500';
             }
         }
 
-        // วันที่ผ่านมาแล้วจะแสดงเป็นสีเทา
+        if (isSelected && !isToday) {
+            bgColor += ' ring-2 ring-[#0ab4ab]';
+        }
+
         if (date < new Date(new Date().setHours(0,0,0,0))) {
-            if (!(variant === 'form' && isToday) && !(variant === 'dashboard' && isSelected)) {
+            if (!isToday && !isSelected) {
                 textColor = 'text-gray-400';
             }
         }
@@ -175,7 +167,7 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         return {
             cellClass: `p-1 text-center`,
             dayClass: `${baseClass} ${bgColor} ${textColor} font-medium cursor-pointer`,
-            dotClass: dotClass ? `absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${dotClass}` : ''
+            dotClass: dotClass && !isToday && !isSelected ? `absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${dotClass}` : ''
         };
     };
 
@@ -230,6 +222,24 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
         return weeks;
     };
 
+    // Legend component
+    const Legend = () => (
+        <div className="flex justify-center gap-4 text-sm text-gray-600 border-t pt-4">
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-[#0ab4ab]"></div>
+                <span>วันที่ปัจจุบัน</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-[#0ab4ab]/10 border border-[#0ab4ab]/20"></div>
+                <span>บันทึกครบ 2 กะ</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded-full bg-orange-100 border border-orange-200"></div>
+                <span>บันทึกไม่ครบ</span>
+            </div>
+        </div>
+    );
+
     return (
         <div 
             ref={calendarRef} 
@@ -282,20 +292,7 @@ const Calendar = ({ selectedDate, onDateSelect, onClickOutside, datesWithData = 
                 </div>
 
                 {/* Legend - แสดงเฉพาะ 3 สถานะ */}
-                <div className="flex justify-center gap-4 text-sm text-gray-600 border-t pt-4">
-                    <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-[#0ab4ab]"></div>
-                        <span>{variant === 'form' ? 'วันที่ปัจจุบัน' : 'วันที่เลือก'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-[#0ab4ab]/10 border border-[#0ab4ab]/20"></div>
-                        <span>บันทึกครบ 2 กะ</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-orange-100 border border-orange-200"></div>
-                        <span>บันทึกไม่ครบ</span>
-                    </div>
-                </div>
+                <Legend />
 
                 {/* Shift Selector for Dashboard */}
                 {variant === 'dashboard' && (

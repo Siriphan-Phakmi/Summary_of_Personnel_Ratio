@@ -46,7 +46,7 @@ export default function Home() {
 
       {/* Version number - Fixed at bottom right */}
       <div className="fixed bottom-4 right-4 text-xs md:text-sm bg-[#0ab4ab] text-white px-2 py-1 rounded-lg shadow-md z-50">
-        v1.6.2.2025
+        v.1.21.2.2025
       </div>
     </div>
   );
