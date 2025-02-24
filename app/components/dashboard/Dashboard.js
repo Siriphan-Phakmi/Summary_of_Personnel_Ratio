@@ -940,6 +940,23 @@ const Dashboard = () => {
                     </div>
                 </div>
 
+                <div className="flex items-center gap-4 mb-6">
+                    <span className="text-sm font-medium text-gray-700">เลือกกะ:</span>
+                    {['all','07:00-19:00','19:00-07:00'].map((shiftOption) => (
+                        <button
+                            key={shiftOption}
+                            onClick={() => setFilters(prev => ({ ...prev, shift: shiftOption }))}
+                            className={`
+                                px-4 py-2 rounded-md border
+                                ${filters.shift === shiftOption ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}
+                                transition-colors duration-200 hover:bg-blue-100
+                            `}
+                        >
+                            {shiftOption === 'all' ? 'All' : shiftOption}
+                        </button>
+                    ))}
+                </div>
+
                 {/* Total Patients Card */}
                 <div className="bg-blue-100 rounded-xl p-6 mb-6 cursor-pointer hover:bg-blue-200 transition-colors duration-200"
                     onClick={() => {
