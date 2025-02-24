@@ -41,6 +41,7 @@ export const FETCH_COOLDOWN = 5000;
 export const COLLECTIONS = {
   STAFF_RECORDS: 'staffRecords',
   SHIFT_REPORTS: 'shiftReports',
+  WARD_DAILY_RECORDS: 'wardDailyRecords',
 };
 
 // Access levels
