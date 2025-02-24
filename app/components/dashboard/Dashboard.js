@@ -9,6 +9,8 @@ import Toast from '../ui/Toast';
 import Calendar from '../ui/Calendar';
 import LoadingScreen from '../ui/LoadingScreen';
 import { formatThaiDate, getThaiDateNow } from '../../utils/dateUtils';
+import CalendarSection from '../common/CalendarSection';
+import ShiftSelection from '../common/ShiftSelection';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
@@ -919,51 +921,35 @@ const Dashboard = () => {
         <div className="container mx-auto px-4 py-8">
             {isLoading && <LoadingScreen />}
             
-        <div className="p-4">
+            <div className="p-4">
                 {/* Calendar and Filters Section */}
-            <div className="mb-6">
-                <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
-                    <div className="flex flex-col md:flex-row items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowCalendar(!showCalendar)}
-                            className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-[#0ab4ab] to-blue-500 text-white rounded-lg hover:from-[#0ab4ab]/90 hover:to-blue-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 shadow-md text-sm"
-                        >
-                            {showCalendar ? 'ซ่อนปฏิทิน' : 'เลือกวันที่'}
-                        </button>
-                        <div className="text-gray-700 space-y-0.5 text-center md:text-left text-sm">
-                            <div className="font-medium text-[#0ab4ab]">วันที่ปัจจุบัน : {formatThaiDate(new Date())}</div>
-                            <div className="text-blue-600">อัพเดทข้อมูลล่าสุด : {displayDate}</div>
-                        </div>
-                    </div>
-                </div>
-
-                {showCalendar && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                        <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all">
-                            <Calendar
+                <div className="mb-6">
+                    <div className="grid grid-cols-1 gap-4">
+                        {/* Calendar Section */}
+                        <div className="relative">
+                            <CalendarSection
                                 selectedDate={selectedDate}
                                 onDateSelect={handleDateSelect}
-                                onClickOutside={() => setShowCalendar(false)}
                                 datesWithData={datesWithData}
-                                selectedShift={filters.shift}
+                                showCalendar={showCalendar}
+                                setShowCalendar={setShowCalendar}
+                                thaiDate={displayDate}
                                 variant="dashboard"
                             />
                         </div>
                     </div>
-                )}
+                </div>
 
                 {/* Total Patients Card */}
                 <div className="bg-blue-100 rounded-xl p-6 mb-6 cursor-pointer hover:bg-blue-200 transition-colors duration-200"
                     onClick={() => {
                         setSelectedWard(null);
-                        // Scroll to Detailed Ward Information
                         document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
                     }}>
                     <div className="text-center">
                         <h2 className="text-2xl font-bold text-blue-800">Patient Census</h2>
                         <p className="text-4xl font-bold text-blue-600">{stats?.totalPatients || 0}</p>
-                </div>
+                    </div>
                 </div>
 
                 {/* Ward Quick Stats Grid */}
@@ -973,14 +959,13 @@ const Dashboard = () => {
                             key={ward}
                             onClick={() => {
                                 setSelectedWard(ward);
-                                // Scroll to Detailed Ward Information
                                 document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
                             }}
                             className={`${wardColors[ward]} p-3 rounded-xl shadow-md cursor-pointer transform transition-all duration-200 hover:scale-105 ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}`}
                         >
                             <h3 className="text-base font-semibold text-black text-center">{ward}</h3>
                             <p className="text-2xl font-bold text-black text-center">{count}</p>
-                </div>
+                        </div>
                     ))}
                 </div>
 
@@ -992,7 +977,10 @@ const Dashboard = () => {
                             Available Beds Distribution
                             {selectedWard && (
                                 <button
-                                    onClick={() => setSelectedWard(null)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedWard(null);
+                                    }}
                                     className="ml-2 text-sm text-blue-600 hover:text-blue-800"
                                 >
                                     (Show All)
@@ -1007,193 +995,195 @@ const Dashboard = () => {
                                     No data available
                                 </div>
                             )}
-                </div>
-            </div>
-
-                        {/* Bar Chart for Overall Data */}
-                        <div className="bg-white p-6 rounded-xl shadow-lg">
-                            <h3 className="text-lg font-semibold mb-4 text-black">
-                                Overall Data by Ward
-                                {selectedWard && (
-                                    <button
-                                        onClick={() => setSelectedWard(null)}
-                                        className="ml-2 text-sm text-blue-600 hover:text-blue-800"
-                                    >
-                                        (Show All)
-                                    </button>
-                                )}
-                            </h3>
-                            <div style={{ height: '300px' }}>
-                                {chartData?.bar && chartData.bar.labels && chartData.bar.labels.length > 0 ? (
-                                    <Bar data={chartData.bar} options={barOptions} />
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-gray-500">
-                                        No data available
-                        </div>
-                    )}
-                </div>
-                </div>
-                </div>
-
-                    {/* Section Title for Table */}
-                    <div id="detailed-ward-info" className="text-center mb-4">
-                        <h2 className="text-xl font-bold text-gray-800">Detailed Ward Information</h2>
-            </div>
-
-                    {/* Desktop Table View */}
-                    <div className="hidden md:block">
-                        <div className="overflow-x-auto">
-                            <div className="inline-block min-w-full">
-                                <div className="bg-white rounded-xl shadow-lg">
-                                    <table className="min-w-full">
-                                        <thead>
-                                            <tr className="bg-gradient-to-r from-blue-50 to-purple-50">
-                                                <th className="sticky left-0 bg-gradient-to-r from-blue-50 to-purple-50 p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Ward</th>                                    
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Patient Census</th>                                    
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">RN</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">PN</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">WC</th>      
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">New Admit</th>                              
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer In</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer In</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer Out</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer Out</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Discharge</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Dead</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Overall Data</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Available</th>
-                                                <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Unavailable</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {Object.entries(stats?.byWard || {})
-                                                .filter(([ward]) => !selectedWard || ward === selectedWard)
-                                                .map(([ward, data], index) => {
-                                                    const wardData = stats?.wards?.[ward] || {};
-                                                    return (
-                                                        <tr key={ward} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                            <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-inherit">{ward}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.numberOfPatients || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.RN || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.PN || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.WC || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.newAdmit || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferIn || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referIn || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferOut || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referOut || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.discharge || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.dead || 0}</td>
-                                                            <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-50">{wardData.overallData || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.availableBeds || 0}</td>
-                                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.unavailable || 0}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            {/* Total Row - Always shown */}
-                                            <tr className="bg-gray-100 font-semibold">
-                                                <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-100">Total</td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.numberOfPatients || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.RN || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.PN || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.WC || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.newAdmit || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferIn || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referIn || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferOut || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referOut || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.discharge || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.dead || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-200">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.overallData || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.availableBeds || 0), 0)}
-                                                </td>
-                                                <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
-                                                    {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.unavailable || 0), 0)}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
                         </div>
                     </div>
+
+                    {/* Bar Chart for Overall Data */}
+                    <div className="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 className="text-lg font-semibold mb-4 text-black">
+                            Overall Data by Ward
+                            {selectedWard && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedWard(null);
+                                    }}
+                                    className="ml-2 text-sm text-blue-600 hover:text-blue-800"
+                                >
+                                    (Show All)
+                                </button>
+                            )}
+                        </h3>
+                        <div style={{ height: '300px' }}>
+                            {chartData?.bar && chartData.bar.labels && chartData.bar.labels.length > 0 ? (
+                                <Bar data={chartData.bar} options={barOptions} />
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-gray-500">
+                                    No data available
+                                </div>
+                            )}
                         </div>
-                        {/* Scroll Indicator */}
-                        <div className="mt-2 text-center text-xs text-gray-500 md:hidden">
-                            ← เลื่อนซ้าย-ขวาเพื่อดูข้อมูลเพิ่มเติม →
                     </div>
                 </div>
 
-                    {/* Mobile Table View */}
-                    <div className="md:hidden">
-                        <div className="space-y-4">
-                            {Object.entries(stats?.byWard || {})
-                                .filter(([ward]) => !selectedWard || ward === selectedWard)
-                                .map(([ward]) => {
-                                    const wardData = stats?.wards?.[ward] || {};
-                                    return (
-                                        <div key={ward} className="bg-white p-4 rounded-lg shadow">
-                                            <h3 className="text-lg font-semibold mb-2">{ward}</h3>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <p className="text-sm text-gray-600">Patient Census</p>
-                                                    <p className="text-lg font-medium">{wardData.numberOfPatients || 0}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-600">Overall Data</p>
-                                                    <p className="text-lg font-medium">{wardData.overallData || 0}</p>
-                                                </div>
+                {/* Section Title for Table */}
+                <div id="detailed-ward-info" className="text-center mb-4">
+                    <h2 className="text-xl font-bold text-gray-800">Detailed Ward Information</h2>
+                </div>
+
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                    <div className="overflow-x-auto">
+                        <div className="inline-block min-w-full">
+                            <div className="bg-white rounded-xl shadow-lg">
+                                <table className="min-w-full">
+                                    <thead>
+                                        <tr className="bg-gradient-to-r from-blue-50 to-purple-50">
+                                            <th className="sticky left-0 bg-gradient-to-r from-blue-50 to-purple-50 p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Ward</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Patient Census</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">RN</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">PN</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">WC</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">New Admit</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer In</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer In</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer Out</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer Out</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Discharge</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Dead</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Overall Data</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Available</th>
+                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Unavailable</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(stats?.byWard || {})
+                                            .filter(([ward]) => !selectedWard || ward === selectedWard)
+                                            .map(([ward, data], index) => {
+                                                const wardData = stats?.wards?.[ward] || {};
+                                                return (
+                                                    <tr key={ward} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                                        <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-inherit">{ward}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.numberOfPatients || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.RN || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.PN || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.WC || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.newAdmit || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferIn || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referIn || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferOut || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referOut || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.discharge || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.dead || 0}</td>
+                                                        <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-50">{wardData.overallData || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.availableBeds || 0}</td>
+                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.unavailable || 0}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        {/* Total Row */}
+                                        <tr className="bg-gray-100 font-semibold">
+                                            <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-100">Total</td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.numberOfPatients || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.RN || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.PN || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.WC || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.newAdmit || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferIn || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referIn || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferOut || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referOut || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.discharge || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.dead || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-200">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.overallData || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.availableBeds || 0), 0)}
+                                            </td>
+                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                                {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.unavailable || 0), 0)}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Scroll Indicator */}
+                    <div className="mt-2 text-center text-xs text-gray-500">
+                        ← Scroll left-right to view more →
+                    </div>
+                </div>
+
+                {/* Mobile Table View */}
+                <div className="md:hidden">
+                    <div className="space-y-4">
+                        {Object.entries(stats?.byWard || {})
+                            .filter(([ward]) => !selectedWard || ward === selectedWard)
+                            .map(([ward]) => {
+                                const wardData = stats?.wards?.[ward] || {};
+                                return (
+                                    <div key={ward} className="bg-white p-4 rounded-lg shadow">
+                                        <h3 className="text-lg font-semibold mb-2">{ward}</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-sm text-gray-600">Patient Census</p>
+                                                <p className="text-lg font-medium">{wardData.numberOfPatients || 0}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-600">Overall Data</p>
+                                                <p className="text-lg font-medium">{wardData.overallData || 0}</p>
                                             </div>
                                         </div>
-                                    );
-                                })}
-                        </div>
+                                    </div>
+                                );
+                            })}
                     </div>
-
-                    {/* Reset Selection Button - แสดงเมื่อมีการเลือกแผนก */}
-                    {selectedWard && (
-                        <div className="flex justify-center mb-6">
-                            <button
-                                onClick={() => setSelectedWard(null)}
-                                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors duration-200"
-                            >
-                                แสดงข้อมูลทุกแผนก
-                            </button>
-                        </div>
-                    )}
                 </div>
-            </div>
 
-            {/* Notification */}
-            {notification && (
-                <Notification 
-                    {...notification}
-                    onClose={() => setNotification(null)}
-                />
-            )}
+                {/* Reset Selection Button */}
+                {selectedWard && (
+                    <div className="flex justify-center mt-4">
+                        <button
+                            onClick={() => setSelectedWard(null)}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors duration-200"
+                        >
+                            Show All Wards
+                        </button>
+                    </div>
+                )}
+
+                {/* Notification */}
+                {notification && (
+                    <Notification 
+                        {...notification}
+                        onClose={() => setNotification(null)}
+                    />
+                )}
+            </div>
         </div>
     );
 };

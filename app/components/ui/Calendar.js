@@ -10,13 +10,10 @@ const Calendar = ({
     onDateSelect, 
     onClickOutside, 
     datesWithData = [], 
-    selectedShift = 'all', 
-    variant = 'dashboard',
-    showFormStyle = false 
+    variant = 'form'
 }) => {
     const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
     const [displayDate, setDisplayDate] = useState(selectedDate || new Date());
-    const [shift, setShift] = useState(selectedShift);
     const calendarRef = useRef(null);
 
     // Format date to Thai locale
@@ -48,13 +45,41 @@ const Calendar = ({
             }
         };
 
-        if (variant === 'form') {
-            document.addEventListener('mousedown', handleClickOutside);
-            return () => {
-                document.removeEventListener('mousedown', handleClickOutside);
-            };
-        }
-    }, [onClickOutside, variant]);
+        const preventDefault = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        // Get scrollbar width
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+        // Save current body styles
+        const originalStyles = {
+            overflow: window.getComputedStyle(document.body).overflow,
+            paddingRight: window.getComputedStyle(document.body).paddingRight
+        };
+
+        // Prevent all types of scrolling
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('wheel', preventDefault, { passive: false });
+        document.addEventListener('touchmove', preventDefault, { passive: false });
+        document.addEventListener('scroll', preventDefault, { passive: false });
+        
+        // Disable body scroll and compensate for scrollbar
+        document.body.style.overflow = 'hidden';
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('wheel', preventDefault);
+            document.removeEventListener('touchmove', preventDefault);
+            document.removeEventListener('scroll', preventDefault);
+            
+            // Restore original body styles
+            document.body.style.overflow = originalStyles.overflow;
+            document.body.style.paddingRight = originalStyles.paddingRight;
+        };
+    }, [onClickOutside]);
 
     const months = getMonths();
     const currentYear = new Date().getFullYear();
@@ -82,24 +107,13 @@ const Calendar = ({
         }
     };
 
-    const handleShiftChange = (newShift) => {
-        setShift(newShift);
-        if (onDateSelect && currentDate) {
-            onDateSelect(currentDate, newShift);
-        }
-    };
-
     const handleDateSelect = (day, isCurrentMonth) => {
         if (!isCurrentMonth) return;
         
         const newDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
         setCurrentDate(newDate);
         
-        if (variant === 'dashboard') {
-            onDateSelect(newDate, shift);
-        } else {
-            onDateSelect(newDate);
-        }
+        onDateSelect(newDate);
         
         onClickOutside && onClickOutside();
     };
@@ -129,7 +143,7 @@ const Calendar = ({
 
     // Function to get cell style
     const getCellStyle = (date) => {
-        const { hasData, isComplete } = getDateStatus(date);
+        const { hasData, isComplete, shifts } = getDateStatus(date);
         const isToday = date.toDateString() === new Date().toDateString();
         const isSelected = selectedDate && 
             date.getDate() === selectedDate.getDate() &&
@@ -144,13 +158,15 @@ const Calendar = ({
         if (isToday) {
             bgColor = 'bg-[#0ab4ab]';
             textColor = 'text-white';
-        } else if (hasData) {
+        }
+        
+        if (hasData) {
             if (isComplete) {
                 bgColor = 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
-                dotClass = 'bg-[#0ab4ab]';
+                dotClass = 'absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#0ab4ab]';
             } else {
                 bgColor = 'bg-orange-100 hover:bg-orange-200';
-                dotClass = 'bg-orange-500';
+                dotClass = 'absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-orange-500';
             }
         }
 
@@ -167,7 +183,7 @@ const Calendar = ({
         return {
             cellClass: `p-1 text-center`,
             dayClass: `${baseClass} ${bgColor} ${textColor} font-medium cursor-pointer`,
-            dotClass: dotClass && !isToday && !isSelected ? `absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${dotClass}` : ''
+            dotClass
         };
     };
 
@@ -180,12 +196,30 @@ const Calendar = ({
         const daysInMonth = lastDay.getDate();
         const startingDayOfWeek = firstDay.getDay();
 
+        // Get last month's info
+        const lastMonth = new Date(year, month, 0);
+        const daysInLastMonth = lastMonth.getDate();
+
         const weeks = [];
         let days = [];
 
-        // Add empty cells for days before the first of the month
+        // Add cells for days from previous month
         for (let i = 0; i < startingDayOfWeek; i++) {
-            days.push(<td key={`empty-${i}`} className="p-1"></td>);
+            const day = daysInLastMonth - startingDayOfWeek + i + 1;
+            const date = new Date(year, month - 1, day);
+            const { cellClass, dayClass, dotClass } = getCellStyle(date);
+            
+            days.push(
+                <td key={`prev-${day}`} className={cellClass}>
+                    <div
+                        onClick={() => handleDateSelect(day, false)}
+                        className={`${dayClass} opacity-50`}
+                    >
+                        {day}
+                        {dotClass && <div className={dotClass}></div>}
+                    </div>
+                </td>
+            );
         }
 
         // Add cells for each day of the month
@@ -211,10 +245,25 @@ const Calendar = ({
             }
         }
 
-        // Add remaining days
+        // Add cells for days from next month
         if (days.length > 0) {
+            let nextMonthDay = 1;
             while (days.length < 7) {
-                days.push(<td key={`empty-end-${days.length}`} className="p-1"></td>);
+                const date = new Date(year, month + 1, nextMonthDay);
+                const { cellClass, dayClass, dotClass } = getCellStyle(date);
+                
+                days.push(
+                    <td key={`next-${nextMonthDay}`} className={cellClass}>
+                        <div
+                            onClick={() => handleDateSelect(nextMonthDay, false)}
+                            className={`${dayClass} opacity-50`}
+                        >
+                            {nextMonthDay}
+                            {dotClass && <div className={dotClass}></div>}
+                        </div>
+                    </td>
+                );
+                nextMonthDay++;
             }
             weeks.push(<tr key={`week-${weeks.length}`}>{days}</tr>);
         }
@@ -222,103 +271,66 @@ const Calendar = ({
         return weeks;
     };
 
-    // Legend component
-    const Legend = () => (
-        <div className="flex justify-center gap-4 text-sm text-gray-600 border-t pt-4">
-            <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-[#0ab4ab]"></div>
-                <span>วันที่ปัจจุบัน</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-[#0ab4ab]/10 border border-[#0ab4ab]/20"></div>
-                <span>บันทึกครบ 2 กะ</span>
-            </div>
-            <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-orange-100 border border-orange-200"></div>
-                <span>บันทึกไม่ครบ</span>
-            </div>
-        </div>
-    );
-
     return (
         <div 
             ref={calendarRef} 
-            className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100"
+            className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 z-[9999]"
+            onTouchMove={(e) => e.preventDefault()}
+            onScroll={(e) => e.preventDefault()}
         >
             <div className="p-4">
-                {/* Calendar Header */}
-                <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">เลือกวันที่</h2>
-                        <p className="text-sm text-gray-600">วันที่ปัจจุบัน: {formatThaiDate(new Date())}</p>
-                    </div>
-                    {/* Year/Month Selectors */}
-                    <div className="flex gap-2">
-                        <select
-                            value={displayDate.getMonth()}
-                            onChange={handleMonthChange}
-                            className="text-sm px-3 py-1.5 border rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent"
-                        >
-                            {months.map((month, index) => (
-                                <option key={month} value={index}>{month}</option>
-                            ))}
-                        </select>
-                        <select
-                            value={displayDate.getFullYear()}
-                            onChange={handleYearChange}
-                            className="text-sm px-3 py-1.5 border rounded-lg bg-white text-gray-800 focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent"
-                        >
-                            {years.map(year => (
-                                <option key={year} value={year}>{year}</option>
-                            ))}
-                        </select>
-                    </div>
+                <div className="text-center mb-4">
+                    <div className="text-lg font-medium mb-2">เลือกวันที่</div>
+                    <div className="text-sm text-gray-600">วันที่ปัจจุบัน: {formatThaiDate(new Date())}</div>
                 </div>
 
-                {/* Calendar Grid */}
-                <div className="mb-4">
-                    <table className="w-full">
-                        <thead>
-                            <tr>
-                                {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(day => (
-                                    <th key={day} className="p-1 text-sm font-medium text-gray-600">
-                                        {day}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>{generateCalendarDays()}</tbody>
-                    </table>
+                <div className="flex justify-center gap-4 mb-4">
+                    <select
+                        value={displayDate.getMonth()}
+                        onChange={handleMonthChange}
+                        className="px-3 py-1 border rounded-lg text-gray-700"
+                    >
+                        {months.map((month, index) => (
+                            <option key={month} value={index}>{month}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={displayDate.getFullYear()}
+                        onChange={handleYearChange}
+                        className="px-3 py-1 border rounded-lg text-gray-700"
+                    >
+                        {years.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                        ))}
+                    </select>
                 </div>
 
-                {/* Legend - แสดงเฉพาะ 3 สถานะ */}
-                <Legend />
+                <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                    {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(day => (
+                        <div key={day} className="text-sm font-medium text-gray-600">{day}</div>
+                    ))}
+                </div>
 
-                {/* Shift Selector for Dashboard */}
-                {variant === 'dashboard' && (
-                    <div className="mt-4 pt-4 border-t">
-                        <p className="text-sm text-gray-600 mb-3 text-center">กรุณาเลือกกะก่อนเลือกวันที่</p>
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {[
-                                { id: 'all', label: 'ทั้งวัน', value: 'all' },
-                                { id: 'morning', label: 'กะเช้า', value: '07:00-19:00' },
-                                { id: 'night', label: 'กะดึก', value: '19:00-07:00' }
-                            ].map(({ id, label, value }) => (
-                                <button
-                                    key={id}
-                                    onClick={() => handleShiftChange(value)}
-                                    className={`px-4 py-2 rounded-lg transition-all duration-200
-                                        ${shift === value 
-                                            ? 'bg-[#0ab4ab] text-white shadow-md' 
-                                            : 'text-[#0ab4ab] hover:bg-[#0ab4ab]/10'
-                                        }`}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
+                <table className="w-full">
+                    <tbody>
+                        {generateCalendarDays()}
+                    </tbody>
+                </table>
+
+                <div className="mt-4 flex justify-center gap-2">
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-[#0ab4ab]"></div>
+                        <span className="text-xs text-gray-600">วันที่ปัจจุบัน</span>
                     </div>
-                )}
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+                        <span className="text-xs text-gray-600">บันทึกครบ 2 กะ</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-orange-300"></div>
+                        <span className="text-xs text-gray-600">บันทึกไม่ครบ</span>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -915,7 +915,7 @@ const ShiftForm = () => {
     const fetchPreviousShiftData = async (selectedDate, selectedShift) => {
         try {
             setLoadingMessage('กำลังดึงข้อมูลจากระบบ');
-            const recordsRef = collection(db, 'staffRecords');
+            const wardDailyRef = collection(db, 'wardDailyRecords');
             let queryDate = new Date(selectedDate);
             let queryShift = '';
 
@@ -936,27 +936,31 @@ const ShiftForm = () => {
 
             setLoadingMessage(`กำลังดึงข้อมูล Overall Data\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
 
+            // ดึงข้อมูลจาก wardDailyRecords
             const q = query(
-                recordsRef,
-                where('date', '==', formattedQueryDate),
-                where('shift', '==', queryShift)
+                wardDailyRef,
+                where('date', '==', formattedQueryDate)
             );
 
             const querySnapshot = await getDocs(q);
+            const updatedWards = { ...formData.wards };
 
             if (!querySnapshot.empty) {
-                const previousData = querySnapshot.docs[0].data();
-                console.log('Found previous shift data:', previousData);
-
-                const updatedWards = {};
-                Object.entries(previousData.wards).forEach(([wardName, wardData]) => {
-                    updatedWards[wardName] = {
-                        ...formData.wards[wardName],
-                        // ดึง Overall Data จากกะก่อนหน้ามาเป็น Patient Census ของกะปัจจุบัน
-                        numberOfPatients: wardData.overallData || '0',
-                        // เริ่มต้น overallData ด้วยค่าเดียวกับ numberOfPatients
-                        overallData: wardData.overallData || '0'
-                    };
+                // Process each ward's data
+                querySnapshot.docs.forEach(doc => {
+                    const wardData = doc.data();
+                    const wardId = wardData.wardId;
+                    
+                    if (wardData.shifts && wardData.shifts[queryShift]) {
+                        const shiftData = wardData.shifts[queryShift];
+                        
+                        // Update ward data with previous shift's data
+                        updatedWards[wardId] = {
+                            ...formData.wards[wardId],
+                            numberOfPatients: wardData.overallData || '0',
+                            overallData: wardData.overallData || '0'
+                        };
+                    }
                 });
 
                 setFormData(prev => ({
@@ -971,7 +975,7 @@ const ShiftForm = () => {
                 setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด...');
                 
                 const latestDataQuery = query(
-                    recordsRef,
+                    wardDailyRef,
                     where('date', '<=', formattedQueryDate),
                     orderBy('date', 'desc'),
                     limit(1)
@@ -982,15 +986,18 @@ const ShiftForm = () => {
                     const latestData = latestSnapshot.docs[0].data();
                     const latestDate = formatThaiDate(new Date(latestData.date)).replace('เพิ่มข้อมูล วันที่: ', '');
 
-                    setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}\nกะ ${latestData.shift}`);
+                    setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}`);
 
-                    const updatedWards = {};
-                    Object.entries(latestData.wards).forEach(([wardName, wardData]) => {
-                        updatedWards[wardName] = {
-                            ...formData.wards[wardName],
-                            numberOfPatients: wardData.overallData || '0',
-                            overallData: wardData.overallData || '0'
-                        };
+                    // Update all wards with the latest data
+                    Object.keys(formData.wards).forEach(wardId => {
+                        const wardLatestData = querySnapshot.docs.find(doc => doc.data().wardId === wardId)?.data();
+                        if (wardLatestData) {
+                            updatedWards[wardId] = {
+                                ...formData.wards[wardId],
+                                numberOfPatients: wardLatestData.overallData || '0',
+                                overallData: wardLatestData.overallData || '0'
+                            };
+                        }
                     });
 
                     setFormData(prev => ({

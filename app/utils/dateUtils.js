@@ -52,6 +52,10 @@ export const getMonths = () => [
     "July", "August", "September", "October", "November", "December"
 ];
 
-export const getYearRange = (currentYear, range = 2) => {
-    return Array.from({ length: range * 2 + 1 }, (_, i) => currentYear - range + i);
+export const getYearRange = (currentYear) => {
+    const years = [];
+    for (let year = 2000; year <= 4000; year++) {
+        years.push(year);
+    }
+    return years;
 };

@@ -130,7 +130,7 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('staff', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-green-500 focus:outline-none focus:border-green-500 text-green-600 placeholder-green-300 font-THSarabun"
+                                        className="w-16 text-center text-sm font-bold bg-white border-b border-green-500 focus:outline-none focus:border-green-500 text-black placeholder-green-300 font-THSarabun"
                                         placeholder="0"
                                         min="0"
                                     />
@@ -164,7 +164,7 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('movement', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-yellow-500 focus:outline-none focus:border-yellow-500 text-yellow-600 placeholder-yellow-300 font-THSarabun"
+                                        className="w-16 text-center text-sm font-bold bg-white border-b border-yellow-500 focus:outline-none focus:border-yellow-500 text-black placeholder-yellow-300 font-THSarabun"
                                         placeholder="0"
                                         min="0"
                                     />
@@ -198,7 +198,7 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('info', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-transparent border-b border-pink-500 focus:outline-none focus:border-pink-500 text-pink-600 placeholder-pink-300 font-THSarabun"
+                                        className="w-16 text-center text-sm font-bold bg-white border-b border-pink-500 focus:outline-none focus:border-pink-500 text-black placeholder-pink-300 font-THSarabun"
                                         placeholder="0"
                                         min="0"
                                     />
@@ -231,7 +231,7 @@ export const DataTable = ({
                                     type="text"
                                     value={formData.wards[ward]?.comment || ''}
                                     onChange={(e) => handleInputChange('comment', ward, { comment: e.target.value })}
-                                    className="w-24 text-center text-xs bg-transparent border-b border-gray-400 focus:outline-none focus:border-gray-600 text-gray-600 placeholder-gray-300 font-THSarabun"
+                                    className="w-24 text-center text-xs bg-white border-b border-gray-400 focus:outline-none focus:border-gray-600 text-black placeholder-gray-300 font-THSarabun"
                                     placeholder="Add comment..."
                                 />
                             </div>

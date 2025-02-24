@@ -1,24 +1,17 @@
-'use client';
-import { useState } from 'react';
-import Calendar from '../ui/Calendar';
 import { formatThaiDate } from '../../utils/dateUtils';
+import Calendar from '../ui/Calendar';
 
-const DashboardCalendar = ({ datesWithData, onDateSelect }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date());
-    const [showCalendar, setShowCalendar] = useState(false);
-    const [thaiDate, setThaiDate] = useState(formatThaiDate(new Date()));
-
-    const handleDateSelect = (date) => {
-        setSelectedDate(date);
-        setThaiDate(formatThaiDate(date));
-        if (onDateSelect) {
-            onDateSelect(date);
-        }
-        setShowCalendar(false);
-    };
-
+const CalendarSection = ({
+    selectedDate,
+    onDateSelect,
+    datesWithData = [],
+    showCalendar,
+    setShowCalendar,
+    thaiDate,
+    variant = 'form'
+}) => {
     return (
-        <div className="bg-gradient-to-br from-[#0ab4ab]/5 via-blue-50 to-purple-50 rounded-2xl p-4 mb-3 shadow-lg">
+        <div className="relative">
             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
                 <div className="flex flex-col md:flex-row items-center gap-3">
                     <button
@@ -30,20 +23,21 @@ const DashboardCalendar = ({ datesWithData, onDateSelect }) => {
                     </button>
                     <div className="text-gray-700 space-y-0.5 text-center md:text-left text-sm">
                         <div className="font-medium text-[#0ab4ab]">วันที่ปัจจุบัน : {formatThaiDate(new Date())}</div>
-                        <div className="text-blue-600">อัพเดทข้อมูลล่าสุด : {thaiDate}</div>
+                        <div className="text-blue-600">วันที่เลือก : {thaiDate}</div>
                     </div>
                 </div>
             </div>
 
+            {/* Calendar Modal */}
             {showCalendar && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all">
                         <Calendar
                             selectedDate={selectedDate}
-                            onDateSelect={handleDateSelect}
-                            datesWithData={datesWithData}
+                            onDateSelect={onDateSelect}
                             onClickOutside={() => setShowCalendar(false)}
-                            variant="dashboard"
+                            datesWithData={datesWithData}
+                            variant={variant}
                         />
                     </div>
                 </div>
@@ -52,4 +46,4 @@ const DashboardCalendar = ({ datesWithData, onDateSelect }) => {
     );
 };
 
-export default DashboardCalendar;
+export default CalendarSection; 

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import ShiftForm from './components/forms/ShiftForm';
 import Dashboard from './components/dashboard/Dashboard';
 import Navigation from './components/dashboard/Navigation';
+import WardForm from './components/forms/WardForm';
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('form');
@@ -16,13 +17,22 @@ export default function Home() {
           <div className="flex justify-center">
             <div className="flex space-x-4">
               <button
+                onClick={() => setCurrentPage('ward')}
+                className={`px-4 py-2 rounded-lg ${currentPage === 'ward'
+                  ? 'bg-white text-[#0ab4ab]'
+                  : 'text-white hover:bg-[#0ab4ab]/80'
+                  }`}
+              >
+                Ward Form
+              </button>
+              <button
                 onClick={() => setCurrentPage('form')}
                 className={`px-4 py-2 rounded-lg ${currentPage === 'form'
                   ? 'bg-white text-[#0ab4ab]'
                   : 'text-white hover:bg-[#0ab4ab]/80'
                   }`}
               >
-                FormData
+                Approval
               </button>
               <button
                 onClick={() => setCurrentPage('dashboard')}
@@ -40,7 +50,7 @@ export default function Home() {
 
       {/* Content */}
       <main className="container mx-auto">
-        {currentPage === 'form' ? <ShiftForm /> : <Dashboard />}
+        {currentPage === 'form' ? <ShiftForm /> : currentPage === 'ward' ? <WardForm /> : <Dashboard />}
       </main>
 
 
