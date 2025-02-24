@@ -101,3 +101,94 @@ export const setCachedData = (key, data) => {
     timestamp: Date.now()
   });
 };
+
+// Web Vitals
+import { getCLS, getFID, getLCP, getFCP, getTTFB } from 'web-vitals';
+
+class PerformanceMonitor {
+  constructor() {
+    this.metrics = {};
+    this.initWebVitals();
+  }
+
+  initWebVitals() {
+    getCLS(this.handleMetric);
+    getFID(this.handleMetric);
+    getLCP(this.handleMetric);
+    getFCP(this.handleMetric);
+    getTTFB(this.handleMetric);
+  }
+
+  handleMetric = (metric) => {
+    this.metrics[metric.name] = metric.value;
+    this.reportMetric(metric);
+  };
+
+  reportMetric(metric) {
+    // ส่งข้อมูลไปยัง analytics หรือ monitoring service
+    if (process.env.NODE_ENV === 'production') {
+      // ตัวอย่างการส่งไปยัง Google Analytics
+      window.gtag?.('event', 'web_vitals', {
+        event_category: 'Web Vitals',
+        event_label: metric.name,
+        value: Math.round(metric.value),
+        non_interaction: true,
+      });
+    }
+    console.log('[Performance]', metric.name, metric.value);
+  }
+
+  // Monitor component render time
+  measureComponentRender(componentName, startTime) {
+    const duration = performance.now() - startTime;
+    this.reportMetric({
+      name: `${componentName}_render`,
+      value: duration,
+      category: 'Component Performance'
+    });
+  }
+
+  // Monitor API calls
+  measureApiCall(endpoint, startTime) {
+    const duration = performance.now() - startTime;
+    this.reportMetric({
+      name: `api_${endpoint}`,
+      value: duration,
+      category: 'API Performance'
+    });
+  }
+
+  // Monitor resource loading
+  monitorResourceLoading() {
+    if (typeof window !== 'undefined') {
+      const observer = new PerformanceObserver((list) => {
+        list.getEntries().forEach((entry) => {
+          if (entry.initiatorType === 'fetch' || entry.initiatorType === 'xmlhttprequest') {
+            this.reportMetric({
+              name: `resource_${entry.name}`,
+              value: entry.duration,
+              category: 'Resource Loading'
+            });
+          }
+        });
+      });
+
+      observer.observe({ entryTypes: ['resource'] });
+    }
+  }
+
+  // Monitor memory usage
+  monitorMemoryUsage() {
+    if (performance.memory) {
+      setInterval(() => {
+        this.reportMetric({
+          name: 'memory_usage',
+          value: performance.memory.usedJSHeapSize / (1024 * 1024),
+          category: 'Memory'
+        });
+      }, 60000); // Check every minute
+    }
+  }
+}
+
+export const performanceMonitor = new PerformanceMonitor();
