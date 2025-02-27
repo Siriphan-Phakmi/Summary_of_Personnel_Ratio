@@ -899,7 +899,7 @@ const Dashboard = () => {
                     </svg>
                     :
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 000 2v3a1 1 001 1h1a1 1 100-2v-3a1 1 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                 }
                 <span className="font-medium">{message}</span>
@@ -918,93 +918,114 @@ const Dashboard = () => {
     if (loading) return <LoadingSkeleton />;
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="min-h-screen bg-gray-50">
             {isLoading && <LoadingScreen />}
             
-            <div className="p-4">
-                {/* Calendar and Filters Section */}
-                <div className="mb-6">
-                    <div className="grid grid-cols-1 gap-4">
-                        {/* Calendar Section */}
-                        <div className="relative">
-                            <CalendarSection
-                                selectedDate={selectedDate}
-                                onDateSelect={handleDateSelect}
-                                datesWithData={datesWithData}
-                                showCalendar={showCalendar}
-                                setShowCalendar={setShowCalendar}
-                                thaiDate={displayDate}
-                                variant="dashboard"
-                            />
+            <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                {/* Header Section with improved styling */}
+                <div className="mb-8">
+                    <div className="grid grid-cols-1 gap-6">
+                        {/* Calendar and Shift Selection in one row */}
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white rounded-xl shadow-sm p-6">
+                            {/* Calendar Section */}
+                            <div className="w-full md:w-3/4">
+                                <CalendarSection
+                                    selectedDate={selectedDate}
+                                    onDateSelect={handleDateSelect}
+                                    datesWithData={datesWithData}
+                                    showCalendar={showCalendar}
+                                    setShowCalendar={setShowCalendar}
+                                    thaiDate={displayDate}
+                                    variant="dashboard"
+                                />
+                            </div>
+                            
+                            {/* Shift Selection - Horizontal Layout */}
+                            <div className="w-full md:w-1/4 flex justify-center md:justify-end">
+                                <div className="inline-flex rounded-md shadow-sm">
+                                    {['all','07:00-19:00','19:00-07:00'].map((shiftOption, index) => (
+                                        <button
+                                            key={shiftOption}
+                                            onClick={() => setFilters(prev => ({ ...prev, shift: shiftOption }))}
+                                            className={`
+                                                px-4 py-2 text-sm font-medium
+                                                ${index === 0 ? 'rounded-l-md' : index === 2 ? 'rounded-r-md' : ''}
+                                                ${filters.shift === shiftOption 
+                                                    ? 'bg-blue-500 text-white border-blue-600 z-10' 
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-blue-50'}
+                                                border ${index !== 0 ? 'border-l-0' : ''}
+                                                transition-all duration-200
+                                            `}
+                                        >
+                                            {shiftOption === 'all' ? 'ทั้งหมด' : shiftOption === '07:00-19:00' ? 'กะเช้า' : 'กะดึก'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4 mb-6">
-                    <span className="text-sm font-medium text-gray-700">เลือกกะ:</span>
-                    {['all','07:00-19:00','19:00-07:00'].map((shiftOption) => (
-                        <button
-                            key={shiftOption}
-                            onClick={() => setFilters(prev => ({ ...prev, shift: shiftOption }))}
-                            className={`
-                                px-4 py-2 rounded-md border
-                                ${filters.shift === shiftOption ? 'bg-blue-500 text-white' : 'bg-white text-gray-700'}
-                                transition-colors duration-200 hover:bg-blue-100
-                            `}
-                        >
-                            {shiftOption === 'all' ? 'All' : shiftOption}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Total Patients Card */}
-                <div className="bg-blue-100 rounded-xl p-6 mb-6 cursor-pointer hover:bg-blue-200 transition-colors duration-200"
-                    onClick={() => {
-                        setSelectedWard(null);
-                        document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
-                    }}>
-                    <div className="text-center">
-                        <h2 className="text-2xl font-bold text-blue-800">Patient Census</h2>
-                        <p className="text-4xl font-bold text-blue-600">{stats?.totalPatients || 0}</p>
-                    </div>
-                </div>
-
-                {/* Ward Quick Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-                    {Object.entries(stats?.byWard || {}).map(([ward, count]) => (
-                        <div
-                            key={ward}
+                {/* Main Stats Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-10">
+                    {/* Total Patients Card - เพิ่มขนาดให้ใหญ่ขึ้น */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 h-full flex flex-col justify-center"
                             onClick={() => {
-                                setSelectedWard(ward);
+                                setSelectedWard(null);
                                 document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
-                            }}
-                            className={`${wardColors[ward]} p-3 rounded-xl shadow-md cursor-pointer transform transition-all duration-200 hover:scale-105 ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}`}
-                        >
-                            <h3 className="text-base font-semibold text-black text-center">{ward}</h3>
-                            <p className="text-2xl font-bold text-black text-center">{count}</p>
+                            }}>
+                            <div className="text-center py-4">
+                                <h2 className="text-2xl font-semibold text-white mb-3">Patient Census</h2>
+                                <p className="text-6xl font-bold text-white">{stats?.totalPatients || 0}</p>
+                            </div>
                         </div>
-                    ))}
+                    </div>
+
+                    {/* Ward Quick Stats Grid - Spans 4 columns on large screens */}
+                    <div className="lg:col-span-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                            {Object.entries(stats?.byWard || {}).map(([ward, count]) => (
+                                <div
+                                    key={ward}
+                                    onClick={() => {
+                                        setSelectedWard(ward);
+                                        document.getElementById('detailed-ward-info')?.scrollIntoView({ behavior: 'smooth' });
+                                    }}
+                                    className={`
+                                        ${wardColors[ward]} p-4 rounded-xl shadow-sm 
+                                        cursor-pointer transform transition-all duration-200 
+                                        hover:scale-105 hover:shadow-md
+                                        ${selectedWard === ward ? 'ring-2 ring-blue-500' : ''}
+                                    `}
+                                >
+                                    <h3 className="text-sm font-semibold text-gray-800 text-center mb-2">{ward}</h3>
+                                    <p className="text-2xl font-bold text-gray-900 text-center">{count}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
-                {/* Charts Section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    {/* Pie Chart for Available Beds */}
-                    <div className="bg-white p-6 rounded-xl shadow-lg">
-                        <h3 className="text-lg font-semibold mb-4 text-black">
-                            Available Beds Distribution
+                {/* Charts Section with improved layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+                    {/* Pie Chart */}
+                    <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-6 flex justify-between items-center">
+                            <span>Available Beds Distribution</span>
                             {selectedWard && (
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedWard(null);
-                                    }}
-                                    className="ml-2 text-sm text-blue-600 hover:text-blue-800"
+                                    onClick={() => setSelectedWard(null)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                                 >
-                                    (Show All)
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                    Show All
                                 </button>
                             )}
                         </h3>
-                        <div style={{ height: '300px' }}>
+                        <div className="h-[450px]"> {/* เพิ่มความสูง */}
                             {chartData?.pie && chartData.pie.labels && chartData.pie.labels.length > 0 ? (
                                 <Pie data={chartData.pie} options={pieOptions} />
                             ) : (
@@ -1015,23 +1036,23 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    {/* Bar Chart for Overall Data */}
-                    <div className="bg-white p-6 rounded-xl shadow-lg">
-                        <h3 className="text-lg font-semibold mb-4 text-black">
-                            Overall Data by Ward
+                    {/* Bar Chart */}
+                    <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-6 flex justify-between items-center">
+                            <span>Overall Data by Ward</span>
                             {selectedWard && (
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedWard(null);
-                                    }}
-                                    className="ml-2 text-sm text-blue-600 hover:text-blue-800"
+                                    onClick={() => setSelectedWard(null)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
                                 >
-                                    (Show All)
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                    Show All
                                 </button>
                             )}
                         </h3>
-                        <div style={{ height: '300px' }}>
+                        <div className="h-[450px]"> {/* เพิ่มความสูง */}
                             {chartData?.bar && chartData.bar.labels && chartData.bar.labels.length > 0 ? (
                                 <Bar data={chartData.bar} options={barOptions} />
                             ) : (
@@ -1043,104 +1064,104 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Section Title for Table */}
-                <div id="detailed-ward-info" className="text-center mb-4">
-                    <h2 className="text-xl font-bold text-gray-800">Detailed Ward Information</h2>
-                </div>
+                {/* Detailed Ward Information Section */}
+                <div id="detailed-ward-info" className="bg-white rounded-xl shadow-sm p-6">
+                    <h2 className="text-xl font-semibold text-gray-800 mb-6 text-center">
+                        {selectedWard ? `${selectedWard} Information` : 'Detailed Ward Information'}
+                    </h2>
 
-                {/* Desktop Table View */}
-                <div className="hidden md:block">
-                    <div className="overflow-x-auto">
-                        <div className="inline-block min-w-full">
-                            <div className="bg-white rounded-xl shadow-lg">
-                                <table className="min-w-full">
+                    {/* Desktop Table View with improved styling */}
+                    <div className="hidden md:block">
+                        <div className="overflow-x-auto">
+                            <div className="inline-block min-w-full">
+                                <table className="min-w-full divide-y divide-gray-200">
                                     <thead>
-                                        <tr className="bg-gradient-to-r from-blue-50 to-purple-50">
-                                            <th className="sticky left-0 bg-gradient-to-r from-blue-50 to-purple-50 p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Ward</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Patient Census</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">RN</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">PN</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">WC</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">New Admit</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer In</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer In</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Transfer Out</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Refer Out</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Discharge</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Dead</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Overall Data</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Available</th>
-                                            <th className="p-2 text-center text-xs font-semibold text-gray-800 whitespace-nowrap">Unavailable</th>
+                                        <tr className="bg-gradient-to-r from-blue-50 to-blue-100">
+                                            <th className="sticky left-0 bg-gradient-to-r from-blue-50 to-blue-100 p-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ward</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Census</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">RN</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">PN</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">WC</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">New</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">T-In</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">R-In</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">T-Out</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">R-Out</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">D/C</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Dead</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider bg-blue-100">Total</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Avail</th>
+                                            <th className="p-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Unavail</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="bg-white divide-y divide-gray-200">
                                         {Object.entries(stats?.byWard || {})
                                             .filter(([ward]) => !selectedWard || ward === selectedWard)
                                             .map(([ward, data], index) => {
                                                 const wardData = stats?.wards?.[ward] || {};
                                                 return (
-                                                    <tr key={ward} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                        <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-inherit">{ward}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.numberOfPatients || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.RN || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.PN || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.WC || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.newAdmit || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferIn || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referIn || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferOut || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referOut || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.discharge || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.dead || 0}</td>
-                                                        <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-50">{wardData.overallData || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.availableBeds || 0}</td>
-                                                        <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.unavailable || 0}</td>
+                                                    <tr key={ward} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                                                        <td className="sticky left-0 p-3 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-inherit">{ward}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.numberOfPatients || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.RN || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.PN || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.WC || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.newAdmit || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferIn || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referIn || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.transferOut || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.referOut || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.discharge || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.dead || 0}</td>
+                                                        <td className="p-3 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-blue-50">{wardData.overallData || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.availableBeds || 0}</td>
+                                                        <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">{wardData.unavailable || 0}</td>
                                                     </tr>
                                                 );
                                             })}
                                         {/* Total Row */}
-                                        <tr className="bg-gray-100 font-semibold">
-                                            <td className="sticky left-0 p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-100">Total</td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                        <tr className="bg-blue-100 font-semibold">
+                                            <td className="sticky left-0 p-3 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-blue-100">Total</td>
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.numberOfPatients || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.RN || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.PN || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.WC || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.newAdmit || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferIn || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referIn || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.transferOut || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.referOut || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.discharge || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.dead || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-gray-200">
+                                            <td className="p-3 text-xs font-medium text-gray-900 text-center whitespace-nowrap bg-blue-200">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.overallData || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.availableBeds || 0), 0)}
                                             </td>
-                                            <td className="p-2 text-xs text-gray-800 text-center whitespace-nowrap">
+                                            <td className="p-3 text-xs text-gray-800 text-center whitespace-nowrap">
                                                 {Object.values(stats?.wards || {}).reduce((sum, ward) => sum + (ward.unavailable || 0), 0)}
                                             </td>
                                         </tr>
@@ -1148,31 +1169,49 @@ const Dashboard = () => {
                                 </table>
                             </div>
                         </div>
+                        <div className="mt-4 text-center text-sm text-gray-500">
+                            ← Scroll horizontally to view more →
+                        </div>
                     </div>
-                    {/* Scroll Indicator */}
-                    <div className="mt-2 text-center text-xs text-gray-500">
-                        ← Scroll left-right to view more →
-                    </div>
-                </div>
 
-                {/* Mobile Table View */}
-                <div className="md:hidden">
-                    <div className="space-y-4">
+                    {/* Mobile View with improved cards */}
+                    <div className="md:hidden space-y-4">
                         {Object.entries(stats?.byWard || {})
                             .filter(([ward]) => !selectedWard || ward === selectedWard)
                             .map(([ward]) => {
                                 const wardData = stats?.wards?.[ward] || {};
                                 return (
-                                    <div key={ward} className="bg-white p-4 rounded-lg shadow">
-                                        <h3 className="text-lg font-semibold mb-2">{ward}</h3>
+                                    <div key={ward} 
+                                        className={`
+                                            ${wardColors[ward]} rounded-xl p-5 shadow-sm
+                                            hover:shadow-md transition-all duration-200
+                                        `}
+                                    >
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-4">{ward}</h3>
                                         <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-sm text-gray-600">Patient Census</p>
-                                                <p className="text-lg font-medium">{wardData.numberOfPatients || 0}</p>
+                                            <div className="bg-white bg-opacity-60 rounded-lg p-4">
+                                                <p className="text-sm text-gray-600">Census</p>
+                                                <p className="text-xl font-semibold text-gray-900">
+                                                    {wardData.numberOfPatients || 0}
+                                                </p>
                                             </div>
-                                            <div>
-                                                <p className="text-sm text-gray-600">Overall Data</p>
-                                                <p className="text-lg font-medium">{wardData.overallData || 0}</p>
+                                            <div className="bg-white bg-opacity-60 rounded-lg p-4">
+                                                <p className="text-sm text-gray-600">Total</p>
+                                                <p className="text-xl font-semibold text-gray-900">
+                                                    {wardData.overallData || 0}
+                                                </p>
+                                            </div>
+                                            <div className="bg-white bg-opacity-60 rounded-lg p-4">
+                                                <p className="text-sm text-gray-600">Available</p>
+                                                <p className="text-xl font-semibold text-gray-900">
+                                                    {wardData.availableBeds || 0}
+                                                </p>
+                                            </div>
+                                            <div className="bg-white bg-opacity-60 rounded-lg p-4">
+                                                <p className="text-sm text-gray-600">Staff</p>
+                                                <p className="text-xl font-semibold text-gray-900">
+                                                    {(wardData.RN || 0) + (wardData.PN || 0) + (wardData.WC || 0)}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
@@ -1181,19 +1220,25 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                {/* Reset Selection Button */}
+                {/* Reset Selection Button with improved styling */}
                 {selectedWard && (
-                    <div className="flex justify-center mt-4">
+                    <div className="flex justify-center mt-8">
                         <button
                             onClick={() => setSelectedWard(null)}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors duration-200"
+                            className="
+                                px-6 py-3 bg-blue-500 text-white rounded-lg
+                                hover:bg-blue-600 focus:outline-none focus:ring-2 
+                                focus:ring-offset-2 focus:ring-blue-500
+                                shadow-sm hover:shadow-md transition-all duration-200
+                                font-medium
+                            "
                         >
-                            Show All Wards
+                            แสดงทุก Ward
                         </button>
                     </div>
                 )}
 
-                {/* Notification */}
+                {/* Notifications */}
                 {notification && (
                     <Notification 
                         {...notification}

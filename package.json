@@ -12,8 +12,10 @@
   "dependencies": {
     "@firebase/firestore": "^4.7.6",
     "@heroicons/react": "^1.0.6",
+    "@prisma/client": "^6.4.1",
     "@radix-ui/react-tooltip": "^1.1.8",
     "chart.js": "^4.4.7",
+    "date-fns": "^4.1.0",
     "firebase": "^11.2.0",
     "firebase-admin": "^13.0.2",
     "next": "15.1.6",
@@ -28,9 +30,13 @@
     "sweetalert2": "^11.17.2"
   },
   "devDependencies": {
+    "@sentry/nextjs": "^9.1.0",
     "autoprefixer": "^10.4.20",
+    "cypress": "^14.0.3",
+    "logrocket": "^9.0.2",
     "postcss": "^8.5.1",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "web-vitals": "^4.2.4"
   },
   "engines": {
     "node": ">=16.0.0",

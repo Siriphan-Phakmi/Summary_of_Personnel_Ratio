@@ -8,9 +8,6 @@ const nextConfig = {
   output: 'export',
   distDir: '.next',
   
-  // ย้าย serverComponentsExternalPackages ออกมาจาก experimental
-  serverExternalPackages: ['@prisma/client'],
-
   images: {
     unoptimized: true,
   },
@@ -32,10 +29,12 @@ const nextConfig = {
   experimental: {
     forceSwcTransforms: true,
     largePageDataBytes: 128 * 100000,
-    // ลบ appDir และ serverComponentsExternalPackages ออก
     optimizeCss: false,
     scrollRestoration: false,
   },
+
+  // ย้ายมาไว้นอก experimental ตาม Next.js 15.1.6
+  serverExternalPackages: ['@prisma/client'],
 }
 
 module.exports = nextConfig
