@@ -4,7 +4,6 @@ import ShiftForm from './components/forms/ShiftForm';
 import Dashboard from './components/dashboard/Dashboard';
 import WardForm from './components/forms/WardForm';
 import Navigation from './components/common/Navigation';
-import VersionBadge from './components/common/VersionBadge';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import { PAGES } from './config/constants';
@@ -36,8 +35,6 @@ export default function Home() {
             {renderContent()}
           </Suspense>
         </main>
-
-        <VersionBadge />
       </div>
     </ErrorBoundary>
   );
