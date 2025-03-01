@@ -453,6 +453,7 @@ const WardForm = () => {
         return '0';
     };
 
+    // แก้ไขฟังก์ชัน fetchWardData โดยไม่ให้อัตโนมัติดึงจาก Approval
     const fetchWardData = async () => {
         try {
             // แสดง loading message
@@ -542,107 +543,98 @@ const WardForm = () => {
                 // กำหนดให้ไม่ใช้ข้อมูลจาก Approval
                 setIsUsingApprovalData(false);
             } else {
-                console.log('No data found in wardDailyRecords, trying from approval system');
+                console.log('No data found in wardDailyRecords');
                 
-                // ถ้าไม่พบข้อมูลใน wardDailyRecords ให้ลองดึงจากระบบ Approval
-                const hasApprovalData = await fetchApprovalData();
+                // ใช้ข้อมูล Patient Census และ Overall Data จากกะก่อนหน้า
+                const patientCensus = previousShiftData?.patientCensus || '0';
+                const overallData = previousShiftData?.overallData || '0';
                 
-                if (!hasApprovalData) {
-                    // ถ้าไม่พบข้อมูลทั้งใน wardDailyRecords และ Approval
-                    console.log('No data found for ward:', selectedWard);
-                    
-                    // ใช้ข้อมูล Patient Census และ Overall Data จากกะก่อนหน้า (เหมือนเดิม)
-                    const patientCensus = previousShiftData?.patientCensus || '0';
-                    const overallData = previousShiftData?.overallData || '0';
-                    
-                    // Reset the form with the data from previous shift
-                    setFormData(prev => ({
-                        ...prev,
-                        patientCensus: patientCensus,
-                        overallData: overallData,
-                        nurseManager: '0',
-                        RN: '0',
-                        PN: '0',
-                        WC: '0',
-                        newAdmit: '0',
-                        transferIn: '0',
-                        referIn: '0',
-                        transferOut: '0',
-                        referOut: '0',
-                        discharge: '0',
-                        dead: '0',
-                        availableBeds: '0',
-                        unavailable: '0',
-                        plannedDischarge: '0',
-                        comment: '',
-                        firstName: '',
-                        lastName: '',
-                        total: patientCensus
-                    }));
-                    
-                    // กำหนดให้ไม่ใช้ข้อมูลจาก Approval
-                    setIsUsingApprovalData(false);
+                // Reset the form with the data from previous shift
+                setFormData(prev => ({
+                    ...prev,
+                    patientCensus: patientCensus,
+                    overallData: overallData,
+                    nurseManager: '0',
+                    RN: '0',
+                    PN: '0',
+                    WC: '0',
+                    newAdmit: '0',
+                    transferIn: '0',
+                    referIn: '0',
+                    transferOut: '0',
+                    referOut: '0',
+                    discharge: '0',
+                    dead: '0',
+                    availableBeds: '0',
+                    unavailable: '0',
+                    plannedDischarge: '0',
+                    comment: '',
+                    firstName: '',
+                    lastName: '',
+                    total: patientCensus
+                }));
+                
+                // กำหนดให้ไม่ใช้ข้อมูลจาก Approval
+                setIsUsingApprovalData(false);
 
-                    let infoMessage = `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(selectedDate)}`;
-                    
-                    // If we have data from previous shift, show it
-                    if (previousShiftData) {
-                        const prevShiftDate = formatThaiDate(new Date(previousShiftData.date));
-                        infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดถูกดึงมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
-                    }
-                    
-                    await Swal.fire({
-                        title: 'ข้อมูลเริ่มต้น',
-                        html: infoMessage,
-                        icon: 'info',
-                        confirmButtonColor: '#0ab4ab'
-                    });
+                let infoMessage = `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(selectedDate)}`;
+                
+                // หากมีข้อมูลจาก shift ก่อนหน้า ให้แสดงที่มา
+                if (previousShiftData) {
+                    const prevShiftDate = formatThaiDate(new Date(previousShiftData.date));
+                    infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดถูกดึงมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
                 }
+                
+                // แสดงปุ่มให้เลือกดึงข้อมูลจาก Approval
+                await Swal.fire({
+                    title: 'ข้อมูลเริ่มต้น',
+                    html: `
+                        ${infoMessage}
+                        <div class="mt-4 text-left">
+                            <p class="text-sm text-gray-600">คุณสามารถดึงข้อมูลจากระบบ Approval ได้โดยคลิกที่ปุ่มด้านล่าง</p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'ดึงข้อมูลจากระบบ Approval',
+                    cancelButtonText: 'ใช้ข้อมูลเริ่มต้น',
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#0ab4ab'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // ถ้าผู้ใช้เลือกที่จะดึงข้อมูลจาก Approval
+                        fetchApprovalData();
+                    }
+                });
             }
         } catch (error) {
             console.error('Error fetching ward data:', error);
             
-            // ถ้าเกิดข้อผิดพลาดในการดึงข้อมูลจาก wardDailyRecords ให้ลองดึงจากระบบ Approval
-            console.log('Error occurred, trying to fetch from approval system');
-            await fetchApprovalData();
-            
-            if (!isUsingApprovalData) {
-                await Swal.fire({
-                    title: 'เกิดข้อผิดพลาด',
-                    text: error.message || 'ไม่สามารถดึงข้อมูลหอผู้ป่วยได้',
-                    icon: 'error',
-                    confirmButtonColor: '#0ab4ab'
-                });
-            }
+            await Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: error.message || 'ไม่สามารถดึงข้อมูลหอผู้ป่วยได้',
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
         }
     };
 
-    const calculateTotal = (data = formData) => {
-        const {
-            patientCensus = 0,
-            newAdmit = 0,
-            transferIn = 0,
-            referIn = 0,
-            transferOut = 0,
-            referOut = 0,
-            discharge = 0,
-            dead = 0
-        } = data;
-
-        // แปลงค่าเป็นตัวเลขและคำนวณ
-        const total = (
-            parseInt(patientCensus) +
-            parseInt(newAdmit) +
-            parseInt(transferIn) +
-            parseInt(referIn) -
-            parseInt(transferOut) -
-            parseInt(referOut) -
-            parseInt(discharge) -
-            parseInt(dead)
+    // เพิ่มปุ่มสำหรับดึงข้อมูลจากระบบ Approval
+    const ApprovalDataButton = () => {
+        if (!selectedWard) return null;
+        
+        return (
+            <div className="mt-4 flex flex-col items-center">
+                <button
+                    type="button"
+                    onClick={fetchApprovalData}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-md text-sm"
+                >
+                    ดึงข้อมูลจากระบบ Approval
+                </button>
+                <p className="text-xs text-gray-500 mt-1">ใช้เมื่อต้องการดึงข้อมูลบุคลากรจากระบบ Approval โดยตรง</p>
+            </div>
         );
-
-        // ป้องกันค่าติดลบ
-        return Math.max(0, total);
     };
 
     const handleInputChange = (e) => {
@@ -976,21 +968,32 @@ const WardForm = () => {
         }
     };
 
-    // เพิ่มปุ่มสำหรับดึงข้อมูลจากระบบ Approval
-    const ApprovalDataButton = () => {
-        if (!selectedWard) return null;
-        
-        return (
-            <div className="mt-4 flex justify-center">
-                <button
-                    type="button"
-                    onClick={fetchApprovalData}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-md text-sm"
-                >
-                    ดึงข้อมูลจากระบบ Approval
-                </button>
-            </div>
+    const calculateTotal = (data = formData) => {
+        const {
+            patientCensus = 0,
+            newAdmit = 0,
+            transferIn = 0,
+            referIn = 0,
+            transferOut = 0,
+            referOut = 0,
+            discharge = 0,
+            dead = 0
+        } = data;
+
+        // แปลงค่าเป็นตัวเลขและคำนวณ
+        const total = (
+            parseInt(patientCensus) +
+            parseInt(newAdmit) +
+            parseInt(transferIn) +
+            parseInt(referIn) -
+            parseInt(transferOut) -
+            parseInt(referOut) -
+            parseInt(discharge) -
+            parseInt(dead)
         );
+
+        // ป้องกันค่าติดลบ
+        return Math.max(0, total);
     };
 
     if (isLoading) {
