@@ -319,7 +319,7 @@ const ShiftForm = () => {
                 numberOfPatients +
                 newAdmit +
                 transferIn +
-                referIn -
+                referIn +
                 transferOut -
                 referOut -
                 discharge -

@@ -985,11 +985,11 @@ const WardForm = () => {
             parseInt(patientCensus) +
             parseInt(newAdmit) +
             parseInt(transferIn) +
-            parseInt(referIn) -
+            parseInt(referIn) +
             parseInt(transferOut) -
             parseInt(referOut) -
             parseInt(discharge) -
-            parseInt(dead)
+            parseInt(dead) 
         );
 
         // ป้องกันค่าติดลบ
