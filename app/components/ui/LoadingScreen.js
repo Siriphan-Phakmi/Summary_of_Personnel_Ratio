@@ -10,9 +10,10 @@ const LoadingScreen = () => {
                         <Image
                             src="/images/BPK.jpg"
                             alt="BPK Loading"
-                            layout="fill"
-                            objectFit="contain"
+                            fill={true}
+                            style={{ objectFit: 'contain' }}
                             className="animate-pulse rounded-lg"
+                            priority={true}
                         />
                     </div>
                     <div className="flex flex-col items-center">
@@ -26,4 +27,4 @@ const LoadingScreen = () => {
     );
 };
 
-export default LoadingScreen; 
+export default LoadingScreen;
