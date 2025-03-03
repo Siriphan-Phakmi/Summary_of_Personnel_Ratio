@@ -6,5 +6,9 @@
       "**/.*",
       "**/node_modules/**"
     ]
+  },
+  "firestore": {
+    "rules": ".firebase/firestore.rules",
+    "indexes": "firestore.indexes.json"
   }
 }

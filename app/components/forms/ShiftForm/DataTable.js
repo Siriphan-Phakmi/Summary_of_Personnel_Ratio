@@ -1,11 +1,14 @@
 import { formatWardName } from '../../../utils/formatters';
 import { wardMapping } from '../../../utils/wardConstants';
+import ApproveButton from './ApproveButton';
 
 export const DataTable = ({
     WARD_ORDER,
     formData,
     handleInputChange,
-    displayValue
+    displayValue,
+    approvalStatuses = {}, // Add approvalStatuses parameter with a default empty object
+    selectedDate
 }) => {
     // Map movement types to their corresponding keys in formData
     const movementTypeToKey = {
@@ -234,6 +237,29 @@ export const DataTable = ({
                                     className="w-24 text-center text-xs bg-white border-b border-gray-400 focus:outline-none focus:border-gray-600 text-black placeholder-gray-300 font-THSarabun"
                                     placeholder="Add comment..."
                                 />
+                            </div>
+                        </div>
+                    ))}
+                    <div className="h-8"></div>
+                </div>
+
+                {/* Approval Status Section */}
+                <div className="flex flex-col gap-1">
+                    <div className="h-12 flex items-center justify-center">
+                        <h4 className="text-xs font-semibold text-gray-700 font-THSarabun">Approval Status</h4>
+                    </div>
+                    {WARD_ORDER.map((ward) => (
+                        <div key={ward} className="bg-gradient-to-r from-blue-100 to-blue-200 rounded-md p-1 shadow h-8">
+                            <div className="text-center flex justify-center items-center">
+                                {approvalStatuses[ward] ? (
+                                    <ApproveButton
+                                        wardId={ward}
+                                        date={selectedDate}
+                                        status={approvalStatuses[ward]}
+                                    />
+                                ) : (
+                                    <span className="text-xs text-gray-500">No data</span>
+                                )}
                             </div>
                         </div>
                     ))}
