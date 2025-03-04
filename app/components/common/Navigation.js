@@ -3,23 +3,59 @@ import PropTypes from 'prop-types';
 import { useRouter } from 'next/navigation';
 import { PAGES, PAGE_LABELS, THEME_COLORS } from '../../config/constants';
 import { useAuth } from '../../context/AuthContext';
+import Swal from 'sweetalert2';
 
 const Navigation = ({ currentPage, setCurrentPage }) => {
   const router = useRouter();
   const { user, logout } = useAuth();
   
-  // แสดงเมนูทุกรายการ ไม่ต้องกรอง USER_MANAGEMENT ออก
+  // ให้เห็น
   const navigationPages = Object.values(PAGES);
-
+    
   const handleNavigation = (page) => {
-    if (page === PAGES.USER_MANAGEMENT) {
-      router.push('/admin/user-management');
-    } else {
-      setCurrentPage(page);
+    const isAdmin = user?.role?.toLowerCase() === 'admin';
+    const isUser = user?.role?.toLowerCase() === 'user';
+
+    switch (page) {
+      case PAGES.USER_MANAGEMENT:
+        if (!isAdmin) {
+          Swal.fire({
+            title: 'ไม่ได้เข้า',
+            text: 'ไม่ได้เข้าหน้าที่ใช้งาน',
+            icon: 'warning',
+            confirmButtonColor: '#0ab4ab'
+          });
+          return;
+        }
+        router.push('/admin/user-management');
+        break;
+
+      case PAGES.WARD:
+        router.push('/ward-form');
+        break;
+
+      case PAGES.FORM: // Approval page
+      case PAGES.DASHBOARD:
+        if (isUser) {
+          // ถ้าเป็น user ให้เปลี่ยนหน้าแต่แสดงข้อความแจ้ง
+          setCurrentPage(page);
+          Swal.fire({
+            title: 'โหมดดูข้อมูลเท่านั้น',
+            text: 'ข้อมูลได้แต่ไม่สามารถแก้ไขได้',
+            icon: 'info',
+            confirmButtonColor: '#0ab4ab'
+          });
+        } else {
+          setCurrentPage(page);
+        }
+        break;
+
+      default:
+        setCurrentPage(page);
     }
   };
 
-  // ดึงข้อมูลผู้ใช้จาก context
+  // ข้อมูล ้ใช้จาก context
   const username = user?.username || 'Guest';
   const department = user?.department || '-';
   const role = user?.role || '-';
