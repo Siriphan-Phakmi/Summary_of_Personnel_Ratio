@@ -12,29 +12,39 @@ export default function AuthGuard({ children, requiredRole = null }) {
   const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
-    // Set initial render to false after component mounts
+    // ตั้งค่า initialRender เป็น false เมื่อ component ถูกเรียกใช้
     setInitialRender(false);
     
-    // Check authentication
-    if (!loading) {
-      if (!isAuthenticated) {
-        // Not logged in - redirect to login
-        router.push('/login');
-      } else if (requiredRole && user && user.role !== requiredRole) {
-        // User doesn't have required role - แสดงข้อความแทนการ redirect
-        setAccessDenied(true);
-        setAuthorized(false);
-      } else if (isAuthenticated) {
-        // Authenticated and authorized
-        setAuthorized(true);
-        setAccessDenied(false);
+    try {
+      // ตรวจสอบการเข้าสู่ระบบเมื่อโหลดเสร็จสิ้น
+      if (!loading) {
+        console.log('AuthGuard checking auth:', { isAuthenticated, user, requiredRole });
+        
+        if (!isAuthenticated) {
+          // ไม่ได้เข้าสู่ระบบ - เปลี่ยนเส้นทางไปยังหน้าเข้าสู่ระบบ
+          console.log('Not authenticated, redirecting to login');
+          router.push('/login');
+        } else if (requiredRole && user && user.role !== requiredRole) {
+          // ผู้ใช้ไม่มีสิทธิ์ที่จำเป็น - แสดงข้อความแทนการเปลี่ยนเส้นทาง
+          console.log('User does not have required role:', { role: user.role, requiredRole });
+          setAccessDenied(true);
+          setAuthorized(false);
+        } else {
+          // เข้าสู่ระบบและมีสิทธิ์
+          console.log('User is authenticated and authorized');
+          setAuthorized(true);
+          setAccessDenied(false);
+        }
       }
+    } catch (error) {
+      console.error('Error in AuthGuard:', error);
+      setAuthorized(false);
     }
   }, [loading, isAuthenticated, user, router, requiredRole]);
 
-  // Skip server-side rendering of LoadingScreen by checking if this is initial render
+  // ข้ามการแสดงผล LoadingScreen ใน Server-Side Rendering
   if (typeof window === 'undefined' || initialRender) {
-    // Return minimal content during SSR to prevent hydration mismatch
+    // คืนค่าเนื้อหาขั้นต่ำระหว่าง SSR เพื่อป้องกัน hydration mismatch
     return <div className="min-h-screen"></div>;
   }
 
@@ -59,11 +69,13 @@ export default function AuthGuard({ children, requiredRole = null }) {
     );
   }
 
-  // Show loading screen while checking auth in client-side
+  // แสดง LoadingScreen ในขณะที่ตรวจสอบการเข้าสู่ระบบในฝั่ง client
   if (loading || !authorized) {
+    console.log('Still loading or not authorized yet, showing LoadingScreen');
     return <LoadingScreen />;
   }
 
-  // Render children if authenticated and authorized
+  // แสดงเนื้อหาเมื่อเข้าสู่ระบบและมีสิทธิ์
+  console.log('Rendering children - user authorized');
   return <>{children}</>;
 }

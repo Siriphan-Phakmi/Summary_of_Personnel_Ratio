@@ -1,9 +1,10 @@
 import './globals.css';
 import { Providers } from './context/Providers';
+import { APP_VERSION } from './config/version';
 
 export const metadata = {
   title: "Summary of Personnel Ratio and Daily Patient Census",
-  description: "ระบบรายงานสรุปอัตรากำลังบุคลากรและจำนวนผู้ป่วยรายวัน",
+  description: "ระบบรายงานตรากำคลากรและจำนวน้ป่วยราย",
 };
 
 export default function RootLayout({ children }) {
@@ -17,6 +18,9 @@ export default function RootLayout({ children }) {
       <body className="bg-gradient-to-br from-blue-50 to-teal-50">
         <Providers>
           {children}
+          <div className="fixed bottom-4 right-4 text-sm text-gray-500 z-50">
+            {APP_VERSION}
+          </div>
         </Providers>
       </body>
     </html>

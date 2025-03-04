@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { getAllUsers, addUser, updateUser, deleteUser } from '../../lib/dataAccess';
+import { getAllUsers, addUser, updateUser, deleteUser, updateAllUsersNameFields } from '../../lib/dataAccess';
 import { useAuth } from '../../context/AuthContext';
 import AuthGuard from '../../components/auth/AuthGuard';
 import LoadingScreen from '../../components/ui/LoadingScreen';
@@ -15,6 +15,10 @@ export default function UserManagement() {
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
+    firstName: '',
+    lastName: '',
+    fullName: '',
+    position: '',
     department: '',
     role: 'user'
   });
@@ -42,6 +46,28 @@ export default function UserManagement() {
     fetchUsers();
   }, []);
 
+  // แยก fullName เป็น firstName และ lastName สำหรับข้อมูลเดิม
+  useEffect(() => {
+    // จัดการกับข้อมูลผู้ใช้ที่มีอยู่แล้วแต่ไม่มี firstName หรือ lastName
+    const processedUsers = users.map(user => {
+      if ((!user.firstName || !user.lastName) && user.fullName) {
+        const nameParts = user.fullName.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        return {
+          ...user,
+          firstName: user.firstName || firstName,
+          lastName: user.lastName || lastName
+        };
+      }
+      return user;
+    });
+
+    if (JSON.stringify(processedUsers) !== JSON.stringify(users)) {
+      setUsers(processedUsers);
+    }
+  }, [users]);
+
   // Add new user
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -56,6 +82,10 @@ export default function UserManagement() {
         setNewUser({
           username: '',
           password: '',
+          firstName: '',
+          lastName: '',
+          fullName: '',
+          position: '',
           department: '',
           role: 'user'
         });
@@ -81,6 +111,10 @@ export default function UserManagement() {
       const userData = {
         username: editingUser.username,
         password: editingUser.password,
+        firstName: editingUser.firstName,
+        lastName: editingUser.lastName,
+        fullName: editingUser.fullName,
+        position: editingUser.position,
         department: editingUser.department,
         role: editingUser.role
       };
@@ -152,14 +186,38 @@ export default function UserManagement() {
             </div>
           )}
 
-          {/* Add User Button */}
-          <div className="mb-6">
-            <button
-              onClick={() => setIsAddingUser(true)}
-              className="bg-[#0ab4ab] text-white px-4 py-2 rounded-lg hover:bg-[#0ab4ab]/90"
-            >
-              Add New User
-            </button>
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-xl font-semibold">Users Management</h2>
+            <div className="flex space-x-3">
+              <button
+                onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const result = await updateAllUsersNameFields();
+                    if (result.success) {
+                      fetchUsers();
+                      alert('Successfully updated all users name fields!');
+                    } else {
+                      throw new Error(result.error);
+                    }
+                  } catch (error) {
+                    console.error('Error updating user names:', error);
+                    setError('Failed to update name fields: ' + error.message);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+              >
+                Update All Names
+              </button>
+              <button
+                onClick={() => setIsAddingUser(true)}
+                className="bg-[#0ab4ab] text-white px-4 py-2 rounded-lg hover:bg-[#0ab4ab]/90"
+              >
+                Add New User
+              </button>
+            </div>
           </div>
 
           {/* Add User Form */}
@@ -176,6 +234,44 @@ export default function UserManagement() {
                       type="text"
                       value={newUser.username}
                       onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.firstName || ''}
+                      onChange={(e) => {
+                        const firstName = e.target.value;
+                        setNewUser({
+                          ...newUser, 
+                          firstName,
+                          fullName: `${firstName} ${newUser.lastName || ''}`
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.lastName || ''}
+                      onChange={(e) => {
+                        const lastName = e.target.value;
+                        setNewUser({
+                          ...newUser, 
+                          lastName, 
+                          fullName: `${newUser.firstName || ''} ${lastName}`
+                        });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
                       required
                     />
@@ -216,6 +312,24 @@ export default function UserManagement() {
                       <option value="LR">LR</option>
                       <option value="NSY">NSY</option>
                       <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Position
+                    </label>
+                    <select
+                      value={newUser.position}
+                      onChange={(e) => setNewUser({...newUser, position: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    >
+                      <option value="">Select Position</option>
+                      <option value="เจ้าหน้าที่พยาบาล">เจ้าหน้าที่พยาบาล</option>
+                      <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
+                      <option value="หัวหน้าแผนก">หัวหน้าแผนก</option>
+                      <option value="แพทย์">แพทย์</option>
+                      <option value="ผู้ช่วยพยาบาล">ผู้ช่วยพยาบาล</option>
                     </select>
                   </div>
                   <div>
@@ -272,12 +386,50 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Password
+                      First Name
                     </label>
                     <input
-                      type="password"
-                      value={editingUser.password}
-                      onChange={(e) => setEditingUser({...editingUser, password: e.target.value})}
+                      type="text"
+                      value={editingUser.firstName || ''}
+                      onChange={(e) => {
+                        const firstName = e.target.value;
+                        setEditingUser({
+                          ...editingUser, 
+                          firstName,
+                          fullName: `${firstName} ${editingUser.lastName || ''}`
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.lastName || ''}
+                      onChange={(e) => {
+                        const lastName = e.target.value;
+                        setEditingUser({
+                          ...editingUser, 
+                          lastName,
+                          fullName: `${editingUser.firstName || ''} ${lastName}`
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editingUser.fullName || ''}
+                      onChange={(e) => setEditingUser({...editingUser, fullName: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
                       required
                     />
@@ -310,6 +462,24 @@ export default function UserManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Position
+                    </label>
+                    <select
+                      value={editingUser.position || ''}
+                      onChange={(e) => setEditingUser({...editingUser, position: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    >
+                      <option value="">Select Position</option>
+                      <option value="เจ้าหน้าที่พยาบาล">เจ้าหน้าที่พยาบาล</option>
+                      <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
+                      <option value="หัวหน้าแผนก">หัวหน้าแผนก</option>
+                      <option value="แพทย์">แพทย์</option>
+                      <option value="ผู้ช่วยพยาบาล">ผู้ช่วยพยาบาล</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Role
                     </label>
                     <select
@@ -321,6 +491,18 @@ export default function UserManagement() {
                       <option value="user">User</option>
                       <option value="admin">Admin</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={editingUser.password}
+                      onChange={(e) => setEditingUser({...editingUser, password: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
+                      required
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end space-x-3">
@@ -351,10 +533,25 @@ export default function UserManagement() {
                     Username
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    First Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Position
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Department
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Role
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Created At
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Updated At
                   </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -368,12 +565,31 @@ export default function UserManagement() {
                       {user.username}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.firstName || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.lastName || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.position || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {user.department}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
                         {user.role}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.createdAt ? (typeof user.createdAt === 'object' && user.createdAt.seconds ? 
+                        new Date(user.createdAt.seconds * 1000).toLocaleString() : 
+                        (typeof user.createdAt === 'string' ? new Date(user.createdAt).toLocaleString() : '-')) : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {user.updatedAt ? (typeof user.updatedAt === 'object' && user.updatedAt.seconds ? 
+                        new Date(user.updatedAt.seconds * 1000).toLocaleString() : 
+                        (typeof user.updatedAt === 'string' ? new Date(user.updatedAt).toLocaleString() : '-')) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
@@ -393,7 +609,7 @@ export default function UserManagement() {
                 ))}
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
                       No users found
                     </td>
                   </tr>

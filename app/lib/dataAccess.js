@@ -2,27 +2,14 @@
 
 import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { mockUsers, mockWardRecords, mockStaffRecords, getMockDataWithDelay, mockLogin } from './mockData';
 
 // สถานะการใช้งานโหมดจำลองข้อมูล
-let useMockData = true; // เปลี่ยนเป็น true เพื่อใช้ข้อมูลจำลองแทน Firebase
+let useMockData = false; // ใช้ Firebase โดยตรง
 
-// ฟังก์ชันสำหรับตั้งค่าการใช้โหมดจำลองข้อมูล
-export const setUseMockData = (value) => {
-  useMockData = value;
-  console.log(`[Data Access] ${value ? 'เปิด' : 'ปิด'}การใช้ข้อมูลจำลอง`);
-  
-  // เก็บค่าใน localStorage เพื่อให้คงอยู่แม้รีเฟรชหน้า
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('useMockData', value ? 'true' : 'false');
-  }
-};
-
-// รีเซ็ตค่าใน localStorage เพื่อให้แน่ใจว่าใช้ค่า true
+// รีเซ็ตค่าใน localStorage เพื่อให้แน่ใจว่าใช้ค่า false
 if (typeof window !== 'undefined') {
   localStorage.removeItem('useMockData');
-  // ตั้งค่าใหม่เพื่อให้แน่ใจว่าเป็น true
-  localStorage.setItem('useMockData', 'true');
+  localStorage.setItem('useMockData', 'false');
 }
 
 /**
@@ -30,8 +17,6 @@ if (typeof window !== 'undefined') {
  */
 export const findUserByUsername = async (username) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('username', '==', username));
     const querySnapshot = await getDocs(q);
@@ -46,8 +31,8 @@ export const findUserByUsername = async (username) => {
       ...userDoc.data()
     };
   } catch (error) {
-    console.warn('Using mock user data due to error:', error.message);
-    return getMockDataWithDelay(mockUsers.find(u => u.username === username) || null);
+    console.error('Error finding user:', error.message);
+    throw error;
   }
 };
 
@@ -56,58 +41,37 @@ export const findUserByUsername = async (username) => {
  */
 export const loginUser = async (username, password) => {
   try {
-    // Normal Firebase login (only if not using mock data)
-    if (!useMockData) {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('username', '==', username));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        console.log("User not found in database:", username);
-        return { success: false, error: 'User not found' };
-      }
-      
-      const userDoc = querySnapshot.docs[0].data();
-      const userId = querySnapshot.docs[0].id;
-      
-      console.log("Found user:", username, "Checking password...");
-      
-      if (userDoc.password !== password) {
-        console.log("Invalid password for user:", username);
-        return { success: false, error: 'Invalid password' };
-      }
-      
-      console.log("Login successful for user:", username);
-      
-      return { 
-        success: true, 
-        user: {
-          uid: userId,
-          ...userDoc
-        }
-      };
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('username', '==', username));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      console.log("User not found in database:", username);
+      return { success: false, error: 'User not found' };
     }
     
-    // Mock data login
-    console.log('Using mock login for:', username);
-    const mockUser = mockLogin(username, password);
-    if (!mockUser) {
-      console.log('Mock login failed - no matching user found');
-      return { success: false, error: 'Invalid credentials' };
+    const userDoc = querySnapshot.docs[0].data();
+    const userId = querySnapshot.docs[0].id;
+    
+    console.log("Found user:", username, "Checking password...");
+    
+    if (userDoc.password !== password) {
+      console.log("Invalid password for user:", username);
+      return { success: false, error: 'Invalid password' };
     }
     
-    console.log('Mock login successful for:', username);
-    return { success: true, user: mockUser };
+    console.log("Login successful for user:", username);
+    
+    return { 
+      success: true, 
+      user: {
+        uid: userId,
+        ...userDoc
+      }
+    };
   } catch (error) {
     console.error('Login error:', error.message);
-    
-    // Fallback to mock login in case of errors
-    const mockUser = mockLogin(username, password);
-    if (!mockUser) {
-      return { success: false, error: 'Invalid credentials' };
-    }
-    
-    return { success: true, user: mockUser };
+    return { success: false, error: 'Login failed: ' + error.message };
   }
 };
 
@@ -116,8 +80,6 @@ export const loginUser = async (username, password) => {
  */
 export const getWardDailyRecords = async (date, wardId = null) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     const wardDailyRef = collection(db, 'wardDailyRecords');
     let q;
     
@@ -141,25 +103,8 @@ export const getWardDailyRecords = async (date, wardId = null) => {
       ...doc.data()
     }));
   } catch (error) {
-    console.warn('Using mock ward data due to error:', error.message);
-    
-    // แปลงข้อมูลจำลองให้อยู่ในรูปแบบเดียวกับข้อมูลจริง
-    if (wardId) {
-      const wardData = mockWardRecords[wardId];
-      return wardData ? [{ 
-        id: `${date}_${wardId}`,
-        wardId,
-        date,
-        ...wardData
-      }] : [];
-    } else {
-      return Object.entries(mockWardRecords).map(([ward, data]) => ({
-        id: `${date}_${ward}`,
-        wardId: ward,
-        date,
-        ...data
-      }));
-    }
+    console.error('Error getting ward records:', error.message);
+    return [];
   }
 };
 
@@ -168,8 +113,6 @@ export const getWardDailyRecords = async (date, wardId = null) => {
  */
 export const getStaffRecords = async (date, shift = null) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     const recordsRef = collection(db, 'staffRecords');
     let q;
     
@@ -193,12 +136,8 @@ export const getStaffRecords = async (date, shift = null) => {
       ...doc.data()
     }));
   } catch (error) {
-    console.warn('Using mock staff records due to error:', error.message);
-    
-    return getMockDataWithDelay(
-      mockStaffRecords
-        .filter(record => record.date === date && (!shift || record.shift === shift))
-    );
+    console.error('Error getting staff records:', error.message);
+    return [];
   }
 };
 
@@ -207,8 +146,6 @@ export const getStaffRecords = async (date, shift = null) => {
  */
 export const saveStaffRecord = async (recordData, recordId = null) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     if (recordId) {
       // Update existing record
       await updateDoc(doc(db, 'staffRecords', recordId), {
@@ -226,13 +163,8 @@ export const saveStaffRecord = async (recordData, recordId = null) => {
       return { success: true, id: docRef.id };
     }
   } catch (error) {
-    console.warn('Using mock data save due to error:', error.message);
-    
-    // จำลองการบันทึกข้อมูล
-    return getMockDataWithDelay({ 
-      success: true, 
-      id: recordId || `mock_record_${Date.now()}`
-    });
+    console.error('Error saving staff record:', error.message);
+    return { success: false, error: error.message };
   }
 };
 
@@ -241,8 +173,6 @@ export const saveStaffRecord = async (recordData, recordId = null) => {
  */
 export const saveWardDailyRecord = async (wardData) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     const { wardId, date } = wardData;
     const docId = `${date}_${wardId}`;
     
@@ -253,13 +183,8 @@ export const saveWardDailyRecord = async (wardData) => {
     
     return { success: true, id: docId };
   } catch (error) {
-    console.warn('Using mock ward daily record save due to error:', error.message);
-    
-    // จำลองการบันทึกข้อมูล
-    return getMockDataWithDelay({ 
-      success: true, 
-      id: `${wardData.date}_${wardData.wardId}`
-    });
+    console.error('Error saving ward daily record:', error.message);
+    return { success: false, error: error.message };
   }
 };
 
@@ -268,28 +193,16 @@ export const saveWardDailyRecord = async (wardData) => {
  */
 export const getAllUsers = async () => {
   try {
-    console.log('Getting all users, useMockData:', useMockData);
-    
-    if (useMockData) {
-      console.log('Using mock data - throwing error');
-      throw new Error('Using mock data');
-    }
-    
-    console.log('Fetching users from Firebase...');
     const usersRef = collection(db, 'users');
     const querySnapshot = await getDocs(usersRef);
     
-    const users = querySnapshot.docs.map(doc => ({
+    return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    
-    console.log(`Found ${users.length} users in Firebase`);
-    return users;
   } catch (error) {
-    console.error('Error getting users:', error);
-    console.log('Returning mock users instead');
-    return getMockDataWithDelay(mockUsers);
+    console.error('Error getting users:', error.message);
+    return [];
   }
 };
 
@@ -298,33 +211,16 @@ export const getAllUsers = async () => {
  */
 export const addUser = async (userData) => {
   try {
-    console.log('Adding user, useMockData:', useMockData);
-    console.log('User data:', userData);
-    
-    if (useMockData) {
-      console.log('Using mock data - throwing error');
-      throw new Error('Using mock data');
-    }
-    
-    console.log('Adding user to Firebase...');
-    const docRef = await addDoc(collection(db, 'users'), userData);
-    console.log('User added successfully to Firebase, ID:', docRef.id);
+    const userDataWithTimestamps = {
+      ...userData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+    const docRef = await addDoc(collection(db, 'users'), userDataWithTimestamps);
     return { success: true, id: docRef.id };
   } catch (error) {
-    console.error('Error adding user:', error);
-    
-    // เพิ่มผู้ใช้ในข้อมูลจำลอง
-    const newId = `user_${Date.now()}`;
-    console.log('Adding to mock users with ID:', newId);
-    mockUsers.push({
-      id: newId,
-      ...userData
-    });
-    
-    return getMockDataWithDelay({ 
-      success: true, 
-      id: newId
-    });
+    console.error('Error adding user:', error.message);
+    return { success: false, error: error.message };
   }
 };
 
@@ -333,20 +229,15 @@ export const addUser = async (userData) => {
  */
 export const updateUser = async (userId, userData) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
-    await updateDoc(doc(db, 'users', userId), userData);
+    const userDataWithTimestamp = {
+      ...userData,
+      updatedAt: serverTimestamp()
+    };
+    await updateDoc(doc(db, 'users', userId), userDataWithTimestamp);
     return { success: true };
   } catch (error) {
-    console.warn('Using mock user update due to error:', error.message);
-    
-    // อัพเดทผู้ใช้ในข้อมูลจำลอง
-    const index = mockUsers.findIndex(user => user.id === userId);
-    if (index !== -1) {
-      mockUsers[index] = { ...mockUsers[index], ...userData };
-    }
-    
-    return getMockDataWithDelay({ success: true });
+    console.error('Error updating user:', error.message);
+    return { success: false, error: error.message };
   }
 };
 
@@ -355,19 +246,53 @@ export const updateUser = async (userId, userData) => {
  */
 export const deleteUser = async (userId) => {
   try {
-    if (useMockData) throw new Error('Using mock data');
-    
     await deleteDoc(doc(db, 'users', userId));
     return { success: true };
   } catch (error) {
-    console.warn('Using mock user delete due to error:', error.message);
+    console.error('Error deleting user:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * ฟังก์ชันอัพเดทข้อมูล firstName, lastName และ position จาก fullName และ role สำหรับผู้ใช้ทั้งหมด
+ * สำหรับ Admin ใช้งาน (กรณีที่ต้องการอัพเดทข้อมูลทั้งหมดในครั้งเดียว)
+ */
+export const updateAllUsersNameFields = async () => {
+  try {
+    const users = await getAllUsers();
+    const updatePromises = users.map(async (user) => {
+      const updates = {};
+      
+      // แยก firstname และ lastname จาก fullName
+      if ((!user.firstName || !user.lastName) && user.fullName) {
+        const nameParts = (user.fullName || '').split(' ');
+        updates.firstName = nameParts[0] || '';
+        updates.lastName = nameParts.slice(1).join(' ') || '';
+      }
+      
+      // กำหนด position ตาม role ถ้ายังไม่มี
+      if (!user.position) {
+        if (user.role && user.role.toLowerCase() === 'admin') {
+          updates.position = 'ผู้ดูแลระบบ';
+        } else {
+          updates.position = 'เจ้าหน้าที่พยาบาล'; // ค่าเริ่มต้นสำหรับ user ทั่วไป
+        }
+      }
+      
+      // อัพเดทเฉพาะถ้ามีข้อมูลที่ต้องอัพเดท
+      if (Object.keys(updates).length > 0) {
+        updates.updatedAt = serverTimestamp();
+        return updateDoc(doc(db, 'users', user.id), updates);
+      }
+      
+      return Promise.resolve(); // ไม่ต้องอัพเดทถ้าไม่มีข้อมูลที่ต้องเปลี่ยน
+    });
     
-    // ลบผู้ใช้ในข้อมูลจำลอง
-    const index = mockUsers.findIndex(user => user.id === userId);
-    if (index !== -1) {
-      mockUsers.splice(index, 1);
-    }
-    
-    return getMockDataWithDelay({ success: true });
+    await Promise.all(updatePromises);
+    return { success: true, message: 'Updated all users successfully' };
+  } catch (error) {
+    console.error('Error updating users:', error.message);
+    return { success: false, error: error.message };
   }
 };
