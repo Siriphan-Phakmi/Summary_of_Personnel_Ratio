@@ -6,35 +6,37 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   output: 'export',
-  distDir: process.env.NODE_ENV === 'development' ? '.dev' : 'C:/temp/nextjs-build',
+  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'C:/temp/nextjs-build',
   
   images: {
     unoptimized: true,
   },
 
+  //  experimental features  ทำให้
+  experimental: {
+    optimizeCss: false, //  CSS optimization
+    forceSwcTransforms: true,
+    largePageDataBytes: 128 * 100000,
+  },
+
   webpack: (config, { isServer }) => {
-    config.watchOptions = {
-      poll: 1000,
-      aggregateTimeout: 300,
-      ignored: ['**/.git/**', '**/node_modules/**', '**/.next/**'],
-    };
-    config.node = {
-      ...config.node,
-      __filename: true,
-      __dirname: true,
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        chunks: 'all',
+        cacheGroups: {
+          default: false,
+          vendors: false,
+          commons: {
+            name: 'commons',
+            chunks: 'all',
+            minChunks: 2,
+          },
+        },
+      },
     };
     return config;
   },
-  
-  experimental: {
-    forceSwcTransforms: true,
-    largePageDataBytes: 128 * 100000,
-    optimizeCss: false,
-    scrollRestoration: false,
-  },
-
-  // ย้ายมาไว้นอก experimental ตาม Next.js 15.1.6
-  serverExternalPackages: ['@prisma/client'],
 }
 
 module.exports = nextConfig

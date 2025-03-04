@@ -15,13 +15,6 @@ export default function Login() {
   const router = useRouter();
   const { user, loading: authLoading, isAuthenticated, login } = useAuth();
 
-  // ฟังก์ชันสำหรับล้าง cache และรีโหลดหน้า
-  const clearCacheAndReload = () => {
-    localStorage.clear();
-    alert('Cache cleared successfully!');
-    window.location.reload();
-  };
-
   useEffect(() => {
     console.log('Login page - Auth state:', { authLoading, isAuthenticated, user });
     
@@ -42,7 +35,6 @@ export default function Login() {
       // Use the login function from AuthContext
       const result = await login(username, password);
       console.log('Login result:', result);
-      console.log('User role:', result?.user?.role, 'Type:', typeof result?.user?.role);
       
       if (!result || !result.success) {
         // Display error message
@@ -168,21 +160,6 @@ export default function Login() {
                 {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ (Sign in)'}
               </button>
             </div>
-
-            <div className="text-sm text-gray-500 mt-4">
-              {error && <p className="text-red-500">{error}</p>}
-            </div>
-
-            {/* ปุ่ม Clear Cache (แสดงเฉพาะในโหมด development) */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                type="button"
-                onClick={clearCacheAndReload}
-                className="mt-4 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-600 rounded px-3 py-1"
-              >
-                ล้าง Cache & รีโหลดหน้า
-              </button>
-            )}
           </form>
         </div>
         <div className="mt-6 bg-[#ffeef8] p-4 rounded-lg border border-[#ffd6f1]">

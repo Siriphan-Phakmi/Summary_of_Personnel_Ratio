@@ -10,7 +10,6 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 import { PAGES } from './config/constants';
 import { useAuth } from './context/AuthContext';
 import AuthGuard from './components/auth/AuthGuard';
-import debounce from 'lodash/debounce';
 
 // APP_VERSION constant
 const APP_VERSION = 'v.2.3.3.2025';
@@ -20,43 +19,13 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(PAGES.FORM);
   const { user, loading, isAuthenticated, logout } = useAuth();
   const router = useRouter();
-  const [showLoader, setShowLoader] = useState(false);
-
-  // ล้าง localStorage อัตโนมัติในโหมด development
-  useEffect(() => {
-    // ตรวจสอบว่าอยู่ในโหมด development และรันอยู่ในฝั่ง browser
-    if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-      // ตรวจสอบว่ามีการเปิดแอพใหม่โดยใช้พารามิเตอร์จาก URL
-      const clearCache = new URLSearchParams(window.location.search).get('clear_cache');
-      
-      if (clearCache === 'true') {
-        console.log('Development mode: Clearing localStorage by URL parameter');
-        localStorage.clear();
-        // ลบพารามิเตอร์ clear_cache ออกจาก URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
 
   useEffect(() => {
-    console.log('Home page - Auth state:', { loading, isAuthenticated, user });
-    
-    try {
-      if (!loading && !isAuthenticated) {
-        console.log('Not authenticated, redirecting to login from Home');
-        router.push('/login');
-      } else if (!loading && isAuthenticated && user) {
-        // นำทางตามสิทธิ์ของผู้ใช้
-        if (user.role && user.role.toLowerCase() === 'user') {
-          console.log('User role detected, redirecting to ward-form');
-          router.push('/ward-form');
-        }
-      }
-    } catch (err) {
-      console.error('Initialization error:', err);
-      setError(err.message);
+    if (!loading && !isAuthenticated) {
+      router.push('/login');
     }
-  }, [loading, isAuthenticated, router, user]);
+    // ลบเงื่อนไขการ redirect  user role
+  }, [loading, isAuthenticated, router]);
 
   if (error) {
     return <div>Error: {error}</div>;
