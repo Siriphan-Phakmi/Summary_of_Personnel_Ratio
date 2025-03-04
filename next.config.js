@@ -6,7 +6,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   output: 'export',
-  distDir: '.next',
+  distDir: process.env.NODE_ENV === 'development' ? '.dev' : 'C:/temp/nextjs-build',
   
   images: {
     unoptimized: true,

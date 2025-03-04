@@ -31,9 +31,7 @@ const ShiftForm = () => {
         newPatients: '',
         admissions24hr: '',
         supervisorFirstName: '',
-        supervisorLastName: '',
-        recorderFirstName: '',
-        recorderLastName: ''
+        supervisorLastName: ''
     });
 
     // ปรับปรุง formData state
@@ -605,10 +603,6 @@ const ShiftForm = () => {
                 message: 'ไม่สามารถบันทึกข้อมูลกะดึกได้ เนื่องจากยังไม่มีการบันทึกข้อมูลกะเช้าก่อน'
             },
             {
-                condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
-                message: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล'
-            },
-            {
                 condition: !summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim(),
                 message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
             }
@@ -674,9 +668,7 @@ const ShiftForm = () => {
             newPatients: '',
             admissions24hr: '',
             supervisorFirstName: '',
-            supervisorLastName: '',
-            recorderFirstName: '',
-            recorderLastName: ''
+            supervisorLastName: ''
         });
 
                 setHasUnsavedChanges(false); // รีเซ็ตสถานะหลังล้างข้อมูล
@@ -854,9 +846,7 @@ const ShiftForm = () => {
                     newPatients: summaryData.newPatients || '',
                     admissions24hr: summaryData.admissions24hr || '',
                     supervisorFirstName: summaryData.supervisorFirstName || '',
-                    supervisorLastName: summaryData.supervisorLastName || '',
-                    recorderFirstName: summaryData.recorderFirstName || '',
-                    recorderLastName: summaryData.recorderLastName || ''
+                    supervisorLastName: summaryData.supervisorLastName || ''
                 },
                 timestamp: serverTimestamp(),
                 lastModified: serverTimestamp()
@@ -1184,9 +1174,7 @@ const ShiftForm = () => {
                         newPatients: latestData.summaryData.newPatients || '',
                         admissions24hr: latestData.summaryData.admissions24hr || '',
                         supervisorFirstName: latestData.summaryData.supervisorFirstName || '',
-                        supervisorLastName: latestData.summaryData.supervisorLastName || '',
-                        recorderFirstName: latestData.summaryData.recorderFirstName || '',
-                        recorderLastName: latestData.summaryData.recorderLastName || ''
+                        supervisorLastName: latestData.summaryData.supervisorLastName || ''
                     }));
                 }
 
@@ -1251,9 +1239,7 @@ const ShiftForm = () => {
             summaryData.newPatients !== '' ||
             summaryData.admissions24hr !== '' ||
             summaryData.supervisorFirstName !== '' ||
-            summaryData.supervisorLastName !== '' ||
-            summaryData.recorderFirstName !== '' ||
-            summaryData.recorderLastName !== '';
+            summaryData.supervisorLastName !== '';
 
         return hasWardChanges || hasSummaryChanges;
     }, [formData.wards, summaryData]);

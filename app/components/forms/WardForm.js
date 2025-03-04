@@ -1446,6 +1446,36 @@ const WardForm = ({ wardId }) => {
                         ></textarea>
                     </div>
                     
+                    {/* เจ้าหน้าที่ผู้บันทึกข้อมูล */}
+                    <div className="mb-6 bg-blue-50/80 rounded-xl p-5 shadow-sm">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-4 bg-white/50 py-2 px-4 rounded-lg text-center shadow-sm">
+                            เจ้าหน้าที่ผู้บันทึกข้อมูล
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-blue-700">First Name</label>
+                                <input
+                                    type="text"
+                                    name="recorderFirstName"
+                                    value={user?.username || ''}
+                                    readOnly
+                                    className="w-full text-black px-3 py-2 border border-blue-200 rounded-lg bg-white/70"
+                                    placeholder="ชื่อ"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-blue-700">Department</label>
+                                <input
+                                    type="text"
+                                    value={user?.department || ''}
+                                    readOnly
+                                    className="w-full text-black px-3 py-2 border border-blue-200 rounded-lg bg-white/70"
+                                    placeholder="แผนก"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div className="flex justify-center">
                         <button
                             type="submit"

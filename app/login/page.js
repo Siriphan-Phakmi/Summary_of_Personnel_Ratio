@@ -2,7 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import MockDataToggle from '../components/ui/MockDataToggle';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+
+// APP_VERSION constant
+const APP_VERSION = 'v.2.3.3.2025';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -10,54 +13,73 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { user, loading: authLoading, isAuthenticated, login } = useAuth();
+
+  // ฟังก์ชันสำหรับล้าง cache และรีโหลดหน้า
+  const clearCacheAndReload = () => {
+    localStorage.clear();
+    alert('Cache cleared successfully!');
+    window.location.reload();
+  };
 
   useEffect(() => {
-    // Check if user is already logged in
-    const checkLoggedIn = () => {
-      // Make sure we're in the browser environment
-      if (typeof window !== 'undefined') {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          router.push('/');
-        }
-      }
-    };
+    console.log('Login page - Auth state:', { authLoading, isAuthenticated, user });
     
-    checkLoggedIn();
-  }, [router]);
+    // Check if user is already logged in
+    if (!authLoading && isAuthenticated) {
+      console.log('Already authenticated, redirecting to home');
+      router.push('/');
+    }
+  }, [authLoading, isAuthenticated, router, user]);
 
-  const { login } = useAuth();
-  
-  const handleSimpleLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    console.log('Attempting to login with:', { username });
 
     try {
       // Use the login function from AuthContext
       const result = await login(username, password);
+      console.log('Login result:', result);
+      console.log('User role:', result?.user?.role, 'Type:', typeof result?.user?.role);
       
       if (!result || !result.success) {
-        // แสดงข้อความข้อผิดพลาดจาก result หรือข้อความเริ่มต้น
+        // Display error message
         setError(result?.error || 'ไม่พบผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
         setLoading(false);
         return;
       }
 
-      // เมื่อล็อกอินสำเร็จ นำทางไปยังหน้าหลัก
-      router.push('/');
+      // นำทางตาม role ของผู้ใช้
+      if (result.user && result.user.role) {
+        if (result.user.role.toLowerCase() === 'user') {
+          // สำหรับ user ปกติ นำทางไปยังหน้า WardForm
+          router.push('/ward-form');
+        } else {
+          // สำหรับ admin นำทางไปยังหน้าหลัก
+          router.push('/');
+        }
+      } else {
+        // หากไม่มีข้อมูล role ให้นำทางไปยังหน้าหลัก
+        router.push('/');
+      }
     } catch (error) {
-      // จัดการกรณีเกิดข้อผิดพลาดที่ไม่คาดคิด
       console.error('Login error:', error);
       setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
       setLoading(false);
     }
   };
 
+  // Show loading spinner while checking auth state
+  if (authLoading) {
+    return <LoadingSpinner fullScreen />;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      {/* Toggle switch for mock data */}
-      <MockDataToggle />
+      {/* App version display */}
+      <div className="absolute bottom-4 right-4 text-xs text-gray-400">{APP_VERSION}</div>
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <img 
@@ -73,7 +95,7 @@ export default function Login() {
           </h2>
         </div>
         <div className="mt-6 bg-[#f8f9ff] p-8 rounded-xl shadow-xl border border-[#e6eaff]">
-          <form className="space-y-6" onSubmit={handleSimpleLogin}>
+          <form className="space-y-6" onSubmit={handleLogin}>
             <div className="space-y-4">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-[#5b6987] mb-1">ชื่อผู้ใช้ (Username)</label>
@@ -119,23 +141,23 @@ export default function Login() {
               </div>
             </div>
 
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3 space-y-1">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                  <p className="text-xs text-red-700">
-                    หากยังไม่สามารถเข้าสู่ระบบได้ กรุณาติดต่อผู้ดูแลระบบ
-                  </p>
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3 space-y-1">
+                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                    <p className="text-xs text-red-700">
+                      หากยังไม่สามารถเข้าสู่ระบบได้ กรุณาติดต่อผู้ดูแลระบบ
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
             <div>
               <button
@@ -146,6 +168,21 @@ export default function Login() {
                 {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ (Sign in)'}
               </button>
             </div>
+
+            <div className="text-sm text-gray-500 mt-4">
+              {error && <p className="text-red-500">{error}</p>}
+            </div>
+
+            {/* ปุ่ม Clear Cache (แสดงเฉพาะในโหมด development) */}
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                type="button"
+                onClick={clearCacheAndReload}
+                className="mt-4 text-sm text-indigo-600 hover:text-indigo-800 border border-indigo-600 rounded px-3 py-1"
+              >
+                ล้าง Cache & รีโหลดหน้า
+              </button>
+            )}
           </form>
         </div>
         <div className="mt-6 bg-[#ffeef8] p-4 rounded-lg border border-[#ffd6f1]">
