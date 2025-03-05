@@ -1,6 +1,7 @@
 import './globals.css';
 import { Providers } from './context/Providers';
 import { APP_VERSION } from './config/version';
+import Navbar from './components/common/Navbar';
 
 export const metadata = {
   title: "Summary of Personnel Ratio and Daily Patient Census",
@@ -17,6 +18,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="bg-gradient-to-br from-blue-50 to-teal-50">
         <Providers>
+          <Navbar />
           {children}
           <div className="fixed bottom-4 right-4 text-sm text-gray-500 z-50">
             {APP_VERSION}
