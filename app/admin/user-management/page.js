@@ -4,7 +4,6 @@ import { getAllUsers, addUser, updateUser, deleteUser, updateAllUsersNameFields 
 import { useAuth } from '../../context/AuthContext';
 import AuthGuard from '../../components/auth/AuthGuard';
 import LoadingScreen from '../../components/ui/LoadingScreen';
-import Navigation from '../../components/common/Navigation';
 import { useRouter } from 'next/navigation';
 
 export default function UserManagement() {
@@ -159,33 +158,8 @@ export default function UserManagement() {
 
   return (
     <AuthGuard requiredRole="admin">
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-[#0ab4ab] py-4">
-          <div className="container mx-auto px-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-4">
-                <button 
-                  onClick={() => router.back()} 
-                  className="bg-white text-[#0ab4ab] px-3 py-1 rounded-lg hover:bg-gray-100 flex items-center"
-                >
-                  <span className="mr-1">←</span> กลับ
-                </button>
-                <h1 className="text-2xl font-bold text-white">User Management</h1>
-              </div>
-              <div className="text-white">
-                Admin: {currentUser?.username}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
-          {error && (
-            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-            </div>
-          )}
-
+      <div className="min-h-screen bg-gray-100">
+        <main className="container mx-auto px-4 pt-20 pb-10">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-semibold">Users Management</h2>
             <div className="flex space-x-3">
