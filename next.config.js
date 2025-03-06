@@ -5,38 +5,17 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  output: 'export',
-  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'C:/temp/nextjs-build',
+  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist',
   
   images: {
     unoptimized: true,
   },
 
-  //  experimental features  ทำให้
   experimental: {
-    optimizeCss: false, //  CSS optimization
+    optimizeCss: false,
     forceSwcTransforms: true,
     largePageDataBytes: 128 * 100000,
   },
+};
 
-  webpack: (config, { isServer }) => {
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          commons: {
-            name: 'commons',
-            chunks: 'all',
-            minChunks: 2,
-          },
-        },
-      },
-    };
-    return config;
-  },
-}
-
-module.exports = nextConfig
+module.exports = nextConfig;

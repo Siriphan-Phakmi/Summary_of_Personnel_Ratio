@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/admin/logs/page": "app/admin/logs/page.js",
+  "/approval/page": "app/approval/page.js",
+  "/login/page": "app/login/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/admin/user-management/page": "app/admin/user-management/page.js",
+  "/ward-form/page": "app/ward-form/page.js",
+  "/page": "app/page.js"
+}
