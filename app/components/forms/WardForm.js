@@ -10,11 +10,12 @@ import Calendar from '../ui/Calendar';
 import CalendarSection from '../common/CalendarSection';
 import ShiftSelection from '../common/ShiftSelection';
 import { useAuth } from '../../context/AuthContext';
+import { logEvent } from '../../utils/clientLogging';
 
 const WardForm = ({ wardId }) => {
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedWard, setSelectedWard] = useState(wardId || '');
+    const [selectedWard, setSelectedWard] = useState(wardId || (user?.department || ''));
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedShift, setSelectedShift] = useState(getCurrentShift());
     const [thaiDate, setThaiDate] = useState(getThaiDateNow());
@@ -61,7 +62,7 @@ const WardForm = ({ wardId }) => {
         'NSY'
     ];
 
-    // เพิ่มฟังก์ชันเช็คการเปลี่ยนแปลง
+    // เล่ม์ก์เช็คการเปลี่ยนแปลง
     const checkFormChanges = useCallback(() => {
         if (!selectedWard) return false;
         
@@ -132,13 +133,13 @@ const WardForm = ({ wardId }) => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [hasUnsavedChanges]);
 
-    // คำนวณยอดรวม Total ใหม่เมื่อมีการเปลี่ยนแปลงข้อมูลที่เกี่ยวข้อง
+    // คำนวณยอดรวม Total ใหม่เมื่อเปลี่ยนแปลงข้อมูลเกี่ยวข้อง
     useEffect(() => {
         const total = calculateTotal();
         setFormData(prev => ({
             ...prev,
             total: total.toString(),
-            overallData: total.toString()  // อัพเดท overallData ด้วย
+            overallData: total.toString()  // เดท overallData ด้วย
         }));
     }, [formData.patientCensus, formData.newAdmit, formData.transferIn, formData.referIn, 
         formData.transferOut, formData.referOut, formData.discharge, formData.dead]);
@@ -197,7 +198,7 @@ const WardForm = ({ wardId }) => {
         }
     };
 
-    // เพิ่มฟังก์ชันสำหรับดึงข้อมูล Patient Census จากกะก่อนหน้า
+    // เล่ม์ก์ดึงข้อมูล Patient Census จากกะก่อนหน้า
     const fetchPreviousShiftData = async (date, targetWard) => {
         if (!targetWard) return;
         
@@ -209,9 +210,9 @@ const WardForm = ({ wardId }) => {
             let queryDate = new Date(date);
             let queryShift = '';
 
-            // กำหนดวันที่และกะที่จะค้นหา
+            // กำหนดวันและกะที่จะค้นหา
             if (selectedShift === '19:00-07:00') {
-                // ถ้าเป็นกะดึก ให้ดึงข้อมูลจากกะเช้าของวันเดียวกัน
+                // ถ้าเป็นกะดึก ให้ดึงข้อมูลจากกะเช้าของวันนี้
                 queryShift = '07:00-19:00';
             } else {
                 // ถ้าเป็นกะเช้า ให้ดึงข้อมูลจากกะดึกของวันก่อนหน้า
@@ -244,7 +245,7 @@ const WardForm = ({ wardId }) => {
                         shift: queryShift
                     });
                     
-                    // อัพเดทฟอร์ม
+                    // เดทฟอร์ม
                     setFormData(prev => ({
                         ...prev,
                         patientCensus: wardData.overallData || '0',
@@ -261,7 +262,7 @@ const WardForm = ({ wardId }) => {
                 }
             }
             
-            // วิธีแก้ไขชั่วคราว: ดึงข้อมูลทั้งหมดแล้วค่อยกรองและเรียงลำดับในโค้ด
+            // แก้ไขชั่วคราว: ดึงข้อมูลทั้งหมดแล้วค่อยกรองและเรียงลำดับในโค้ด
             const simpleQuery = query(
                 wardDailyRef,
                 where('wardId', '==', targetWard)
@@ -286,7 +287,7 @@ const WardForm = ({ wardId }) => {
                     shift: Object.keys(latestData.shifts || {})[0] || ''
                 });
                 
-                // อัพเดทฟอร์ม
+                // เดทฟอร์ม
                 setFormData(prev => ({
                     ...prev,
                     patientCensus: latestData.overallData || '0',
@@ -326,26 +327,26 @@ const WardForm = ({ wardId }) => {
         }
     };
 
-    // เพิ่ม state สำหรับเก็บข้อมูลจากหน้า Approval
+    // เล่ม state เก็บข้อมูลจากหน้า Approval
     const [approvalData, setApprovalData] = useState(null);
     const [isUsingApprovalData, setIsUsingApprovalData] = useState(false);
 
-    // เพิ่มฟังก์ชันดึงข้อมูลจากหน้า Approval
+    // เล่ม์ก์ดึงข้อมูลจากหน้า Approval
     const fetchApprovalData = async () => {
         try {
             setIsLoading(true);
             
             // แสดง loading message
             Swal.fire({
-                title: 'กำลังโหลดข้อมูลจากระบบ Approval',
-                text: 'กรุณารอสักครู่',
+                title: 'โหลดข้อมูลจากระบบ Approval',
+                text: 'ณารอ...',
                 allowOutsideClick: false,
                 didOpen: () => {
                     Swal.showLoading();
                 }
             });
 
-            // ดึงข้อมูลจาก staffRecords (ที่ใช้ในหน้า Approval)
+            // ดึงข้อมูลจาก staffRecords (ใช้ในหน้า Approval)
             const staffRecordsRef = collection(db, 'staffRecords');
             const q = query(
                 staffRecordsRef,
@@ -358,7 +359,7 @@ const WardForm = ({ wardId }) => {
                 // เราพบข้อมูลในระบบ staffRecords
                 const docData = querySnapshot.docs[0].data();
                 
-                // ตรวจสอบว่ามีข้อมูลของ ward ที่เลือกหรือไม่
+                // ตรวจสอบว่าข้อมูลของ ward ที่เลือกมีหรือไม่
                 if (docData.wards && docData.wards[selectedWard]) {
                     const wardData = docData.wards[selectedWard];
                     
@@ -366,7 +367,7 @@ const WardForm = ({ wardId }) => {
                     setApprovalData(wardData);
                     setIsUsingApprovalData(true);
                     
-                    // อัพเดทฟอร์มด้วยข้อมูลจาก approval
+                    // เดทฟอร์มด้วยข้อมูลจาก approval
                     setFormData(prev => ({
                         ...prev,
                         patientCensus: wardData.numberOfPatients || '0',
@@ -390,10 +391,10 @@ const WardForm = ({ wardId }) => {
                     }));
                     
                     await Swal.fire({
-                        title: 'ดึงข้อมูลสำเร็จ',
+                        title: 'ข้อมูลสำเร็จ',
                         html: `
                             <div class="text-left">
-                                <p class="mb-2 font-medium">ดึงข้อมูลจากระบบ Approval สำเร็จ</p>
+                                <p class="mb-2 font-medium">ข้อมูลจากระบบ Approval สำเร็จ</p>
                                 <p class="text-sm text-gray-600">วันที่: ${formatThaiDate(selectedDate)}</p>
                                 <p class="text-sm text-gray-600">Ward: ${selectedWard}</p>
                                 <p class="text-sm text-gray-600">Patient Census: ${wardData.numberOfPatients || '0'}</p>
@@ -408,7 +409,7 @@ const WardForm = ({ wardId }) => {
                 }
             }
             
-            // ถ้าไม่พบข้อมูลหรือมีข้อผิดพลาดระหว่างการดึงข้อมูล
+            // ถ้าไม่พบข้อมูลข้อผิดพลาดระหว่างการดึงข้อมูล
             await Swal.fire({
                 title: 'ไม่พบข้อมูล',
                 text: `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(selectedDate)} ในระบบ Approval`,
@@ -421,7 +422,7 @@ const WardForm = ({ wardId }) => {
             console.error('Error fetching approval data:', error);
             
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
+                title: 'ข้อผิดพลาด',
                 text: 'ไม่สามารถดึงข้อมูลจากระบบ Approval ได้',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
@@ -433,22 +434,22 @@ const WardForm = ({ wardId }) => {
         }
     };
 
-    // เพิ่ม function สำหรับแปลงค่า input
+    // เล่ม์ function แปลงค่า input
     const parseInputValue = (value) => {
-        // ถ้า value เป็น null หรือ undefined ให้คืนค่า '0'
+        // ถ้า value เป็น null หรือ undefined ให้ค่า '0'
         if (value === null || value === undefined) return '0';
         // ถ้า value เป็น number ให้แปลงเป็น string
         if (typeof value === 'number') return value.toString();
-        // ถ้าเป็น string อยู่แล้ว ให้คืนค่าเดิม
+        // ถ้าเป็น string อยู่แล้ว ให้ค่า
         if (typeof value === 'string') return value;
-        // กรณีอื่นๆ ให้คืนค่า '0'
+        // อื่นๆ ให้ค่า '0'
         return '0';
     };
 
-    // ฟังก์ชันสำหรับตรวจสอบสถานะการ approve
+    // เล่ม์ก์ตรวจสอบสถานะการ approve
     const checkApprovalStatus = async (date, targetWard) => {
         try {
-            // ตรวจสอบว่ามีการบันทึกข้อมูลใน wardDailyRecords แล้วหรือไม่
+            // ตรวจสอบว่ามีข้อมูลใน wardDailyRecords แล้วหรือยัง
             const wardDailyRef = collection(db, 'wardDailyRecords');
             const wardQuery = query(
                 wardDailyRef,
@@ -476,12 +477,12 @@ const WardForm = ({ wardId }) => {
         }
     };
 
-    // เพิ่มฟังก์ชันใหม่สำหรับดึงข้อมูลล่าสุด
+    // เล่ม์ก์ใหม่ดึงข้อมูลล่าสุด
     const fetchLatestRecord = async () => {
         if (!selectedWard) {
             Swal.fire({
                 icon: 'warning',
-                title: 'กรุณาเลือก Ward ก่อน',
+                title: 'เลือก Ward ก่อน',
                 text: 'โปรดเลือก Ward เพื่อดึงข้อมูลล่าสุด',
                 confirmButtonColor: '#3D6CB9',
             });
@@ -514,15 +515,15 @@ const WardForm = ({ wardId }) => {
                 
                 Swal.fire({
                     icon: 'success',
-                    title: 'ดึงข้อมูลล่าสุดสำเร็จ',
-                    text: `ข้อมูลล่าสุดวันที่ ${formatThaiDate(latestDate)}`,
+                    title: 'ข้อมูลล่าสุดสำเร็จ',
+                    text: `ข้อมูลล่าสุด: ${formatThaiDate(latestDate)}`,
                     confirmButtonColor: '#3D6CB9',
                 });
             } else {
                 Swal.fire({
                     icon: 'info',
                     title: 'ไม่พบข้อมูล',
-                    text: 'ไม่พบข้อมูลสำหรับ Ward นี้',
+                    text: 'ไม่พบข้อมูล Ward ที่เลือก',
                     confirmButtonColor: '#3D6CB9',
                 });
             }
@@ -530,7 +531,7 @@ const WardForm = ({ wardId }) => {
             console.error('Error fetching latest record:', error);
             Swal.fire({
                 icon: 'error',
-                title: 'เกิดข้อผิดพลาด',
+                title: 'ข้อผิดพลาด',
                 text: 'ไม่สามารถดึงข้อมูลล่าสุดได้',
                 confirmButtonColor: '#3D6CB9',
             });
@@ -539,13 +540,13 @@ const WardForm = ({ wardId }) => {
         }
     };
 
-    // แก้ไขฟังก์ชัน fetchWardData เพื่อรองรับการส่งวันที่เข้ามา
+    // แก้ไขก์ fetchWardData เริ่มต้นการส่งข้อมูล
     const fetchWardData = async (date = selectedDate) => {
         try {
             // แสดง loading message
             Swal.fire({
-                title: 'กำลังโหลดข้อมูล',
-                text: `กำลังดึงข้อมูลของ ${selectedWard}`,
+                title: 'โหลดข้อมูล',
+                text: `ข้อมูลของ ${selectedWard}`,
                 allowOutsideClick: false,
                 didOpen: () => {
                     Swal.showLoading();
@@ -570,7 +571,7 @@ const WardForm = ({ wardId }) => {
                 const wardData = wardSnapshot.docs[0].data();
                 const shiftData = wardData.shifts?.[selectedShift] || {};
 
-                // อัพเดทฟอร์มด้วยข้อมูลที่มีอยู่
+                // เดทฟอร์มด้วยข้อมูลที่อยู่
                 setFormData(prev => ({
                     ...prev,
                     patientCensus: parseInputValue(wardData.patientCensus || prev.patientCensus),
@@ -603,7 +604,7 @@ const WardForm = ({ wardId }) => {
                 }));
 
                 await Swal.fire({
-                    title: 'ดึงข้อมูลสำเร็จ',
+                    title: 'ข้อมูลสำเร็จ',
                     html: `
                         <div class="text-left">
                             <p class="mb-2 font-medium">ข้อมูลของ ${selectedWard}</p>
@@ -612,7 +613,7 @@ const WardForm = ({ wardId }) => {
                             <p class="text-sm text-gray-600">Overall Data: ${wardData.overallData || '0'}</p>
                             ${shiftData.nurseManager ? `
                                 <div class="mt-2">
-                                    <p class="text-sm font-medium">ข้อมูลบุคลากร</p>
+                                    <p class="text-sm font-medium">ข้อมูลคลากร</p>
                                     <p class="text-sm text-gray-600">Nurse Manager: ${shiftData.nurseManager}</p>
                                     <p class="text-sm text-gray-600">RN: ${shiftData.RN}</p>
                                     <p class="text-sm text-gray-600">PN: ${shiftData.PN}</p>
@@ -662,19 +663,19 @@ const WardForm = ({ wardId }) => {
 
                 let infoMessage = `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(date)}`;
                 
-                // หากมีข้อมูลจาก shift ก่อนหน้า ให้แสดงที่มา
+                // หากมีข้อมูลจาก shift ก่อนหน้า ให้แสดงข้อความมา
                 if (previousShiftData) {
                     const prevShiftDate = formatThaiDate(new Date(previousShiftData.date));
-                    infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดถูกดึงมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
+                    infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
                 }
                 
-                // แสดงปุ่มให้เลือกดึงข้อมูลจาก Approval
+                // แสดงปุ่มให้ดึงข้อมูลจาก Approval
                 await Swal.fire({
                     title: 'ข้อมูลเริ่มต้น',
                     html: `
                         ${infoMessage}
                         <div class="mt-4 text-left">
-                            <p class="text-sm text-gray-600">คุณสามารถดึงข้อมูลจากระบบ Approval ได้โดยคลิกที่ปุ่มด้านล่าง</p>
+                            <p class="text-sm text-gray-600">ดึงข้อมูลจากระบบ Approval ได้โดยคลิกปุ่มด้านล่าง</p>
                         </div>
                     `,
                     icon: 'info',
@@ -685,7 +686,7 @@ const WardForm = ({ wardId }) => {
                     cancelButtonColor: '#0ab4ab'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // ถ้าผู้ใช้เลือกที่จะดึงข้อมูลจาก Approval
+                        // ถ้ายืนยันจะดึงข้อมูลจาก Approval
                         fetchApprovalData();
                     }
                 });
@@ -694,15 +695,15 @@ const WardForm = ({ wardId }) => {
             console.error('Error fetching ward data:', error);
             
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: error.message || 'ไม่สามารถดึงข้อมูลหอผู้ป่วยได้',
+                title: 'ข้อผิดพลาด',
+                text: error.message || 'ไม่สามารถดึงข้อมูลหอพักได้',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
         }
     };
 
-    // เพิ่มปุ่มสำหรับดึงข้อมูลจากระบบ Approval
+    // เล่ม์ปุ่มดึงข้อมูลจากระบบ Approval
     const ApprovalDataButton = () => {
         if (!selectedWard) return null;
         
@@ -715,12 +716,12 @@ const WardForm = ({ wardId }) => {
                 >
                     ดึงข้อมูลจากระบบ Approval
                 </button>
-                <p className="text-xs text-gray-500 mt-1">ใช้เมื่อต้องการดึงข้อมูลบุคลากรจากระบบ Approval โดยตรง</p>
+                <p className="text-xs text-gray-500 mt-1">ใช้เมื่อต้องการดึงข้อมูลคลากรจากระบบ Approval โดยตรง</p>
             </div>
         );
     };
 
-    // เพิ่มปุ่มดึงข้อมูลล่าสุด
+    // เล่ม์ปุ่มดึงข้อมูลล่าสุด
     const LatestRecordButton = () => {
         return (
             <div className="mb-4 flex justify-center">
@@ -744,18 +745,18 @@ const WardForm = ({ wardId }) => {
         setFormData(prev => {
             let newValue = value;
             
-            // แปลงค่าว่างเป็น 0 สำหรับฟิลด์ตัวเลข
+            // แปลงค่าว่างเป็น 0ลด์เลข
             if (name !== 'comment' && value === '') {
                 newValue = '0';
             }
             
-            // สร้าง object ใหม่พร้อมค่าที่อัพเดท
+            // สร้าง object ใหม่พร้อมค่าเดท
             const updatedForm = {
                 ...prev,
                 [name]: newValue
             };
             
-            // คำนวณ total และ overallData เมื่อมีการเปลี่ยนแปลงข้อมูลที่เกี่ยวข้อง
+            // คำนวณ total และ overallData เมื่อเปลี่ยนแปลงข้อมูลเกี่ยวข้อง
             if ([
                 'patientCensus', 'newAdmit', 'transferIn', 'referIn',
                 'transferOut', 'referOut', 'discharge', 'dead'
@@ -773,12 +774,12 @@ const WardForm = ({ wardId }) => {
         setSelectedShift(shift);
     };
 
-    // แก้ไขฟังก์ชัน handleDateSelect เพื่อตรวจสอบข้อมูลซ้ำ
+    // แก้ไขก์ handleDateSelect เริ่มต้นการตรวจสอบข้อมูลซ้ำ
     const handleDateSelect = async (date) => {
         try {
             const newDate = new Date(date);
             
-            // ถ้ามีการเลือก ward แล้ว ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+            // ถ้ามี ward แล้ว ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือยัง
             if (selectedWard) {
                 // Check if data already exists for this date, ward, and shift
                 const wardDailyRef = collection(db, 'wardDailyRecords');
@@ -800,22 +801,22 @@ const WardForm = ({ wardId }) => {
                     if (hasDataForShift) {
                         // Show warning with more details about existing data
                         const result = await Swal.fire({
-                            title: 'พบข้อมูลที่มีอยู่แล้ว',
+                            title: 'พบข้อมูลอยู่แล้ว',
                             html: `
                                 <div class="text-left">
-                                    <p class="mb-2">ข้อมูลของ <b>${selectedWard}</b> ในวันที่ <b>${formatThaiDate(newDate)}</b> กะ <b>${selectedShift}</b> มีอยู่ในระบบแล้ว</p>
-                                    <p class="mb-4">คุณต้องการดำเนินการอย่างไร?</p>
+                                    <p class="mb-2">ข้อมูลของ <b>${selectedWard}</b> ในวันที่ <b>${formatThaiDate(newDate)}</b> กะ <b>${selectedShift}</b> อยู่ในระบบแล้ว</p>
+                                    <p class="mb-4">ต้องการอย่างไร?</p>
                                     <ul class="list-disc pl-5 text-sm text-gray-600">
-                                        <li>ดึงข้อมูลเดิม: จะโหลดข้อมูลที่บันทึกไว้ก่อนหน้า</li>
+                                        <li>ดึงข้อมูล: จะโหลดข้อมูลที่มีอยู่ก่อน</li>
                                         <li>สร้างข้อมูลใหม่: จะล้างค่าทั้งหมดและให้กรอกใหม่</li>
-                                        <li>ยกเลิก: จะยกเลิกการเปลี่ยนวันที่</li>
+                                        <li>ยกเลิก: จะยกเลิกการเปลี่ยนแปลง</li>
                                     </ul>
                                 </div>
                             `,
                             icon: 'warning',
                             showDenyButton: true,
                             showCancelButton: true,
-                            confirmButtonText: 'ดึงข้อมูลเดิม',
+                            confirmButtonText: 'ดึงข้อมูล',
                             denyButtonText: 'สร้างข้อมูลใหม่',
                             cancelButtonText: 'ยกเลิก',
                             confirmButtonColor: '#0ab4ab',
@@ -883,8 +884,8 @@ const WardForm = ({ wardId }) => {
         } catch (error) {
             console.error('Error in handleDateSelect:', error);
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: 'ไม่สามารถตรวจสอบข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                title: 'ข้อผิดพลาด',
+                text: 'ไม่สามารถตรวจสอบข้อมูลได้ ลองใหม่ครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
@@ -897,15 +898,15 @@ const WardForm = ({ wardId }) => {
 
         try {
             if (!selectedWard) {
-                throw new Error('กรุณาเลือกวอร์ด');
+                throw new Error('Ward');
             }
 
             if (!selectedDate) {
-                throw new Error('กรุณาเลือกวันที่');
+                throw new Error('วันที่');
             }
 
             if (!selectedShift) {
-                throw new Error('กรุณาเลือกกะการทำงาน');
+                throw new Error('กะการทำงาน');
             }
 
             // ตรวจสอบข้อมูลซ้ำ
@@ -925,12 +926,12 @@ const WardForm = ({ wardId }) => {
                         <div class="text-left">
                             <p class="mb-2">พบข้อมูลของ ${selectedWard}</p>
                             <p class="mb-2">วันที่: ${formatThaiDate(selectedDate)}</p>
-                            <p class="text-sm text-gray-600">ต้องการบันทึกทับข้อมูลเดิมหรือไม่?</p>
+                            <p class="text-sm text-gray-600">ต้องการดึงข้อมูลหรือไม่?</p>
                         </div>
                     `,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'บันทึกทับ',
+                    confirmButtonText: 'ดึงข้อมูล',
                     cancelButtonText: 'ยกเลิก',
                     confirmButtonColor: '#0ab4ab',
                     cancelButtonColor: '#d33'
@@ -949,7 +950,7 @@ const WardForm = ({ wardId }) => {
             // Get user info from authContext
             const username = user?.username || 'Unknown User';
 
-            // เตรียมข้อมูลสำหรับบันทึก
+            // เตรียมข้อมูล
             const wardData = {
                 wardId: selectedWard,
                 date: getUTCDateString(selectedDate),
@@ -978,12 +979,12 @@ const WardForm = ({ wardId }) => {
                         updatedAt: serverTimestamp()
                     }
                 },
-                // เพิ่มฟิลด์เพื่อระบุว่าข้อมูลนี้มาจากระบบ Approval
+                // เดทเพิ่มเพื่อระบุว่าข้อมูลมาจากระบบ Approval
                 sourceFromApproval: isUsingApprovalData,
                 approvalDataId: approvalData?.id || null
             };
 
-            // บันทึกหรืออัพเดทข้อมูล
+            // เดทข้อมูล
             if (!querySnapshot.empty) {
                 const docRef = querySnapshot.docs[0].ref;
                 const existingData = querySnapshot.docs[0].data();
@@ -1020,14 +1021,24 @@ const WardForm = ({ wardId }) => {
                 await addDoc(wardDailyRef, wardData);
             }
 
+            // บันทึก log เมื่อเพิ่มข้อมูลใหม่
+            logEvent('ward_form_save_success', {
+                wardId: selectedWard,
+                date: getUTCDateString(selectedDate),
+                shift: selectedShift,
+                username: username,
+                action: 'บันทึกข้อมูล WardForm สำเร็จ',
+                timestamp: new Date().toISOString()
+            });
+
             setHasUnsavedChanges(false);
             setApprovalStatus('pending');
 
             await Swal.fire({
-                title: 'บันทึกข้อมูลสำเร็จ',
+                title: 'ข้อมูลสำเร็จ',
                 html: `
                     <div>
-                        <p>ข้อมูลถูกบันทึกเรียบร้อยแล้ว</p>
+                        <p>ข้อมูลถูกบันทึกแล้ว</p>
                         <p class="text-sm text-blue-600 mt-2">รอการ Approval จาก Supervisor</p>
                     </div>
                 `,
@@ -1064,8 +1075,8 @@ const WardForm = ({ wardId }) => {
         } catch (error) {
             console.error('Error saving ward data:', error);
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: error.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                title: 'ข้อผิดพลาด',
+                text: error.message || 'ไม่สามารถบันทึกข้อมูลได้ ลองใหม่ครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
@@ -1086,7 +1097,7 @@ const WardForm = ({ wardId }) => {
             dead = 0
         } = data;
 
-        // แปลงค่าเป็นตัวเลขและคำนวณ
+        // แปลงค่าเป็นเลขและคำนวณ
         const total = (
             parseInt(patientCensus) +
             parseInt(newAdmit) +
@@ -1098,7 +1109,7 @@ const WardForm = ({ wardId }) => {
             parseInt(dead) 
         );
 
-        // ป้องกันค่าติดลบ
+        // ป้องกันค่าลบ
         return Math.max(0, total);
     };
 
@@ -1121,7 +1132,7 @@ const WardForm = ({ wardId }) => {
                 
                 {/* Ward Selection */}
                 <div className="mb-6">
-                    <label className="block text-gray-700 font-medium mb-2">เลือก Ward:</label>
+                    <label className="block text-gray-700 font-medium mb-2">Ward:</label>
                     <select
                         value={selectedWard}
                         onChange={(e) => setSelectedWard(e.target.value)}
@@ -1160,7 +1171,7 @@ const WardForm = ({ wardId }) => {
                                         className="mt-2 w-full py-1 bg-blue-100 rounded-md text-sm text-blue-700 hover:bg-blue-200"
                                         onClick={() => setShowCalendar(false)}
                                     >
-                                        ปิด
+                                        ปิดปฏิทิน
                                     </button>
                                 </div>
                             )}
@@ -1227,7 +1238,7 @@ const WardForm = ({ wardId }) => {
                             
                             <div>
                                 <label className="block text-gray-700 text-sm font-medium mb-1">
-                                    จำนวนผู้ป่วยปัจจุบัน (คำนวณอัตโนมัติ):
+                                    จำนวนผู้ป่วย (คำนวณ):
                                 </label>
                                 <input
                                     type="text"
@@ -1376,7 +1387,7 @@ const WardForm = ({ wardId }) => {
                     </div>
                     
                     <div className="bg-teal-50 p-5 rounded-lg border border-teal-200 mb-6 shadow-sm">
-                        <h2 className="text-lg font-medium mb-4 text-teal-700">ข้อมูลบุคลากร</h2>
+                        <h2 className="text-lg font-medium mb-4 text-teal-700">ข้อมูลคลากร</h2>
                         
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
@@ -1442,14 +1453,14 @@ const WardForm = ({ wardId }) => {
                             value={formData.comment}
                             onChange={handleInputChange}
                             className="w-full border border-gray-300 rounded-lg px-4 py-2 min-h-[100px] bg-white shadow-sm"
-                            placeholder="ระบุหมายเหตุหรือข้อมูลเพิ่มเติม (ถ้ามี)"
+                            placeholder="หมายเหตุ (ถ้ามี)"
                         ></textarea>
                     </div>
                     
-                    {/* เจ้าหน้าที่ผู้บันทึกข้อมูล */}
+                    {/* เจ้าหน้าที่บันทึกข้อมูล */}
                     <div className="mb-6 bg-blue-50/80 rounded-xl p-5 shadow-sm">
                         <h3 className="text-lg font-semibold text-blue-800 mb-4 bg-white/50 py-2 px-4 rounded-lg text-center shadow-sm">
-                            เจ้าหน้าที่ผู้บันทึกข้อมูล
+                            เจ้าหน้าที่บันทึกข้อมูล
                         </h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -1460,7 +1471,7 @@ const WardForm = ({ wardId }) => {
                                     value={user?.username || ''}
                                     readOnly
                                     className="w-full text-black px-3 py-2 border border-blue-200 rounded-lg bg-white/70"
-                                    placeholder="ชื่อ"
+                                    placeholder="ชื้อ"
                                 />
                             </div>
                             <div className="space-y-2">

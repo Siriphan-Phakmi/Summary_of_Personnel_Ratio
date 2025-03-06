@@ -1,29 +1,33 @@
 import './globals.css';
-import { Providers } from './context/Providers';
-import { APP_VERSION } from './config/version';
-import Navbar from './components/common/Navbar';
 
 export const metadata = {
-  title: "Summary of Personnel Ratio and Daily Patient Census",
-  description: "ระบบรายงานตรากำคลากรและจำนวน้ป่วยราย",
+  title: 'Daily Patient Census and Staffing',
+  description: 'ระบบข้อมูลป่วยและตรากำคลากร',
+  icons: {
+    icon: [
+      {
+        url: '/images/bpk9.ico',
+        type: 'image/x-icon',
+        sizes: '16x16'
+      }
+    ]
+  }
 };
+
+import ClientLayout from './ClientLayout';
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html lang="th">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <meta charSet="utf-8" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className="bg-gradient-to-br from-blue-50 to-teal-50">
-        <Providers>
-          <Navbar />
-          {children}
-          <div className="fixed bottom-4 right-4 text-sm text-gray-500 z-50">
-            {APP_VERSION}
-          </div>
-        </Providers>
+      <body>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

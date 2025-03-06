@@ -1,10 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { getAllUsers, addUser, updateUser, deleteUser, updateAllUsersNameFields } from '../../lib/dataAccess';
+import { getAllUsers, addUser, updateUser, deleteUser } from '../../lib/dataAccess';
 import { useAuth } from '../../context/AuthContext';
 import AuthGuard from '../../components/auth/AuthGuard';
 import LoadingScreen from '../../components/ui/LoadingScreen';
 import { useRouter } from 'next/navigation';
+import { logEvent } from '../../utils/clientLogging';
 
 export default function UserManagement() {
   const router = useRouter();
@@ -24,6 +25,13 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const { user: currentUser } = useAuth();
+
+  // ตัวเลือกตำแหน่ง
+  const positions = [
+    'In charge',
+    'ผู้จัดการแผนก',
+    'ผู้ตรวจการ'
+  ];
 
   // Fetch users
   const fetchUsers = async () => {
@@ -71,6 +79,13 @@ export default function UserManagement() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     console.log('Submitting new user:', newUser);
+    
+    // ตรวจสอบข้อมูลที่จำเป็นก่อนส่ง
+    if (!newUser.username || !newUser.password) {
+      setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+      return;
+    }
+    
     try {
       console.log('Calling addUser function...');
       const result = await addUser(newUser);
@@ -78,6 +93,20 @@ export default function UserManagement() {
       
       if (result.success) {
         console.log('User added successfully');
+        
+        // แสดง alert เมื่อเพิ่มผู้ใช้สำเร็จ
+        alert(`เพิ่มผู้ใช้ ${newUser.username} สำเร็จ`);
+        
+        // บันทึก log เมื่อเพิ่ม user สำเร็จ
+        await logEvent('user_management_add_success', {
+          username: newUser.username,
+          role: newUser.role,
+          addedBy: currentUser?.displayName,
+          addedById: currentUser?.uid,
+          action: 'เพิ่ม user สำเร็จ',
+          timestamp: new Date().toISOString()
+        });
+        
         setNewUser({
           username: '',
           password: '',
@@ -93,11 +122,13 @@ export default function UserManagement() {
         fetchUsers(); // Refresh user list
       } else {
         console.error('Failed to add user with error:', result.error);
+        alert(`เพิ่มผู้ใช้ไม่สำเร็จ: ${result.error || 'ไม่ทราบสาเหตุ'}`);
         throw new Error(result.error || 'Failed to add user');
       }
     } catch (error) {
       console.error('Error in handleAddUser:', error);
       setError('Failed to add user: ' + error.message);
+      alert(`เพิ่มผู้ใช้ไม่สำเร็จ: ${error.message}`);
     }
   };
 
@@ -121,14 +152,30 @@ export default function UserManagement() {
       const result = await updateUser(editingUser.id, userData);
       
       if (result.success) {
+        // แสดง alert เมื่อแก้ไขผู้ใช้สำเร็จ
+        alert(`แก้ไขข้อมูลผู้ใช้ ${editingUser.username} สำเร็จ`);
+        
+        // บันทึก log เมื่อแก้ไข user สำเร็จ
+        await logEvent('user_management_update_success', {
+          userId: editingUser.id,
+          username: editingUser.username,
+          role: editingUser.role,
+          updatedBy: currentUser?.displayName,
+          updatedById: currentUser?.uid,
+          action: 'แก้ไข user สำเร็จ',
+          timestamp: new Date().toISOString()
+        });
+        
         setEditingUser(null);
         fetchUsers(); // Refresh user list
       } else {
+        alert(`แก้ไขข้อมูลผู้ใช้ไม่สำเร็จ: ${result.error || 'ไม่ทราบสาเหตุ'}`);
         throw new Error(result.error || 'Failed to update user');
       }
     } catch (error) {
       console.error('Error updating user:', error);
       setError('Failed to update user: ' + error.message);
+      alert(`แก้ไขข้อมูลผู้ใช้ไม่สำเร็จ: ${error.message}`);
     }
   };
 
@@ -139,16 +186,34 @@ export default function UserManagement() {
     }
 
     try {
+      // หา username ของ user ที่จะลบเพื่อใช้ใน log
+      const userToDelete = users.find(user => user.id === userId);
       const result = await deleteUser(userId);
       
       if (result.success) {
+        // แสดง alert เมื่อลบผู้ใช้สำเร็จ
+        alert(`ลบผู้ใช้ ${userToDelete?.username || userId} สำเร็จ`);
+        
+        // บันทึก log เมื่อลบ user สำเร็จ
+        await logEvent('user_management_delete_success', {
+          userId,
+          username: userToDelete?.username,
+          role: userToDelete?.role,
+          deletedBy: currentUser?.displayName,
+          deletedById: currentUser?.uid,
+          action: 'ลบ user สำเร็จ',
+          timestamp: new Date().toISOString()
+        });
+        
         fetchUsers(); // Refresh user list
       } else {
+        alert(`ลบผู้ใช้ไม่สำเร็จ: ${result.error || 'ไม่ทราบสาเหตุ'}`);
         throw new Error(result.error || 'Failed to delete user');
       }
     } catch (error) {
       console.error('Error deleting user:', error);
       setError('Failed to delete user: ' + error.message);
+      alert(`ลบผู้ใช้ไม่สำเร็จ: ${error.message}`);
     }
   };
 
@@ -163,28 +228,6 @@ export default function UserManagement() {
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-semibold">Users Management</h2>
             <div className="flex space-x-3">
-              <button
-                onClick={async () => {
-                  try {
-                    setLoading(true);
-                    const result = await updateAllUsersNameFields();
-                    if (result.success) {
-                      fetchUsers();
-                      alert('Successfully updated all users name fields!');
-                    } else {
-                      throw new Error(result.error);
-                    }
-                  } catch (error) {
-                    console.error('Error updating user names:', error);
-                    setError('Failed to update name fields: ' + error.message);
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-              >
-                Update All Names
-              </button>
               <button
                 onClick={() => setIsAddingUser(true)}
                 className="bg-[#0ab4ab] text-white px-4 py-2 rounded-lg hover:bg-[#0ab4ab]/90"
@@ -299,11 +342,11 @@ export default function UserManagement() {
                       required
                     >
                       <option value="">Select Position</option>
-                      <option value="เจ้าหน้าที่พยาบาล">เจ้าหน้าที่พยาบาล</option>
-                      <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
-                      <option value="หัวหน้าแผนก">หัวหน้าแผนก</option>
-                      <option value="แพทย์">แพทย์</option>
-                      <option value="ผู้ช่วยพยาบาล">ผู้ช่วยพยาบาล</option>
+                      {positions.map((position) => (
+                        <option key={position} value={position}>
+                          {position}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -439,17 +482,17 @@ export default function UserManagement() {
                       Position
                     </label>
                     <select
-                      value={editingUser.position || ''}
+                      value={editingUser.position}
                       onChange={(e) => setEditingUser({...editingUser, position: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-[#0ab4ab] focus:border-[#0ab4ab]"
                       required
                     >
                       <option value="">Select Position</option>
-                      <option value="เจ้าหน้าที่พยาบาล">เจ้าหน้าที่พยาบาล</option>
-                      <option value="ผู้ดูแลระบบ">ผู้ดูแลระบบ</option>
-                      <option value="หัวหน้าแผนก">หัวหน้าแผนก</option>
-                      <option value="แพทย์">แพทย์</option>
-                      <option value="ผู้ช่วยพยาบาล">ผู้ช่วยพยาบาล</option>
+                      {positions.map((position) => (
+                        <option key={position} value={position}>
+                          {position}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>

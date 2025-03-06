@@ -3,9 +3,12 @@ import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import Swal from 'sweetalert2';
+import { logEvent } from '../../../utils/clientLogging';
+import { useAuth } from '../../../context/AuthContext';
 
 const ApproveButton = ({ wardId, date, status = 'pending' }) => {
   const [isApproving, setIsApproving] = useState(false);
+  const { user } = useAuth();
 
   const handleApprove = async () => {
     try {
@@ -40,6 +43,16 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       await updateDoc(wardDocRef, {
         approvalStatus: 'approved',
         approvedAt: new Date().toISOString()
+      });
+
+      // Add logging
+      logEvent('approval_success', {
+        wardId,
+        date,
+        action: 'Approve ข้อมูลสำเร็จ',
+        approvedBy: user?.displayName,
+        approvedById: user?.uid,
+        timestamp: new Date().toISOString()
       });
 
       // Show success message
@@ -106,6 +119,17 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
         approvalStatus: 'rejected',
         rejectedAt: new Date().toISOString(),
         rejectionReason: rejectionReason
+      });
+
+      // Add logging
+      logEvent('rejection_success', {
+        wardId,
+        date,
+        action: 'Reject ข้อมูลสำเร็จ',
+        rejectedBy: user?.displayName,
+        rejectedById: user?.uid,
+        rejectionReason: rejectionReason,
+        timestamp: new Date().toISOString()
       });
 
       // Show success message

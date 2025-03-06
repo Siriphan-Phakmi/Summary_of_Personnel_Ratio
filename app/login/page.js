@@ -13,7 +13,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { user, loading: authLoading, isAuthenticated, login } = useAuth();
+  
+  // Debug the auth context to see what's available
+  const auth = useAuth();
+  console.log('Auth context:', auth);
+  
+  const { user, loading: authLoading, isAuthenticated, login } = auth;
+  
+  // Debug login function specifically
+  console.log('Login function type:', typeof login);
 
   useEffect(() => {
     console.log('Login page - Auth state:', { authLoading, isAuthenticated, user });
@@ -31,6 +39,14 @@ export default function Login() {
     setError('');
     console.log('Attempting to login with:', { username });
 
+    // Check if login is a function before calling it
+    if (typeof login !== 'function') {
+      console.error('Login is not a function:', login);
+      setError('ขออภัย เกิดข้อผิดพลาดระบบ โปรดติดต่อผู้ดูแลระบบ');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Use the login function from AuthContext
       const result = await login(username, password);
@@ -45,16 +61,21 @@ export default function Login() {
 
       // นำทางตาม role ของผู้ใช้
       if (result.user && result.user.role) {
+        console.log('User role:', result.user.role);
+        
         if (result.user.role.toLowerCase() === 'user') {
-          // สำหรับ user ปกติ นำทางไปยังหน้า WardForm
-          router.push('/ward-form');
+          console.log('User is a regular user, redirecting to /ward-form...');
+          // แก้ไขเป็น hard redirect เพื่อให้แน่ใจว่าจะทำงาน
+          window.location.href = '/ward-form';
         } else {
+          console.log('User is an admin, redirecting to home...');
           // สำหรับ admin นำทางไปยังหน้าหลัก
-          router.push('/');
+          window.location.href = '/';
         }
       } else {
+        console.log('No role found, redirecting to home...');
         // หากไม่มีข้อมูล role ให้นำทางไปยังหน้าหลัก
-        router.push('/');
+        window.location.href = '/';
       }
     } catch (error) {
       console.error('Login error:', error);
