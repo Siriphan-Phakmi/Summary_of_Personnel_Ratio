@@ -1,6 +1,5 @@
 'use client';
 import PropTypes from 'prop-types';
-import { THEME_COLORS } from '../../config/constants';
 
 const LoadingSpinner = ({ fullScreen = false }) => {
   const spinnerContent = (

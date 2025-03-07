@@ -11,10 +11,14 @@ import LoadingScreen from '../ui/LoadingScreen';
 import { formatThaiDate, getThaiDateNow } from '../../utils/dateUtils';
 import CalendarSection from '../common/CalendarSection';
 import ShiftSelection from '../common/ShiftSelection';
+import { useAuth } from '../../context/AuthContext';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Title, ChartTooltip, Legend);
 
 const Dashboard = () => {
+    const { user } = useAuth();
+    const isUser = user?.role?.toLowerCase() === 'user';
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [records, setRecords] = useState([]);
@@ -42,7 +46,7 @@ const Dashboard = () => {
 
     const getUTCDateString = (date) => {
         const d = new Date(date);
-        // ปรับเวลาให้เป็นเวลาท้องถิ่น
+        // แปลงเวลาให้เป็นเวลาท้องถิ่น
         const localDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
         return localDate.toISOString().split('T')[0];
     };
@@ -53,7 +57,7 @@ const Dashboard = () => {
             const recordsRef = collection(db, 'staffRecords');
             const selectedDateStr = getUTCDateString(filters.startDate);
             
-            // ดึงข้อมูลทั้งปีเพื่อเช็คว่าวันไหนมีข้อมูล
+            // ดึงข้อมูลเพื่อเช็คว่ามีข้อมูลหรือไม่
             const startOfYear = new Date(filters.startDate.getFullYear(), 0, 1);
             const endOfYear = new Date(filters.startDate.getFullYear(), 11, 31);
             
@@ -64,7 +68,7 @@ const Dashboard = () => {
             
             const yearSnapshot = await getDocs(yearQuery);
             
-            // สร้าง Map เพื่อเก็บข้อมูลของแต่ละวัน
+            // สร้าง Map เก็บข้อมูลของแต่ละวัน
             const dateMap = new Map();
             let latestDate = null;
             
@@ -79,13 +83,13 @@ const Dashboard = () => {
                 
                 dateMap.get(dateStr).shifts.add(shift);
 
-                // เก็บวันที่ล่าสุดที่มีการบันทึกข้อมูล
+                // เก็บวันที่ล่าสุด
                 if (!latestDate || dateStr > latestDate) {
                     latestDate = dateStr;
                 }
             });
             
-            // แปลง Map เป็น Array ของวันที่พร้อมสถานะ
+            // แปลง Map เป็น Array ของวันพร้อมสถานะ
             const datesWithDataInYear = Array.from(dateMap.entries()).map(([date, data]) => ({
                 date,
                 isComplete: data.shifts.size === 2,
@@ -94,7 +98,7 @@ const Dashboard = () => {
             
             setDatesWithData(datesWithDataInYear);
 
-            // ดึงข้อมูลตาม filter ปกติ
+            // ดึงข้อมูลตาม filter
             let fetchedRecords = [];
             if (filters.shift === 'all') {
                 const morningQuery = query(recordsRef, 
@@ -145,7 +149,7 @@ const Dashboard = () => {
                 setStats(resetStats());
             }
             
-            // อัพเดทวันที่แสดงผลเป็นวันที่ล่าสุดที่มีการบันทึกข้อมูล
+            // แสดงวันที่ล่าสุด
             if (latestDate) {
                 const lastUpdatedDate = new Date(latestDate);
                 setDisplayDate(formatThaiDate(lastUpdatedDate));
@@ -165,7 +169,7 @@ const Dashboard = () => {
         fetchData();
     }, [fetchData]);
 
-    // เพิ่ม Initial Loading Effect
+    // เล่น Initial Loading Effect
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsLoading(false);
@@ -188,7 +192,7 @@ const Dashboard = () => {
             const recordsRef = collection(db, 'staffRecords');
             const selectedDateStr = getUTCDateString(date);
             
-            // ดึงข้อมูลทั้งปีเพื่อหาวันที่ล่าสุดที่มีการบันทึก
+            // ดึงข้อมูลเพื่อหาวันที่ล่าสุด
             const startOfYear = new Date(date.getFullYear(), 0, 1);
             const endOfYear = new Date(date.getFullYear(), 11, 31);
             
@@ -256,7 +260,7 @@ const Dashboard = () => {
                 setStats(resetStats());
             }
 
-            // อัพเดทวันที่แสดงผลเป็นวันที่ล่าสุดที่มีการบันทึกข้อมูล
+            // แสดงวันที่ล่าสุด
             if (latestDate) {
                 const lastUpdatedDate = new Date(latestDate);
                 setDisplayDate(formatThaiDate(lastUpdatedDate));
@@ -301,7 +305,7 @@ const Dashboard = () => {
             const byWard = {};
             let wardRecords = {};
 
-            // จัดกลุ่มข้อมูลตาม ward และ shift
+            // กลุ่มข้อมูลตาม ward และ shift
             records.forEach(record => {
                 if (record.wards) {
                     Object.entries(record.wards).forEach(([ward, data]) => {
@@ -334,7 +338,7 @@ const Dashboard = () => {
                 const nightPatients = parseNumberValue(nightData.numberOfPatients);
                 
                 if (filters.shift === 'all') {
-                    // แสดงข้อมูลทั้ง 2 กะ
+                    // แสดงข้อมูลใน 2 กะ
                     byWard[ward] = morningPatients + nightPatients;
                     totalPatients += (morningPatients + nightPatients);
                 } else if (filters.shift === '07:00-19:00' && shifts.morning) {
@@ -382,7 +386,7 @@ const Dashboard = () => {
         }
     };
 
-    // เพิ่มฟังก์ชันคำนวณสถิติใหม่
+    // เล่นคำนวณใหม่
     const calculateExtendedStats = (records) => {
         if (!records || !Array.isArray(records) || records.length === 0) {
             return resetStats();
@@ -421,7 +425,7 @@ const Dashboard = () => {
 
                     // ตรวจสอบ shift ก่อนการรวมข้อมูล
                     if (filters.shift === 'all' || record.shift === filters.shift) {
-                        // แปลงค่าทั้งหมดเป็นตัวเลขและตรวจสอบว่าไม่เป็น NaN
+                        // แปลงค่าทั้งหมดเป็นเลขและตรวจสอบว่าไม่เป็น NaN
                         const numberOfPatients = parseInt(wardData.numberOfPatients) || 0;
                         const RN = parseInt(wardData.RN) || 0;
                         const PN = parseInt(wardData.PN) || 0;
@@ -481,7 +485,7 @@ const Dashboard = () => {
         };
     };
 
-    // สีสำหรับ Ward Cards และ Charts
+    //  Ward Cards และ Charts
     const wardColors = {
         Ward6: 'bg-pink-100 hover:bg-pink-200',
         Ward7: 'bg-blue-100 hover:bg-blue-200',
@@ -497,7 +501,7 @@ const Dashboard = () => {
         NSY: 'bg-rose-100 hover:bg-rose-200'
     };
 
-    // อัพเดทสีสำหรับกราฟให้ตรงกับ Ward Cards
+    //  Ward Cards
     const chartColors = {
         background: [
             'rgba(252, 231, 243, 0.8)',     // pink-100 (Ward6)
@@ -701,7 +705,7 @@ const Dashboard = () => {
 
     const formatThaiDate = (date) => {
         const thaiMonths = [
-            "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+            "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุน",
             "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
         ];
         const day = date.getDate();
@@ -713,7 +717,7 @@ const Dashboard = () => {
     const WardModal = ({ ward, onClose }) => {
         if (!ward) return null;
 
-        // สร้างข้อมูลสำหรับ Pie Chart (เตียงว่าง)
+        // สร้างข้อมูล Pie Chart (ว่าง)
         const wardPieData = {
             labels: ['Available Beds', 'Occupied Beds', 'Unavailable Beds'],
             datasets: [{
@@ -723,9 +727,9 @@ const Dashboard = () => {
                     ward.unavailable || 0
                 ],
                 backgroundColor: [
-                    'rgba(34, 197, 94, 0.8)',  // สีเขียว - เตียงว่าง
-                    'rgba(59, 130, 246, 0.8)', // สีน้ำเงิน - เตียงที่มีคนไข้
-                    'rgba(239, 68, 68, 0.8)'   // สีแดง - เตียงใช้งานไม่ได้
+                    'rgba(34, 197, 94, 0.8)',  // น้ำเงิน - เตียงว่าง
+                    'rgba(59, 130, 246, 0.8)', // น้ำเงิน - เตียงคนไข้
+                    'rgba(239, 68, 68, 0.8)'   // แดง - เตียงใช้งานไม่ได้
                 ],
                 borderColor: [
                     'rgb(34, 197, 94)',
@@ -736,7 +740,7 @@ const Dashboard = () => {
             }]
         };
 
-        // สร้างข้อมูลสำหรับ Bar Chart (Overall Data)
+        // สร้างข้อมูล Bar Chart (Overall Data)
         const wardBarData = {
             labels: ['Patient Movement'],
             datasets: [
@@ -883,7 +887,7 @@ const Dashboard = () => {
         );
     };
 
-    // เพิ่ม Notification Component ปรับปรุงใหม่
+    // เล่น Notification Component ใหม่
     const Notification = ({ message, type, onClose }) => (
         <div 
             className={`
@@ -968,7 +972,7 @@ const Dashboard = () => {
 
                 {/* Main Stats Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-10">
-                    {/* Total Patients Card - เพิ่มขนาดให้ใหญ่ขึ้น */}
+                    {/* Total Patients Card - เล่นขนาดให้ใหญ่ */}
                     <div className="lg:col-span-1">
                         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 h-full flex flex-col justify-center"
                             onClick={() => {
@@ -1025,7 +1029,7 @@ const Dashboard = () => {
                                 </button>
                             )}
                         </h3>
-                        <div className="h-[450px]"> {/* เพิ่มความสูง */}
+                        <div className="h-[450px]"> {/* เล่นความสูง */}
                             {chartData?.pie && chartData.pie.labels && chartData.pie.labels.length > 0 ? (
                                 <Pie data={chartData.pie} options={pieOptions} />
                             ) : (
@@ -1052,7 +1056,7 @@ const Dashboard = () => {
                                 </button>
                             )}
                         </h3>
-                        <div className="h-[450px]"> {/* เพิ่มความสูง */}
+                        <div className="h-[450px]"> {/* เล่นความสูง */}
                             {chartData?.bar && chartData.bar.labels && chartData.bar.labels.length > 0 ? (
                                 <Bar data={chartData.bar} options={barOptions} />
                             ) : (
@@ -1233,7 +1237,7 @@ const Dashboard = () => {
                                 font-medium
                             "
                         >
-                            แสดงทุก Ward
+                            แสดง Ward
                         </button>
                     </div>
                 )}
