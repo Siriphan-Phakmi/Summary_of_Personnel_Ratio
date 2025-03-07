@@ -9,10 +9,13 @@ import { getCurrentShift } from '../../utils/dateHelpers';
 import Calendar from '../ui/Calendar';
 import CalendarSection from '../common/CalendarSection';
 import ShiftSelection from '../common/ShiftSelection';
+import { useAuth } from '../../context/AuthContext';
+import { logEvent } from '../../utils/clientLogging';
 
-const WardForm = () => {
+const WardForm = ({ wardId }) => {
+    const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedWard, setSelectedWard] = useState('');
+    const [selectedWard, setSelectedWard] = useState(wardId || (user?.department || ''));
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedShift, setSelectedShift] = useState(getCurrentShift());
     const [thaiDate, setThaiDate] = useState(getThaiDateNow());
@@ -20,6 +23,8 @@ const WardForm = () => {
     const [datesWithData, setDatesWithData] = useState([]);
     const [previousShiftData, setPreviousShiftData] = useState(null);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [approvalStatus, setApprovalStatus] = useState(null);
+    const [latestRecordDate, setLatestRecordDate] = useState(null);
     
     const [formData, setFormData] = useState({
         patientCensus: '0',
@@ -39,8 +44,6 @@ const WardForm = () => {
         unavailable: '0',
         plannedDischarge: '0',
         comment: '',
-        firstName: '',
-        lastName: '',
         total: '0'
     });
 
@@ -59,7 +62,7 @@ const WardForm = () => {
         'NSY'
     ];
 
-    // เพิ่มฟังก์ชันเช็คการเปลี่ยนแปลง
+    // เล่ม์ก์เช็คการเปลี่ยนแปลง
     const checkFormChanges = useCallback(() => {
         if (!selectedWard) return false;
         
@@ -79,9 +82,7 @@ const WardForm = () => {
             formData.availableBeds !== '0' ||
             formData.unavailable !== '0' ||
             formData.plannedDischarge !== '0' ||
-            formData.comment.trim() !== '' ||
-            formData.firstName.trim() !== '' ||
-            formData.lastName.trim() !== ''
+            formData.comment.trim() !== ''
         );
     }, [formData, selectedWard]);
 
@@ -106,12 +107,12 @@ const WardForm = () => {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            // กำหนดวันที่ 31 มกราคม 2568 (ค.ศ. 2025)
-            const specificDate = new Date(2025, 0, 31);
-            setSelectedDate(specificDate);
+            // Starting with today instead of hardcoded date
+            const today = new Date();
+            setSelectedDate(today);
             const currentShift = getCurrentShift();
             setSelectedShift(currentShift);
-            setThaiDate(formatThaiDate(specificDate));
+            setThaiDate(formatThaiDate(today));
             
             // Fetch dates with data when component mounts
             fetchDatesWithData();
@@ -132,13 +133,13 @@ const WardForm = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [hasUnsavedChanges]);
 
-    // คำนวณยอดรวม Total ใหม่เมื่อมีการเปลี่ยนแปลงข้อมูลที่เกี่ยวข้อง
+    // คำนวณยอดรวม Total ใหม่เมื่อเปลี่ยนแปลงข้อมูลเกี่ยวข้อง
     useEffect(() => {
         const total = calculateTotal();
         setFormData(prev => ({
             ...prev,
             total: total.toString(),
-            overallData: total.toString()  // อัพเดท overallData ด้วย
+            overallData: total.toString()  // เดท overallData ด้วย
         }));
     }, [formData.patientCensus, formData.newAdmit, formData.transferIn, formData.referIn, 
         formData.transferOut, formData.referOut, formData.discharge, formData.dead]);
@@ -146,9 +147,10 @@ const WardForm = () => {
     const fetchDatesWithData = async () => {
         try {
             const wardRef = collection(db, 'wardDailyRecords');
-            // ดึงข้อมูลทั้งปี 2025 (2568)
-            const startOfYear = new Date(2025, 0, 1);  // 1 มกราคม 2568
-            const endOfYear = new Date(2025, 11, 31);  // 31 ธันวาคม 2568
+            // Pull data for current year
+            const currentYear = new Date().getFullYear();
+            const startOfYear = new Date(currentYear, 0, 1);
+            const endOfYear = new Date(currentYear, 11, 31);
             
             const q = query(
                 wardRef,
@@ -196,7 +198,7 @@ const WardForm = () => {
         }
     };
 
-    // เพิ่มฟังก์ชันสำหรับดึงข้อมูล Patient Census จากกะก่อนหน้า
+    // เล่ม์ก์ดึงข้อมูล Patient Census จากกะก่อนหน้า
     const fetchPreviousShiftData = async (date, targetWard) => {
         if (!targetWard) return;
         
@@ -208,9 +210,9 @@ const WardForm = () => {
             let queryDate = new Date(date);
             let queryShift = '';
 
-            // กำหนดวันที่และกะที่จะค้นหา
+            // กำหนดวันและกะที่จะค้นหา
             if (selectedShift === '19:00-07:00') {
-                // ถ้าเป็นกะดึก ให้ดึงข้อมูลจากกะเช้าของวันเดียวกัน
+                // ถ้าเป็นกะดึก ให้ดึงข้อมูลจากกะเช้าของวันนี้
                 queryShift = '07:00-19:00';
             } else {
                 // ถ้าเป็นกะเช้า ให้ดึงข้อมูลจากกะดึกของวันก่อนหน้า
@@ -243,7 +245,7 @@ const WardForm = () => {
                         shift: queryShift
                     });
                     
-                    // อัพเดทฟอร์ม
+                    // เดทฟอร์ม
                     setFormData(prev => ({
                         ...prev,
                         patientCensus: wardData.overallData || '0',
@@ -260,16 +262,7 @@ const WardForm = () => {
                 }
             }
             
-            // แก้ไขส่วนนี้: ไม่ใช้ orderBy เพื่อหลีกเลี่ยงการใช้ composite index
-            // const latestDataQuery = query(
-            //     wardDailyRef,
-            //     where('wardId', '==', targetWard),
-            //     where('date', '<=', formattedQueryDate),
-            //     orderBy('date', 'desc'),
-            //     limit(1)
-            // );
-
-            // วิธีแก้ไขชั่วคราว: ดึงข้อมูลทั้งหมดแล้วค่อยกรองและเรียงลำดับในโค้ด
+            // แก้ไขชั่วคราว: ดึงข้อมูลทั้งหมดแล้วค่อยกรองและเรียงลำดับในโค้ด
             const simpleQuery = query(
                 wardDailyRef,
                 where('wardId', '==', targetWard)
@@ -294,7 +287,7 @@ const WardForm = () => {
                     shift: Object.keys(latestData.shifts || {})[0] || ''
                 });
                 
-                // อัพเดทฟอร์ม
+                // เดทฟอร์ม
                 setFormData(prev => ({
                     ...prev,
                     patientCensus: latestData.overallData || '0',
@@ -334,26 +327,26 @@ const WardForm = () => {
         }
     };
 
-    // เพิ่ม state สำหรับเก็บข้อมูลจากหน้า Approval
+    // เล่ม state เก็บข้อมูลจากหน้า Approval
     const [approvalData, setApprovalData] = useState(null);
     const [isUsingApprovalData, setIsUsingApprovalData] = useState(false);
 
-    // เพิ่มฟังก์ชันดึงข้อมูลจากหน้า Approval
+    // เล่ม์ก์ดึงข้อมูลจากหน้า Approval
     const fetchApprovalData = async () => {
         try {
             setIsLoading(true);
             
             // แสดง loading message
             Swal.fire({
-                title: 'กำลังโหลดข้อมูลจากระบบ Approval',
-                text: 'กรุณารอสักครู่',
+                title: 'โหลดข้อมูลจากระบบ Approval',
+                text: 'ณารอ...',
                 allowOutsideClick: false,
                 didOpen: () => {
                     Swal.showLoading();
                 }
             });
 
-            // ดึงข้อมูลจาก staffRecords (ที่ใช้ในหน้า Approval)
+            // ดึงข้อมูลจาก staffRecords (ใช้ในหน้า Approval)
             const staffRecordsRef = collection(db, 'staffRecords');
             const q = query(
                 staffRecordsRef,
@@ -366,7 +359,7 @@ const WardForm = () => {
                 // เราพบข้อมูลในระบบ staffRecords
                 const docData = querySnapshot.docs[0].data();
                 
-                // ตรวจสอบว่ามีข้อมูลของ ward ที่เลือกหรือไม่
+                // ตรวจสอบว่าข้อมูลของ ward ที่เลือกมีหรือไม่
                 if (docData.wards && docData.wards[selectedWard]) {
                     const wardData = docData.wards[selectedWard];
                     
@@ -374,7 +367,7 @@ const WardForm = () => {
                     setApprovalData(wardData);
                     setIsUsingApprovalData(true);
                     
-                    // อัพเดทฟอร์มด้วยข้อมูลจาก approval
+                    // เดทฟอร์มด้วยข้อมูลจาก approval
                     setFormData(prev => ({
                         ...prev,
                         patientCensus: wardData.numberOfPatients || '0',
@@ -398,10 +391,10 @@ const WardForm = () => {
                     }));
                     
                     await Swal.fire({
-                        title: 'ดึงข้อมูลสำเร็จ',
+                        title: 'ข้อมูลสำเร็จ',
                         html: `
                             <div class="text-left">
-                                <p class="mb-2 font-medium">ดึงข้อมูลจากระบบ Approval สำเร็จ</p>
+                                <p class="mb-2 font-medium">ข้อมูลจากระบบ Approval สำเร็จ</p>
                                 <p class="text-sm text-gray-600">วันที่: ${formatThaiDate(selectedDate)}</p>
                                 <p class="text-sm text-gray-600">Ward: ${selectedWard}</p>
                                 <p class="text-sm text-gray-600">Patient Census: ${wardData.numberOfPatients || '0'}</p>
@@ -416,7 +409,7 @@ const WardForm = () => {
                 }
             }
             
-            // ถ้าไม่พบข้อมูลหรือมีข้อผิดพลาดระหว่างการดึงข้อมูล
+            // ถ้าไม่พบข้อมูลข้อผิดพลาดระหว่างการดึงข้อมูล
             await Swal.fire({
                 title: 'ไม่พบข้อมูล',
                 text: `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(selectedDate)} ในระบบ Approval`,
@@ -429,7 +422,7 @@ const WardForm = () => {
             console.error('Error fetching approval data:', error);
             
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
+                title: 'ข้อผิดพลาด',
                 text: 'ไม่สามารถดึงข้อมูลจากระบบ Approval ได้',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
@@ -441,39 +434,134 @@ const WardForm = () => {
         }
     };
 
-    // เพิ่ม function สำหรับแปลงค่า input
+    // เล่ม์ function แปลงค่า input
     const parseInputValue = (value) => {
-        // ถ้า value เป็น null หรือ undefined ให้คืนค่า '0'
+        // ถ้า value เป็น null หรือ undefined ให้ค่า '0'
         if (value === null || value === undefined) return '0';
         // ถ้า value เป็น number ให้แปลงเป็น string
         if (typeof value === 'number') return value.toString();
-        // ถ้าเป็น string อยู่แล้ว ให้คืนค่าเดิม
+        // ถ้าเป็น string อยู่แล้ว ให้ค่า
         if (typeof value === 'string') return value;
-        // กรณีอื่นๆ ให้คืนค่า '0'
+        // อื่นๆ ให้ค่า '0'
         return '0';
     };
 
-    // แก้ไขฟังก์ชัน fetchWardData โดยไม่ให้อัตโนมัติดึงจาก Approval
-    const fetchWardData = async () => {
+    // เล่ม์ก์ตรวจสอบสถานะการ approve
+    const checkApprovalStatus = async (date, targetWard) => {
+        try {
+            // ตรวจสอบว่ามีข้อมูลใน wardDailyRecords แล้วหรือยัง
+            const wardDailyRef = collection(db, 'wardDailyRecords');
+            const wardQuery = query(
+                wardDailyRef,
+                where('wardId', '==', targetWard),
+                where('date', '==', getUTCDateString(date))
+            );
+            
+            const wardSnapshot = await getDocs(wardQuery);
+            
+            if (!wardSnapshot.empty) {
+                const wardData = wardSnapshot.docs[0].data();
+                
+                // ตรวจสอบสถานะการอนุมัติ
+                if (wardData.approvalStatus) {
+                    setApprovalStatus(wardData.approvalStatus);
+                } else {
+                    setApprovalStatus('pending');
+                }
+            } else {
+                setApprovalStatus(null);
+            }
+        } catch (error) {
+            console.error('Error checking approval status:', error);
+            setApprovalStatus(null);
+        }
+    };
+
+    // เล่ม์ก์ใหม่ดึงข้อมูลล่าสุด
+    const fetchLatestRecord = async () => {
+        if (!selectedWard) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'เลือก Ward ก่อน',
+                text: 'โปรดเลือก Ward เพื่อดึงข้อมูลล่าสุด',
+                confirmButtonColor: '#3D6CB9',
+            });
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+            
+            const wardRef = collection(db, 'wardDailyRecords');
+            const q = query(
+                wardRef,
+                where('wardId', '==', selectedWard),
+                orderBy('timestamp', 'desc'),
+                limit(1)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                const latestData = querySnapshot.docs[0].data();
+                const latestDate = latestData.date ? new Date(latestData.date) : new Date();
+                
+                setLatestRecordDate(latestDate);
+                setSelectedDate(latestDate);
+                setThaiDate(formatThaiDate(latestDate));
+                
+                // ดึงข้อมูลตามวันที่ล่าสุด
+                await fetchWardData(latestDate);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ข้อมูลล่าสุดสำเร็จ',
+                    text: `ข้อมูลล่าสุด: ${formatThaiDate(latestDate)}`,
+                    confirmButtonColor: '#3D6CB9',
+                });
+            } else {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'ไม่พบข้อมูล',
+                    text: 'ไม่พบข้อมูล Ward ที่เลือก',
+                    confirmButtonColor: '#3D6CB9',
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching latest record:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'ข้อผิดพลาด',
+                text: 'ไม่สามารถดึงข้อมูลล่าสุดได้',
+                confirmButtonColor: '#3D6CB9',
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // แก้ไขก์ fetchWardData เริ่มต้นการส่งข้อมูล
+    const fetchWardData = async (date = selectedDate) => {
         try {
             // แสดง loading message
             Swal.fire({
-                title: 'กำลังโหลดข้อมูล',
-                text: `กำลังดึงข้อมูลของ ${selectedWard}`,
+                title: 'โหลดข้อมูล',
+                text: `ข้อมูลของ ${selectedWard}`,
                 allowOutsideClick: false,
                 didOpen: () => {
                     Swal.showLoading();
                 }
             });
 
-            const result = await fetchPreviousShiftData(selectedDate, selectedWard);
+            const result = await fetchPreviousShiftData(date, selectedWard);
+            await checkApprovalStatus(date, selectedWard);
 
             // ดึงข้อมูลจาก wardDailyRecords
             const wardDailyRef = collection(db, 'wardDailyRecords');
             const wardQuery = query(
                 wardDailyRef,
                 where('wardId', '==', selectedWard),
-                where('date', '==', getUTCDateString(selectedDate))
+                where('date', '==', getUTCDateString(date))
             );
 
             const wardSnapshot = await getDocs(wardQuery);
@@ -483,7 +571,7 @@ const WardForm = () => {
                 const wardData = wardSnapshot.docs[0].data();
                 const shiftData = wardData.shifts?.[selectedShift] || {};
 
-                // อัพเดทฟอร์มด้วยข้อมูลที่มีอยู่
+                // เดทฟอร์มด้วยข้อมูลที่อยู่
                 setFormData(prev => ({
                     ...prev,
                     patientCensus: parseInputValue(wardData.patientCensus || prev.patientCensus),
@@ -503,8 +591,6 @@ const WardForm = () => {
                     unavailable: parseInputValue(shiftData.unavailable),
                     plannedDischarge: parseInputValue(shiftData.plannedDischarge),
                     comment: parseInputValue(shiftData.comment),
-                    firstName: '',
-                    lastName: '',
                     total: calculateTotal({
                         patientCensus: wardData.patientCensus || prev.patientCensus || '0',
                         newAdmit: shiftData.newAdmit || '0',
@@ -518,16 +604,16 @@ const WardForm = () => {
                 }));
 
                 await Swal.fire({
-                    title: 'ดึงข้อมูลสำเร็จ',
+                    title: 'ข้อมูลสำเร็จ',
                     html: `
                         <div class="text-left">
                             <p class="mb-2 font-medium">ข้อมูลของ ${selectedWard}</p>
-                            <p class="text-sm text-gray-600">วันที่: ${formatThaiDate(selectedDate)}</p>
+                            <p class="text-sm text-gray-600">วันที่: ${formatThaiDate(date)}</p>
                             <p class="text-sm text-gray-600">Patient Census: ${wardData.patientCensus || '0'}</p>
                             <p class="text-sm text-gray-600">Overall Data: ${wardData.overallData || '0'}</p>
                             ${shiftData.nurseManager ? `
                                 <div class="mt-2">
-                                    <p class="text-sm font-medium">ข้อมูลบุคลากร</p>
+                                    <p class="text-sm font-medium">ข้อมูลคลากร</p>
                                     <p class="text-sm text-gray-600">Nurse Manager: ${shiftData.nurseManager}</p>
                                     <p class="text-sm text-gray-600">RN: ${shiftData.RN}</p>
                                     <p class="text-sm text-gray-600">PN: ${shiftData.PN}</p>
@@ -569,29 +655,27 @@ const WardForm = () => {
                     unavailable: '0',
                     plannedDischarge: '0',
                     comment: '',
-                    firstName: '',
-                    lastName: '',
                     total: patientCensus
                 }));
                 
                 // กำหนดให้ไม่ใช้ข้อมูลจาก Approval
                 setIsUsingApprovalData(false);
 
-                let infoMessage = `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(selectedDate)}`;
+                let infoMessage = `ไม่พบข้อมูลของ ${selectedWard} ในวันที่ ${formatThaiDate(date)}`;
                 
-                // หากมีข้อมูลจาก shift ก่อนหน้า ให้แสดงที่มา
+                // หากมีข้อมูลจาก shift ก่อนหน้า ให้แสดงข้อความมา
                 if (previousShiftData) {
                     const prevShiftDate = formatThaiDate(new Date(previousShiftData.date));
-                    infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดถูกดึงมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
+                    infoMessage += `<br><br>ข้อมูล Patient Census ล่าสุดมาจาก:<br>วันที่ ${prevShiftDate} กะ ${previousShiftData.shift}`;
                 }
                 
-                // แสดงปุ่มให้เลือกดึงข้อมูลจาก Approval
+                // แสดงปุ่มให้ดึงข้อมูลจาก Approval
                 await Swal.fire({
                     title: 'ข้อมูลเริ่มต้น',
                     html: `
                         ${infoMessage}
                         <div class="mt-4 text-left">
-                            <p class="text-sm text-gray-600">คุณสามารถดึงข้อมูลจากระบบ Approval ได้โดยคลิกที่ปุ่มด้านล่าง</p>
+                            <p class="text-sm text-gray-600">ดึงข้อมูลจากระบบ Approval ได้โดยคลิกปุ่มด้านล่าง</p>
                         </div>
                     `,
                     icon: 'info',
@@ -602,7 +686,7 @@ const WardForm = () => {
                     cancelButtonColor: '#0ab4ab'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // ถ้าผู้ใช้เลือกที่จะดึงข้อมูลจาก Approval
+                        // ถ้ายืนยันจะดึงข้อมูลจาก Approval
                         fetchApprovalData();
                     }
                 });
@@ -611,15 +695,15 @@ const WardForm = () => {
             console.error('Error fetching ward data:', error);
             
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: error.message || 'ไม่สามารถดึงข้อมูลหอผู้ป่วยได้',
+                title: 'ข้อผิดพลาด',
+                text: error.message || 'ไม่สามารถดึงข้อมูลหอพักได้',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
         }
     };
 
-    // เพิ่มปุ่มสำหรับดึงข้อมูลจากระบบ Approval
+    // เล่ม์ปุ่มดึงข้อมูลจากระบบ Approval
     const ApprovalDataButton = () => {
         if (!selectedWard) return null;
         
@@ -632,7 +716,25 @@ const WardForm = () => {
                 >
                     ดึงข้อมูลจากระบบ Approval
                 </button>
-                <p className="text-xs text-gray-500 mt-1">ใช้เมื่อต้องการดึงข้อมูลบุคลากรจากระบบ Approval โดยตรง</p>
+                <p className="text-xs text-gray-500 mt-1">ใช้เมื่อต้องการดึงข้อมูลคลากรจากระบบ Approval โดยตรง</p>
+            </div>
+        );
+    };
+
+    // เล่ม์ปุ่มดึงข้อมูลล่าสุด
+    const LatestRecordButton = () => {
+        return (
+            <div className="mb-4 flex justify-center">
+                <button
+                    type="button"
+                    onClick={fetchLatestRecord}
+                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 shadow-sm flex items-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    ดึงข้อมูลล่าสุด
+                </button>
             </div>
         );
     };
@@ -643,18 +745,18 @@ const WardForm = () => {
         setFormData(prev => {
             let newValue = value;
             
-            // แปลงค่าว่างเป็น 0 สำหรับฟิลด์ตัวเลข
-            if (name !== 'comment' && name !== 'firstName' && name !== 'lastName' && value === '') {
+            // แปลงค่าว่างเป็น 0ลด์เลข
+            if (name !== 'comment' && value === '') {
                 newValue = '0';
             }
             
-            // สร้าง object ใหม่พร้อมค่าที่อัพเดท
+            // สร้าง object ใหม่พร้อมค่าเดท
             const updatedForm = {
                 ...prev,
                 [name]: newValue
             };
             
-            // คำนวณ total และ overallData เมื่อมีการเปลี่ยนแปลงข้อมูลที่เกี่ยวข้อง
+            // คำนวณ total และ overallData เมื่อเปลี่ยนแปลงข้อมูลเกี่ยวข้อง
             if ([
                 'patientCensus', 'newAdmit', 'transferIn', 'referIn',
                 'transferOut', 'referOut', 'discharge', 'dead'
@@ -672,12 +774,12 @@ const WardForm = () => {
         setSelectedShift(shift);
     };
 
-    // แก้ไขฟังก์ชัน handleDateSelect เพื่อตรวจสอบข้อมูลซ้ำ
+    // แก้ไขก์ handleDateSelect เริ่มต้นการตรวจสอบข้อมูลซ้ำ
     const handleDateSelect = async (date) => {
         try {
             const newDate = new Date(date);
             
-            // ถ้ามีการเลือก ward แล้ว ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+            // ถ้ามี ward แล้ว ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือยัง
             if (selectedWard) {
                 // Check if data already exists for this date, ward, and shift
                 const wardDailyRef = collection(db, 'wardDailyRecords');
@@ -699,22 +801,22 @@ const WardForm = () => {
                     if (hasDataForShift) {
                         // Show warning with more details about existing data
                         const result = await Swal.fire({
-                            title: 'พบข้อมูลที่มีอยู่แล้ว',
+                            title: 'พบข้อมูลอยู่แล้ว',
                             html: `
                                 <div class="text-left">
-                                    <p class="mb-2">ข้อมูลของ <b>${selectedWard}</b> ในวันที่ <b>${formatThaiDate(newDate)}</b> กะ <b>${selectedShift}</b> มีอยู่ในระบบแล้ว</p>
-                                    <p class="mb-4">คุณต้องการดำเนินการอย่างไร?</p>
+                                    <p class="mb-2">ข้อมูลของ <b>${selectedWard}</b> ในวันที่ <b>${formatThaiDate(newDate)}</b> กะ <b>${selectedShift}</b> อยู่ในระบบแล้ว</p>
+                                    <p class="mb-4">ต้องการอย่างไร?</p>
                                     <ul class="list-disc pl-5 text-sm text-gray-600">
-                                        <li>ดึงข้อมูลเดิม: จะโหลดข้อมูลที่บันทึกไว้ก่อนหน้า</li>
+                                        <li>ดึงข้อมูล: จะโหลดข้อมูลที่มีอยู่ก่อน</li>
                                         <li>สร้างข้อมูลใหม่: จะล้างค่าทั้งหมดและให้กรอกใหม่</li>
-                                        <li>ยกเลิก: จะยกเลิกการเปลี่ยนวันที่</li>
+                                        <li>ยกเลิก: จะยกเลิกการเปลี่ยนแปลง</li>
                                     </ul>
                                 </div>
                             `,
                             icon: 'warning',
                             showDenyButton: true,
                             showCancelButton: true,
-                            confirmButtonText: 'ดึงข้อมูลเดิม',
+                            confirmButtonText: 'ดึงข้อมูล',
                             denyButtonText: 'สร้างข้อมูลใหม่',
                             cancelButtonText: 'ยกเลิก',
                             confirmButtonColor: '#0ab4ab',
@@ -750,8 +852,6 @@ const WardForm = () => {
                                 unavailable: '0',
                                 plannedDischarge: '0',
                                 comment: '',
-                                firstName: '',
-                                lastName: '',
                                 total: '0'
                             });
                             // Still fetch previous shift data for Patient Census
@@ -784,8 +884,8 @@ const WardForm = () => {
         } catch (error) {
             console.error('Error in handleDateSelect:', error);
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: 'ไม่สามารถตรวจสอบข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                title: 'ข้อผิดพลาด',
+                text: 'ไม่สามารถตรวจสอบข้อมูลได้ ลองใหม่ครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
@@ -798,19 +898,15 @@ const WardForm = () => {
 
         try {
             if (!selectedWard) {
-                throw new Error('กรุณาเลือกวอร์ด');
+                throw new Error('Ward');
             }
 
             if (!selectedDate) {
-                throw new Error('กรุณาเลือกวันที่');
+                throw new Error('วันที่');
             }
 
             if (!selectedShift) {
-                throw new Error('กรุณาเลือกกะการทำงาน');
-            }
-
-            if (!formData.firstName.trim() || !formData.lastName.trim()) {
-                throw new Error('กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล');
+                throw new Error('กะการทำงาน');
             }
 
             // ตรวจสอบข้อมูลซ้ำ
@@ -830,12 +926,12 @@ const WardForm = () => {
                         <div class="text-left">
                             <p class="mb-2">พบข้อมูลของ ${selectedWard}</p>
                             <p class="mb-2">วันที่: ${formatThaiDate(selectedDate)}</p>
-                            <p class="text-sm text-gray-600">ต้องการบันทึกทับข้อมูลเดิมหรือไม่?</p>
+                            <p class="text-sm text-gray-600">ต้องการดึงข้อมูลหรือไม่?</p>
                         </div>
                     `,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonText: 'บันทึกทับ',
+                    confirmButtonText: 'ดึงข้อมูล',
                     cancelButtonText: 'ยกเลิก',
                     confirmButtonColor: '#0ab4ab',
                     cancelButtonColor: '#d33'
@@ -851,13 +947,17 @@ const WardForm = () => {
             const totalValue = calculateTotal();
             const overallDataValue = totalValue.toString();
 
-            // เตรียมข้อมูลสำหรับบันทึก
+            // Get user info from authContext
+            const username = user?.username || 'Unknown User';
+
+            // เตรียมข้อมูล
             const wardData = {
                 wardId: selectedWard,
                 date: getUTCDateString(selectedDate),
                 patientCensus: formData.patientCensus || '0',
                 overallData: overallDataValue,
                 lastUpdated: serverTimestamp(),
+                approvalStatus: 'pending', // Mark as pending approval
                 shifts: {
                     [selectedShift]: {
                         nurseManager: formData.nurseManager,
@@ -875,16 +975,16 @@ const WardForm = () => {
                         unavailable: formData.unavailable,
                         plannedDischarge: formData.plannedDischarge,
                         comment: formData.comment,
-                        recorderName: `${formData.firstName} ${formData.lastName}`,
+                        recorderName: username,
                         updatedAt: serverTimestamp()
                     }
                 },
-                // เพิ่มฟิลด์เพื่อระบุว่าข้อมูลนี้มาจากระบบ Approval
+                // เดทเพิ่มเพื่อระบุว่าข้อมูลมาจากระบบ Approval
                 sourceFromApproval: isUsingApprovalData,
                 approvalDataId: approvalData?.id || null
             };
 
-            // บันทึกหรืออัพเดทข้อมูล
+            // เดทข้อมูล
             if (!querySnapshot.empty) {
                 const docRef = querySnapshot.docs[0].ref;
                 const existingData = querySnapshot.docs[0].data();
@@ -893,6 +993,7 @@ const WardForm = () => {
                     patientCensus: formData.patientCensus || '0',
                     overallData: overallDataValue,
                     lastUpdated: serverTimestamp(),
+                    approvalStatus: 'pending', // Mark as pending approval
                     shifts: {
                         ...existingData.shifts,
                         [selectedShift]: {
@@ -911,7 +1012,7 @@ const WardForm = () => {
                             unavailable: formData.unavailable,
                             plannedDischarge: formData.plannedDischarge,
                             comment: formData.comment,
-                            recorderName: `${formData.firstName} ${formData.lastName}`,
+                            recorderName: username,
                             updatedAt: serverTimestamp()
                         }
                     }
@@ -920,17 +1021,33 @@ const WardForm = () => {
                 await addDoc(wardDailyRef, wardData);
             }
 
+            // บันทึก log เมื่อเพิ่มข้อมูลใหม่
+            logEvent('ward_form_save_success', {
+                wardId: selectedWard,
+                date: getUTCDateString(selectedDate),
+                shift: selectedShift,
+                username: username,
+                action: 'บันทึกข้อมูล WardForm สำเร็จ',
+                timestamp: new Date().toISOString()
+            });
+
             setHasUnsavedChanges(false);
+            setApprovalStatus('pending');
 
             await Swal.fire({
-                title: 'บันทึกข้อมูลสำเร็จ',
-                text: 'ข้อมูลถูกบันทึกเรียบร้อยแล้ว',
+                title: 'ข้อมูลสำเร็จ',
+                html: `
+                    <div>
+                        <p>ข้อมูลถูกบันทึกแล้ว</p>
+                        <p class="text-sm text-blue-600 mt-2">รอการ Approval จาก Supervisor</p>
+                    </div>
+                `,
                 icon: 'success',
                 confirmButtonColor: '#0ab4ab'
             });
 
-            // รีเซ็ตฟอร์ม
-            setSelectedWard('');
+            // Reset form fields but keep the current ward selected
+            const currentWard = selectedWard;
             setPreviousShiftData(null);
             setFormData({
                 patientCensus: '0',
@@ -950,16 +1067,16 @@ const WardForm = () => {
                 unavailable: '0',
                 plannedDischarge: '0',
                 comment: '',
-                firstName: '',
-                lastName: '',
                 total: '0'
             });
+            // Re-fetch the data to show updated status
+            await fetchWardData();
 
         } catch (error) {
             console.error('Error saving ward data:', error);
             await Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: error.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                title: 'ข้อผิดพลาด',
+                text: error.message || 'ไม่สามารถบันทึกข้อมูลได้ ลองใหม่ครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
@@ -980,7 +1097,7 @@ const WardForm = () => {
             dead = 0
         } = data;
 
-        // แปลงค่าเป็นตัวเลขและคำนวณ
+        // แปลงค่าเป็นเลขและคำนวณ
         const total = (
             parseInt(patientCensus) +
             parseInt(newAdmit) +
@@ -992,7 +1109,7 @@ const WardForm = () => {
             parseInt(dead) 
         );
 
-        // ป้องกันค่าติดลบ
+        // ป้องกันค่าลบ
         return Math.max(0, total);
     };
 
@@ -1001,423 +1118,384 @@ const WardForm = () => {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        <div className="container mx-auto px-4 py-8 bg-gradient-to-br from-blue-50 to-teal-50">
+            <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-6 border border-blue-100">
                 {/* Header Title */}
-                <div className="text-center mb-4">
+                <div className="text-center mb-6">
                     <div className="flex items-center justify-center gap-2">
-                        <img src="/images/BPK.jpg" alt="BPK Logo" className="w-8 h-8 object-contain" />
-                        <h1 className="text-xl font-bold bg-gradient-to-r from-[#0ab4ab] to-blue-600 text-transparent bg-clip-text mb-1">
-                            Ward Information Form
+                        <img src="/images/BPK.jpg" alt="BPK Logo" className="w-10 h-10 object-contain" />
+                        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-teal-500 text-transparent bg-clip-text mb-1">
+                            Daily Patient Census and Staffing
                         </h1>
                     </div>
-                    <div className="h-0.5 w-24 mx-auto bg-gradient-to-r from-[#0ab4ab] to-blue-600 rounded-full"></div>
+                </div>
+                
+                {/* Ward Selection */}
+                <div className="mb-6">
+                    <label className="block text-gray-700 font-medium mb-2">Ward:</label>
+                    <select
+                        value={selectedWard}
+                        onChange={(e) => setSelectedWard(e.target.value)}
+                        className="w-full border border-blue-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-blue-50"
+                        disabled={!!wardId}
+                    >
+                        <option value="">-- เลือก Ward --</option>
+                        {wards.map((ward) => (
+                            <option key={ward} value={ward}>
+                                {ward}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Move Ward Selection to the top */}
-                    <div className="mb-6">
-                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                            Select Ward <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            value={selectedWard}
-                            onChange={(e) => setSelectedWard(e.target.value)}
-                            className="w-full px-4 py-3 text-[#0ab4ab] border-2 border-[#0ab4ab] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent"
-                            required
-                        >
-                            <option value="">-- Select Ward --</option>
-                            {wards.map(ward => (
-                                <option key={ward} value={ward}>{ward}</option>
-                            ))}
-                        </select>
+                {/* Date and Shift Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label className="block text-gray-700 font-medium mb-2">วันที่:</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={thaiDate}
+                                readOnly
+                                className="w-full border border-blue-200 rounded-lg px-4 py-2 cursor-pointer bg-blue-50"
+                                onClick={() => setShowCalendar(!showCalendar)}
+                            />
+                            {showCalendar && (
+                                <div className="absolute z-10 mt-1 bg-white shadow-lg rounded-lg p-2 border border-blue-200">
+                                    <Calendar
+                                        selectedDate={selectedDate}
+                                        onDateSelect={handleDateSelect}
+                                        datesWithData={datesWithData}
+                                    />
+                                    <button
+                                        className="mt-2 w-full py-1 bg-blue-100 rounded-md text-sm text-blue-700 hover:bg-blue-200"
+                                        onClick={() => setShowCalendar(false)}
+                                    >
+                                        ปิดปฏิทิน
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
-
-                    {/* แสดงปุ่มดึงข้อมูลจากระบบ Approval */}
-                    <ApprovalDataButton />
                     
-                    {/* แสดงข้อความเมื่อใช้ข้อมูลจาก Approval */}
-                    {isUsingApprovalData && (
-                        <div className="p-3 bg-blue-50 border-l-4 border-blue-500 text-blue-700 mb-4">
-                            <div className="flex">
-                                <div className="flex-shrink-0">
-                                    <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                                <div className="ml-3">
-                                    <p className="text-sm font-medium">
-                                        ข้อมูลนี้ถูกดึงมาจากระบบ Approval
-                                    </p>
-                                </div>
+                    <div>
+                        <label className="block text-gray-700 font-medium mb-2">กะ:</label>
+                        <ShiftSelection
+                            selectedShift={selectedShift}
+                            onShiftChange={handleShiftChange}
+                        />
+                    </div>
+                </div>
+
+                {/* Display Latest Record Date if available */}
+                {latestRecordDate && (
+                    <div className="mb-4 p-3 rounded-lg bg-teal-50 text-teal-700 border border-teal-200">
+                        <p className="font-medium text-center">
+                            ข้อมูลล่าสุด: {formatThaiDate(latestRecordDate)}
+                        </p>
+                    </div>
+                )}
+
+                {/* Display Approval Status if available */}
+                {approvalStatus && (
+                    <div className={`mb-4 p-3 rounded-lg ${
+                        approvalStatus === 'approved' ? 'bg-green-100 text-green-700 border border-green-200' : 
+                        approvalStatus === 'rejected' ? 'bg-red-100 text-red-700 border border-red-200' : 
+                        'bg-yellow-100 text-yellow-700 border border-yellow-200'
+                    }`}>
+                        <p className="font-medium text-center">
+                            {approvalStatus === 'approved' ? 'ได้รับการอนุมัติแล้ว' : 
+                            approvalStatus === 'rejected' ? 'ถูกปฏิเสธ' : 
+                            'รอการอนุมัติ'}
+                        </p>
+                    </div>
+                )}
+
+                {/* Add buttons for fetching data */}
+                <div className="flex flex-wrap justify-center gap-4 mb-6">
+                    <LatestRecordButton />
+                    <ApprovalDataButton />
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit}>
+                    <div className="bg-blue-50 p-5 rounded-lg border border-blue-200 mb-6 shadow-sm">
+                        <h2 className="text-lg font-medium mb-4 text-blue-700">ข้อมูลผู้ป่วย</h2>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Patient Census (จากกะก่อนหน้า):
+                                </label>
+                                <input
+                                    type="number"
+                                    name="patientCensus"
+                                    value={formData.patientCensus}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
                             </div>
-                        </div>
-                    )}
-
-                    {selectedWard && (
-                        <div className="space-y-8">
-                            {/* Move Calendar and Shift Selection UP here - BEFORE General Information */}
-                            <div className="bg-gradient-to-br from-[#0ab4ab]/5 via-blue-50 to-purple-50 rounded-2xl p-4 mb-6 shadow-lg">
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {/* Calendar Section */}
-                                        <div className="bg-gradient-to-br from-[#0ab4ab]/5 via-blue-50 to-purple-50 rounded-2xl p-4 mb-3 shadow-lg">
-                                            <div className="flex flex-col md:flex-row items-center gap-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowCalendar(!showCalendar)}
-                                                    className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-[#0ab4ab] to-blue-500 text-white rounded-lg hover:from-[#0ab4ab]/90 hover:to-blue-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:ring-opacity-50 shadow-md text-sm"
-                                                >
-                                                    {showCalendar ? 'ซ่อนปฏิทิน' : 'เลือกวันที่'}
-                                                </button>
-                                                <div className="text-gray-700 space-y-1.5 text-center md:text-left">
-                                                    <div className="font-medium text-[#0ab4ab]">
-                                                        วันที่ปัจจุบัน: {formatThaiDate(new Date())}
-                                                    </div>
-                                                    <div className="text-blue-600 font-medium">
-                                                        วันที่เลือก: {formatThaiDate(selectedDate)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Shift Selection */}
-                                        <ShiftSelection
-                                            selectedShift={selectedShift}
-                                            onShiftChange={handleShiftChange}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 1: General Information */}
-                            <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-[#0ab4ab]/5 p-6 rounded-xl border border-[#0ab4ab]/20">
-                                <h3 className="text-xl font-semibold text-[#0ab4ab] mb-6">General Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Patient Census <span className="text-gray-500">(Read Only)</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="patientCensus"
-                                            value={formData.patientCensus}
-                                            className="w-full px-4 py-3 bg-gray-100 border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                            readOnly
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Overall Data <span className="text-gray-500">(Read Only)</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="overallData"
-                                            value={formData.overallData}
-                                            className="w-full px-4 py-3 bg-gray-100 border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                            readOnly
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 2: Staff Information */}
-                            <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-[#0ab4ab]/5 p-6 rounded-xl border border-[#0ab4ab]/20">
-                                <h3 className="text-xl font-semibold text-[#0ab4ab] mb-6">Staff Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Nurse Manager <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="nurseManager"
-                                            value={formData.nurseManager}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            RN <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="RN"
-                                            value={formData.RN}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            PN <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="PN"
-                                            value={formData.PN}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            WC <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="WC"
-                                            value={formData.WC}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* The rest of the sections remain the same */}
-                            {/* Section 3: Patient Movement */}
-                            <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-[#0ab4ab]/5 p-6 rounded-xl border border-[#0ab4ab]/20">
-                                <h3 className="text-xl font-semibold text-[#0ab4ab] mb-6">Patient Movement</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            New Admit
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="newAdmit"
-                                            value={formData.newAdmit}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Transfer In
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="transferIn"
-                                            value={formData.transferIn}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Refer In
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="referIn"
-                                            value={formData.referIn}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Transfer Out
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="transferOut"
-                                            value={formData.transferOut}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Refer Out
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="referOut"
-                                            value={formData.referOut}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Discharge
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="discharge"
-                                            value={formData.discharge}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Dead
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="dead"
-                                            value={formData.dead}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Total <span className="text-gray-500">(Read-Only)</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="total"
-                                            value={formData.total}
-                                            className="w-full px-4 py-3 bg-gray-100 border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                            readOnly
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 4: Bed Information */}
-                            <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-[#0ab4ab]/5 p-6 rounded-xl border border-[#0ab4ab]/20">
-                                <h3 className="text-xl font-semibold text-[#0ab4ab] mb-6">Bed Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Available Beds <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="availableBeds"
-                                            value={formData.availableBeds}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Unavailable Beds
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="unavailable"
-                                            value={formData.unavailable}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Planned Discharge
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="plannedDischarge"
-                                            value={formData.plannedDischarge}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-white border-2 border-[#0ab4ab]/20 rounded-lg text-gray-700"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 5: Additional Information */}
-                            <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-[#0ab4ab]/5 p-6 rounded-xl border border-[#0ab4ab]/20">
-                                <h3 className="text-xl font-semibold text-[#0ab4ab] mb-6">Additional Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            First Name <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="firstName"
-                                            value={formData.firstName}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                            placeholder="Enter first name"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Last Name <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="lastName"
-                                            value={formData.lastName}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            required
-                                            placeholder="Enter last name"
-                                        />
-                                    </div>
-
-                                    <div className="col-span-2">
-                                        <label className="block text-lg font-medium text-[#0ab4ab] mb-2">
-                                            Comments
-                                        </label>
-                                        <textarea
-                                            name="comment"
-                                            value={formData.comment}
-                                            onChange={handleInputChange}
-                                            rows="4"
-                                            className="w-full px-4 py-3 border-2 border-[#0ab4ab]/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:border-transparent text-gray-700"
-                                            placeholder="Add your comments here..."
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Calendar Modal */}
-                    {showCalendar && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                            <div className="relative bg-white rounded-2xl shadow-2xl transform transition-all">
-                                <Calendar
-                                    selectedDate={selectedDate}
-                                    onDateSelect={handleDateSelect}
-                                    onClickOutside={() => setShowCalendar(false)}
-                                    datesWithData={datesWithData}
-                                    variant="form"
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    จำนวนผู้ป่วย (คำนวณ):
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.total}
+                                    readOnly
+                                    className="w-full border border-teal-200 bg-teal-50 rounded-lg px-4 py-2 shadow-sm text-teal-700 font-medium"
                                 />
                             </div>
                         </div>
-                    )}
-
-                    {selectedWard && (
-                        <div className="mt-8">
-                            <button
-                                type="submit"
-                                className="w-full bg-[#0ab4ab] text-white text-lg font-semibold py-3 px-6 rounded-xl hover:bg-[#0ab4ab]/90 focus:outline-none focus:ring-2 focus:ring-[#0ab4ab] focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02]"
-                            >
-                                Submit
-                            </button>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    New Admit:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="newAdmit"
+                                    value={formData.newAdmit}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Transfer In:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="transferIn"
+                                    value={formData.transferIn}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Refer In:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="referIn"
+                                    value={formData.referIn}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Planned Discharge:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="plannedDischarge"
+                                    value={formData.plannedDischarge}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
                         </div>
-                    )}
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Transfer Out:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="transferOut"
+                                    value={formData.transferOut}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Refer Out:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="referOut"
+                                    value={formData.referOut}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Discharge:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="discharge"
+                                    value={formData.discharge}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Dead:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="dead"
+                                    value={formData.dead}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Available Beds:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="availableBeds"
+                                    value={formData.availableBeds}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Unavailable:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="unavailable"
+                                    value={formData.unavailable}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-blue-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-teal-50 p-5 rounded-lg border border-teal-200 mb-6 shadow-sm">
+                        <h2 className="text-lg font-medium mb-4 text-teal-700">ข้อมูลคลากร</h2>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    Nurse Manager:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="nurseManager"
+                                    value={formData.nurseManager}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-teal-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    RN:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="RN"
+                                    value={formData.RN}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-teal-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    PN:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="PN"
+                                    value={formData.PN}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-teal-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-gray-700 text-sm font-medium mb-1">
+                                    WC:
+                                </label>
+                                <input
+                                    type="number"
+                                    name="WC"
+                                    value={formData.WC}
+                                    onChange={handleInputChange}
+                                    className="w-full border border-teal-300 rounded-lg px-4 py-2 bg-white shadow-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="mb-6">
+                        <label className="block text-gray-700 font-medium mb-2">
+                            หมายเหตุ:
+                        </label>
+                        <textarea
+                            name="comment"
+                            value={formData.comment}
+                            onChange={handleInputChange}
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 min-h-[100px] bg-white shadow-sm"
+                            placeholder="หมายเหตุ (ถ้ามี)"
+                        ></textarea>
+                    </div>
+                    
+                    {/* เจ้าหน้าที่บันทึกข้อมูล */}
+                    <div className="mb-6 bg-blue-50/80 rounded-xl p-5 shadow-sm">
+                        <h3 className="text-lg font-semibold text-blue-800 mb-4 bg-white/50 py-2 px-4 rounded-lg text-center shadow-sm">
+                            เจ้าหน้าที่บันทึกข้อมูล
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-blue-700">First Name</label>
+                                <input
+                                    type="text"
+                                    name="recorderFirstName"
+                                    value={user?.username || ''}
+                                    readOnly
+                                    className="w-full text-black px-3 py-2 border border-blue-200 rounded-lg bg-white/70"
+                                    placeholder="ชื้อ"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-blue-700">Department</label>
+                                <input
+                                    type="text"
+                                    value={user?.department || ''}
+                                    readOnly
+                                    className="w-full text-black px-3 py-2 border border-blue-200 rounded-lg bg-white/70"
+                                    placeholder="แผนก"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="flex justify-center">
+                        <button
+                            type="submit"
+                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-teal-500 text-white rounded-lg hover:from-blue-600 hover:to-teal-600 transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 shadow-md"
+                            disabled={!selectedWard}
+                        >
+                            บันทึกข้อมูล
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

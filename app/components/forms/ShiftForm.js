@@ -31,9 +31,7 @@ const ShiftForm = () => {
         newPatients: '',
         admissions24hr: '',
         supervisorFirstName: '',
-        supervisorLastName: '',
-        recorderFirstName: '',
-        recorderLastName: ''
+        supervisorLastName: ''
     });
 
     // ปรับปรุง formData state
@@ -74,6 +72,7 @@ const ShiftForm = () => {
 
     // Add mobile warning state
     const [showMobileWarning, setShowMobileWarning] = useState(false);
+    const [approvalStatuses, setApprovalStatuses] = useState({});
 
     // Check if device is mobile on component mount
     useEffect(() => {
@@ -100,6 +99,40 @@ const ShiftForm = () => {
         }, 1000);
     }, []);
 
+    // Function to fetch approval statuses for all wards
+    const fetchApprovalStatuses = async (date) => {
+        try {
+            if (!date) return;
+            
+            const dateString = getUTCDateString(new Date(date));
+            const wardDailyRef = collection(db, 'wardDailyRecords');
+            const statuses = {};
+            
+            // Fetch approval status for each ward
+            for (const ward of WARD_ORDER) {
+                const q = query(
+                    wardDailyRef,
+                    where('date', '==', dateString),
+                    where('wardId', '==', ward)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    const wardData = querySnapshot.docs[0].data();
+                    statuses[ward] = wardData.approvalStatus || 'pending';
+                } else {
+                    statuses[ward] = null; // No data exists for this ward
+                }
+            }
+            
+            setApprovalStatuses(statuses);
+            console.log('Fetched approval statuses:', statuses);
+        } catch (error) {
+            console.error('Error fetching approval statuses:', error);
+        }
+    };
+
     // อัพเดท useEffect สำหรับการโหลดครั้งแรก
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -120,6 +153,7 @@ const ShiftForm = () => {
             checkPreviousNightShift(isoDate);
             fetchLatestData();
             fetchDatesWithData();
+            fetchApprovalStatuses(isoDate);
         }
     }, []);
 
@@ -244,6 +278,9 @@ const ShiftForm = () => {
             date: newDate
         }));
         setThaiDate(formatThaiDate(dateObj));
+        
+        // Fetch approval statuses for the new date
+        fetchApprovalStatuses(newDate);
     };
 
     // เพิ่มฟังก์ชันคำนวณ totals
@@ -566,10 +603,6 @@ const ShiftForm = () => {
                 message: 'ไม่สามารถบันทึกข้อมูลกะดึกได้ เนื่องจากยังไม่มีการบันทึกข้อมูลกะเช้าก่อน'
             },
             {
-                condition: !summaryData.recorderFirstName?.trim() || !summaryData.recorderLastName?.trim(),
-                message: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล'
-            },
-            {
                 condition: !summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim(),
                 message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
             }
@@ -635,9 +668,7 @@ const ShiftForm = () => {
             newPatients: '',
             admissions24hr: '',
             supervisorFirstName: '',
-            supervisorLastName: '',
-            recorderFirstName: '',
-            recorderLastName: ''
+            supervisorLastName: ''
         });
 
                 setHasUnsavedChanges(false); // รีเซ็ตสถานะหลังล้างข้อมูล
@@ -815,9 +846,7 @@ const ShiftForm = () => {
                     newPatients: summaryData.newPatients || '',
                     admissions24hr: summaryData.admissions24hr || '',
                     supervisorFirstName: summaryData.supervisorFirstName || '',
-                    supervisorLastName: summaryData.supervisorLastName || '',
-                    recorderFirstName: summaryData.recorderFirstName || '',
-                    recorderLastName: summaryData.recorderLastName || ''
+                    supervisorLastName: summaryData.supervisorLastName || ''
                 },
                 timestamp: serverTimestamp(),
                 lastModified: serverTimestamp()
@@ -825,6 +854,50 @@ const ShiftForm = () => {
 
             console.log('Saving sanitized data:', sanitizedData);
             await setDoc(doc(db, 'staffRecords', docId), sanitizedData);
+
+            // Also create/update wardDailyRecords for each ward with pending approval status
+            const wardDailyPromises = Object.entries(formData.wards).map(async ([wardId, wardData]) => {
+                if (Object.values(wardData).some(value => value !== '0' && value !== '')) {
+                    const wardDailyRef = doc(db, 'wardDailyRecords', `${formData.date}_${wardId}`);
+                    
+                    try {
+                        await setDoc(wardDailyRef, {
+                            wardId,
+                            date: formData.date,
+                            patientCensus: wardData.numberOfPatients || '0',
+                            overallData: wardData.overallData || '0',
+                            approvalStatus: 'pending',
+                            lastUpdated: serverTimestamp(),
+                            shifts: {
+                                [formData.shift]: {
+                                    nurseManager: wardData.nurseManager || '0',
+                                    RN: wardData.RN || '0',
+                                    PN: wardData.PN || '0',
+                                    WC: wardData.WC || '0',
+                                    newAdmit: wardData.newAdmit || '0',
+                                    transferIn: wardData.transferIn || '0',
+                                    referIn: wardData.referIn || '0',
+                                    transferOut: wardData.transferOut || '0',
+                                    referOut: wardData.referOut || '0',
+                                    discharge: wardData.discharge || '0',
+                                    dead: wardData.dead || '0',
+                                    availableBeds: wardData.availableBeds || '0',
+                                    unavailable: wardData.unavailable || '0',
+                                    plannedDischarge: wardData.plannedDischarge || '0',
+                                    comment: wardData.comment || ''
+                                }
+                            }
+                        }, { merge: true });
+                    } catch (error) {
+                        console.error(`Error saving wardDailyRecord for ${wardId}:`, error);
+                    }
+                }
+            });
+            
+            await Promise.all(wardDailyPromises);
+            
+            // Update approval statuses
+            await fetchApprovalStatuses(formData.date);
 
             setLoadingMessage('บันทึกข้อมูลสำเร็จ กำลังรีเซ็ตฟอร์ม...');
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1101,9 +1174,7 @@ const ShiftForm = () => {
                         newPatients: latestData.summaryData.newPatients || '',
                         admissions24hr: latestData.summaryData.admissions24hr || '',
                         supervisorFirstName: latestData.summaryData.supervisorFirstName || '',
-                        supervisorLastName: latestData.summaryData.supervisorLastName || '',
-                        recorderFirstName: latestData.summaryData.recorderFirstName || '',
-                        recorderLastName: latestData.summaryData.recorderLastName || ''
+                        supervisorLastName: latestData.summaryData.supervisorLastName || ''
                     }));
                 }
 
@@ -1168,9 +1239,7 @@ const ShiftForm = () => {
             summaryData.newPatients !== '' ||
             summaryData.admissions24hr !== '' ||
             summaryData.supervisorFirstName !== '' ||
-            summaryData.supervisorLastName !== '' ||
-            summaryData.recorderFirstName !== '' ||
-            summaryData.recorderLastName !== '';
+            summaryData.supervisorLastName !== '';
 
         return hasWardChanges || hasSummaryChanges;
     }, [formData.wards, summaryData]);
@@ -1291,6 +1360,8 @@ const ShiftForm = () => {
                             formData={formData}
                             handleInputChange={handleInputChange}
                             displayValue={displayValue}
+                            approvalStatuses={approvalStatuses}
+                            selectedDate={selectedDate}
                         />
                     </div>
                 </div>
