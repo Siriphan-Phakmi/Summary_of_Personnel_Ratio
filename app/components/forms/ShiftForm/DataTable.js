@@ -8,7 +8,8 @@ export const DataTable = ({
     handleInputChange,
     displayValue,
     approvalStatuses = {}, // Add approvalStatuses parameter with a default empty object
-    selectedDate
+    selectedDate,
+    readOnly = false
 }) => {
     // Map movement types to their corresponding keys in formData
     const movementTypeToKey = {
@@ -133,9 +134,11 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('staff', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-white border-b border-green-500 focus:outline-none focus:border-green-500 text-black placeholder-green-300 font-THSarabun"
+                                        className={`w-16 text-center text-sm font-bold ${readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} border-b border-green-500 focus:outline-none focus:border-green-500 text-black placeholder-green-300 font-THSarabun`}
                                         placeholder="0"
                                         min="0"
+                                        readOnly={readOnly}
+                                        disabled={readOnly}
                                     />
                                 </div>
                             </div>
@@ -167,9 +170,11 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('movement', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-white border-b border-yellow-500 focus:outline-none focus:border-yellow-500 text-black placeholder-yellow-300 font-THSarabun"
+                                        className={`w-16 text-center text-sm font-bold ${readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} border-b border-yellow-500 focus:outline-none focus:border-yellow-500 text-black placeholder-yellow-300 font-THSarabun`}
                                         placeholder="0"
                                         min="0"
+                                        readOnly={readOnly}
+                                        disabled={readOnly}
                                     />
                                 </div>
                             </div>
@@ -201,9 +206,11 @@ export const DataTable = ({
                                         type="number"
                                         value={displayValue(formData.wards[ward]?.[key])}
                                         onChange={(e) => handleInputChange('info', ward, { [key]: e.target.value })}
-                                        className="w-16 text-center text-sm font-bold bg-white border-b border-pink-500 focus:outline-none focus:border-pink-500 text-black placeholder-pink-300 font-THSarabun"
+                                        className={`w-16 text-center text-sm font-bold ${readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} border-b border-pink-500 focus:outline-none focus:border-pink-500 text-black placeholder-pink-300 font-THSarabun`}
                                         placeholder="0"
                                         min="0"
+                                        readOnly={readOnly}
+                                        disabled={readOnly}
                                     />
                                 </div>
                             </div>
@@ -234,8 +241,10 @@ export const DataTable = ({
                                     type="text"
                                     value={formData.wards[ward]?.comment || ''}
                                     onChange={(e) => handleInputChange('comment', ward, { comment: e.target.value })}
-                                    className="w-24 text-center text-xs bg-white border-b border-gray-400 focus:outline-none focus:border-gray-600 text-black placeholder-gray-300 font-THSarabun"
+                                    className={`w-24 text-center text-xs ${readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} border-b border-gray-400 focus:outline-none focus:border-gray-600 text-black placeholder-gray-300 font-THSarabun`}
                                     placeholder="Add comment..."
+                                    readOnly={readOnly}
+                                    disabled={readOnly}
                                 />
                             </div>
                         </div>
