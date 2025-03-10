@@ -1,7 +1,7 @@
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
-import Swal from 'sweetalert2';
+import { Swal } from '../../utils/alertService';
 import { PAGES, PAGE_LABELS } from '../../config/constants';
 import { useEffect, useState } from 'react';
 
@@ -30,16 +30,16 @@ const Navbar = () => {
         window.removeEventListener('currentPageChange', handleCurrentPageChange);
       };
     }
-    else if (pathname === '/ward-form') {
+    else if (pathname === '/page/ward-form' || pathname === '/ward-form') {
       setActivePage(PAGES.WARD);
     }
-    else if (pathname === '/approval') {
+    else if (pathname === '/page/approval' || pathname === '/approval') {
       setActivePage(PAGES.FORM);
     }
-    else if (pathname === '/dashboard') {
+    else if (pathname === '/page/dashboard' || pathname === '/dashboard') {
       setActivePage(PAGES.DASHBOARD);
     }
-    else if (pathname.includes('/admin/user-management')) {
+    else if (pathname === '/page/user-management' || pathname.includes('/admin/user-management')) {
       setActivePage(PAGES.USER_MANAGEMENT);
     }
   }, [pathname]);
@@ -62,18 +62,16 @@ const Navbar = () => {
 
     switch(page) {
       case PAGES.WARD:
-        router.push('/ward-form');
+        router.push('/page/ward-form/');
         break;
       case PAGES.FORM:  // Approval
-        // เปลี่ยนเป็น server-side navigation เพื่อให้เกิด logs
-        router.push('/approval');
+        router.push('/page/approval/');
         break;
       case PAGES.DASHBOARD:
-        // เปลี่ยนเป็น server-side navigation เพื่อให้เกิด logs
-        router.push('/dashboard');
+        router.push('/page/dashboard/');
         break;
       case PAGES.USER_MANAGEMENT:
-        router.push('/admin/user-management');
+        router.push('/page/user-management/');
         break;
       default:
         router.push('/');
@@ -96,7 +94,7 @@ const Navbar = () => {
 
       if (result.isConfirmed) {
         await logout();
-        router.push('/login');
+        router.push('/page/login');
       }
     } catch (error) {
       console.error('Logout failed:', error);
@@ -112,7 +110,7 @@ const Navbar = () => {
   if (!user) return null;
 
   // ถ้า user ไม่ได้อยู่ในหน้า login จะแสดง navbar
-  if (pathname === '/login') return null;
+  if (pathname === '/login' || pathname === '/page/login') return null;
 
   return (
     <div className="bg-[#0ab4ab] text-white shadow-md p-3 fixed top-0 left-0 right-0 z-50 w-full">
