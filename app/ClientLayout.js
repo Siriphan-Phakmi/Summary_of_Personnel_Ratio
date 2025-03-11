@@ -35,7 +35,7 @@ export default function ClientLayout({ children }) {
     <Providers>
       <AlertProvider>
         <Navbar />
-        <div className="pt-16">
+        <div className="pt-8">
           {children}
         </div>
       </AlertProvider>

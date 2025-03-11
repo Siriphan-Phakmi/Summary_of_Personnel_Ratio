@@ -595,8 +595,9 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 condition: formData.shift === '19:00-07:00' && !hasExistingMorningShift,
                 message: 'ไม่สามารถบันทึกข้อมูลกะดึกได้ เนื่องจากยังไม่มีการบันทึกข้อมูลกะเช้าก่อน'
             },
+            // ตรวจสอบข้อมูลผู้ตรวจการเฉพาะเมื่อผู้ใช้เป็น admin
             {
-                condition: !summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim(),
+                condition: user?.role?.toLowerCase() === 'admin' && (!summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim()),
                 message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
             }
         ];
@@ -1287,14 +1288,19 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 {/* Summary Data and Signature Section - Desktop */}
                 <div className="hidden md:block mt-8">
                     <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg p-6">
-                        <SummarySection 
-                            summaryData={summaryData}
-                            setSummaryData={setSummaryData}
-                        />
-                        <SignatureSection 
-                            summaryData={summaryData}
-                            setSummaryData={setSummaryData}
-                        />
+                        {/* ข้อมูลสรุป 24 ชั่วโมง และ Supervisor Signature แสดงเฉพาะ admin */}
+                        {user?.role?.toLowerCase() === 'admin' && (
+                            <>
+                                <SummarySection 
+                                    summaryData={summaryData}
+                                    setSummaryData={setSummaryData}
+                                />
+                                <SignatureSection 
+                                    summaryData={summaryData}
+                                    setSummaryData={setSummaryData}
+                                />
+                            </>
+                        )}
                     </div>
                 </div>
 

@@ -4,7 +4,7 @@ import { handleInputChange } from './EventHandlers';
 
 export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChanges }) => {
     return (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow">
+        <div className="mb-6 p-4 bg-primary-pastel rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-4 text-primary">จำนวนผู้ป่วย</h2>
             <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -16,7 +16,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="patientCensus"
                         value={formData.patientCensus}
                         onChange={(e) => handleInputChange(e, formData, setFormData, setHasUnsavedChanges)}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                 </div>
             </div>
@@ -26,7 +26,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
 
 export const PatientMovementSection = ({ formData, setFormData, setHasUnsavedChanges }) => {
     return (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow">
+        <div className="mb-6 p-4 bg-info-pastel rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-4 text-primary">การเคลื่อนไหวของผู้ป่วย</h2>
             <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -38,7 +38,7 @@ export const PatientMovementSection = ({ formData, setFormData, setHasUnsavedCha
                         name="admissions"
                         value={formData.admissions}
                         onChange={(e) => handleInputChange(e, formData, setFormData, setHasUnsavedChanges)}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full p-2 bg-white border border-info-light rounded focus:ring-2 focus:ring-info focus:border-transparent"
                     />
                 </div>
                 <div>
@@ -50,7 +50,7 @@ export const PatientMovementSection = ({ formData, setFormData, setHasUnsavedCha
                         name="discharges"
                         value={formData.discharges}
                         onChange={(e) => handleInputChange(e, formData, setFormData, setHasUnsavedChanges)}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full p-2 bg-white border border-info-light rounded focus:ring-2 focus:ring-info focus:border-transparent"
                     />
                 </div>
                 <div>
@@ -62,7 +62,7 @@ export const PatientMovementSection = ({ formData, setFormData, setHasUnsavedCha
                         name="transfers"
                         value={formData.transfers}
                         onChange={(e) => handleInputChange(e, formData, setFormData, setHasUnsavedChanges)}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full p-2 bg-white border border-info-light rounded focus:ring-2 focus:ring-info focus:border-transparent"
                     />
                 </div>
                 <div>
@@ -74,7 +74,7 @@ export const PatientMovementSection = ({ formData, setFormData, setHasUnsavedCha
                         name="deaths"
                         value={formData.deaths}
                         onChange={(e) => handleInputChange(e, formData, setFormData, setHasUnsavedChanges)}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className="w-full p-2 bg-white border border-info-light rounded focus:ring-2 focus:ring-info focus:border-transparent"
                     />
                 </div>
             </div>

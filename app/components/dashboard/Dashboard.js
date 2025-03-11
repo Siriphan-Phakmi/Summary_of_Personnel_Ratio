@@ -57,15 +57,30 @@ const Dashboard = () => {
             const recordsRef = collection(db, 'staffRecords');
             const selectedDateStr = getUTCDateString(filters.startDate);
             
-            // ดึงข้อมูลเพื่อเช็คว่ามีข้อมูลหรือไม่
+            // ดึงข้อมูลเพื่อหาวันที่ล่าสุด
             const startOfYear = new Date(filters.startDate.getFullYear(), 0, 1);
             const endOfYear = new Date(filters.startDate.getFullYear(), 11, 31);
             
-            const yearQuery = query(recordsRef,
-                where('date', '>=', getUTCDateString(startOfYear)),
-                where('date', '<=', getUTCDateString(endOfYear))
-            );
+            // สร้าง query พื้นฐาน
+            let yearQuery;
             
+            // ถ้าเป็น user ธรรมดาและมี department กำหนด
+            if (isUser && user?.department) {
+                // แสดงเฉพาะข้อมูลของแผนกผู้ใช้
+                setSelectedWard(user.department);
+                yearQuery = query(recordsRef,
+                    where('date', '>=', getUTCDateString(startOfYear)),
+                    where('date', '<=', getUTCDateString(endOfYear))
+                );
+            } else {
+                // Admin สามารถดูข้อมูลทั้งหมดได้
+                yearQuery = query(recordsRef,
+                    where('date', '>=', getUTCDateString(startOfYear)),
+                    where('date', '<=', getUTCDateString(endOfYear))
+                );
+            }
+            
+            // ดึงข้อมูลตาม query
             const yearSnapshot = await getDocs(yearQuery);
             
             // สร้าง Map เก็บข้อมูลของแต่ละวัน
@@ -196,10 +211,24 @@ const Dashboard = () => {
             const startOfYear = new Date(date.getFullYear(), 0, 1);
             const endOfYear = new Date(date.getFullYear(), 11, 31);
             
-            const yearQuery = query(recordsRef,
-                where('date', '>=', getUTCDateString(startOfYear)),
-                where('date', '<=', getUTCDateString(endOfYear))
-            );
+            // สร้าง query พื้นฐาน
+            let yearQuery;
+            
+            // ถ้าเป็น user ธรรมดาและมี department กำหนด
+            if (isUser && user?.department) {
+                // แสดงเฉพาะข้อมูลของแผนกผู้ใช้
+                setSelectedWard(user.department);
+                yearQuery = query(recordsRef,
+                    where('date', '>=', getUTCDateString(startOfYear)),
+                    where('date', '<=', getUTCDateString(endOfYear))
+                );
+            } else {
+                // Admin สามารถดูข้อมูลทั้งหมดได้
+                yearQuery = query(recordsRef,
+                    where('date', '>=', getUTCDateString(startOfYear)),
+                    where('date', '<=', getUTCDateString(endOfYear))
+                );
+            }
             
             const yearSnapshot = await getDocs(yearQuery);
             let latestDate = null;
@@ -253,6 +282,21 @@ const Dashboard = () => {
             }
 
             if (fetchedRecords.length > 0) {
+                // กรองข้อมูลสำหรับผู้ใช้ที่ไม่ใช่ admin
+                if (isUser && user?.department) {
+                    // กรองเฉพาะข้อมูลของแผนกผู้ใช้
+                    fetchedRecords.forEach(record => {
+                        if (record.wards) {
+                            const filteredWards = {};
+                            // เก็บเฉพาะข้อมูลของแผนกตัวเอง
+                            if (record.wards[user.department]) {
+                                filteredWards[user.department] = record.wards[user.department];
+                            }
+                            record.wards = filteredWards;
+                        }
+                    });
+                }
+                
                 setRecords(fetchedRecords);
                 const newStats = calculateExtendedStats(fetchedRecords);
                 setStats(newStats);
@@ -309,6 +353,11 @@ const Dashboard = () => {
             records.forEach(record => {
                 if (record.wards) {
                     Object.entries(record.wards).forEach(([ward, data]) => {
+                        // ถ้าเป็น user ธรรมดา ให้แสดงเฉพาะข้อมูลแผนกของตัวเอง
+                        if (isUser && user?.department && ward !== user.department) {
+                            return; // ข้ามข้อมูลของแผนกอื่น
+                        }
+                        
                         if (!data) return;
 
                         if (!wardRecords[ward]) {
@@ -484,6 +533,18 @@ const Dashboard = () => {
                 .join(', ')
         };
     };
+
+    // เพิ่มข้อความแจ้งเตือนว่ากำลังดูข้อมูลเฉพาะแผนก
+    useEffect(() => {
+        if (isUser && user?.department) {
+            setNotification({
+                message: `คุณกำลังดูข้อมูลเฉพาะของแผนก ${user.department} เท่านั้น`,
+                type: 'info'
+            });
+        } else {
+            setNotification(null);
+        }
+    }, [isUser, user]);
 
     //  Ward Cards และ Charts
     const wardColors = {
@@ -903,7 +964,7 @@ const Dashboard = () => {
                     </svg>
                     :
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 000 2v3a1 1 001 1h1a1 1 100-2v-3a1 1 00-1-1H9z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                 }
                 <span className="font-medium">{message}</span>

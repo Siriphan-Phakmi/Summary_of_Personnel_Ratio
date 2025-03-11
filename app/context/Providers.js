@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { AuthProvider } from './AuthContext';
+import { ThemeProvider } from './ThemeContext';
 import AppVersion from '../components/common/AppVersion';
 
 export function Providers({ children }) {
@@ -10,9 +11,11 @@ export function Providers({ children }) {
   }, []);
 
   return (
-    <AuthProvider>
-      {children}
-      <AppVersion />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        {children}
+        <AppVersion />
+      </AuthProvider>
+    </ThemeProvider>
   );
 } 
