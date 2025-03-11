@@ -17,6 +17,23 @@
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+/* Dark mode variables */
+.dark {
+  --background: #111827;
+  --foreground: #e5e7eb;
+  --primary: #2C4E8A;
+  --primary-light: #1e3a6a;
+  --secondary: #0B8A61;
+  --secondary-light: #065f46;
+  --input-border: #374151;
+  --input-bg: #1f2937;
+  --input-text: #e5e7eb;
+  --card-bg: #1f2937;
+  --card-border: #374151;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #ffffff;
@@ -37,7 +54,13 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: 'Prompt', Arial, Helvetica, sans-serif;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark mode specific styles */
+.dark body {
+  color: var(--foreground);
+  background: var(--background);
 }
 
 /* สไตล์เพิ่มเติมสำหรับ input และ button */
@@ -48,7 +71,19 @@ input[type="email"],
 input[type="date"],
 select,
 textarea {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="email"],
+.dark input[type="date"],
+.dark select,
+.dark textarea {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
 }
 
 input[type="text"]:focus,
@@ -73,7 +108,12 @@ button {
   border: 1px solid var(--card-border);
   border-radius: 0.5rem;
   box-shadow: var(--shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+}
+
+.dark .card-container {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
 }
 
 .card-container:hover {
@@ -84,6 +124,18 @@ button {
 /* เพิ่มเพื่อแก้ text input สีขาวที่มองไม่เห็น */
 input::placeholder {
   color: #a3a3a3;
+}
+
+.dark input::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Theme transition */
+.theme-transition {
+  transition: background-color 0.3s ease, 
+              color 0.3s ease, 
+              border-color 0.3s ease, 
+              box-shadow 0.3s ease;
 }
 
 /* เพิ่ม Animation สำหรับ Loading */
@@ -122,4 +174,125 @@ input::placeholder {
 
 .alert-slide-in {
   animation: slideInUp 0.3s ease-out forwards;
+}
+
+/* Dark mode specific styles */
+.dark body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.dark .bg-white {
+  background-color: var(--card-bg) !important;
+}
+
+.dark .text-gray-900 {
+  color: var(--foreground) !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: var(--card-border) !important;
+}
+
+.dark .shadow-lg,
+.dark .shadow-md,
+.dark .shadow-sm {
+  box-shadow: var(--shadow) !important;
+}
+
+/* Theme transition */
+.theme-transition,
+input,
+select,
+textarea,
+button,
+.card-container {
+  transition: all 0.3s ease !important;
+}
+
+/* Override Tailwind classes in dark mode */
+.dark .bg-gray-50 {
+  background-color: var(--input-bg) !important;
+}
+
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-gray-900 {
+  color: var(--foreground) !important;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--input-bg) !important;
+}
+
+.dark .focus\:ring-blue-500:focus {
+  --tw-ring-color: var(--primary) !important;
+}
+
+.dark .focus\:border-blue-500:focus {
+  border-color: var(--primary) !important;
+}
+
+/* Additional dark mode styles for specific components */
+.dark .card-container {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+.dark .form-input,
+.dark .form-select,
+.dark .form-textarea {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
+}
+
+/* Ensure all text inputs in dark mode are visible */
+.dark [type="text"],
+.dark [type="number"],
+.dark [type="email"],
+.dark [type="password"],
+.dark [type="date"],
+.dark [type="datetime-local"],
+.dark [type="month"],
+.dark [type="search"],
+.dark [type="tel"],
+.dark [type="time"],
+.dark [type="week"],
+.dark [type="url"],
+.dark select,
+.dark textarea {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border-color: var(--input-border) !important;
+}
+
+/* Add styles for disabled inputs in dark mode */
+.dark input:disabled,
+.dark select:disabled,
+.dark textarea:disabled {
+  background-color: #374151 !important;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+}
+
+/* Style for focused elements in dark mode */
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: var(--primary) !important;
+  ring-color: var(--primary) !important;
+  outline: none;
+}
+
+/* Additional styles for buttons in dark mode */
+.dark button:not([class*="bg-"]) {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border-color: var(--input-border);
+}
+
+.dark button:not([class*="bg-"]):hover {
+  background-color: var(--card-bg);
 }
