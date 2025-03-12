@@ -32,55 +32,54 @@ export const handleShiftChange = (shift, setSelectedShift) => {
     setSelectedShift(shift);
 };
 
-export const handleDateSelect = async (date, selectedWard, selectedShift, setSelectedDate, setThaiDate, setShowCalendar, setApprovalStatus, setFormData) => {
-    setSelectedDate(date);
-    setThaiDate(formatThaiDate(date));
-    setShowCalendar(false);
-    
+export const handleDateSelect = async (
+    date,
+    selectedWard,
+    selectedShift,
+    setSelectedDate,
+    setThaiDate,
+    setShowCalendar,
+    setApprovalStatus,
+    setFormData
+) => {
     try {
-        // Check approval status for selected date
-        const status = await checkApprovalStatus(date, selectedWard);
-        setApprovalStatus(status);
-        
-        // Fetch ward data for the selected date and shift
-        const wardData = await fetchWardData(date, selectedWard, selectedShift);
-        
-        if (wardData) {
-            setFormData({
-                id: wardData.id,
-                patientCensus: wardData.patientCensus || '0',
-                admissions: wardData.admissions || '0',
-                discharges: wardData.discharges || '0',
-                transfers: wardData.transfers || '0',
-                deaths: wardData.deaths || '0',
-                rns: wardData.rns || '0',
-                pns: wardData.pns || '0',
-                nas: wardData.nas || '0',
-                aides: wardData.aides || '0',
-                studentNurses: wardData.studentNurses || '0',
-                notes: wardData.notes || ''
+        if (!date || !selectedWard || !selectedShift) {
+            console.warn('handleDateSelect: Missing required parameters', {
+                date,
+                selectedWard,
+                selectedShift
             });
-        } else {
-            // If no data exists, reset form
-            setFormData({
-                patientCensus: '0',
-                admissions: '0',
-                discharges: '0',
-                transfers: '0',
-                deaths: '0',
-                rns: '0',
-                pns: '0',
-                nas: '0',
-                aides: '0',
-                studentNurses: '0',
-                notes: ''
-            });
+            return;
+        }
+
+        // อัพเดทวันที่และปิดปฏิทิน
+        setSelectedDate(date);
+        setThaiDate(formatThaiDate(date));
+        if (setShowCalendar) {
+            setShowCalendar(false);
+        }
+        
+        // ตรวจสอบสถานะการอนุมัติ
+        if (setApprovalStatus) {
+            const status = await checkApprovalStatus(date, selectedWard);
+            setApprovalStatus(status);
+        }
+        
+        // ดึงข้อมูล ward
+        if (setFormData) {
+            const wardData = await fetchWardData(date, selectedWard, selectedShift);
+            if (wardData) {
+                setFormData(prevData => ({
+                    ...prevData,
+                    ...wardData
+                }));
+            }
         }
     } catch (error) {
         console.error('Error in handleDateSelect:', error);
         Swal.fire({
-            title: 'Error',
-            text: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+            title: 'เกิดข้อผิดพลาด',
+            text: 'ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
             icon: 'error',
             confirmButtonColor: '#0ab4ab'
         });
