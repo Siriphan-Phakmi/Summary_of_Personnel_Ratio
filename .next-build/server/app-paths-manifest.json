@@ -1,4 +1,5 @@
 {
+  "/api/logs/route": "app/api/logs/route.js",
   "/page/ward-form/page": "app/page/ward-form/page.js",
   "/page/login/page": "app/page/login/page.js"
 }
