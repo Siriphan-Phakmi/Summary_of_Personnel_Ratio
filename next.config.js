@@ -5,10 +5,24 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist',
+  distDir: '.next-build', // Change the build directory name
   
   images: {
     unoptimized: true,
+  },
+
+  webpack: (config, { dev, isServer }) => {
+    // ปรับแต่ง optimization ให้ใช้ single runtime chunk แทน
+    if (!isServer) {
+      config.optimization.runtimeChunk = 'single';
+      // ปรับขนาด chunk ให้เหมาะสม
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        maxInitialRequests: 25,
+        minSize: 20000
+      };
+    }
+    return config;
   },
 
   experimental: {

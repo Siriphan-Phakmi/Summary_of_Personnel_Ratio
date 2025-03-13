@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/logs/route": "/api/logs",
+  "/admin/logs/page": "/admin/logs",
+  "/page/approval/page": "/page/approval",
+  "/page": "/",
+  "/admin/user-management/page": "/admin/user-management",
+  "/page/user-management/page": "/page/user-management",
+  "/page/login/page": "/page/login",
+  "/page/dashboard/page": "/page/dashboard",
+  "/page/ward-form/page": "/page/ward-form"
+}

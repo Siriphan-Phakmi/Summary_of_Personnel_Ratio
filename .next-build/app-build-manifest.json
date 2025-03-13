@@ -1,0 +1,67 @@
+{
+  "pages": {
+    "/layout": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_navigation_js-_app-pages-browser_node_m-c59740.js",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/page/dashboard/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_navigation_js-_app-pages-browser_node_m-c59740.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js-_app-pages-browser_node_module-fe7f5e.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_format_js-_app-pages-browser_node_modules_da-5b8e4d.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_react-chartjs-2_dist_index_js.js",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js-_app-pages-browser_app_components_ui_-48715e.js",
+      "static/chunks/app/page/dashboard/page.js"
+    ],
+    "/page/approval/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_navigation_js-_app-pages-browser_node_m-c59740.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js-_app-pages-browser_node_module-fe7f5e.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_format_js-_app-pages-browser_node_modules_da-5b8e4d.js",
+      "static/css/vendors-node_modules_react-datepicker_dist_react-datepicker_css.css",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js-_app-pages-browser_app_components_ui_-48715e.js",
+      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
+      "static/chunks/app/page/approval/page.js"
+    ],
+    "/api/logs/route": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/logs/route.js"
+    ],
+    "/page/user-management/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js-_app-pages-browser_node_module-fe7f5e.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_app-dynamic_js.js",
+      "static/chunks/app/page/user-management/page.js"
+    ],
+    "/page/ward-form/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_navigation_js-_app-pages-browser_node_m-c59740.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js-_app-pages-browser_node_module-fe7f5e.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_format_js-_app-pages-browser_node_modules_da-5b8e4d.js",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js-_app-pages-browser_app_components_ui_-48715e.js",
+      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
+      "static/chunks/app/page/ward-form/page.js"
+    ],
+    "/page/login/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_navigation_js-_app-pages-browser_node_m-c59740.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_prop-types_index_js-_app-pages-browser_node_modules_n-71acb3.js",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/app/page/login/page.js"
+    ]
+  }
+}
