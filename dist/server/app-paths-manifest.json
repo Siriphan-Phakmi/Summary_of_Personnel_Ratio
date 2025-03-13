@@ -2,6 +2,7 @@
   "/_not-found/page": "app/_not-found/page.js",
   "/api/logs/route": "app/api/logs/route.js",
   "/admin/logs/page": "app/admin/logs/page.js",
+<<<<<<< HEAD
   "/page/approval/page": "app/page/approval/page.js",
   "/page": "app/page.js",
   "/admin/user-management/page": "app/admin/user-management/page.js",
@@ -9,4 +10,13 @@
   "/page/login/page": "app/page/login/page.js",
   "/page/dashboard/page": "app/page/dashboard/page.js",
   "/page/ward-form/page": "app/page/ward-form/page.js"
+=======
+  "/admin/user-management/page": "app/admin/user-management/page.js",
+  "/page": "app/page.js",
+  "/page/dashboard/page": "app/page/dashboard/page.js",
+  "/page/approval/page": "app/page/approval/page.js",
+  "/page/login/page": "app/page/login/page.js",
+  "/page/ward-form/page": "app/page/ward-form/page.js",
+  "/page/user-management/page": "app/page/user-management/page.js"
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
 }

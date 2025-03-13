@@ -446,4 +446,49 @@ export const checkPast30DaysRecords = async (ward) => {
             error: error.message
         };
     }
+<<<<<<< HEAD
+=======
+};
+
+export const checkPast7DaysData = async (ward, date) => {
+    try {
+        // คำนวณวันที่ 7 วันย้อนหลัง
+        const past7Days = new Date(date);
+        past7Days.setDate(past7Days.getDate() - 7);
+        
+        // แปลงเป็น string format
+        const dateString = getUTCDateString(date);
+        const past7DaysString = getUTCDateString(past7Days);
+        
+        // ตรวจสอบข้อมูลในช่วง 7 วัน
+        const q = query(
+            collection(db, 'wardDailyRecords'),
+            where('wardId', '==', ward),
+            where('date', '>=', past7DaysString),
+            where('date', '<=', dateString)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        // ถ้าไม่มีข้อมูลใน 7 วันย้อนหลัง สามารถเริ่มบันทึกใหม่ได้
+        if (querySnapshot.empty) {
+            return {
+                canStartNew: true,
+                message: 'ไม่พบข้อมูลในช่วง 7 วันที่ผ่านมา สามารถเริ่มบันทึกใหม่ได้'
+            };
+        }
+        
+        // มีข้อมูลในช่วง 7 วัน
+        return {
+            canStartNew: false,
+            message: 'พบข้อมูลในช่วง 7 วันที่ผ่านมา กรุณาตรวจสอบข้อมูลก่อนหน้า'
+        };
+    } catch (error) {
+        console.error('Error checking past 7 days data:', error);
+        return {
+            canStartNew: false,
+            error: error.message
+        };
+    }
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
 }; 
