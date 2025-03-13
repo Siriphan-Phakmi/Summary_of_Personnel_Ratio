@@ -17,11 +17,19 @@
       "wasm": [],
       "assets": [],
       "env": {
+<<<<<<< HEAD
         "__NEXT_BUILD_ID": "iGITsyTCwhi11i6_jetkY",
         "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "jetas68wehs1WunRjMhjMZUF7RrDvs31rqihdgF6sjs=",
         "__NEXT_PREVIEW_MODE_ID": "b8a86464991d595f6e9b766d8e7fd898",
         "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "53861b67aaac7c49bfbe3473237a696e72b8b904f3f9a7dd306bb56c9bda9e68",
         "__NEXT_PREVIEW_MODE_SIGNING_KEY": "69c5d990f6f9fa5fddf98d48f5d5408ab41db9a7ad0b431c3f6c7ce5bf6499e2"
+=======
+        "__NEXT_BUILD_ID": "kzaQEH8iSnYn8q4Zdc0UZ",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "jetas68wehs1WunRjMhjMZUF7RrDvs31rqihdgF6sjs=",
+        "__NEXT_PREVIEW_MODE_ID": "0430fb321d523e2d14d5044f1e13401b",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "fd3c9d1f027291828e8815be760aa2709d8b3a43c6e6d23d166fbac9e319baee",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "c44137b0a25c4988cb3131855ced69be057346e4bda7411c454caa369553807e"
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
       }
     }
   },

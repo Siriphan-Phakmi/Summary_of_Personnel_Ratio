@@ -2,6 +2,7 @@
   "/_not-found/page": "/_not-found",
   "/api/logs/route": "/api/logs",
   "/admin/logs/page": "/admin/logs",
+<<<<<<< HEAD
   "/page/approval/page": "/page/approval",
   "/page": "/",
   "/admin/user-management/page": "/admin/user-management",
@@ -9,4 +10,13 @@
   "/page/login/page": "/page/login",
   "/page/dashboard/page": "/page/dashboard",
   "/page/ward-form/page": "/page/ward-form"
+=======
+  "/admin/user-management/page": "/admin/user-management",
+  "/page": "/",
+  "/page/dashboard/page": "/page/dashboard",
+  "/page/approval/page": "/page/approval",
+  "/page/login/page": "/page/login",
+  "/page/ward-form/page": "/page/ward-form",
+  "/page/user-management/page": "/page/user-management"
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
 }

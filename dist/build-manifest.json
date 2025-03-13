@@ -5,8 +5,13 @@
   "devFiles": [],
   "ampDevFiles": [],
   "lowPriorityFiles": [
+<<<<<<< HEAD
     "static/iGITsyTCwhi11i6_jetkY/_buildManifest.js",
     "static/iGITsyTCwhi11i6_jetkY/_ssgManifest.js"
+=======
+    "static/kzaQEH8iSnYn8q4Zdc0UZ/_buildManifest.js",
+    "static/kzaQEH8iSnYn8q4Zdc0UZ/_ssgManifest.js"
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
   ],
   "rootMainFiles": [
     "static/chunks/runtime-887d2a203e385a84.js",

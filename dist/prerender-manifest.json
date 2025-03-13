@@ -1,7 +1,11 @@
 {
   "version": 4,
   "routes": {
+<<<<<<< HEAD
     "/page/approval": {
+=======
+    "/admin/user-management": {
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -14,8 +18,13 @@
         }
       ],
       "initialRevalidateSeconds": false,
+<<<<<<< HEAD
       "srcRoute": "/page/approval",
       "dataRoute": "/page/approval.rsc",
+=======
+      "srcRoute": "/admin/user-management",
+      "dataRoute": "/admin/user-management.rsc",
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -49,6 +58,33 @@
         "x-next-revalidate-tag-token"
       ]
     },
+<<<<<<< HEAD
+=======
+    "/admin/logs": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "Next-Action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/admin/logs",
+      "dataRoute": "/admin/logs.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
     "/page/ward-form": {
       "experimentalBypassFor": [
         {
@@ -73,7 +109,11 @@
         "x-next-revalidate-tag-token"
       ]
     },
+<<<<<<< HEAD
     "/admin/user-management": {
+=======
+    "/page/approval": {
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -86,6 +126,7 @@
         }
       ],
       "initialRevalidateSeconds": false,
+<<<<<<< HEAD
       "srcRoute": "/admin/user-management",
       "dataRoute": "/admin/user-management.rsc",
       "allowHeader": [
@@ -112,6 +153,10 @@
       "initialRevalidateSeconds": false,
       "srcRoute": "/admin/logs",
       "dataRoute": "/admin/logs.rsc",
+=======
+      "srcRoute": "/page/approval",
+      "dataRoute": "/page/approval.rsc",
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -197,8 +242,14 @@
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
+<<<<<<< HEAD
     "previewModeId": "b8a86464991d595f6e9b766d8e7fd898",
     "previewModeSigningKey": "69c5d990f6f9fa5fddf98d48f5d5408ab41db9a7ad0b431c3f6c7ce5bf6499e2",
     "previewModeEncryptionKey": "53861b67aaac7c49bfbe3473237a696e72b8b904f3f9a7dd306bb56c9bda9e68"
+=======
+    "previewModeId": "0430fb321d523e2d14d5044f1e13401b",
+    "previewModeSigningKey": "c44137b0a25c4988cb3131855ced69be057346e4bda7411c454caa369553807e",
+    "previewModeEncryptionKey": "fd3c9d1f027291828e8815be760aa2709d8b3a43c6e6d23d166fbac9e319baee"
+>>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
   }
 }
