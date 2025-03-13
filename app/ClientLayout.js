@@ -4,9 +4,14 @@ import { Providers } from './context/Providers';
 import { useEffect, useState } from 'react';
 import Navbar from './components/common/Navbar';
 import { AlertProvider } from './utils/alertService';
+import { usePathname } from 'next/navigation';
 
 export default function ClientLayout({ children }) {
   const [mounted, setMounted] = useState(false);
+  const pathname = usePathname();
+  
+  // เช็คว่าเป็นหน้า login หรือไม่
+  const isLoginPage = pathname === '/page/login' || pathname === '/login';
 
   useEffect(() => {
     setMounted(true);
@@ -34,8 +39,9 @@ export default function ClientLayout({ children }) {
   return (
     <Providers>
       <AlertProvider>
-        <Navbar />
-        <div className="pt-8">
+        {/* แสดง Navbar เฉพาะเมื่อไม่ใช่หน้า login */}
+        {!isLoginPage && <Navbar />}
+        <div className={!isLoginPage ? "pt-8" : ""}>
           {children}
         </div>
       </AlertProvider>

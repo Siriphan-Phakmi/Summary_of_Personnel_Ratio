@@ -26,7 +26,9 @@ import {
     fetchApprovalData,
     checkApprovalStatus,
     fetchLatestRecord,
-    fetchWardData
+    fetchWardData,
+    fetchHistoricalData,
+    checkPast30DaysRecords
 } from './DataFetchers';
 
 // สร้างเวอร์ชันที่ปลอดภัยมากขึ้นของ fetchWardData
@@ -79,6 +81,7 @@ export {
     checkApprovalStatus,
     fetchLatestRecord,
     fetchWardData,
+    fetchHistoricalData,
     parseInputValue,
     calculateTotal,
     handleWardFormSubmit,
@@ -91,5 +94,6 @@ export {
     PatientCensusSection,
     PatientMovementSection,
     StaffSection,
-    NotesSection
+    NotesSection,
+    checkPast30DaysRecords
 }; 
