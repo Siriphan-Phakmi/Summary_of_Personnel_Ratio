@@ -86,84 +86,73 @@ const TailwindAlert = ({
       </svg>
     )
   };
-  
-  // Color mapping based on type
-  const colorMap = {
-    success: 'border-green-200 bg-green-50',
-    error: 'border-red-200 bg-red-50',
-    warning: 'border-amber-200 bg-amber-50',
-    info: 'border-blue-200 bg-blue-50',
-    question: 'border-purple-200 bg-purple-50',
-    confirm: 'border-blue-200 bg-blue-50'
-  };
-  
-  // Button color mapping based on type
-  const buttonColorMap = {
-    success: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
-    error: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
-    warning: 'bg-amber-600 hover:bg-amber-700 focus:ring-amber-500',
-    info: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
-    question: 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-500',
-    confirm: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-  };
-  
-  const color = colorMap[type] || colorMap.info;
-  const buttonColor = buttonColorMap[type] || buttonColorMap.info;
-  
-  if (!isVisible) return null;
-  
+
+  if (!isOpen && !isVisible) return null;
+
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+    <div
       onClick={handleBackdropClick}
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${
+        isOpen ? 'opacity-100' : 'opacity-0'
+      } ${isVisible ? 'visible' : 'invisible'}`}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
     >
-      <div className="fixed inset-0 bg-black bg-opacity-40"></div>
       <div 
-        className={`relative border rounded-lg shadow-xl transform ${isOpen ? 'scale-100 alert-scale-in' : 'scale-95'} transition-transform duration-300 w-full max-w-md p-6 ${color} bg-white`}
+        className={`bg-white rounded-xl max-w-md mx-auto p-8 shadow-xl transform transition-all duration-300 ${
+          isOpen ? 'scale-100 translate-y-0' : 'scale-95 -translate-y-4'
+        }`}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="mb-6">
+        <div className="text-center">
           {iconMap[type]}
-        </div>
-        
-        <h3 className="text-xl font-semibold text-center mb-3">{title}</h3>
-        <div className="text-center mb-6">
-          {typeof message === 'string' ? <p>{message}</p> : message}
-        </div>
-        
-        {timer > 0 && (
-          <div className="w-full bg-gray-200 rounded-full h-1.5 mb-6">
-            <div 
-              className="bg-blue-600 h-1.5 rounded-full" 
-              style={{ width: `${(timeLeft / timer) * 100}%` }}
-            ></div>
-          </div>
-        )}
-        
-        <div className="flex justify-center space-x-4">
-          {showCancel && (
-            <button 
-              className="px-5 py-2.5 text-gray-800 bg-gray-200 rounded hover:bg-gray-300 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-              onClick={() => {
-                if (onCancel) onCancel();
+          
+          {title && (
+            <h3 className="mt-6 text-2xl font-medium text-gray-900">{title}</h3>
+          )}
+          
+          {message && (
+            <div className="mt-3 text-lg text-gray-600" dangerouslySetInnerHTML={{ __html: message }} />
+          )}
+          
+          {timer > 0 && (
+            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-8">
+              <div 
+                className="bg-blue-500 h-1.5 rounded-full transition-all duration-100 ease-linear"
+                style={{ width: `${(timeLeft / timer) * 100}%` }}
+              ></div>
+            </div>
+          )}
+          
+          <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
+            {showCancel && (
+              <button
+                className="w-full sm:w-auto px-8 py-3 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onCancel) onCancel();
+                  onClose();
+                }}
+              >
+                {cancelText}
+              </button>
+            )}
+            <button
+              className="w-full sm:w-auto px-8 py-3 bg-[#0ab4ab] text-white rounded-lg hover:bg-[#099a92] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0ab4ab] transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (onConfirm) onConfirm();
                 onClose();
               }}
             >
-              {cancelText}
+              {confirmText}
             </button>
-          )}
-          <button 
-            className={`px-5 py-2.5 text-white rounded transition focus:outline-none focus:ring-2 focus:ring-offset-2 ${buttonColor}`}
-            onClick={() => {
-              if (onConfirm) onConfirm();
-              onClose();
-            }}
-          >
-            {confirmText}
-          </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default TailwindAlert; 
+export default TailwindAlert;

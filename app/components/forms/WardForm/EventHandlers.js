@@ -5,6 +5,10 @@ import { Swal } from '../../../utils/alertService';
 import { checkApprovalStatus, fetchWardData } from './DataFetchers';
 import { parseInputValue } from './FormHandlers';
 import { formatThaiDate } from '../../../utils/dateUtils';
+import { handleFirebaseIndexError } from './index';
+
+// เพิ่ม state สำหรับติดตามว่ากำลังดึงข้อมูลหรือไม่
+let isFetchingData = false;
 
 export const handleBeforeUnload = (hasUnsavedChanges, e) => {
     if (hasUnsavedChanges) {
@@ -42,7 +46,15 @@ export const handleDateSelect = async (
     setApprovalStatus,
     setFormData
 ) => {
+    // ตรวจสอบว่ากำลังดึงข้อมูลอยู่หรือไม่
+    if (isFetchingData) {
+        console.log('Already fetching data, ignoring this request');
+        return;
+    }
+    
     try {
+        isFetchingData = true;  // กำลังเริ่มดึงข้อมูล
+        
         if (!date || !selectedWard || !selectedShift) {
             console.warn('handleDateSelect: Missing required parameters', {
                 date,
@@ -59,22 +71,55 @@ export const handleDateSelect = async (
             setShowCalendar(false);
         }
         
+        // แสดง loading indicator
+        const loadingSwal = Swal.fire({
+            title: 'กำลังโหลดข้อมูล',
+            text: `กำลังดึงข้อมูลของ ${selectedWard} วันที่ ${formatThaiDate(date)}`,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
         // ตรวจสอบสถานะการอนุมัติ
         if (setApprovalStatus) {
-            const status = await checkApprovalStatus(date, selectedWard);
-            setApprovalStatus(status);
+            try {
+                const status = await checkApprovalStatus(date, selectedWard);
+                setApprovalStatus(status);
+            } catch (error) {
+                console.error('Error checking approval status:', error);
+                // ตรวจสอบว่าเป็น index error หรือไม่
+                handleFirebaseIndexError(error);
+            }
         }
         
         // ดึงข้อมูล ward
         if (setFormData) {
-            const wardData = await fetchWardData(date, selectedWard, selectedShift);
-            if (wardData) {
-                setFormData(prevData => ({
-                    ...prevData,
-                    ...wardData
-                }));
+            try {
+                const wardData = await fetchWardData(date, selectedWard, selectedShift);
+                if (wardData) {
+                    setFormData(prevData => ({
+                        ...prevData,
+                        ...wardData
+                    }));
+                }
+            } catch (error) {
+                console.error('Error fetching ward data:', error);
+                // ตรวจสอบว่าเป็น index error หรือไม่
+                if (!handleFirebaseIndexError(error)) {
+                    Swal.fire({
+                        title: 'เกิดข้อผิดพลาด',
+                        text: 'ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                        icon: 'error',
+                        confirmButtonColor: '#0ab4ab'
+                    });
+                }
             }
         }
+        
+        // ปิด loading indicator
+        loadingSwal.close();
+        
     } catch (error) {
         console.error('Error in handleDateSelect:', error);
         Swal.fire({
@@ -83,5 +128,7 @@ export const handleDateSelect = async (
             icon: 'error',
             confirmButtonColor: '#0ab4ab'
         });
+    } finally {
+        isFetchingData = false;  // ดึงข้อมูลเสร็จแล้ว
     }
-}; 
+};

@@ -31,6 +31,16 @@ eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpac
 
 /***/ }),
 
+/***/ "(ssr)/./node_modules/firebase/firestore/dist/index.cjs.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/firebase/firestore/dist/index.cjs.js ***!
+  \***********************************************************/
+/***/ ((__unused_webpack_module, exports, __webpack_require__) => {
+
+eval("\n\nObject.defineProperty(exports, \"__esModule\", ({ value: true }));\n\nvar firestore = __webpack_require__(/*! @firebase/firestore */ \"(ssr)/./node_modules/@firebase/firestore/dist/index.node.cjs.js\");\n\n\n\nObject.keys(firestore).forEach(function (k) {\n\tif (k !== 'default' && !exports.hasOwnProperty(k)) Object.defineProperty(exports, k, {\n\t\tenumerable: true,\n\t\tget: function () { return firestore[k]; }\n\t});\n});\n//# sourceMappingURL=index.cjs.js.map\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHNzcikvLi9ub2RlX21vZHVsZXMvZmlyZWJhc2UvZmlyZXN0b3JlL2Rpc3QvaW5kZXguY2pzLmpzIiwibWFwcGluZ3MiOiJBQUFhOztBQUViLDhDQUE2QyxFQUFFLGFBQWEsRUFBQzs7QUFFN0QsZ0JBQWdCLG1CQUFPLENBQUMsNEZBQXFCOzs7O0FBSTdDO0FBQ0E7QUFDQTtBQUNBLHFCQUFxQjtBQUNyQixFQUFFO0FBQ0YsQ0FBQztBQUNEIiwic291cmNlcyI6WyJDOlxcVXNlcnNcXEJfU0lSXFxPbmVEcml2ZVxc4LmA4LiU4Liq4LiB4LmM4LiX4LmH4Lit4LibXFxTdW1tYXJ5X29mX1BlcnNvbm5lbF9SYXRpb1xcU3VtbWFyeV9vZl9QZXJzb25uZWxfUmF0aW9cXG5vZGVfbW9kdWxlc1xcZmlyZWJhc2VcXGZpcmVzdG9yZVxcZGlzdFxcaW5kZXguY2pzLmpzIl0sInNvdXJjZXNDb250ZW50IjpbIid1c2Ugc3RyaWN0JztcblxuT2JqZWN0LmRlZmluZVByb3BlcnR5KGV4cG9ydHMsICdfX2VzTW9kdWxlJywgeyB2YWx1ZTogdHJ1ZSB9KTtcblxudmFyIGZpcmVzdG9yZSA9IHJlcXVpcmUoJ0BmaXJlYmFzZS9maXJlc3RvcmUnKTtcblxuXG5cbk9iamVjdC5rZXlzKGZpcmVzdG9yZSkuZm9yRWFjaChmdW5jdGlvbiAoaykge1xuXHRpZiAoayAhPT0gJ2RlZmF1bHQnICYmICFleHBvcnRzLmhhc093blByb3BlcnR5KGspKSBPYmplY3QuZGVmaW5lUHJvcGVydHkoZXhwb3J0cywgaywge1xuXHRcdGVudW1lcmFibGU6IHRydWUsXG5cdFx0Z2V0OiBmdW5jdGlvbiAoKSB7IHJldHVybiBmaXJlc3RvcmVba107IH1cblx0fSk7XG59KTtcbi8vIyBzb3VyY2VNYXBwaW5nVVJMPWluZGV4LmNqcy5qcy5tYXBcbiJdLCJuYW1lcyI6W10sImlnbm9yZUxpc3QiOlswXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(ssr)/./node_modules/firebase/firestore/dist/index.cjs.js\n");
+
+/***/ }),
+
 /***/ "(ssr)/./node_modules/firebase/firestore/dist/index.mjs":
 /*!********************************************************!*\
   !*** ./node_modules/firebase/firestore/dist/index.mjs ***!

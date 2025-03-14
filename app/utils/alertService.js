@@ -1,76 +1,15 @@
 'use client';
-import { useState, useEffect, createContext, useContext, useCallback } from 'react';
-import React from 'react';
-import TailwindAlert from '../components/ui/TailwindAlert';
-import { createRoot } from 'react-dom/client';
+import { createContext, useContext, useState, useEffect } from 'react';
 
-// Create React Context for alert service
+/**
+ * AlertService - บริการแจ้งเตือนที่พัฒนาด้วย Tailwind CSS
+ * ทดแทนการใช้ SweetAlert2 เพื่อให้สอดคล้องกับ design system ของแอพพลิเคชัน
+ */
+
+// Create a context for our alert system
 const AlertContext = createContext(null);
 
-/**
- * AlertProvider Component - Wrap your app with this to use the alert service
- */
-export const AlertProvider = ({ children }) => {
-  const [alerts, setAlerts] = useState([]);
-  const [currentId, setCurrentId] = useState(0);
-
-  // Add new alert
-  const addAlert = useCallback((options) => {
-    const id = currentId;
-    setCurrentId(prev => prev + 1);
-    
-    setAlerts(prev => [...prev, { id, ...options }]);
-    
-    return id;
-  }, [currentId]);
-
-  // Remove alert by id
-  const removeAlert = useCallback((id) => {
-    setAlerts(prev => prev.map(alert => 
-      alert.id === id ? { ...alert, isOpen: false } : alert
-    ));
-    
-    // Remove from state after animation completes
-    setTimeout(() => {
-      setAlerts(prev => prev.filter(alert => alert.id !== id));
-    }, 300);
-  }, []);
-
-  return (
-    <AlertContext.Provider value={{ addAlert, removeAlert }}>
-      {children}
-      
-      {/* Render all alerts */}
-      {alerts.map(alert => (
-        <TailwindAlert
-          key={alert.id}
-          isOpen={alert.isOpen !== false}
-          onClose={() => removeAlert(alert.id)}
-          title={alert.title}
-          message={alert.message || alert.text}
-          type={alert.icon || alert.type || 'info'}
-          confirmText={alert.confirmButtonText || 'ตกลง'}
-          cancelText={alert.cancelButtonText || 'ยกเลิก'}
-          onConfirm={() => {
-            if (alert.resolve) alert.resolve({ isConfirmed: true, value: true });
-            if (alert.onConfirm) alert.onConfirm();
-          }}
-          onCancel={() => {
-            if (alert.resolve) alert.resolve({ isConfirmed: false, value: false });
-            if (alert.onCancel) alert.onCancel();
-          }}
-          showCancel={alert.showCancelButton}
-          allowOutsideClick={alert.allowOutsideClick !== false}
-          timer={alert.timer || 0}
-        />
-      ))}
-    </AlertContext.Provider>
-  );
-};
-
-/**
- * useAlert Hook - Use this hook to access the alert service
- */
+// Custom hook for using our alert system
 export const useAlert = () => {
   const context = useContext(AlertContext);
   if (!context) {
@@ -79,142 +18,350 @@ export const useAlert = () => {
   return context;
 };
 
-// เก็บอ้างอิงถึง loading alert
-let loadingAlertInstance = null;
-
-/**
- * Swal object for non-hook usage (similar to SweetAlert2)
- */
-export const Swal = {
-  fire: (title, text, icon) => {
-    // Create a temporary element to host our component
-    const tempDiv = document.createElement('div');
-    document.body.appendChild(tempDiv);
+// สร้าง alert API สำหรับใช้งานในแอพพลิเคชัน
+export const alertAPI = {
+  fire: async (options) => {
+    // ถ้ามีการใช้ GlobalAlertService ผ่าน context
+    if (window.__alertService) {
+      return window.__alertService.showAlert(options);
+    }
     
-    return new Promise(resolve => {
-      // Flag to track if alert is closed
-      let isClosed = false;
-      
-      const handleClose = (result) => {
-        if (isClosed) return;
-        isClosed = true;
-        
-        // Clean up
-        setTimeout(() => {
-          if (tempDiv && tempDiv.parentNode) {
-            document.body.removeChild(tempDiv);
-          }
-        }, 300);
-        
-        resolve(result);
-      };
-      
-      // Support both parameter formats
-      const options = typeof title === 'object' 
-        ? { ...title, isOpen: true } 
-        : { title, text, icon, isOpen: true };
-        
-      const alert = {
-        ...options,
-        onConfirm: () => handleClose({ isConfirmed: true, value: true }),
-        onCancel: () => handleClose({ isConfirmed: false, value: false }),
-        onClose: () => handleClose({ isConfirmed: false, value: false })
-      };
-      
-      // Auto-close if timer is specified
-      if (options.timer && options.timer > 0) {
-        setTimeout(() => {
-          handleClose({ isConfirmed: false, value: false });
-        }, options.timer);
-      }
-      
-      // Render the alert directly using createRoot for React 18
-      const root = createRoot(tempDiv);
-      root.render(
-        <TailwindAlert
-          isOpen={true}
-          title={alert.title}
-          message={alert.text || alert.html}
-          type={alert.icon}
-          confirmText={alert.confirmButtonText || 'ตกลง'}
-          cancelText={alert.cancelButtonText || 'ยกเลิก'}
-          showCancel={alert.showCancelButton}
-          allowOutsideClick={alert.allowOutsideClick !== false}
-          timer={alert.timer || 0}
-          onConfirm={alert.onConfirm}
-          onCancel={alert.onCancel}
-          onClose={alert.onClose}
-        />
-      );
+    // Fallback สำหรับกรณีที่ไม่ได้อยู่ใน AlertProvider
+    console.warn('AlertProvider is not found. Using fallback alert.');
+    if (options.icon === 'error' || options.type === 'error') {
+      alert(options.title ? `${options.title}: ${options.text || ''}` : options.text);
+      return { isConfirmed: true };
+    } else if (options.icon === 'warning' || options.type === 'warning') {
+      const result = confirm(options.title ? `${options.title}: ${options.text || ''}` : options.text);
+      return { isConfirmed: result };
+    } else {
+      alert(options.title ? `${options.title}: ${options.text || ''}` : options.text);
+      return { isConfirmed: true };
+    }
+  },
+  success: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'success'
     });
   },
+  error: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'error'
+    });
+  },
+  warning: async (title, text, showCancelButton = true) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'warning',
+      showCancelButton
+    });
+  },
+  info: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'info'
+    });
+  },
+  confirm: async (title, text, confirmButtonText = 'ตกลง', cancelButtonText = 'ยกเลิก') => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText,
+      cancelButtonText
+    });
+  },
+  showLoading: (title = 'กำลังโหลด...') => {
+    if (window.__alertService) {
+      return window.__alertService.showLoading(title);
+    }
+    console.log('Loading:', title);
+  },
+  close: () => {
+    if (window.__alertService) {
+      return window.__alertService.closeAll();
+    }
+    console.log('Closing alerts');
+  }
+};
+
+// Backward compatibility for code that uses Swal
+export const Swal = alertAPI;
+
+// Alert component based on TailwindAlert
+const Alert = ({
+  id,
+  isOpen,
+  onClose,
+  title,
+  text,
+  icon = 'info',
+  type = 'info',
+  confirmButtonText = 'ตกลง',
+  cancelButtonText = 'ยกเลิก',
+  onConfirm,
+  onCancel,
+  showCancelButton = false,
+  allowOutsideClick = true,
+  timer = 0,
+  html = null,
+  customClass = {},
+}) => {
+  const [isVisible, setIsVisible] = useState(isOpen);
+  const [timeLeft, setTimeLeft] = useState(timer > 0 ? Math.floor(timer / 1000) : 0);
   
-  showLoading: () => {
-    // ถ้ามี loading alert อยู่แล้ว ไม่สร้างใหม่
-    if (loadingAlertInstance) return loadingAlertInstance;
+  // Apply icon based on type/icon prop
+  const finalType = icon || type;
+  
+  // Handle ESC key for dismissing alert
+  useEffect(() => {
+    if (!isVisible) return;
     
-    // สร้าง loading alert ใหม่
-    const tempDiv = document.createElement('div');
-    document.body.appendChild(tempDiv);
-    
-    // สร้าง component loading
-    const LoadingComponent = () => (
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <div className="fixed inset-0 bg-black bg-opacity-40"></div>
-        <div className="relative transform transition-transform duration-300 scale-100 alert-scale-in p-6">
-          <div className="flex flex-col items-center justify-center">
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-4 text-white font-medium">กำลังประมวลผล...</p>
-          </div>
-        </div>
-      </div>
-    );
-    
-    // Render
-    const root = createRoot(tempDiv);
-    root.render(<LoadingComponent />);
-    
-    // สร้างตัวควบคุม
-    loadingAlertInstance = {
-      close: () => {
-        if (tempDiv && tempDiv.parentNode) {
-          root.unmount();
-          document.body.removeChild(tempDiv);
-          loadingAlertInstance = null;
-        }
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && allowOutsideClick) {
+        handleClose(false);
       }
     };
     
-    return loadingAlertInstance;
-  },
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isVisible, allowOutsideClick]);
   
-  close: () => {
-    if (loadingAlertInstance) {
-      loadingAlertInstance.close();
+  // Handle timer autclose
+  useEffect(() => {
+    if (!isVisible || timer <= 0) return;
+    
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setTimeout(() => handleClose(true), 0);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isVisible, timer]);
+  
+  // Handle backdrop click
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget && allowOutsideClick) {
+      handleClose(false);
     }
-  },
+  };
   
-  // เพิ่มเมธอด showValidationMessage สำหรับใช้ใน ApproveButton.js
-  showValidationMessage: (message) => {
-    console.warn('Validation message shown:', message);
-    // เนื่องจากเราไม่สามารถเข้าถึง input ใน Swal แบบเดิม เราแค่แสดง alert ใหม่
-    Swal.fire({
-      title: 'แจ้งเตือน',
-      text: message,
-      icon: 'warning',
-      confirmButtonText: 'ตกลง'
-    });
-  },
+  // Handle close with result
+  const handleClose = (isConfirmed) => {
+    setIsVisible(false);
+    setTimeout(() => {
+      if (isConfirmed) {
+        onConfirm && onConfirm();
+      } else {
+        onCancel && onCancel();
+      }
+      onClose && onClose(isConfirmed);
+    }, 300);
+  };
   
-  success: (title, text) => Swal.fire(title, text, 'success'),
-  error: (title, text) => Swal.fire(title, text, 'error'),
-  warning: (title, text) => Swal.fire(title, text, 'warning'),
-  info: (title, text) => Swal.fire(title, text, 'info'),
-  question: (title, text) => Swal.fire(title, text, 'question')
+  if (!isOpen) return null;
+  
+  return (
+    <div 
+      className={`fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      } ${allowOutsideClick ? 'cursor-pointer' : ''}`}
+      onClick={handleBackdropClick}
+      style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backdropFilter: 'blur(2px)'
+      }}
+    >
+      <div 
+        className={`bg-white rounded-lg shadow-2xl max-w-md w-full m-4 transform transition-all duration-300 ${
+          isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+        } cursor-default ${customClass.container || ''}`}
+      >
+        <div className="p-6">
+          <div className="text-center">
+            {/* Icon based on type */}
+            {finalType === 'success' && (
+              <div className="mx-auto bg-green-100 p-3 rounded-full w-fit mb-4">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            )}
+            {finalType === 'error' && (
+              <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-4">
+                <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            )}
+            {finalType === 'info' && (
+              <div className="mx-auto bg-blue-100 p-3 rounded-full w-fit mb-4">
+                <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            )}
+            {finalType === 'warning' && (
+              <div className="mx-auto bg-yellow-100 p-3 rounded-full w-fit mb-4">
+                <svg className="w-10 h-10 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            )}
+            {finalType === 'question' && (
+              <div className="mx-auto bg-purple-100 p-3 rounded-full w-fit mb-4">
+                <svg className="w-10 h-10 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            )}
+            {finalType === 'loading' && (
+              <div className="mx-auto p-3 w-fit mb-4">
+                <div className="w-12 h-12 border-4 border-t-[#0ab4ab] border-r-[#0ab4ab] border-b-gray-200 border-l-gray-200 rounded-full animate-spin"></div>
+              </div>
+            )}
+            
+            {title && <h2 className={`text-xl font-semibold mb-2 ${customClass.title || ''}`}>{title}</h2>}
+            {text && <p className={`text-gray-600 ${customClass.text || ''}`}>{text}</p>}
+            {html && <div className={`mt-2 ${customClass.htmlContainer || ''}`} dangerouslySetInnerHTML={{ __html: html }}></div>}
+            
+            {/* Timer indicator */}
+            {timeLeft > 0 && (
+              <div className="mt-3 text-sm text-gray-500">
+                ปิดอัตโนมัติใน {timeLeft} วินาที
+              </div>
+            )}
+          </div>
+          
+          {finalType !== 'loading' && (
+            <div className="flex justify-center gap-3 mt-6">
+              {showCancelButton && (
+                <button
+                  onClick={() => handleClose(false)}
+                  className={`px-5 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 ${customClass.cancelButton || ''}`}
+                >
+                  {cancelButtonText}
+                </button>
+              )}
+              <button
+                onClick={() => handleClose(true)}
+                className={`px-5 py-2 bg-[#0ab4ab] text-white rounded-md hover:bg-[#099a92] ${customClass.confirmButton || ''}`}
+              >
+                {confirmButtonText}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
 
-export default {
-  Swal,
-  useAlert,
-  AlertProvider
-}; 
+// Provider component that wraps your app and makes alerts available
+export const AlertProvider = ({ children }) => {
+  const [alerts, setAlerts] = useState([]);
+  const [globalLoading, setGlobalLoading] = useState(null);
+  
+  useEffect(() => {
+    // Create global access to the alert service
+    window.__alertService = {
+      showAlert,
+      showLoading,
+      closeAll
+    };
+    
+    return () => {
+      delete window.__alertService;
+    };
+  }, []);
+
+  const showAlert = (options) => {
+    return new Promise((resolve) => {
+      const id = Date.now();
+      const alert = {
+        id,
+        isOpen: true,
+        ...options,
+        onClose: (result) => {
+          closeAlert(id);
+          resolve({ isConfirmed: result });
+        }
+      };
+      setAlerts((prevAlerts) => [...prevAlerts, alert]);
+    });
+  };
+  
+  const showLoading = (title = 'กำลังโหลด...') => {
+    closeAll(); // ปิดทุก alert ก่อน
+    
+    const id = Date.now();
+    const loadingAlert = {
+      id,
+      isOpen: true,
+      title,
+      type: 'loading',
+      icon: 'loading',
+      allowOutsideClick: false
+    };
+    
+    setGlobalLoading(loadingAlert);
+    return id;
+  };
+  
+  const closeAlert = (id) => {
+    setAlerts((prevAlerts) => 
+      prevAlerts.map((alert) => 
+        alert.id === id ? { ...alert, isOpen: false } : alert
+      )
+    );
+    
+    // Remove after animation
+    setTimeout(() => {
+      setAlerts((prevAlerts) => prevAlerts.filter((alert) => alert.id !== id));
+    }, 300);
+  };
+  
+  const closeAll = () => {
+    setAlerts((prevAlerts) => 
+      prevAlerts.map((alert) => ({ ...alert, isOpen: false }))
+    );
+    
+    if (globalLoading) {
+      setGlobalLoading({ ...globalLoading, isOpen: false });
+      setTimeout(() => {
+        setGlobalLoading(null);
+      }, 300);
+    }
+    
+    setTimeout(() => {
+      setAlerts([]);
+    }, 300);
+  };
+
+  return (
+    <AlertContext.Provider value={{ showAlert, showLoading, closeAlert, closeAll }}>
+      {children}
+      
+      {/* Render all active alerts */}
+      {alerts.map((alert) => (
+        <Alert key={alert.id} {...alert} />
+      ))}
+      
+      {/* Render global loading */}
+      {globalLoading && <Alert {...globalLoading} />}
+    </AlertContext.Provider>
+  );
+};

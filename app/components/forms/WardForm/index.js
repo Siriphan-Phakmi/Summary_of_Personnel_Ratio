@@ -5,6 +5,9 @@
  * การแก้ไขหรือเพิ่มเติมการ export ควรทำที่ไฟล์นี้เพื่อให้มั่นใจว่าทุกฟังก์ชันถูก export อย่างถูกต้อง
  */
 
+// Import firebase helpers
+import { handleFirebaseIndexError, navigateToCreateIndex, safeQuery } from '../../../utils/firebase-helpers';
+
 // Data Fetchers - ฟังก์ชันสำหรับดึงข้อมูล
 export * from './DataFetchers';
 
@@ -18,6 +21,9 @@ export * from './EventHandlers';
 export * from './ApprovalButtons';
 export * from './WardSections';
 
+// Re-export firebase helpers
+export { handleFirebaseIndexError, navigateToCreateIndex, safeQuery };
+
 // เพิ่มการ export ฟังก์ชันทั้งหมดโดยตรงเพื่อความแน่นอน
 // IMPORTANT: นำเข้าฟังก์ชันจากโมดูลที่ถูกต้องและ re-export เพื่อให้แน่ใจว่าฟังก์ชันทั้งหมดพร้อมใช้งาน
 import { 
@@ -27,7 +33,7 @@ import {
     checkApprovalStatus,
     fetchLatestRecord,
     fetchWardData,
-    fetchHistoricalData,
+    fetchWardHistory,
     checkPast30DaysRecords
 } from './DataFetchers';
 
@@ -73,7 +79,6 @@ import {
 } from './WardSections';
 
 // Re-export ฟังก์ชันทั้งหมดอีกครั้งแบบตัวต่อตัว
-// IMPORTANT: ถ้ามีการเพิ่มหรือแก้ไขฟังก์ชันในโมดูลย่อย ต้องแน่ใจว่าได้เพิ่มในรายการนี้ด้วย
 export {
     fetchDatesWithData,
     fetchPreviousShiftData,
@@ -81,7 +86,7 @@ export {
     checkApprovalStatus,
     fetchLatestRecord,
     fetchWardData,
-    fetchHistoricalData,
+    fetchWardHistory,
     parseInputValue,
     calculateTotal,
     handleWardFormSubmit,
@@ -96,4 +101,4 @@ export {
     StaffSection,
     NotesSection,
     checkPast30DaysRecords
-}; 
+};
