@@ -1,19 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "wardDailyRecords",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "wardId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "ASCENDING"
-        }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
-}
+} 
