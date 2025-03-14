@@ -4,9 +4,10 @@ import { db } from '../../../lib/firebase';
 import { getUTCDateString } from '../../../utils/dateUtils';
 
 export const parseInputValue = (value) => {
-    if (value === '' || value === null || value === undefined) return '0';
+    if (value === '' || value === null || value === undefined) return '';
+    
     const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? '0' : parsed.toString();
+    return isNaN(parsed) ? value : value.toString();
 };
 
 export const calculateTotal = (data) => {
@@ -70,7 +71,7 @@ export const checkExistingRecord = async (wardId, date, shift) => {
 };
 
 export const handleWardFormSubmit = async (e, formData, selectedWard, selectedDate, selectedShift, user, saveMode = 'final') => {
-    if (e) e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     
     try {
         const dateString = getUTCDateString(new Date(selectedDate));

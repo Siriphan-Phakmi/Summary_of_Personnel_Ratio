@@ -274,6 +274,12 @@ const Alert = ({
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
   const [globalLoading, setGlobalLoading] = useState(null);
+  const [idCounter, setIdCounter] = useState(0);
+  
+  const generateUniqueId = () => {
+    setIdCounter(prevCounter => prevCounter + 1);
+    return `${Date.now()}-${idCounter}`;
+  };
   
   useEffect(() => {
     // Create global access to the alert service
@@ -290,7 +296,7 @@ export const AlertProvider = ({ children }) => {
 
   const showAlert = (options) => {
     return new Promise((resolve) => {
-      const id = Date.now();
+      const id = generateUniqueId();
       const alert = {
         id,
         isOpen: true,
@@ -307,7 +313,7 @@ export const AlertProvider = ({ children }) => {
   const showLoading = (title = 'กำลังโหลด...') => {
     closeAll(); // ปิดทุก alert ก่อน
     
-    const id = Date.now();
+    const id = generateUniqueId();
     const loadingAlert = {
       id,
       isOpen: true,
@@ -360,8 +366,8 @@ export const AlertProvider = ({ children }) => {
         <Alert key={alert.id} {...alert} />
       ))}
       
-      {/* Render global loading */}
-      {globalLoading && <Alert {...globalLoading} />}
+      {/* Render global loading with unique prefix */}
+      {globalLoading && <Alert key={`loading-${globalLoading.id}`} {...globalLoading} />}
     </AlertContext.Provider>
   );
 };

@@ -21,12 +21,10 @@ export const handleBeforeUnload = (hasUnsavedChanges, e) => {
 export const handleInputChange = (e, formData, setFormData, setHasUnsavedChanges) => {
     const { name, value } = e.target;
     
-    // Handle numeric inputs: convert empty strings to '0' and validate numbers
-    const processedValue = name !== 'notes' ? parseInputValue(value) : value;
-    
+    // ไม่ต้องแปลงค่า ใช้ค่าที่ป้อนเข้ามาโดยตรง
     setFormData(prev => ({
         ...prev,
-        [name]: processedValue
+        [name]: value
     }));
     
     setHasUnsavedChanges(true);
@@ -118,7 +116,7 @@ export const handleDateSelect = async (
         }
         
         // ปิด loading indicator
-        loadingSwal.close();
+        Swal.close();
         
     } catch (error) {
         console.error('Error in handleDateSelect:', error);

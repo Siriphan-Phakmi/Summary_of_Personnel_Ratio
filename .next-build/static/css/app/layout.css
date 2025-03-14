@@ -707,6 +707,9 @@ video {
 .mt-8 {
   margin-top: 2rem;
 }
+.ml-7 {
+  margin-left: 1.75rem;
+}
 .block {
   display: block;
 }
@@ -772,6 +775,9 @@ video {
 }
 .h-full {
   height: 100%;
+}
+.max-h-60 {
+  max-height: 15rem;
 }
 .max-h-\[90vh\] {
   max-height: 90vh;
@@ -1090,6 +1096,9 @@ video {
 .border-t {
   border-top-width: 1px;
 }
+.border-l-4 {
+  border-left-width: 4px;
+}
 .border-\[\#0ab4ab\] {
   --tw-border-opacity: 1;
   border-color: rgb(10 180 171 / var(--tw-border-opacity, 1));
@@ -1188,6 +1197,10 @@ video {
 .border-yellow-500 {
   --tw-border-opacity: 1;
   border-color: rgb(234 179 8 / var(--tw-border-opacity, 1));
+}
+.border-red-500 {
+  --tw-border-opacity: 1;
+  border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
 }
 .border-b-gray-200 {
   --tw-border-opacity: 1;
@@ -1432,6 +1445,10 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(234 179 8 / var(--tw-bg-opacity, 1));
 }
+.bg-gray-400 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(156 163 175 / var(--tw-bg-opacity, 1));
+}
 .bg-opacity-50 {
   --tw-bg-opacity: 0.5;
 }
@@ -1615,9 +1632,6 @@ video {
 .p-2 {
   padding: 0.5rem;
 }
-.p-2\.5 {
-  padding: 0.625rem;
-}
 .p-3 {
   padding: 0.75rem;
 }
@@ -1719,6 +1733,9 @@ video {
 }
 .pl-5 {
   padding-left: 1.25rem;
+}
+.pr-4 {
+  padding-right: 1rem;
 }
 .pt-2 {
   padding-top: 0.5rem;
@@ -1862,10 +1879,6 @@ video {
   --tw-text-opacity: 1;
   color: rgb(156 163 175 / var(--tw-text-opacity, 1));
 }
-.text-gray-50 {
-  --tw-text-opacity: 1;
-  color: rgb(249 250 251 / var(--tw-text-opacity, 1));
-}
 .text-gray-500 {
   --tw-text-opacity: 1;
   color: rgb(107 114 128 / var(--tw-text-opacity, 1));
@@ -1992,6 +2005,10 @@ video {
 .text-yellow-800 {
   --tw-text-opacity: 1;
   color: rgb(133 77 14 / var(--tw-text-opacity, 1));
+}
+.text-blue-400 {
+  --tw-text-opacity: 1;
+  color: rgb(96 165 250 / var(--tw-text-opacity, 1));
 }
 .placeholder-\[\#0ab4ab\]\/50::-moz-placeholder {
   color: rgb(10 180 171 / 0.5);
@@ -2719,11 +2736,6 @@ button,
   border-color: rgb(147 197 253 / var(--tw-border-opacity, 1));
 }
 
-.focus\:border-blue-500:focus {
-  --tw-border-opacity: 1;
-  border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));
-}
-
 .focus\:border-gray-600:focus {
   --tw-border-opacity: 1;
   border-color: rgb(75 85 99 / var(--tw-border-opacity, 1));
@@ -2884,10 +2896,6 @@ button,
 
   .sm\:w-auto {
     width: auto;
-  }
-
-  .sm\:grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sm\:grid-cols-3 {
