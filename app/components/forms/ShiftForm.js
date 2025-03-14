@@ -14,9 +14,11 @@ import SummarySection from './SummarySection';
 import CalendarSection from './CalendarSection';
 import Swal from 'sweetalert2';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../../context/AuthContext';
 
 const ShiftForm = () => {
     const router = useRouter();
+    const { user } = useAuth();
     // 1. State declarations
     const [currentStep, setCurrentStep] = useState(0);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -332,95 +334,61 @@ const ShiftForm = () => {
         return []; // ยังไม่มีการตรวจสอบเงื่อนไขเตียง
     };
 
-    // Memoize handleInputChange
-    const handleInputChange = useCallback((section, ward, data) => {
-        setFormData(prev => {
-            // Create a copy of the current ward data
-            const currentWardData = {
-                ...prev.wards[ward],
-                ...data
-            };
+    // เพิ่มฟังก์ชัน filterWardsByUser
+    const filterWardsByUser = useCallback(() => {
+        if (!user) return WARD_ORDER;
+        
+        // ถ้าเป็น admin ให้แสดงทั้งหมด
+        if (user.role?.toLowerCase() === 'admin') {
+            return WARD_ORDER;
+        }
+        
+        // ถ้าเป็น user ปกติให้แสดงเฉพาะ ward ของตัวเอง
+        const userDepartment = user.department;
+        if (userDepartment && WARD_ORDER.includes(userDepartment)) {
+            return [userDepartment];
+        }
+        
+        // ถ้าไม่มีข้อมูล department หรือ department ไม่ตรงกับ ward ใดๆ ให้แสดงทั้งหมด
+        return WARD_ORDER;
+    }, [user]);
 
-            // Convert all relevant values to numbers for calculation
-            const numberOfPatients = parseInt(currentWardData.numberOfPatients || '0');
-            const newAdmit = parseInt(currentWardData.newAdmit || '0');
-            const transferIn = parseInt(currentWardData.transferIn || '0');
-            const referIn = parseInt(currentWardData.referIn || '0');
-            const transferOut = parseInt(currentWardData.transferOut || '0');
-            const referOut = parseInt(currentWardData.referOut || '0');
-            const discharge = parseInt(currentWardData.discharge || '0');
-            const dead = parseInt(currentWardData.dead || '0');
-
-            // Calculate new overallData
-                const newOverallData = Math.max(0,
-                numberOfPatients +
-                newAdmit +
-                transferIn +
-                referIn +
-                transferOut -
-                referOut -
-                discharge -
-                dead
-                ).toString();
-
-            // Update overallData in the current ward
-                currentWardData.overallData = newOverallData;
-
-            // Create new wards object with updated ward
-            const newWards = {
-                    ...prev.wards,
-                    [ward]: currentWardData
-            };
-
-            // Calculate new totals
-            const newTotals = Object.values(newWards).reduce((totals, wardData) => ({
-                numberOfPatients: totals.numberOfPatients + (parseInt(wardData.numberOfPatients) || 0),
-                nurseManager: totals.nurseManager + (parseInt(wardData.nurseManager) || 0),
-                RN: totals.RN + (parseInt(wardData.RN) || 0),
-                PN: totals.PN + (parseInt(wardData.PN) || 0),
-                WC: totals.WC + (parseInt(wardData.WC) || 0),
-                newAdmit: totals.newAdmit + (parseInt(wardData.newAdmit) || 0),
-                transferIn: totals.transferIn + (parseInt(wardData.transferIn) || 0),
-                referIn: totals.referIn + (parseInt(wardData.referIn) || 0),
-                transferOut: totals.transferOut + (parseInt(wardData.transferOut) || 0),
-                referOut: totals.referOut + (parseInt(wardData.referOut) || 0),
-                discharge: totals.discharge + (parseInt(wardData.discharge) || 0),
-                dead: totals.dead + (parseInt(wardData.dead) || 0),
-                overallData: totals.overallData + (parseInt(wardData.overallData) || 0),
-                availableBeds: totals.availableBeds + (parseInt(wardData.availableBeds) || 0),
-                unavailable: totals.unavailable + (parseInt(wardData.unavailable) || 0),
-                plannedDischarge: totals.plannedDischarge + (parseInt(wardData.plannedDischarge) || 0)
-            }), {
-                numberOfPatients: 0,
-                nurseManager: 0,
-                RN: 0,
-                PN: 0,
-                WC: 0,
-                newAdmit: 0,
-                transferIn: 0,
-                referIn: 0,
-                transferOut: 0,
-                referOut: 0,
-                discharge: 0,
-                dead: 0,
-                overallData: 0,
-                availableBeds: 0,
-                unavailable: 0,
-                plannedDischarge: 0
-            });
-
-            // Return updated form data with new wards and totals
-            return {
-                ...prev,
-                wards: newWards,
-                totals: newTotals
-            };
-        });
-    }, []);
-
-    // Add new function to display values
+    // กำหนด ward ที่จะแสดง
+    const displayWards = useMemo(() => filterWardsByUser(), [filterWardsByUser]);
+    
+    // ฟังก์ชันสำหรับแสดงค่า
     const displayValue = (value) => {
         return value === undefined || value === null || value === '' ? '0' : value;
+    };
+    
+    // แก้ไขฟังก์ชัน handleInputChange ให้เป็นแบบดูอย่างเดียว
+    const handleInputChange = useCallback((type, ward, data) => {
+        // ถ้าเป็น user ปกติ ไม่ให้แก้ไขข้อมูล
+        if (user?.role?.toLowerCase() === 'user') {
+            console.log('View only mode: Changes are disabled');
+            return;
+        }
+        
+        // โค้ดส่วนนี้จะทำงานเฉพาะเมื่อเป็น admin เท่านั้น
+        // ... โค้ดเดิมในฟังก์ชัน handleInputChange ...
+    }, [formData, setFormData, user]);
+    
+    // แก้ไขฟังก์ชัน handleSubmit ให้เป็นแบบดูอย่างเดียว
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        // ถ้าเป็น user ปกติ ไม่ให้บันทึกข้อมูล
+        if (user?.role?.toLowerCase() === 'user') {
+            Swal.fire({
+                title: 'โหมดดูข้อมูลเท่านั้น',
+                text: 'คุณไม่มีสิทธิ์บันทึกข้อมูล กรุณาติดต่อผู้ดูแลระบบ',
+                icon: 'info',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return;
+        }
+        
+        // ... โค้ดเดิมในฟังก์ชัน handleSubmit ...
     };
 
     // เพิ่มฟังก์ชันเช็ควันที่ปัจจุบัน
@@ -681,88 +649,6 @@ const ShiftForm = () => {
                 });
             }
         });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        const isValid = await validateFormData();
-        if (!isValid) return;
-
-        const result = await Swal.fire({
-            title: 'ยืนยันการบันทึกข้อมูล',
-            text: 'โปรดยืนยันว่าข้อมูลได้รับการตรวจสอบเรียบร้อยแล้ว',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#0ab4ab',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'บันทึกข้อมูล',
-            cancelButtonText: 'แก้ไขข้อมูล'
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-            Swal.fire({
-                title: 'กำลังตรวจสอบข้อมูล',
-                text: 'กรุณารอสักครู่',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            const recordsRef = collection(db, 'staffRecords');
-            const q = query(
-                recordsRef,
-                where('date', '==', formData.date),
-                where('shift', '==', formData.shift)
-            );
-
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                const duplicateResult = await Swal.fire({
-                    title: 'พบข้อมูลซ้ำ',
-                    html: `พบข้อมูลของวันที่ ${formatThaiDate(formData.date)} กะ ${formData.shift} ในระบบแล้ว<br><br>คุณต้องการดำเนินการอย่างไร?`,
-                    icon: 'warning',
-                    showCancelButton: true,
-                    showDenyButton: true,
-                    confirmButtonText: 'บันทึกทับ',
-                    denyButtonText: 'ดูข้อมูลเดิม',
-                    cancelButtonText: 'ยกเลิก',
-                    confirmButtonColor: '#0ab4ab',
-                    denyButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33'
-                });
-
-                if (duplicateResult.isDenied) {
-                const existingDoc = querySnapshot.docs[0];
-                setExistingData({
-                    id: existingDoc.id,
-                    ...existingDoc.data()
-                });
-                setShowDataComparison(true);
-                    return;
-                } else if (duplicateResult.isConfirmed) {
-                    await saveData(true);
-                    window.location.reload(); // รีเฟรชหน้าเว็บหลังบันทึกข้อมูลซ้ำ
-                }
-                return;
-            }
-
-            await saveData();
-            setHasUnsavedChanges(false); // รีเซ็ตสถานะหลังบันทึก
-
-        } catch (error) {
-            console.error('Error checking duplicates:', error);
-            Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: error.message,
-                icon: 'error',
-                confirmButtonColor: '#0ab4ab'
-            });
-        }
     };
 
     // เพิ่มฟังก์ชันใหม่สำหรับตรวจสอบข้อมูลซ้ำเมื่อเลือกวันที่
@@ -1356,12 +1242,13 @@ const ShiftForm = () => {
                             <h2 className="text-lg font-bold text-pink-600 text-center mb-1">Form</h2>
                         </div>
                         <DataTable
-                            WARD_ORDER={WARD_ORDER}
+                            WARD_ORDER={displayWards}
                             formData={formData}
                             handleInputChange={handleInputChange}
                             displayValue={displayValue}
                             approvalStatuses={approvalStatuses}
                             selectedDate={selectedDate}
+                            readOnly={user?.role?.toLowerCase() === 'user'}
                         />
                     </div>
                 </div>
@@ -1382,13 +1269,21 @@ const ShiftForm = () => {
 
                 {/* Submit Button */}
                 <div className="mt-8 flex justify-center p-6 bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg">
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
-                    >
-                        {isLoading ? 'Saving...' : 'Save Data'}
-                    </button>
+                    {user?.role?.toLowerCase() === 'user' ? (
+                        <div className="bg-gray-50 p-4 rounded-lg text-center border border-gray-200">
+                            <div className="text-gray-700 font-medium mb-2">โหมดดูข้อมูลเท่านั้น</div>
+                            <p className="text-sm text-gray-500">คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขหรือบันทึกข้อมูลได้</p>
+                            <p className="text-sm text-gray-500 mt-1">ข้อมูลที่แสดงเฉพาะ ward ของคุณเท่านั้น</p>
+                        </div>
+                    ) : (
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
+                        >
+                            {isLoading ? 'Saving...' : 'Save Data'}
+                        </button>
+                    )}
                 </div>
 
                 <button

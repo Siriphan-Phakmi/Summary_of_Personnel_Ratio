@@ -5,35 +5,70 @@ import PropTypes from 'prop-types';
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
+    // อัปเดต state เพื่อให้แสดง fallback UI ในการเรนเดอร์ถัดไป
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
     // ส่ง error ไปยัง logging service หรือ analytics ได้ที่นี่
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error('Error caught by ErrorBoundary:', error);
+    console.error('Component stack:', errorInfo.componentStack);
+    
+    // เก็บข้อมูล errorInfo ใน state
+    this.setState({ errorInfo });
+    
+    // สามารถส่งข้อมูลไปยัง error tracking service ได้ที่นี่
+    // เช่น Sentry, LogRocket, หรือ Firebase Analytics
   }
 
   render() {
     if (this.state.hasError) {
+      const isDev = process.env.NODE_ENV === 'development';
+      
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center p-8 bg-white rounded-lg shadow-md">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="text-center p-8 bg-white rounded-lg shadow-md max-w-md w-full">
             <h2 className="text-2xl font-semibold text-red-600 mb-4">
               เกิดข้อผิดพลาดบางอย่าง
             </h2>
             <p className="text-gray-600 mb-4">
               กรุณาลองโหลดหน้าใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="bg-[#0ab4ab] text-white px-4 py-2 rounded-lg hover:bg-[#0ab4ab]/80"
-            >
-              โหลดหน้าใหม่
-            </button>
+            
+            {/* แสดงรายละเอียดข้อผิดพลาดเฉพาะในโหมด development */}
+            {isDev && this.state.error && (
+              <div className="my-4 p-3 bg-gray-100 rounded text-left overflow-auto max-h-40">
+                <p className="text-red-500 font-medium mb-2">Error: {this.state.error.toString()}</p>
+                {this.state.errorInfo && (
+                  <details className="text-xs text-gray-700">
+                    <summary className="cursor-pointer text-sm text-gray-600 mb-1">Stack Trace</summary>
+                    <pre className="whitespace-pre-wrap">
+                      {this.state.errorInfo.componentStack}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+            
+            <div className="flex flex-col space-y-2 mt-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="bg-[#0ab4ab] text-white px-4 py-2 rounded-lg hover:bg-[#0ab4ab]/80"
+              >
+                โหลดหน้าใหม่
+              </button>
+              
+              <button
+                onClick={() => window.history.back()}
+                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300"
+              >
+                กลับไปหน้าก่อนหน้า
+              </button>
+            </div>
           </div>
         </div>
       );

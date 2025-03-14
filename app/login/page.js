@@ -29,7 +29,10 @@ export default function Login() {
     // Check if user is already logged in
     if (!authLoading && isAuthenticated) {
       console.log('Already authenticated, redirecting to home');
-      router.push('/');
+      // รอให้ hydration เสร็จสมบูรณ์ก่อนแล้วค่อย redirect
+      setTimeout(() => {
+        router.push('/');
+      }, 100);
     }
   }, [authLoading, isAuthenticated, router, user]);
 
