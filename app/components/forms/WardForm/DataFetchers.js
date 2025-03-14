@@ -3,6 +3,11 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 import { db } from '../../../lib/firebase';
 import { getUTCDateString } from '../../../utils/dateUtils';
 import { validateParams } from '../../../utils/functionHelper';
+import { handleFirebaseIndexError, safeQuery } from '../../../utils/firebase-helpers';
+
+// Create a cache for storing fetched data
+const dataCache = new Map();
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 export const fetchDatesWithData = async (selectedWard) => {
     try {
@@ -252,77 +257,97 @@ export const fetchLatestRecord = async (targetWard) => {
             return null;
         }
         
+        const wardDailyRef = collection(db, 'wardDailyRecords');
         const q = query(
-            collection(db, 'wardDailyRecords'),
+            wardDailyRef,
             where('wardId', '==', targetWard),
-            orderBy('timestamp', 'desc'),
+            orderBy('date', 'desc'),
             limit(1)
         );
         
         const querySnapshot = await getDocs(q);
         
-        if (!querySnapshot.empty) {
-            const latestDoc = querySnapshot.docs[0];
-            const data = latestDoc.data();
-            
-            if (data.date) {
-                return new Date(data.date);
-            }
+        if (querySnapshot.empty) {
+            return null;
         }
         
-        return null;
+        const doc = querySnapshot.docs[0];
+        const data = doc.data();
+        
+        return {
+            id: doc.id,
+            ...data
+        };
     } catch (error) {
         console.error('Error fetching latest record:', error);
         return null;
     }
 };
 
+// Modified fetchWardData function with caching and improved error handling
 export const fetchWardData = async (date, selectedWard, selectedShift) => {
-    // ตรวจสอบอย่างเข้มงวด
-    if (!date) {
-        console.error('fetchWardData: date is required but got:', date);
-        return null;
-    }
-    
-    if (!selectedWard || selectedWard.trim() === '') {
-        console.error('fetchWardData: selectedWard is required but got:', selectedWard);
-        return null;
-    }
-    
-    if (!selectedShift || selectedShift.trim() === '') {
-        console.error('fetchWardData: selectedShift is required but got:', selectedShift);
-        return null;
-    }
-    
     try {
-        const dateString = getUTCDateString(new Date(date));
-        
-        console.log('Fetching ward data with query params:', {
-            wardId: selectedWard,
-            date: dateString,
-            shift: selectedShift
-        });
-        
-        const q = query(
-            collection(db, 'wardDailyRecords'),
-            where('wardId', '==', selectedWard),
-            where('date', '==', dateString),
-            where('shift', '==', selectedShift)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-            const doc = querySnapshot.docs[0];
-            const data = doc.data();
-            
-            return {
-                id: doc.id,
-                ...data
-            };
+        if (!date || !selectedWard || !selectedShift) {
+            console.warn('fetchWardData: Missing required parameters', {
+                date,
+                selectedWard,
+                selectedShift
+            });
+            return null;
         }
         
-        return null;
+        // Create a cache key
+        const cacheKey = `${date}_${selectedWard}_${selectedShift}`;
+        
+        // Check if data is in cache and not expired
+        const cachedData = dataCache.get(cacheKey);
+        if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRY)) {
+            console.log('Returning cached data for:', cacheKey);
+            return cachedData.data;
+        }
+        
+        // If not in cache, fetch from Firestore
+        const dateObj = new Date(date);
+        const dateString = getUTCDateString(dateObj);
+        
+        console.log(`Fetching data for ${selectedWard} on ${dateString}, shift: ${selectedShift}`);
+        
+        const wardDailyRef = collection(db, 'wardDailyRecords');
+        const q = query(
+            wardDailyRef,
+            where('wardId', '==', selectedWard),
+            where('date', '==', dateString),
+        );
+        
+        try {
+            const querySnapshot = await getDocs(q);
+            
+            if (querySnapshot.empty) {
+                console.log(`No data found for ${selectedWard} on ${dateString}`);
+                return null;
+            }
+            
+            const wardData = querySnapshot.docs[0].data();
+            
+            if (!wardData.shifts || !wardData.shifts[selectedShift]) {
+                console.log(`No shift data found for ${selectedShift}`);
+                return null;
+            }
+            
+            // Store in cache
+            dataCache.set(cacheKey, {
+                data: wardData.shifts[selectedShift],
+                timestamp: Date.now()
+            });
+            
+            return wardData.shifts[selectedShift];
+        } catch (error) {
+            // Check if this is an index error and handle it
+            if (handleFirebaseIndexError(error)) {
+                return null;
+            }
+            throw error; // Re-throw if not an index error or if handling failed
+        }
     } catch (error) {
         console.error('Error fetching ward data:', error);
         return null;
@@ -372,123 +397,49 @@ export const fetchWardHistory = async (wardId, date, shift) => {
 
 // เพิ่มฟังก์ชันตรวจสอบข้อมูลย้อนหลัง 30 วัน
 export const checkPast30DaysRecords = async (ward) => {
-    try {
-        if (!ward) {
-            console.warn('checkPast30DaysRecords: ward is undefined or null');
-            return { canProceed: true };
-        }
-        
-        // คำนวณวันที่ 30 วันย้อนหลัง
-        const today = new Date();
-        const past30Days = new Date();
-        past30Days.setDate(today.getDate() - 30);
-        
-        // แปลงเป็น string format
-        const todayString = getUTCDateString(today);
-        const past30DaysString = getUTCDateString(past30Days);
-        
-        console.log(`Checking records between ${past30DaysString} and ${todayString} for ward ${ward}`);
-        
-        // ตรวจสอบว่ามีการบันทึกข้อมูลในช่วง 30 วันหรือไม่
-        const q = query(
-            collection(db, 'wardDailyRecords'),
-            where('wardId', '==', ward),
-            where('date', '>=', past30DaysString),
-            where('date', '<=', todayString)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        
-        // ถ้าไม่มีข้อมูลใน 30 วันย้อนหลัง สามารถเริ่มบันทึกใหม่ได้
-        if (querySnapshot.empty) {
-            return { 
-                canProceed: true, 
-                noRecentRecords: true,
-                message: 'ไม่พบข้อมูลการบันทึกในช่วง 30 วันที่ผ่านมา สามารถเริ่มบันทึกใหม่ได้'
-            };
-        }
-        
-        // มีข้อมูลบางส่วน ต้องตรวจสอบความต่อเนื่อง
-        const dates = [];
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.date) {
-                dates.push(data.date);
-            }
-        });
-        
-        // เรียงลำดับวันที่
-        dates.sort();
-        const latestRecordDate = dates[dates.length - 1];
-        
-        // คำนวณวันที่ล่าสุดที่ควรมีการบันทึก
-        const latestDate = new Date(latestRecordDate);
-        const daysSinceLastRecord = Math.floor((today - latestDate) / (1000 * 60 * 60 * 24));
-        
-        // ถ้าไม่มีการบันทึกเกิน 30 วัน สามารถเริ่มบันทึกใหม่ได้
-        if (daysSinceLastRecord > 30) {
-            return { 
-                canProceed: true, 
-                noRecentRecords: true,
-                message: `ไม่พบข้อมูลการบันทึกในช่วง ${daysSinceLastRecord} วันที่ผ่านมา สามารถเริ่มบันทึกใหม่ได้`
-            };
-        }
-        
-        return { 
-            canProceed: true, 
-            noRecentRecords: false,
-            latestRecordDate: latestRecordDate
-        };
-    } catch (error) {
-        console.error('Error checking past 30 days records:', error);
-        return { 
-            canProceed: true,
-            error: error.message
-        };
-    }
-<<<<<<< HEAD
-=======
+    // ไม่มีการตรวจสอบข้อมูล 30 วันย้อนหลังแล้ว
+    return { 
+        canProceed: true, 
+        noRecentRecords: false
+    };
 };
 
 export const checkPast7DaysData = async (ward, date) => {
     try {
-        // คำนวณวันที่ 7 วันย้อนหลัง
-        const past7Days = new Date(date);
-        past7Days.setDate(past7Days.getDate() - 7);
+        const currentDate = new Date(date);
+        const sevenDaysAgo = new Date(currentDate);
+        sevenDaysAgo.setDate(currentDate.getDate() - 7);
         
-        // แปลงเป็น string format
-        const dateString = getUTCDateString(date);
-        const past7DaysString = getUTCDateString(past7Days);
+        const formattedCurrentDate = getUTCDateString(currentDate);
+        const formattedSevenDaysAgo = getUTCDateString(sevenDaysAgo);
         
-        // ตรวจสอบข้อมูลในช่วง 7 วัน
+        const wardDailyRef = collection(db, 'wardDailyRecords');
         const q = query(
-            collection(db, 'wardDailyRecords'),
+            wardDailyRef,
             where('wardId', '==', ward),
-            where('date', '>=', past7DaysString),
-            where('date', '<=', dateString)
+            where('date', '>=', formattedSevenDaysAgo),
+            where('date', '<=', formattedCurrentDate)
         );
         
         const querySnapshot = await getDocs(q);
-        
-        // ถ้าไม่มีข้อมูลใน 7 วันย้อนหลัง สามารถเริ่มบันทึกใหม่ได้
-        if (querySnapshot.empty) {
+        const records = querySnapshot.docs.map(doc => {
+            const data = doc.data();
             return {
-                canStartNew: true,
-                message: 'ไม่พบข้อมูลในช่วง 7 วันที่ผ่านมา สามารถเริ่มบันทึกใหม่ได้'
+                id: doc.id,
+                date: data.date,
+                // Include other fields as needed
             };
-        }
+        });
         
-        // มีข้อมูลในช่วง 7 วัน
         return {
-            canStartNew: false,
-            message: 'พบข้อมูลในช่วง 7 วันที่ผ่านมา กรุณาตรวจสอบข้อมูลก่อนหน้า'
+            success: true,
+            records
         };
     } catch (error) {
         console.error('Error checking past 7 days data:', error);
         return {
-            canStartNew: false,
+            success: false,
             error: error.message
         };
     }
->>>>>>> 02d4cb446626ef2454bf39f07af13f3101dc7804
-}; 
+};

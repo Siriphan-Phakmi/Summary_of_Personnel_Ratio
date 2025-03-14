@@ -33,14 +33,17 @@ export const safeExecute = async (fn, params = [], options = {}) => {
     // Execute function with provided parameters
     return await fn(...params);
   } catch (error) {
+    // Log the error if logging is enabled
     if (logging) {
-      console.error(`Error in ${functionName}: `, error);
-      console.error(`Parameters: `, params);
+      console.error(`${errorMessage}: `, error);
     }
     
+    // Throw error if required
     if (shouldThrow) {
       throw error;
     }
+    
+    // Return default value otherwise
     return defaultValue;
   }
 };
@@ -93,4 +96,4 @@ export const withParamValidation = (fn, requiredParams) => {
     // Call original function
     return fn(...args);
   };
-}; 
+};

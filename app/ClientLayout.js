@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import Navbar from './components/common/Navbar';
 import { AlertProvider } from './utils/alertService';
 import { usePathname } from 'next/navigation';
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import FirebaseIndexValidator from './components/FirebaseIndexValidator';
 
 export default function ClientLayout({ children }) {
   const [mounted, setMounted] = useState(false);
@@ -37,14 +40,19 @@ export default function ClientLayout({ children }) {
   }
 
   return (
-    <Providers>
-      <AlertProvider>
-        {/* แสดง Navbar เฉพาะเมื่อไม่ใช่หน้า login */}
-        {!isLoginPage && <Navbar />}
-        <div className={!isLoginPage ? "pt-8" : ""}>
-          {children}
-        </div>
-      </AlertProvider>
-    </Providers>
+    <AlertProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <FirebaseIndexValidator />
+          <Providers>
+            {/* แสดง Navbar เฉพาะเมื่อไม่ใช่หน้า login */}
+            {!isLoginPage && <Navbar />}
+            <div className={!isLoginPage ? "pt-8" : ""}>
+              {children}
+            </div>
+          </Providers>
+        </ThemeProvider>
+      </AuthProvider>
+    </AlertProvider>
   );
 } 

@@ -54,7 +54,7 @@ export const hasDataChanges = (formData) => {
             changes.additional = true;
         }
     });
-
+    
     return changes;
 };
 
@@ -119,4 +119,4 @@ export const validateFormData = (formData, summaryData) => {
     }
 
     return true;
-}; 
+};
