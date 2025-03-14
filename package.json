@@ -31,7 +31,7 @@
     "react-day-picker": "^9.5.1",
     "react-dom": "^19.0.0",
     "react-tooltip": "^5.28.0",
-    "sweetalert2": "^11.17.2"
+    "sweetalert2": "^11.6.13"
   },
   "devDependencies": {
     "@sentry/nextjs": "^9.1.0",

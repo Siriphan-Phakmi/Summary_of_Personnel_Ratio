@@ -18,7 +18,7 @@ import ClientLayout from './ClientLayout';
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="th">
+    <html lang="th" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <link

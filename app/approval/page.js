@@ -31,6 +31,10 @@ export default function ApprovalPage() {
     <AuthGuard requiredRole="user">
       <div className="min-h-screen pb-16 relative">
         <main className="container mx-auto px-4 pt-20">
+          <div className="bg-yellow-50 p-4 mb-6 rounded-lg border border-yellow-200">
+            <h2 className="font-medium text-yellow-700 mb-2">หน้าแสดงผลข้อมูลเท่านั้น</h2>
+            <p className="text-sm text-yellow-600">คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขหรือบันทึกข้อมูลได้ โดยจะแสดงเฉพาะข้อมูลของ ward ที่คุณสังกัดเท่านั้น</p>
+          </div>
           <ShiftForm />
         </main>
 
