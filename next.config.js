@@ -5,16 +5,67 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist',
+  distDir: '.next-build', // Change the build directory name
   
   images: {
     unoptimized: true,
+  },
+
+  webpack: (config, { dev, isServer }) => {
+    // เพิ่ม alias สำหรับ sweetalert2 ให้ใช้ polyfill ของเราแทน
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'sweetalert2': require.resolve('./app/utils/sweetalert2-polyfill.js')
+    };
+    
+    // ปรับแต่ง optimization ให้ใช้ single runtime chunk แทน
+    if (!isServer) {
+      config.optimization.runtimeChunk = 'single';
+      // ปรับขนาด chunk ให้เหมาะสม
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        maxInitialRequests: 25,
+        minSize: 20000
+      };
+    }
+    return config;
   },
 
   experimental: {
     optimizeCss: false,
     forceSwcTransforms: true,
     largePageDataBytes: 128 * 100000,
+  },
+  
+  // เพิ่ม redirects สำหรับเส้นทางเก่าไปยังเส้นทางใหม่
+  async redirects() {
+    return [
+      {
+        source: '/ward-form',
+        destination: '/page/ward-form',
+        permanent: true,
+      },
+      {
+        source: '/login',
+        destination: '/page/login',
+        permanent: true,
+      },
+      {
+        source: '/dashboard',
+        destination: '/page/dashboard',
+        permanent: true,
+      },
+      {
+        source: '/approval',
+        destination: '/page/approval',
+        permanent: true,
+      },
+      {
+        source: '/admin/user-management',
+        destination: '/page/user-management',
+        permanent: true,
+      }
+    ]
   },
 };
 

@@ -1,14 +1,17 @@
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
-import Swal from 'sweetalert2';
+import { useTheme } from '../../context/ThemeContext';
+import { Swal } from '../../utils/alertService';
 import { PAGES, PAGE_LABELS } from '../../config/constants';
 import { useEffect, useState } from 'react';
+import ThemeToggle from '../ui/ThemeToggle';
 
 const Navbar = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   // ใช้สถานะเพื่อติดตาม currentPage ภายใน component
   const [activePage, setActivePage] = useState();
 
@@ -30,16 +33,16 @@ const Navbar = () => {
         window.removeEventListener('currentPageChange', handleCurrentPageChange);
       };
     }
-    else if (pathname === '/ward-form') {
+    else if (pathname === '/page/ward-form' || pathname === '/ward-form') {
       setActivePage(PAGES.WARD);
     }
-    else if (pathname === '/approval') {
+    else if (pathname === '/page/approval' || pathname === '/approval') {
       setActivePage(PAGES.FORM);
     }
-    else if (pathname === '/dashboard') {
+    else if (pathname === '/page/dashboard' || pathname === '/dashboard') {
       setActivePage(PAGES.DASHBOARD);
     }
-    else if (pathname.includes('/admin/user-management')) {
+    else if (pathname === '/page/user-management' || pathname.includes('/admin/user-management')) {
       setActivePage(PAGES.USER_MANAGEMENT);
     }
   }, [pathname]);
@@ -62,18 +65,16 @@ const Navbar = () => {
 
     switch(page) {
       case PAGES.WARD:
-        router.push('/ward-form');
+        router.push('/page/ward-form/');
         break;
       case PAGES.FORM:  // Approval
-        // เปลี่ยนเป็น server-side navigation เพื่อให้เกิด logs
-        router.push('/approval');
+        router.push('/page/approval/');
         break;
       case PAGES.DASHBOARD:
-        // เปลี่ยนเป็น server-side navigation เพื่อให้เกิด logs
-        router.push('/dashboard');
+        router.push('/page/dashboard/');
         break;
       case PAGES.USER_MANAGEMENT:
-        router.push('/admin/user-management');
+        router.push('/page/user-management/');
         break;
       default:
         router.push('/');
@@ -96,7 +97,7 @@ const Navbar = () => {
 
       if (result.isConfirmed) {
         await logout();
-        router.push('/login');
+        router.push('/page/login');
       }
     } catch (error) {
       console.error('Logout failed:', error);
@@ -112,61 +113,80 @@ const Navbar = () => {
   if (!user) return null;
 
   // ถ้า user ไม่ได้อยู่ในหน้า login จะแสดง navbar
-  if (pathname === '/login') return null;
+  if (pathname === '/login' || pathname === '/page/login') return null;
 
   return (
-    <div className="bg-[#0ab4ab] text-white shadow-md p-3 fixed top-0 left-0 right-0 z-50 w-full">
-      <div className="container mx-auto flex justify-between items-center">
-        <div className="flex items-center space-x-4">
+    <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-[#0ab4ab]'} text-white shadow-md p-3 fixed top-0 left-0 right-0 z-50 w-full transition-colors duration-300`}>
+      <div className="container mx-auto flex flex-wrap justify-between items-center">
+        <div className="flex flex-wrap items-center space-x-2 md:space-x-4 mb-2 md:mb-0">
           <button
             onClick={() => navigateTo(PAGES.WARD)}
-            className={`px-3 py-1 rounded ${
+            className={`px-4 py-2 rounded-md font-medium text-base ${
               activePage === PAGES.WARD
-                ? 'bg-white text-[#0ab4ab]' 
-                : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
-            } transition font-medium`}
+                ? 'bg-gray-700 text-white shadow-md border-2 border-white'
+                : theme === 'dark'
+                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                  : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
+            } transition-all duration-200`}
           >
-            {PAGE_LABELS[PAGES.WARD]}
+            <span className="font-bold">{PAGE_LABELS[PAGES.WARD]}</span>
           </button>
           <button
             onClick={() => navigateTo(PAGES.FORM)}
-            className={`px-3 py-1 rounded ${
+            className={`px-4 py-2 rounded-md font-medium text-base ${
               activePage === PAGES.FORM
-                ? 'bg-white text-[#0ab4ab]' 
-                : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
-            } transition font-medium`}
+                ? 'bg-gray-700 text-white shadow-md border-2 border-white'
+                : theme === 'dark'
+                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                  : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
+            } transition-all duration-200`}
           >
-            {PAGE_LABELS[PAGES.FORM]}
+            <span className={activePage === PAGES.FORM ? "font-bold" : ""}>{PAGE_LABELS[PAGES.FORM]}</span>
           </button>
           <button
             onClick={() => navigateTo(PAGES.DASHBOARD)}
-            className={`px-3 py-1 rounded ${
+            className={`px-4 py-2 rounded-md font-medium text-base ${
               activePage === PAGES.DASHBOARD
-                ? 'bg-white text-[#0ab4ab]' 
-                : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
-            } transition font-medium`}
+                ? 'bg-gray-700 text-white shadow-md border-2 border-white'
+                : theme === 'dark'
+                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                  : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
+            } transition-all duration-200`}
           >
-            {PAGE_LABELS[PAGES.DASHBOARD]}
+            <span className={activePage === PAGES.DASHBOARD ? "font-bold" : ""}>{PAGE_LABELS[PAGES.DASHBOARD]}</span>
           </button>
-          <button
-            onClick={() => navigateTo(PAGES.USER_MANAGEMENT)}
-            className={`px-3 py-1 rounded ${
-              activePage === PAGES.USER_MANAGEMENT
-                ? 'bg-white text-[#0ab4ab]' 
-                : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
-            } transition font-medium`}
-          >
-            {PAGE_LABELS[PAGES.USER_MANAGEMENT]}
-          </button>
+          {/* แสดงปุ่ม User Management เฉพาะเมื่อผู้ใช้เป็น admin เท่านั้น */}
+          {user?.role?.toLowerCase() === 'admin' && (
+            <button
+              onClick={() => navigateTo(PAGES.USER_MANAGEMENT)}
+              className={`px-4 py-2 rounded-md font-medium text-base ${
+                activePage === PAGES.USER_MANAGEMENT
+                  ? 'bg-gray-700 text-white shadow-md border-2 border-white'
+                  : theme === 'dark'
+                    ? 'bg-gray-700 text-white hover:bg-gray-600'
+                    : 'bg-[#0ab4ab] text-white hover:bg-teal-600'
+              } transition-all duration-200`}
+            >
+              <span className={activePage === PAGES.USER_MANAGEMENT ? "font-bold" : ""}>{PAGE_LABELS[PAGES.USER_MANAGEMENT]}</span>
+            </button>
+          )}
         </div>
         
-        <div className="flex items-center">
-          <div className="text-white text-sm mr-4">
+        <div className="flex flex-wrap items-center">
+          <div className="text-white text-sm mr-4 mb-2 md:mb-0">
             Logged in as: {user.username || 'user'} | Department: {user.department || ''} | Role: {user.role || 'user'}
           </div>
+          
+          {/* Theme Toggle Button */}
+          <div className="mr-3">
+            <ThemeToggle />
+          </div>
+          
           <button
             onClick={handleLogout}
-            className="flex items-center px-3 py-1 bg-red-600 rounded-lg hover:bg-red-700 transition-all"
+            className={`flex items-center px-4 py-2 ${
+              theme === 'dark' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'
+            } rounded-md transition-all duration-200 font-medium text-base`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
