@@ -1,8 +1,9 @@
 'use client';
+import React from 'react';
 import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import Swal from 'sweetalert2';
+import { Swal } from '../../../utils/alertService';
 import { logEvent } from '../../../utils/clientLogging';
 import { useAuth } from '../../../context/AuthContext';
 

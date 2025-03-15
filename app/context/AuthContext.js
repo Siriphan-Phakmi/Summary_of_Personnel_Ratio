@@ -1,8 +1,8 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { loginUser } from '../lib/dataAccess';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { loginUser, validateSession, invalidateSession } from '../lib/dataAccess';
 import { logEvent } from '../utils/sessionRecording';
 
 // ระยะเวลาที่ session token หมดอายุ (20 นาที)
@@ -32,33 +32,36 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const checkLocalStorage = () => {
-      console.log('Checking localStorage for user data');
+    // Check if user is stored in sessionStorage
+    const checkSessionStorage = () => {
+      console.log('Checking sessionStorage for user data');
       try {
-        // ตรวจสอบว่า localStorage พร้อมใช้งานหรือไม่
-        if (typeof window === 'undefined' || !window.localStorage) {
-          console.log('localStorage is not available');
+        // ตรวจสอบว่า sessionStorage พร้อมใช้งานหรือไม่
+        if (typeof window === 'undefined' || !window.sessionStorage) {
+          console.log('sessionStorage is not available');
           setLoading(false);
           return;
         }
         
-        const storedUser = localStorage.getItem('user');
-        console.log('User data in localStorage:', storedUser ? 'Found' : 'Not found');
+        const storedUser = sessionStorage.getItem('user');
+        console.log('User data in sessionStorage:', storedUser ? 'Found' : 'Not found');
         
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
             console.log('Successfully parsed user data');
             setUser(userData);
+
+            // ตรวจสอบความถูกต้องของ session
+            validateUserSession(userData);
           } catch (parseError) {
-            console.error('Error parsing user data from localStorage:', parseError);
+            console.error('Error parsing user data from sessionStorage:', parseError);
             // ล้างข้อมูลที่อาจเสียหาย
-            localStorage.removeItem('user');
+            sessionStorage.removeItem('user');
           }
         }
       } catch (error) {
-        console.error('Error checking localStorage:', error);
+        console.error('Error checking sessionStorage:', error);
         setAuthError(error.message || 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูลผู้ใช้');
       } finally {
         setLoading(false);
@@ -67,11 +70,68 @@ export function AuthProvider({ children }) {
     
     // หน่วงเวลาเล็กน้อยเพื่อให้แน่ใจว่า client side hydration เสร็จสมบูรณ์
     const timer = setTimeout(() => {
-      checkLocalStorage();
+      checkSessionStorage();
     }, 100);
     
     return () => clearTimeout(timer);
   }, []);
+
+  // ติดตามการเปลี่ยนแปลงของ session
+  useEffect(() => {
+    // ตั้ง listener เพื่อติดตามการเปลี่ยนแปลงของ session
+    let unsubscribe = () => {};
+    
+    if (user && user.uid && user.sessionId) {
+      // ติดตามการเปลี่ยนแปลงของเอกสาร session ปัจจุบัน
+      unsubscribe = onSnapshot(
+        doc(db, 'userSessions', user.sessionId),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const sessionData = snapshot.data();
+            // ถ้า session ไม่ active แล้ว ให้ logout อัตโนมัติ
+            if (!sessionData.active) {
+              console.log('Session expired or invalidated, logging out...');
+              logout(false); // ไม่ต้องเรียก invalidateSession เพราะ session ถูกยกเลิกไปแล้ว
+            }
+          } else {
+            // ไม่พบ session ให้ logout
+            console.log('Session not found, logging out...');
+            logout(false);
+          }
+        },
+        (error) => {
+          console.error('Error listening to session changes:', error);
+        }
+      );
+    }
+    
+    // Clean up listener เมื่อ component unmount หรือ user เปลี่ยน
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [user?.uid, user?.sessionId]);
+
+  // ฟังก์ชันตรวจสอบความถูกต้องของ session
+  const validateUserSession = async (user) => {
+    if (!user || !user.uid || !user.sessionId) {
+      setUser(null);
+      sessionStorage.removeItem('user');
+      return;
+    }
+    
+    try {
+      const isValid = await validateSession(user.uid, user.sessionId);
+      if (!isValid) {
+        // ถ้า session ไม่ถูกต้อง ให้ logout
+        console.log('Invalid session, logging out...');
+        logout(false);
+      }
+    } catch (error) {
+      console.error('Error validating session:', error);
+    }
+  };
 
   // เริ่มการตรวจสอบ session อย่างสม่ำเสมอ
   useEffect(() => {
@@ -89,7 +149,7 @@ export function AuthProvider({ children }) {
         if (!userDoc.exists()) return;
         
         const userData = userDoc.data();
-        const currentSessionToken = localStorage.getItem('sessionToken');
+        const currentSessionToken = sessionStorage.getItem('sessionToken');
         
         // ถ้า session token ไม่ตรงกัน แสดงว่ามีคนอื่น login เข้ามาใหม่
         if (userData.sessionToken && 
@@ -150,9 +210,9 @@ export function AuthProvider({ children }) {
         // สร้าง session token ใหม่
         const sessionToken = generateSessionToken();
         
-        // บันทึก token ลง localStorage
-        localStorage.setItem('sessionToken', sessionToken);
-        localStorage.setItem('user', JSON.stringify(result.user));
+        // บันทึก token ลง sessionStorage
+        sessionStorage.setItem('sessionToken', sessionToken);
+        sessionStorage.setItem('user', JSON.stringify(result.user));
         setUser(result.user);
         
         // บันทึก session token และเวลาลงใน Firestore
@@ -168,6 +228,7 @@ export function AuthProvider({ children }) {
           logEvent('user_login', {
             userId: result.user.uid,
             username: username,
+            sessionId: result.user.sessionId,
             role: result.user.role,
             name: result.user.displayName,
             timestamp: new Date().toISOString(),
@@ -187,9 +248,10 @@ export function AuthProvider({ children }) {
   };
 
   // Logout function
-  const logout = () => {
+  const logout = (invalidateCurrentSession = true) => {
     try {
       const userId = user?.uid;
+      const sessionId = user?.sessionId;
       
       // ถ้ามี user และ uid ให้ลบ session token ออกจาก Firestore
       if (userId) {
@@ -199,16 +261,24 @@ export function AuthProvider({ children }) {
           lastActivity: serverTimestamp()
         }).catch(err => console.error('Error clearing session:', err));
       }
+
+      // ถ้าต้องการยกเลิก session ปัจจุบัน
+      if (invalidateCurrentSession && sessionId) {
+        invalidateSession(sessionId).catch(error => {
+          console.error('Error invalidating session:', error);
+        });
+      }
       
-      // ลบข้อมูลออกจาก localStorage
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('user');
+      // ลบข้อมูลออกจาก sessionStorage
+      sessionStorage.removeItem('sessionToken');
+      sessionStorage.removeItem('user');
       setUser(null);
       
       // บันทึกการออกจากระบบ
       logEvent('user_logout', {
         userId,
         username: user?.username,
+        sessionId,
         role: user?.role,
         name: user?.displayName,
         timestamp: new Date().toISOString(),

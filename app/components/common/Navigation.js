@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { useRouter } from 'next/navigation';
 import { PAGES, PAGE_LABELS, THEME_COLORS } from '../../config/constants';
 import { useAuth } from '../../context/AuthContext';
-import Swal from 'sweetalert2';
+import { Swal } from '../../utils/alertService';
 
 const Navigation = ({ currentPage, setCurrentPage }) => {
   const router = useRouter();

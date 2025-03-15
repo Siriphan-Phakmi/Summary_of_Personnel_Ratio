@@ -12,11 +12,11 @@ import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay 
 import SignatureSection from './SignatureSection';
 import SummarySection from './SummarySection';
 import CalendarSection from './CalendarSection';
-import Swal from 'sweetalert2';
+import { Swal } from '../../utils/alertService';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 
-const ShiftForm = () => {
+const ShiftForm = ({ isApprovalMode = false }) => {
     const router = useRouter();
     const { user } = useAuth();
     // 1. State declarations
@@ -27,6 +27,7 @@ const ShiftForm = () => {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [datesWithData, setDatesWithData] = useState([]);
     const [thaiDate, setThaiDate] = useState('');
+    const [isReadOnly, setIsReadOnly] = useState(false);
     const [summaryData, setSummaryData] = useState({
         opdTotal24hr: '',
         existingPatients: '',
@@ -137,6 +138,14 @@ const ShiftForm = () => {
 
     // อัพเดท useEffect สำหรับการโหลดครั้งแรก
     useEffect(() => {
+        // Log mode for debugging
+        console.log(`ShiftForm running in ${isApprovalMode ? 'approval' : 'normal'} mode`);
+        
+        // Additional logic for approval mode if needed
+        if (isApprovalMode) {
+            setIsReadOnly(true); // Set form to read-only in approval mode
+        }
+        
         if (typeof window !== 'undefined') {
             const today = new Date();
             setSelectedDate(today);
@@ -151,13 +160,18 @@ const ShiftForm = () => {
             }));
             
             setThaiDate(formatThaiDate(today));
+            
+            // เรียกฟังก์ชันโหลดข้อมูลแค่บางฟังก์ชัน ไม่รวม fetchLatestData
             checkMorningShiftExists(isoDate);
             checkPreviousNightShift(isoDate);
-            fetchLatestData();
             fetchDatesWithData();
             fetchApprovalStatuses(isoDate);
+            
+            // TODO: ปิดฟังก์ชัน fetchLatestData ไว้ก่อนเพื่อแก้ปัญหา Alert ซ้ำซ้อน
+            // ถ้าต้องการเปิดใช้งานอีกครั้ง ให้แก้ไขฟังก์ชันให้จัดการการแสดง Alert อย่างเหมาะสม
+            // fetchLatestData();
         }
-    }, []);
+    }, [isApprovalMode]);
 
     const [hasExistingMorningShift, setHasExistingMorningShift] = useState(false);
     const [hasPreviousNightShift, setHasPreviousNightShift] = useState(false);
@@ -338,8 +352,13 @@ const ShiftForm = () => {
     const filterWardsByUser = useCallback(() => {
         if (!user) return WARD_ORDER;
         
+<<<<<<< HEAD
         // ถ้าเป็น admin ให้แสดงทั้งหมด
         if (user.role?.toLowerCase() === 'admin') {
+=======
+        // ถ้าเป็น admin หรือ approver ให้แสดงทั้งหมด
+        if (user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'approver') {
+>>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
             return WARD_ORDER;
         }
         
@@ -377,6 +396,20 @@ const ShiftForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
+<<<<<<< HEAD
+=======
+        // ถ้าเป็นโหมดอ่านอย่างเดียว ไม่ให้บันทึกข้อมูล
+        if (isReadOnly) {
+            Swal.fire({
+                title: 'โหมดดูข้อมูลเท่านั้น',
+                text: 'ข้อมูลอยู่ในโหมดดูอย่างเดียว ไม่สามารถบันทึกได้',
+                icon: 'info',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return;
+        }
+        
+>>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
         // ถ้าเป็น user ปกติ ไม่ให้บันทึกข้อมูล
         if (user?.role?.toLowerCase() === 'user') {
             Swal.fire({
@@ -570,8 +603,9 @@ const ShiftForm = () => {
                 condition: formData.shift === '19:00-07:00' && !hasExistingMorningShift,
                 message: 'ไม่สามารถบันทึกข้อมูลกะดึกได้ เนื่องจากยังไม่มีการบันทึกข้อมูลกะเช้าก่อน'
             },
+            // ตรวจสอบข้อมูลผู้ตรวจการเฉพาะเมื่อผู้ใช้เป็น admin
             {
-                condition: !summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim(),
+                condition: user?.role?.toLowerCase() === 'admin' && (!summaryData.supervisorFirstName?.trim() || !summaryData.supervisorLastName?.trim()),
                 message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
             }
         ];
@@ -870,6 +904,11 @@ const ShiftForm = () => {
         };
     }, []);
 
+    // Update the handleShiftChange function
+    const handleShiftChange = (shift) => {
+        setFormData(prev => ({ ...prev, shift }));
+    };
+
     // เพิ่มฟังก์ชันสำหรับดึงข้อมูล Overall Data จากกะก่อนหน้า
     const fetchPreviousShiftData = async (selectedDate, selectedShift) => {
         try {
@@ -977,15 +1016,11 @@ const ShiftForm = () => {
         }
     };
 
-    // Update the handleShiftChange function
-    const handleShiftChange = (shift) => {
-        setFormData(prev => ({ ...prev, shift }));
-    };
-
     // เพิ่มฟังก์ชันสำหรับดึงข้อมูลล่าสุด
     const fetchLatestData = async () => {
         try {
-            Swal.fire({
+            // เก็บ reference ของ loading alert
+            const loadingAlert = Swal.fire({
                 title: 'กำลังโหลดข้อมูล...',
                 text: 'กรุณารอสักครู่',
                 allowOutsideClick: false,
@@ -1002,6 +1037,10 @@ const ShiftForm = () => {
             );
 
             const latestSnapshot = await getDocs(latestDataQuery);
+            
+            // ปิด loading alert ก่อนแสดง alert อื่น
+            Swal.close();
+            
             if (!latestSnapshot.empty) {
                 const latestData = latestSnapshot.docs[0].data();
                 const latestDate = formatThaiDate(new Date(latestData.date));
@@ -1072,6 +1111,7 @@ const ShiftForm = () => {
                 console.log('Data loaded successfully:', updatedWards);
             } else {
                 console.log('No data found');
+                // แสดง alert ไม่พบข้อมูลหลังจากปิด loading alert แล้ว
                 Swal.fire({
                     title: 'ไม่พบข้อมูล',
                     text: 'ไม่พบข้อมูลการบันทึกล่าสุด',
@@ -1256,14 +1296,19 @@ const ShiftForm = () => {
                 {/* Summary Data and Signature Section - Desktop */}
                 <div className="hidden md:block mt-8">
                     <div className="bg-gradient-to-r from-[#0ab4ab]/10 to-white rounded-xl shadow-lg p-6">
-                        <SummarySection 
-                            summaryData={summaryData}
-                            setSummaryData={setSummaryData}
-                        />
-                        <SignatureSection 
-                            summaryData={summaryData}
-                            setSummaryData={setSummaryData}
-                        />
+                        {/* ข้อมูลสรุป 24 ชั่วโมง และ Supervisor Signature แสดงเฉพาะ admin */}
+                        {user?.role?.toLowerCase() === 'admin' && (
+                            <>
+                                <SummarySection 
+                                    summaryData={summaryData}
+                                    setSummaryData={setSummaryData}
+                                />
+                                <SignatureSection 
+                                    summaryData={summaryData}
+                                    setSummaryData={setSummaryData}
+                                />
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -1278,10 +1323,17 @@ const ShiftForm = () => {
                     ) : (
                         <button
                             type="submit"
+<<<<<<< HEAD
                             disabled={isLoading}
                             className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
                         >
                             {isLoading ? 'Saving...' : 'Save Data'}
+=======
+                            disabled={isLoading || isReadOnly}
+                            className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
+                        >
+                            {isLoading ? 'Saving...' : (isReadOnly ? 'View Only Mode' : 'Save Data')}
+>>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
                         </button>
                     )}
                 </div>

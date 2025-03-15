@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { formatThaiDate } from '../../utils/dateUtils';
 import { getCurrentShift } from '../../utils/dateHelpers';
 import Calendar from '../ui/Calendar';
-import Swal from 'sweetalert2';
+import { Swal } from '../../utils/alertService';
 
 const CalendarSection = ({
     showCalendar,
