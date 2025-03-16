@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 /**
  * AlertService - บริการแจ้งเตือนที่พัฒนาด้วย Tailwind CSS
@@ -274,11 +274,12 @@ const Alert = ({
 export const AlertProvider = ({ children }) => {
   const [alerts, setAlerts] = useState([]);
   const [globalLoading, setGlobalLoading] = useState(null);
-  const [idCounter, setIdCounter] = useState(0);
+  const idCounterRef = useRef(0);
   
   const generateUniqueId = () => {
-    setIdCounter(prevCounter => prevCounter + 1);
-    return `${Date.now()}-${idCounter}`;
+    // ใช้ useRef แทน useState เพื่อให้ได้ค่าปัจจุบันทันที
+    idCounterRef.current += 1;
+    return `${Date.now()}-${idCounterRef.current}-${Math.random().toString(36).substr(2, 5)}`;
   };
   
   useEffect(() => {

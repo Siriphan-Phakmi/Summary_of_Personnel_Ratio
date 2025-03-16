@@ -1,3 +1,5 @@
+// ตรวจสอบว่าไฟล์นี้มีอยู่และมีชื่อถูกต้องไม่มีช่องว่าง
+
 export async function POST(request) {
   try {
     const data = await request.json();
@@ -10,4 +12,4 @@ export async function POST(request) {
     console.error('Error processing log:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
-} 
+}

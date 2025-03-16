@@ -75,7 +75,10 @@ import {
     PatientCensusSection,
     PatientMovementSection,
     StaffSection,
-    NotesSection
+    NotesSection,
+    MainFormContent,
+    RecordingOfficerSection,
+    ActionButtons
 } from './WardSections';
 
 // Re-export ฟังก์ชันทั้งหมดอีกครั้งแบบตัวต่อตัว
@@ -100,5 +103,8 @@ export {
     PatientMovementSection,
     StaffSection,
     NotesSection,
-    checkPast30DaysRecords
+    checkPast30DaysRecords,
+    MainFormContent,
+    RecordingOfficerSection,
+    ActionButtons
 };

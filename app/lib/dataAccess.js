@@ -429,7 +429,7 @@ export const checkLast7DaysData = async (wardId, currentDate) => {
     }
     
     // ตรวจสอบข้อมูลใน wardData collection
-    const wardDataRef = collection(db, 'wardData');
+    const wardDataRef = collection(db, 'wardDataFinal');
     const q = query(
       wardDataRef,
       where('wardId', '==', wardId),

@@ -197,7 +197,7 @@ export const validateRequiredIndexes = async () => {
   const indexTests = [
     // ตัวอย่าง query ที่ต้องการ index
     {
-      collection: 'wardData',
+      collection: 'wardDataFinal',
       conditions: [
         { field: 'wardId', operator: '==', value: 'test' },
         { field: 'date', operator: '==', value: '2023-01-01' },
