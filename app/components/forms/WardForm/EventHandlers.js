@@ -21,12 +21,31 @@ export const handleBeforeUnload = (hasUnsavedChanges, e) => {
 export const handleInputChange = (e, formData, setFormData, setHasUnsavedChanges) => {
     const { name, value } = e.target;
     
+    // รายชื่อฟิลด์ที่ต้องเป็นตัวเลขเท่านั้น
+    const numericFields = [
+        'nurseManager', 'RN', 'PN', 'WC', 'NA', 
+        'newAdmit', 'transferIn', 'referIn', 
+        'transferOut', 'referOut', 'discharge', 'dead',
+        'availableBeds', 'unavailable', 'plannedDischarge'
+    ];
+    
+    // ตรวจสอบว่าเป็นฟิลด์ที่ต้องเป็นตัวเลขหรือไม่
+    if (numericFields.includes(name)) {
+        // ถ้าเป็นฟิลด์ที่ต้องเป็นตัวเลข ให้ตรวจสอบค่าที่กรอก
+        // ยอมรับเฉพาะตัวเลขเท่านั้น (ไม่รวมทศนิยม)
+        if (value !== '' && !/^\d+$/.test(value)) {
+            // ถ้าไม่ใช่ตัวเลข ให้ไม่เปลี่ยนค่า
+            return;
+        }
+    }
+    
     // ไม่ต้องแปลงค่า ใช้ค่าที่ป้อนเข้ามาโดยตรง
     setFormData(prev => ({
         ...prev,
         [name]: value
     }));
     
+    // อัพเดทสถานะมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
     setHasUnsavedChanges(true);
 };
 

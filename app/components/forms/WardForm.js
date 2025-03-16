@@ -7,8 +7,7 @@ import { Swal } from '../../utils/alertService';
 import { formatThaiDate, getThaiDateNow, getUTCDateString } from '../../utils/dateUtils';
 import { getCurrentShift } from '../../utils/dateHelpers';
 import Calendar from '../ui/Calendar';
-import CalendarSection from '../common/CalendarSection';
-import ShiftSelection from '../common/ShiftSelection';
+import FormDateShiftSelector from '../common/FormDateShiftSelector';
 import { useAuth } from '../../context/AuthContext';
 import { logEvent } from '../../utils/clientLogging';
 import { useTheme } from '../../context/ThemeContext';
@@ -34,9 +33,7 @@ import {
     fetchWardData,
     parseInputValue,
     navigateToCreateIndex,
-    PatientCensusSection,
-    StaffSection,
-    NotesSection
+    MainFormContent
 } from './WardForm/index';
 
 import { 
@@ -47,57 +44,9 @@ import {
     deleteWardDataDraft
 } from '../../lib/dataAccess';
 
-// เพิ่มคอมโพเนนต์แสดงสถานะการอนุมัติที่ชัดเจน
-const ApprovalStatusIndicator = ({ status }) => {
-    if (!status) return null;
-    
-    let statusText = 'รอการอนุมัติ';
-    let bgColor = 'bg-yellow-100';
-    let textColor = 'text-yellow-800';
-    let icon = (
-        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-    );
-    
-    if (status === 'approved' || (typeof status === 'object' && status.status === 'approved')) {
-        statusText = 'อนุมัติแล้ว';
-        bgColor = 'bg-green-100';
-        textColor = 'text-green-800';
-        icon = (
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-        );
-    } else if (status === 'not_recorded' || (typeof status === 'object' && status.status === 'not_recorded')) {
-        statusText = 'ยังไม่มีการบันทึก';
-        bgColor = 'bg-gray-100';
-        textColor = 'text-gray-800';
-        icon = (
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-        );
-    } else if (status === 'draft' || (typeof status === 'object' && status.status === 'draft') || isDraftMode) {
-        statusText = 'ฉบับร่าง';
-        bgColor = 'bg-blue-100';
-        textColor = 'text-blue-800';
-        icon = (
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-        );
-    }
-    
-    return (
-        <div className={`px-3 py-1.5 ${bgColor} ${textColor} rounded-md flex items-center font-medium text-sm`}>
-            {icon}
-            <span>{statusText}</span>
-        </div>
-    );
-};
+import ApprovalStatusIndicator from '../common/ApprovalStatusIndicator';
 
-// เพิ่มคอมโพเนนต์แสดงวิธีการคำนวณ
+// Components and utility functions
 const CalculationInfo = ({ shift }) => {
     const formula = "newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead";
     
@@ -120,7 +69,6 @@ const CalculationInfo = ({ shift }) => {
     return null;
 };
 
-// เพิ่มคอมโพเนนต์สำหรับติดต่อ Supervisor
 const ContactSupervisorButton = ({ approvalStatus, wardId, thaiDate, shift }) => {
     const needsContact = approvalStatus && 
         (approvalStatus === 'pending' || 
@@ -151,7 +99,6 @@ const ContactSupervisorButton = ({ approvalStatus, wardId, thaiDate, shift }) =>
     );
 };
 
-// เพิ่มฟังก์ชันคำนวณ Patient Census และ Overall Data
 const calculatePatientCensus = (formData) => {
     // แปลงค่าให้เป็นตัวเลข
     const newAdmit = parseInt(formData.newAdmit) || 0;
@@ -166,12 +113,15 @@ const calculatePatientCensus = (formData) => {
     return newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
 };
 
+// Main component
 const WardForm = ({ wardId }) => {
     const { user } = useAuth();
     const { theme } = useTheme();
     const [isLoading, setIsLoading] = useState(true);
     
-    // ตรวจสอบให้แน่ใจว่ามีค่าที่ถูกต้องสำหรับ selectedWard
+    // State variables
+    const [formVisible, setFormVisible] = useState(false);
+    
     const initialWard = useMemo(() => {
         if (wardId && wardId.trim() !== '') {
             return wardId;
@@ -179,7 +129,6 @@ const WardForm = ({ wardId }) => {
         if (user?.department && user.department.trim() !== '') {
             return user.department;
         }
-        // ถ้าไม่มีค่าใดๆ ให้เป็นสตริงว่าง หรือค่าเริ่มต้นอื่นๆ
         return '';
     }, [wardId, user]);
     
@@ -224,45 +173,116 @@ const WardForm = ({ wardId }) => {
 
     const [previousDayData, setPreviousDayData] = useState(null);
     const [past30DaysResult, setPast30DaysResult] = useState(null);
-    const [has7DaysData, setHas7DaysData] = useState(true); // สถานะการตรวจสอบข้อมูล 7 วัน
-    const [draftsAvailable, setDraftsAvailable] = useState(false); // สถานะการมีข้อมูลฉบับร่าง
+    const [has7DaysData, setHas7DaysData] = useState(true); 
+    const [draftsAvailable, setDraftsAvailable] = useState(false);
     
-    // เพิ่ม state สำหรับการดูประวัติ
     const [showHistory, setShowHistory] = useState(false);
     const [historyData, setHistoryData] = useState([]);
     
-    // เพิ่ม useEffect ใหม่เพื่อจัดการการโหลดข้อมูลทั้งหมดเมื่อเริ่มต้น
+    // Helper functions
+    const checkAndSetPopupShown = (key) => {
+        const popupShownStatus = sessionStorage.getItem(key);
+        return popupShownStatus === 'true';
+    };
+
+    const markPopupAsShown = (key) => {
+        sessionStorage.setItem(key, 'true');
+    };
+
+    // Data fetching functions
+    const fetchPreviousDayData = async (shift = selectedShift) => {
+        try {
+            if (!selectedWard || !selectedDate) return null;
+            
+            // คำนวณวันก่อนหน้า
+            const prevDate = new Date(selectedDate);
+            prevDate.setDate(prevDate.getDate() - 1);
+            const formattedPrevDate = format(prevDate, 'yyyy-MM-dd');
+            
+            // ดึงข้อมูลจากวันก่อนหน้าและใช้ shift ที่ส่งมา
+            const q = query(
+                collection(db, 'wardDataFinal'),
+                where('wardId', '==', selectedWard),
+                where('date', '==', formattedPrevDate),
+                where('shift', '==', shift),
+                where('isApproved', '==', true),
+                limit(1)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                const data = querySnapshot.docs[0].data();
+                setPreviousDayData(data);
+                return data;
+            }
+            
+            // ถ้าไม่มีข้อมูลกะเดียวกันจากวันก่อนหน้า ให้ลองดึงข้อมูลกะอื่น
+            const qAnyShift = query(
+                collection(db, 'wardDataFinal'),
+                where('wardId', '==', selectedWard),
+                where('date', '==', formattedPrevDate),
+                where('isApproved', '==', true),
+                limit(1)
+            );
+            
+            const anyShiftSnapshot = await getDocs(qAnyShift);
+            
+            if (!anyShiftSnapshot.empty) {
+                const data = anyShiftSnapshot.docs[0].data();
+                setPreviousDayData(data);
+                return data;
+            }
+            
+            return {overallData: 'ยังไม่มีข้อมูลจากวันที่ผ่านมา'};
+            
+        } catch (error) {
+            console.error('Error fetching previous day data:', error);
+            return {overallData: 'ยังไม่มีข้อมูลจากวันที่ผ่านมา'};
+        }
+    };
+
+    // Effects
     useEffect(() => {
         const initializeData = async () => {
-            if (!selectedWard) return;
+            if (!selectedWard || !selectedDate) return;
             
-            try {
                 setIsLoading(true);
                 
-                // นำเข้าฟังก์ชันจาก firebase-index-manager
-                const { handleIndexError } = await import('../../utils/firebase-index-manager');
-                
-                // 1. ตรวจสอบข้อมูลย้อนหลัง 7 วัน
+            try {
+                // 1. ดึงรายการวันที่มีข้อมูล
                 try {
-                    const sevenDaysCheck = await checkLast7DaysData(selectedWard, selectedDate);
-                    setHas7DaysData(sevenDaysCheck.hasData);
+                    const dates = await fetchDatesWithData(selectedWard);
+                    setDatesWithData(dates);
+                } catch (error) {
+                    console.error('Error fetching dates with data:', error);
+                }
+                
+                // 2. ตรวจสอบข้อมูล 7 วันย้อนหลัง - แสดง popup เพียงครั้งเดียว
+                try {
+                    const checkResult = await checkLast7DaysData(selectedWard, selectedDate);
+                    setHas7DaysData(checkResult.hasData);
                     
-                    // ถ้าไม่มีข้อมูลย้อนหลัง 7 วัน ให้แจ้งเตือนผู้ใช้
-                    if (!sevenDaysCheck.hasData) {
-                        Swal.fire({
-                            title: 'ไม่พบข้อมูลย้อนหลัง',
-                            text: sevenDaysCheck.message,
-                            icon: 'warning',
+                    // แสดง popup เตือนเพียงครั้งเดียวต่อการโหลดหน้าแรก (ใช้ key ที่เฉพาะเจาะจงขึ้น)
+                    const popupStateKey = `noDataAlert_${selectedWard}_${format(selectedDate, 'yyyy-MM-dd')}_${selectedShift}_WardForm`;
+                    const hasShownPopup = checkAndSetPopupShown(popupStateKey);
+                    
+                    if (!checkResult.hasData && !hasShownPopup) {
+                        await Swal.fire({
+                            title: 'ไม่พบข้อมูล',
+                            text: 'ไม่พบข้อมูลจากวันก่อนหน้า กรุณากรอกข้อมูลใหม่ทั้งหมด',
+                            icon: 'info',
                             confirmButtonColor: '#0ab4ab'
                         });
+                        markPopupAsShown(popupStateKey);
                     }
                 } catch (error) {
                     console.error('Error checking 7 days data:', error);
                 }
                 
-                // 2. ตรวจสอบว่ามีฉบับร่างของผู้ใช้หรือไม่
-                if (user && user.uid) {
+                // 3. ตรวจสอบฉบับร่าง
                     try {
+                    if (user && user.uid) {
                         const latestDraft = await getLatestDraft(
                             user.uid, 
                             selectedWard, 
@@ -273,12 +293,17 @@ const WardForm = ({ wardId }) => {
                         if (latestDraft) {
                             setDraftsAvailable(true);
                             
-                            // แจ้งเตือนผู้ใช้ว่ามีฉบับร่างบันทึกไว้
+                            // แจ้งเตือนผู้ใช้ว่ามีฉบับร่างบันทึกไว้ ยกเว้นกรณีที่เพิ่งบันทึกร่างเอง
+                            if (!isDraftMode) {
+                                const draftPopupKey = `draftAlert_${selectedWard}_${format(selectedDate, 'yyyy-MM-dd')}_${selectedShift}_WardForm`;
+                                const hasShownDraftPopup = checkAndSetPopupShown(draftPopupKey);
+                                
+                                if (!hasShownDraftPopup) {
                             const draftTime = latestDraft.lastUpdated?.toDate
                                 ? new Date(latestDraft.lastUpdated.toDate()).toLocaleString('th-TH')
                                 : 'ไม่ระบุเวลา';
                             
-                            Swal.fire({
+                                    const result = await Swal.fire({
                                 title: 'พบข้อมูลฉบับร่างที่บันทึกไว้',
                                 html: `
                                     <div class="text-left">
@@ -291,7 +316,10 @@ const WardForm = ({ wardId }) => {
                                 confirmButtonText: 'โหลดข้อมูลฉบับร่าง',
                                 cancelButtonText: 'ไม่ต้องการ',
                                 confirmButtonColor: '#0ab4ab'
-                            }).then((result) => {
+                                    });
+                                    
+                                    markPopupAsShown(draftPopupKey);
+                                    
                                 if (result.isConfirmed) {
                                     // โหลดข้อมูลฉบับร่าง
                                     setFormData({
@@ -309,43 +337,27 @@ const WardForm = ({ wardId }) => {
                                         icon: 'success',
                                         confirmButtonColor: '#0ab4ab'
                                     });
+                                        return; // ไม่ต้องโหลดข้อมูลอื่นๆ เพราะโหลดข้อมูลฉบับร่างแล้ว
+                                    }
                                 }
-                            });
+                            }
+                        } else {
+                            setDraftsAvailable(false);
+                        }
                         }
                     } catch (error) {
-                        console.error('Error checking drafts:', error);
-                    }
-                }
-                
-                // 3. ดึงข้อมูลของวันก่อนหน้าสำหรับกะเช้า (ยังใช้โค้ดเดิม)
-                if (selectedDate && selectedShift === 'เช้า') {
-                    try {
-                        const previousDayData = await fetchPreviousDayData();
-                        if (previousDayData) {
-                            setFormData(prevData => ({
-                                ...prevData,
-                                patientCensus: previousDayData.overallData?.numberOfPatients || ''
-                            }));
-                        }
-                    } catch (error) {
-                        console.error('Error fetching previous day data:', error);
-                        if (handleIndexError && error.message && error.message.includes('index')) {
-                            handleIndexError(error);
-                        }
-                    }
+                    console.error('Error checking drafts:', error);
                 }
                 
                 // 4. ตรวจสอบสถานะการอนุมัติ
                 try {
-                    const status = await checkApprovalStatus(selectedDate, selectedWard, selectedShift);
-                    setShiftStatus(status);
-                    
-                    if (status && status !== 'loading') {
-                        if (status.status === 'approved') {
-                            setIsReadOnly(true);
-                        } else {
-                            setIsReadOnly(false);
-                        }
+                    const status = await checkApprovalStatus(selectedDate, selectedWard);
+                    setApprovalStatus(status);
+                    if (typeof setApprovalPending === 'function') {
+                        setApprovalPending(status === 'pending');
+                    }
+                    if (typeof setSupervisorApproved === 'function') {
+                        setSupervisorApproved(status === 'approved');
                     }
                 } catch (error) {
                     console.error('Error checking approval status:', error);
@@ -361,105 +373,84 @@ const WardForm = ({ wardId }) => {
                     }
                 } catch (error) {
                     console.error('Error fetching ward data:', error);
-                    if (handleIndexError && error.message && error.message.includes('index')) {
-                        handleIndexError(error);
+                }
+                
+                // 6. ดึงข้อมูลวันก่อนหน้าโดยอิงตาม selectedShift
+                const prevData = await fetchPreviousDayData(selectedShift);
+                
+                // แสดง popup ข้อมูลวันก่อนหน้าถ้ามีข้อมูล (เพียงครั้งเดียว)
+                if (prevData && prevData.overallData && prevData.overallData !== 'ยังไม่มีข้อมูลจากวันที่ผ่านมา') {
+                    // ตรวจสอบว่าได้แสดง popup แล้วหรือยัง โดยใช้ key ที่เฉพาะเจาะจงขึ้น
+                    const prevDataKey = `prevDataShown_${selectedWard}_${format(selectedDate, 'yyyy-MM-dd')}_${selectedShift}_WardForm`;
+                    const hasShownPrevDataPopup = checkAndSetPopupShown(prevDataKey);
+                    
+                    if (!hasShownPrevDataPopup) {
+                        // เตรียมข้อมูลสำหรับแสดงใน popup
+                        let prevDataHTML = '<div class="text-left p-2">';
+                        prevDataHTML += '<h3 class="font-medium mb-2 text-lg">ข้อมูลจากวันก่อนหน้า:</h3>';
+                        prevDataHTML += '<table class="w-full text-sm">';
+                        
+                        // เพิ่มข้อมูลสำคัญลงในตาราง
+                        prevDataHTML += `<tr><td class="font-medium pr-4 py-1">Patient Census:</td><td>${prevData.patientCensus || '-'}</td></tr>`;
+                        prevDataHTML += `<tr><td class="font-medium pr-4 py-1">Overall Data:</td><td>${prevData.overallData || '-'}</td></tr>`;
+                        prevDataHTML += '</table>';
+                        
+                        // เพิ่มคำแนะนำการใช้ข้อมูล
+                        if (selectedShift === 'เช้า') {
+                            prevDataHTML += '<p class="mt-2 text-blue-600">ค่า Overall Data จากวันก่อนหน้าจะถูกใช้เป็นค่า Patient Census</p>';
+                        }
+                        
+                        prevDataHTML += '</div>';
+                        
+                        const result = await Swal.fire({
+                            title: 'ข้อมูลจากวันก่อนหน้า',
+                            html: prevDataHTML,
+                            icon: 'info',
+                            showCancelButton: true,
+                            confirmButtonText: 'ใช้ข้อมูลนี้',
+                            cancelButtonText: 'ไม่ใช้',
+                            confirmButtonColor: '#0ab4ab'
+                        });
+                        
+                        // บันทึกว่าได้แสดง popup แล้ว
+                        markPopupAsShown(prevDataKey);
+                        
+                        if (result.isConfirmed && selectedShift === 'เช้า' && prevData.overallData) {
+                            // นำข้อมูล Overall Data จากวันก่อนหน้ามาใส่เป็น Patient Census
+                            setFormData(prev => ({
+                                ...prev,
+                                patientCensus: prevData.overallData
+                            }));
+                            setHasUnsavedChanges(true);
+                        }
                     }
                 }
                 
-            } catch (error) {
+        } catch (error) {
                 console.error('Error initializing data:', error);
             } finally {
                 setIsLoading(false);
-            }
-        };
-        
-        initializeData();
-    }, [selectedWard, selectedDate, selectedShift, user]);
-    
-    // ฟังก์ชันดึงข้อมูลวันก่อนหน้าที่ผ่านการอนุมัติแล้วเท่านั้น
-    const fetchPreviousDayData = async () => {
-        try {
-            if (!selectedWard) return null;
-            
-            // คำนวณวันก่อนหน้า
-            const prevDate = new Date(selectedDate);
-            prevDate.setDate(prevDate.getDate() - 1);
-            const formattedPrevDate = format(prevDate, 'yyyy-MM-dd');
-            
-            // ดึงข้อมูลกะดึกของวันก่อนหน้า (เฉพาะที่อนุมัติแล้ว)
-            const q = query(
-                collection(db, 'wardData'),
-                where('wardId', '==', selectedWard),
-                where('date', '==', formattedPrevDate),
-                where('shift', '==', 'ดึก')
-            );
-            
-            const querySnapshot = await getDocs(q);
-            
-            if (!querySnapshot.empty) {
-                // กรองเอาเฉพาะข้อมูลที่อนุมัติแล้ว
-                const approvedData = querySnapshot.docs
-                    .filter(doc => doc.data().isApproved === true)
-                    .map(doc => ({id: doc.id, ...doc.data()}));
-                
-                if (approvedData.length > 0) {
-                    const prevDayData = approvedData[0];
-                    setPreviousDayData(prevDayData);
-                    return prevDayData;
-                }
-            }
-            
-            // ถ้าไม่มีข้อมูลกะดึกของวันก่อนหน้า ให้ตรวจสอบว่ามีข้อมูลที่อนุมัติแล้วหรือไม่ย้อนหลังไป 30 วัน
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const formattedThirtyDaysAgo = format(thirtyDaysAgo, 'yyyy-MM-dd');
-            
-            // ดึงข้อมูลทั้งหมดในช่วง 30 วันก่อนหน้า
-            const qLastThirtyDays = query(
-                collection(db, 'wardData'),
-                where('wardId', '==', selectedWard),
-                where('shift', '==', 'ดึก')
-            );
-            
-            const thirtyDaysSnapshot = await getDocs(qLastThirtyDays);
-            
-            if (!thirtyDaysSnapshot.empty) {
-                // กรองและจัดเรียงข้อมูลด้วย JavaScript แทนการใช้ query
-                const filteredData = thirtyDaysSnapshot.docs
-                    .map(doc => ({id: doc.id, ...doc.data()}))
-                    .filter(doc => 
-                        doc.date >= formattedThirtyDaysAgo && 
-                        doc.date < formattedPrevDate && 
-                        doc.isApproved === true
-                    )
-                    .sort((a, b) => new Date(b.date) - new Date(a.date));
-                
-                if (filteredData.length > 0) {
-                    const lastApprovedData = filteredData[0];
-                    setPreviousDayData(lastApprovedData);
-                    return lastApprovedData;
-                }
-            }
-            
-            return {overallData: 'ยังไม่มีข้อมูลจากวันที่ผ่านมา'};
-            
-        } catch (error) {
-            console.error('Error fetching previous day data:', error);
-            return {overallData: 'ยังไม่มีข้อมูลจากวันที่ผ่านมา'};
         }
     };
 
-    // Calculate values based on formulas
+        initializeData();
+    }, [selectedWard, selectedDate, selectedShift, user, isDraftMode]);
+
+    useEffect(() => {
+        if (selectedDate && selectedShift && selectedWard) {
+            setFormVisible(true);
+        } else {
+            setFormVisible(false);
+        }
+    }, [selectedDate, selectedShift, selectedWard]);
+
     useEffect(() => {
         // ไม่คำนวณถ้ากำลังโหลดข้อมูล
         if (isLoading) return;
         
         try {
-            // คำนวณตามสูตร
-            if (selectedShift === 'เช้า') {
-                // สูตรกะเช้า = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead
-                const calculated = Number(formData.patientCensus || 0) + 
-                                Number(formData.newAdmit || 0) + 
+            // คำนวณค่าตามสูตร New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead
+            const calculatedMovement = Number(formData.newAdmit || 0) + 
                                 Number(formData.transferIn || 0) + 
                                 Number(formData.referIn || 0) - 
                                 Number(formData.transferOut || 0) - 
@@ -467,32 +458,55 @@ const WardForm = ({ wardId }) => {
                                 Number(formData.discharge || 0) - 
                                 Number(formData.dead || 0);
                 
-                // อัปเดต overallData อัตโนมัติ
-                if (calculated !== Number(formData.overallData)) {
+            if (selectedShift === 'เช้า') {
+                // สำหรับกะเช้า:
+                // 1. ถ้ามี previousDayData.overallData และ patientCensus ว่างหรือ 0 ให้ใช้ค่า overallData จากวันก่อน
+                // 2. คำนวณ overallData = patientCensus + calculatedMovement
+                
+                // 1. ถ้ามี previousDayData ใช้เป็นค่าเริ่มต้น patientCensus (จากกะดึกวันก่อนหน้า)
+                if (previousDayData?.overallData && (!formData.patientCensus || formData.patientCensus === '0')) {
                     setFormData(prev => ({
                         ...prev,
-                        overallData: calculated.toString()
+                        patientCensus: previousDayData.overallData.toString()
                     }));
-                    console.log('คำนวณ Overall Data:', calculated);
+                    console.log('นำค่า Overall Data จากวันก่อนมาใช้เป็น Patient Census:', previousDayData.overallData);
+                }
+                
+                // 2. คำนวณ overallData จาก patientCensus และ movement
+                const patientCensus = Number(formData.patientCensus || 0);
+                const newOverallData = patientCensus + calculatedMovement;
+                
+                if (newOverallData.toString() !== formData.overallData) {
+                    setFormData(prev => ({
+                        ...prev,
+                        overallData: newOverallData.toString()
+                    }));
+                    console.log('คำนวณ Overall Data สำหรับกะเช้า:', newOverallData);
                 }
             } else if (selectedShift === 'ดึก') {
-                // สูตรกะดึก = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead
-                const calculated = Number(formData.patientCensus || 0) + 
-                                Number(formData.newAdmit || 0) + 
-                                Number(formData.transferIn || 0) + 
-                                Number(formData.referIn || 0) - 
-                                Number(formData.transferOut || 0) - 
-                                Number(formData.referOut || 0) - 
-                                Number(formData.discharge || 0) - 
-                                Number(formData.dead || 0);
+                // สำหรับกะดึก: 
+                // 1. ดึงข้อมูลจากกะเช้าของวันเดียวกัน
+                // 2. คำนวณ overallData = patientCensus + calculatedMovement
                 
-                // อัปเดต overallData อัตโนมัติ
-                if (calculated !== Number(formData.overallData)) {
+                // Use patientCensus from morning if possible
+                const morningShiftData = formData.morningShiftData;
+                if (morningShiftData?.overallData && (!formData.patientCensus || formData.patientCensus === '0')) {
                     setFormData(prev => ({
                         ...prev,
-                        overallData: calculated.toString()
+                        patientCensus: morningShiftData.overallData.toString()
                     }));
-                    console.log('คำนวณ Overall Data:', calculated);
+                }
+                
+                // Calculate overall data
+                const patientCensus = Number(formData.patientCensus || 0);
+                const newOverallData = patientCensus + calculatedMovement;
+                
+                if (newOverallData.toString() !== formData.overallData) {
+                    setFormData(prev => ({
+                        ...prev,
+                        overallData: newOverallData.toString()
+                    }));
+                    console.log('คำนวณ Overall Data สำหรับกะดึก:', newOverallData);
                 }
             }
         } catch (error) {
@@ -508,237 +522,9 @@ const WardForm = ({ wardId }) => {
         formData.discharge,
         formData.dead,
         selectedShift,
-        isLoading
+        isLoading,
+        previousDayData
     ]);
-
-    // เพิ่มฟังก์ชัน handleLocalDateSelect
-    const handleLocalDateSelect = async (date) => {
-        try {
-            if (hasUnsavedChanges) {
-                const result = await Swal.fire({
-                    title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
-                    text: 'คุณต้องการบันทึกข้อมูลก่อนเปลี่ยนวันหรือไม่?',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonText: 'บันทึก',
-                    cancelButtonText: 'ไม่บันทึก',
-                    confirmButtonColor: '#0ab4ab'
-                });
-
-                if (result.isConfirmed) {
-                    await onSaveDraft();
-                }
-            }
-
-            // ตรวจสอบข้อมูลย้อนหลัง 7 วัน
-            try {
-                const sevenDaysCheck = await checkLast7DaysData(selectedWard, date);
-                setHas7DaysData(sevenDaysCheck.hasData);
-                
-                // ถ้าไม่มีข้อมูลย้อนหลัง 7 วัน ให้แจ้งเตือนผู้ใช้
-                if (!sevenDaysCheck.hasData) {
-                    Swal.fire({
-                        title: 'ไม่พบข้อมูลย้อนหลัง',
-                        text: sevenDaysCheck.message,
-                        icon: 'warning',
-                        confirmButtonColor: '#0ab4ab'
-                    });
-                }
-            } catch (error) {
-                console.error('Error checking 7 days data:', error);
-            }
-
-            // ตรวจสอบข้อมูลที่มีอยู่แล้ว
-            const existingData = await safeFetchWardData(date, selectedWard, selectedShift);
-            if (existingData) {
-                // สร้าง HTML สำหรับแสดงข้อมูลเดิม
-                let existingDataHTML = '<div class="text-left max-h-60 overflow-y-auto p-2">';
-                existingDataHTML += '<h3 class="font-medium mb-2 text-lg">ข้อมูลที่มีอยู่แล้ว:</h3>';
-                existingDataHTML += '<table class="w-full text-sm">';
-                
-                // แสดงข้อมูลที่สำคัญและเข้าใจง่าย
-                const keyMapping = {
-                    patientCensus: 'Patient Census',
-                    newAdmit: 'New Admit',
-                    transferIn: 'Transfer In',
-                    transferOut: 'Transfer Out',
-                    discharge: 'Discharge',
-                    RN: 'RN',
-                    PN: 'PN',
-                    WC: 'WC',
-                    firstName: 'ผู้บันทึก (ชื่อ)',
-                    lastName: 'ผู้บันทึก (นามสกุล)',
-                    timestamp: 'เวลาบันทึก'
-                };
-                
-                for (const [key, label] of Object.entries(keyMapping)) {
-                    if (existingData[key] !== undefined) {
-                        const value = key === 'timestamp' && existingData[key] ? 
-                            new Date(existingData[key].seconds * 1000).toLocaleString('th-TH') : 
-                            existingData[key];
-                            
-                        existingDataHTML += `
-                            <tr>
-                                <td class="pr-4 py-1 font-medium">${label}</td>
-                                <td class="py-1">${value}</td>
-                            </tr>`;
-                    }
-                }
-                
-                existingDataHTML += '</table></div>';
-
-                const result = await Swal.fire({
-                    title: 'พบข้อมูลที่มีอยู่แล้ว',
-                    html: existingDataHTML,
-                    icon: 'warning',
-                    showDenyButton: true,
-                    showCancelButton: true,
-                    confirmButtonText: 'บันทึกใหม่',
-                    denyButtonText: 'โหลดข้อมูลเดิม',
-                    cancelButtonText: 'ยกเลิก',
-                    confirmButtonColor: '#0ab4ab',
-                    denyButtonColor: '#3085d6'
-                });
-
-                if (result.isConfirmed) {
-                    // เลือกบันทึกใหม่ - ล้างข้อมูลฟอร์ม
-                    setFormData({
-                        patientCensus: '',
-                        overallData: '',
-                        newAdmit: '',
-                        transferIn: '',
-                        referIn: '',
-                        transferOut: '',
-                        referOut: '',
-                        discharge: '',
-                        dead: '',
-                        nurseManager: '',
-                        RN: '',
-                        PN: '',
-                        WC: '',
-                        firstName: user?.firstName || '',
-                        lastName: user?.lastName || '',
-                        isDraft: false,
-                        availableBeds: '',
-                        unavailable: '',
-                        plannedDischarge: '',
-                        comment: '',
-                        nas: ''
-                    });
-                } else if (result.isDenied) {
-                    // เลือกโหลดข้อมูลเดิม
-                    setFormData(existingData);
-                    setHasUnsavedChanges(false);
-                    
-                    Swal.fire({
-                        title: 'โหลดข้อมูลเดิมเรียบร้อย',
-                        text: 'สามารถแก้ไขข้อมูลได้ตามต้องการ',
-                        icon: 'success',
-                        confirmButtonColor: '#0ab4ab'
-                    });
-                } else {
-                    // ยกเลิกการเปลี่ยนวันที่
-                    return;
-                }
-            }
-
-            // ตรวจสอบฉบับร่าง
-            if (user && user.uid) {
-                try {
-                    const latestDraft = await getLatestDraft(
-                        user.uid, 
-                        selectedWard, 
-                        format(date, 'yyyy-MM-dd'), 
-                        selectedShift
-                    );
-                    
-                    if (latestDraft) {
-                        setDraftsAvailable(true);
-                        
-                        // แจ้งเตือนผู้ใช้ว่ามีฉบับร่างบันทึกไว้
-                        const draftTime = latestDraft.lastUpdated?.toDate
-                            ? new Date(latestDraft.lastUpdated.toDate()).toLocaleString('th-TH')
-                            : 'ไม่ระบุเวลา';
-                        
-                        Swal.fire({
-                            title: 'พบข้อมูลฉบับร่างที่บันทึกไว้',
-                            html: `
-                                <div class="text-left">
-                                    <p>คุณมีข้อมูลฉบับร่างที่บันทึกไว้เมื่อ ${draftTime}</p>
-                                    <p>ต้องการโหลดข้อมูลฉบับร่างนี้หรือไม่?</p>
-                                </div>
-                            `,
-                            icon: 'question',
-                            showCancelButton: true,
-                            confirmButtonText: 'โหลดข้อมูลฉบับร่าง',
-                            cancelButtonText: 'ไม่ต้องการ',
-                            confirmButtonColor: '#0ab4ab'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                // โหลดข้อมูลฉบับร่าง
-                                setFormData({
-                                    ...latestDraft,
-                                    // ไม่รวม field ที่ไม่ต้องการ
-                                    id: undefined,
-                                    lastUpdated: undefined
-                                });
-                                setHasUnsavedChanges(false);
-                                setIsDraftMode(true);
-                                
-                                Swal.fire({
-                                    title: 'โหลดข้อมูลสำเร็จ',
-                                    text: 'โหลดข้อมูลฉบับร่างเรียบร้อยแล้ว',
-                                    icon: 'success',
-                                    confirmButtonColor: '#0ab4ab'
-                                });
-                            }
-                        });
-                    } else {
-                        setDraftsAvailable(false);
-                    }
-                } catch (error) {
-                    console.error('Error checking drafts:', error);
-                }
-            }
-
-            // ใช้ฟังก์ชัน handleDateSelect จาก import
-            handleDateSelect(date, selectedWard, selectedShift, setSelectedDate, setThaiDate);
-            
-            // ตรวจสอบสถานะการอนุมัติ
-            try {
-                const newStatus = await checkApprovalStatus(date, selectedWard);
-                setApprovalStatus(newStatus);
-                // ตรวจสอบว่า setApprovalPending และ setSupervisorApproved มีการกำหนดค่าแล้วหรือไม่
-                if (typeof setApprovalPending === 'function') {
-                    setApprovalPending(newStatus === 'pending');
-                }
-                if (typeof setSupervisorApproved === 'function') {
-                    setSupervisorApproved(newStatus === 'approved');
-                }
-            } catch (error) {
-                console.error('Error checking approval status:', error);
-            }
-            
-            // ดึงข้อมูลวันก่อนหน้า
-            await fetchPreviousDayData();
-        } catch (error) {
-            console.error('Error in handleLocalDateSelect:', error);
-            
-            // ตรวจสอบว่าเป็น Firebase Index Error หรือไม่
-            if (error.message && error.message.includes('requires an index')) {
-                // ใช้ฟังก์ชัน navigateToCreateIndex เพื่อช่วยสร้าง index
-                navigateToCreateIndex(error.message);
-            } else {
-                // แสดงข้อความผิดพลาดทั่วไป
-                Swal.fire({
-                    title: 'เกิดข้อผิดพลาด',
-                    text: 'ไม่สามารถเลือกวันที่ได้',
-                    icon: 'error',
-                    confirmButtonColor: '#0ab4ab'
-                });
-            }
-        }
-    };
 
     // เพิ่มฟังก์ชัน fetchHistoryData
     const fetchHistoryData = async () => {
@@ -872,33 +658,78 @@ const WardForm = ({ wardId }) => {
             return false;
         }
 
-        // ตรวจสอบชื่อและนามสกุล
-        if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
+        // ตรวจสอบ Ward 
+        if (!selectedWard) {
             Swal.fire({
-                title: 'กรุณากรอกข้อมูลให้ครบถ้วน',
-                text: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล',
+                title: 'กรุณาเลือกข้อมูลให้ครบถ้วน',
+                text: 'กรุณาเลือกวอร์ดก่อนบันทึกข้อมูล',
                 icon: 'warning',
                 confirmButtonColor: '#0ab4ab'
             });
             return false;
         }
 
-        // ตรวจสอบความถูกต้องของตัวเลข
-        const numericFields = [
-            'newAdmit', 'transferIn', 'referIn', 'transferOut', 
-            'referOut', 'discharge', 'dead'
+        // ตรวจสอบชื่อและนามสกุล Recording Officer
+        if (!formData.firstName?.trim() || !formData.lastName?.trim()) {
+            Swal.fire({
+                title: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+                text: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล (Recording Officer)',
+                icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return false;
+        }
+
+        // ตรวจสอบข้อมูลที่จำเป็น
+        const requiredFields = [
+            { field: 'nurseManager', label: 'Nurse Manager' },
+            { field: 'RN', label: 'RN' },
+            { field: 'PN', label: 'PN' },
+            { field: 'WC', label: 'WC' },
+            { field: 'newAdmit', label: 'New Admit' },
+            { field: 'transferIn', label: 'Transfer In' },
+            { field: 'referIn', label: 'Refer In' },
+            { field: 'transferOut', label: 'Transfer Out' },
+            { field: 'referOut', label: 'Refer Out' },
+            { field: 'discharge', label: 'Discharge' },
+            { field: 'dead', label: 'Dead' },
+            { field: 'availableBeds', label: 'Available' },
+            { field: 'unavailable', label: 'Unavailable' },
+            { field: 'plannedDischarge', label: 'Planned Discharge' }
         ];
-        
-        const hasValue = numericFields.some(field => {
-            const value = Number(formData[field]);
-            return !isNaN(value) && value !== 0;
+
+        // ตรวจสอบว่ามีการกรอกข้อมูลอย่างน้อย 1 ฟิลด์
+        const hasAnyValue = requiredFields.some(({ field }) => {
+            const value = formData[field];
+            return value !== undefined && value !== null && value !== '';
         });
 
-        if (!hasValue) {
+        if (!hasAnyValue) {
             Swal.fire({
                 title: 'กรุณากรอกข้อมูล',
-                text: 'กรุณากรอกข้อมูลอย่างน้อย 1 รายการก่อนบันทึก',
+                html: 'กรุณากรอกข้อมูลอย่างน้อย 1 รายการจากรายการต่อไปนี้:<br><br>' +
+                      requiredFields.map(f => f.label).join('<br>'),
                 icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return false;
+        }
+
+        // ตรวจสอบว่าข้อมูลที่กรอกเป็นตัวเลขที่ถูกต้อง
+        const invalidFields = requiredFields.filter(({ field }) => {
+            const value = formData[field];
+            if (value === undefined || value === null || value === '') {
+                return false; // ข้ามการตรวจสอบถ้าไม่ได้กรอกข้อมูล
+            }
+            return isNaN(Number(value)) || Number(value) < 0;
+        });
+
+        if (invalidFields.length > 0) {
+            Swal.fire({
+                title: 'ข้อมูลไม่ถูกต้อง',
+                html: 'กรุณากรอกตัวเลขที่มีค่ามากกว่าหรือเท่ากับ 0 ในฟิลด์ต่อไปนี้:<br><br>' +
+                      invalidFields.map(f => f.label).join('<br>'),
+                icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
             return false;
@@ -907,100 +738,104 @@ const WardForm = ({ wardId }) => {
         return true;
     };
 
-    // เพิ่มฟังก์ชัน onSaveDraft
+    // เพิ่มฟังก์ชัน onSaveDraft - ปรับปรุงให้ทำงานได้อย่างถูกต้อง
     const onSaveDraft = async (e) => {
         if (e) e.preventDefault();
         
-        // ตรวจสอบว่ามีการเลือกวันที่และกะหรือไม่
+        // ตรวจสอบว่าเลือกวันที่และกะหรือยัง
         if (!selectedDate || !selectedShift) {
             Swal.fire({
-                title: 'ไม่สามารถบันทึกได้',
-                text: 'กรุณาเลือกวันที่และกะก่อนบันทึกข้อมูล',
+                title: 'ไม่สามารถบันทึกฉบับร่างได้',
+                text: 'กรุณาเลือกวันที่และกะก่อนบันทึกฉบับร่าง',
                 icon: 'warning',
                 confirmButtonColor: '#0ab4ab'
             });
-            return;
+            return { success: false, error: 'วันที่หรือกะไม่ถูกเลือก' };
         }
 
-        // ป้องกันการบันทึกโดยไม่มีชื่อผู้บันทึก
-        if (!formData.firstName || !formData.lastName) {
+        // ตรวจสอบว่าเลือกวอร์ดหรือยัง
+        if (!selectedWard) {
             Swal.fire({
-                title: 'ไม่สามารถบันทึกได้',
-                text: 'กรุณากรอกชื่อ-นามสกุลผู้บันทึกข้อมูล',
+                title: 'ไม่สามารถบันทึกฉบับร่างได้',
+                text: 'กรุณาเลือกวอร์ดก่อนบันทึกฉบับร่าง',
                 icon: 'warning',
                 confirmButtonColor: '#0ab4ab'
             });
-            return;
+            return { success: false, error: 'วอร์ดไม่ถูกเลือก' };
         }
-
-        try {
+        
+        // ตรวจสอบว่าเป็นผู้ใช้ที่ login แล้วหรือไม่
+        if (!user || !user.uid) {
+            Swal.fire({
+                title: 'ไม่สามารถบันทึกฉบับร่างได้',
+                text: 'กรุณาเข้าสู่ระบบก่อนบันทึกฉบับร่าง',
+                icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return { success: false, error: 'ผู้ใช้ไม่ได้เข้าสู่ระบบ' };
+        }
+        
             setIsSubmitting(true);
             
-            // ทำการคำนวณค่าก่อนบันทึก
-            let updatedFormData = { ...formData };
-            if (selectedShift === 'เช้า') {
-                // คำนวณค่า overallData
-                if (updatedFormData.patientCensus) {
-                    const calculatedValue = Number(updatedFormData.patientCensus || 0) + 
-                                         Number(updatedFormData.newAdmit || 0) + 
-                                         Number(updatedFormData.transferIn || 0) + 
-                                         Number(updatedFormData.referIn || 0) - 
-                                         Number(updatedFormData.transferOut || 0) - 
-                                         Number(updatedFormData.referOut || 0) - 
-                                         Number(updatedFormData.discharge || 0) - 
-                                         Number(updatedFormData.dead || 0);
-                    updatedFormData.overallData = calculatedValue.toString();
-                }
-            } else if (selectedShift === 'ดึก') {
-                // คำนวณค่า overallData
-                if (updatedFormData.patientCensus) {
-                    const calculatedValue = Number(updatedFormData.patientCensus || 0) + 
-                                         Number(updatedFormData.newAdmit || 0) + 
-                                         Number(updatedFormData.transferIn || 0) + 
-                                         Number(updatedFormData.referIn || 0) - 
-                                         Number(updatedFormData.transferOut || 0) - 
-                                         Number(updatedFormData.referOut || 0) - 
-                                         Number(updatedFormData.discharge || 0) - 
-                                         Number(updatedFormData.dead || 0);
-                    updatedFormData.overallData = calculatedValue.toString();
-                }
-            }
+        try {
+            // คำนวณค่าตัวเลขก่อนบันทึก
+            const calculatedMovement = 
+                Number(formData.newAdmit || 0) + 
+                Number(formData.transferIn || 0) + 
+                Number(formData.referIn || 0) - 
+                Number(formData.transferOut || 0) - 
+                Number(formData.referOut || 0) - 
+                Number(formData.discharge || 0) - 
+                Number(formData.dead || 0);
             
-            // เพิ่มข้อมูลเพิ่มเติมสำหรับฉบับร่าง
+            // อัพเดตค่า Overall Data 
+            const patientCensus = Number(formData.patientCensus || 0);
+            const overallData = patientCensus + calculatedMovement;
+            
+            // จัดเตรียมข้อมูลสำหรับบันทึกฉบับร่าง
             const draftData = {
-                ...updatedFormData,
+                ...formData,
+                overallData: overallData.toString(),
                 isDraft: true,
                 wardId: selectedWard,
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 shift: selectedShift,
-                userId: user?.uid,
-                userDisplayName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
-                saveDraftTime: new Date().toISOString(),
-                lastUpdated: serverTimestamp()
+                userId: user.uid,
+                saveDraftTime: new Date().toISOString()
             };
             
-            // บันทึกข้อมูลฉบับร่างลงใน collection wardDataDrafts
-            const draftRef = collection(db, 'wardDataDrafts');
-            await addDoc(draftRef, draftData);
-            
-            setFormData(updatedFormData);
-            setIsDraftMode(true);
-            setHasUnsavedChanges(false);
-            
-            Swal.fire({
-                title: 'บันทึกฉบับร่างสำเร็จ',
-                text: 'บันทึกข้อมูลเป็นฉบับร่างเรียบร้อยแล้ว',
-                icon: 'success',
-                confirmButtonColor: '#0ab4ab'
-            });
+            // บันทึกฉบับร่าง
+            const result = await saveWardDataDraft(draftData);
+
+            if (result.success) {
+                // อัพเดทสถานะการบันทึกฉบับร่าง
+                setIsDraftMode(true);
+                setDraftsAvailable(true);
+                setHasUnsavedChanges(false);
+                
+                // แสดงข้อความสำเร็จ
+                await Swal.fire({
+                    title: 'บันทึกฉบับร่างสำเร็จ',
+                    text: 'ข้อมูลถูกบันทึกเป็นฉบับร่างเรียบร้อยแล้ว',
+                    icon: 'success',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                
+                return { success: true };
+            } else {
+                throw new Error(result.error || 'เกิดข้อผิดพลาดในการบันทึกฉบับร่าง');
+            }
         } catch (error) {
             console.error('Error saving draft:', error);
-            Swal.fire({
+            
+            await Swal.fire({
                 title: 'เกิดข้อผิดพลาด',
-                text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูลฉบับร่าง: ' + error.message,
+                text: error.message || 'ไม่สามารถบันทึกฉบับร่างได้ กรุณาลองใหม่อีกครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
+            
+            return { success: false, error: error.message };
         } finally {
             setIsSubmitting(false);
         }
@@ -1008,293 +843,433 @@ const WardForm = ({ wardId }) => {
 
     // เพิ่มฟังก์ชัน onSubmit สำหรับการบันทึกข้อมูลฉบับสมบูรณ์
     const onSubmit = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         
-        // ตรวจสอบความถูกต้องของฟอร์ม
+        // ตรวจสอบว่าเลือกวันที่และกะหรือยัง
+        if (!selectedDate || !selectedShift) {
+            Swal.fire({
+                title: 'ไม่สามารถบันทึกข้อมูลได้',
+                text: 'กรุณาเลือกวันที่และกะก่อนบันทึกข้อมูล',
+                icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return;
+        }
+        
+        // ตรวจสอบข้อมูลด้วยฟังก์ชัน validateForm
         if (!validateForm()) {
             return;
         }
         
+        setIsSubmitting(true);
+        
         try {
-            setIsSubmitting(true);
+            // คำนวณค่าตัวเลขก่อนบันทึก
+            const calculatedMovement = 
+                Number(formData.newAdmit || 0) + 
+                Number(formData.transferIn || 0) + 
+                Number(formData.referIn || 0) - 
+                Number(formData.transferOut || 0) - 
+                Number(formData.referOut || 0) - 
+                Number(formData.discharge || 0) - 
+                Number(formData.dead || 0);
             
-            // เตรียมข้อมูลสำหรับบันทึก
-            const dataToSubmit = {
+            // อัพเดตค่า Overall Data 
+            const patientCensus = Number(formData.patientCensus || 0);
+            const updatedOverallData = patientCensus + calculatedMovement;
+            
+            // อัพเดทข้อมูลก่อนบันทึก
+            const updatedFormData = {
                 ...formData,
-                status: 'submitted',
-                wardId,
-                date: selectedDate,
-                shift: selectedShift,
-                submittedBy: user?.uid,
-                submittedAt: new Date().toISOString(),
-                isDraft: false
+                overallData: updatedOverallData.toString()
             };
             
-            // บันทึกลงใน Firestore
-            const docRef = doc(db, 'wardData', `${wardId}_${format(selectedDate, 'yyyy-MM-dd')}_${selectedShift}`);
-            await setDoc(docRef, dataToSubmit, { merge: true });
+            // เตรียมข้อมูลสำหรับบันทึก
+            const dataToSave = {
+                ...updatedFormData,
+                isDraft: false,
+                wardId: selectedWard,
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                shift: selectedShift,
+                timestamp: new Date().toISOString(),
+                userId: user?.uid || null,
+                userDisplayName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+                department: user?.department || null
+            };
             
-            // บันทึกการส่งฟอร์ม
-            try {
-                logEvent('form_submit', {
-                    wardId,
-                    date: selectedDate,
-                    shift: selectedShift,
-                    user: user?.uid,
-                    timestamp: new Date().toISOString(),
-                    action: 'Submit form'
-                });
-            } catch (logError) {
-                console.warn('Submit logging failed:', logError);
-            }
+            // สร้าง docId ที่เฉพาะเจาะจง
+            const docId = `${selectedWard}_${format(selectedDate, 'yyyyMMdd')}_${selectedShift}`;
             
-            // ล้างสถานะ unsaved changes
-            setHasUnsavedChanges(false);
+            // บันทึกข้อมูลลง Firestore
+            const docRef = doc(db, 'wardDataFinal', docId);
+            await setDoc(docRef, dataToSave);
             
-            // แสดงข้อความสำเร็จ
-            Swal.fire({
-                title: 'บันทึกข้อมูลสำเร็จ',
-                text: 'ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว',
-                icon: 'success',
-                showConfirmButton: true,
-                confirmButtonText: 'ตกลง'
-            });
-            
-            // รีเฟรชข้อมูล
-            fetchHistoryData();
-        } catch (error) {
-            console.error('Error submitting form:', error);
-            Swal.fire({
-                title: 'เกิดข้อผิดพลาด',
-                text: `ไม่สามารถบันทึกข้อมูลได้: ${error.message}`,
-                icon: 'error',
-                showConfirmButton: true,
-                confirmButtonText: 'ตกลง'
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    // เพิ่มฟังก์ชัน checkPreviousShiftStatus
-    const checkPreviousShiftStatus = async (date, wardId, shift) => {
-        try {
-            // ไม่ต้องตรวจสอบกะเช้า
-            if (shift === 'เช้า') {
-                return { canProceed: true };
-            }
-            
-            // สำหรับกะดึก ต้องมีการบันทึกข้อมูลกะเช้าแล้ว
-            if (shift === 'ดึก') {
-                const previousShift = 'เช้า';
-                const data = await safeFetchWardData(date, wardId, previousShift);
-                
-                if (!data) {
-                    return {
-                        canProceed: false,
-                        message: 'กรุณาบันทึกข้อมูลกะเช้าก่อนบันทึกข้อมูลกะดึก'
-                    };
+            // ถ้ามีฉบับร่าง ให้ลบออกหลังจากบันทึกข้อมูลหลักสำเร็จแล้ว
+            if (isDraftMode && user?.uid) {
+                try {
+                    const drafts = await getUserDrafts(
+                        user.uid, 
+                        selectedWard, 
+                        format(selectedDate, 'yyyy-MM-dd'), 
+                        selectedShift
+                    );
+                    
+                    if (drafts.length > 0) {
+                        await Promise.all(drafts.map(draft => deleteWardDataDraft(draft.id)));
+                        console.log('Deleted all drafts for this record');
+                    }
+                } catch (draftError) {
+                    console.error('Error deleting drafts:', draftError);
                 }
             }
             
-            return { canProceed: true };
-        } catch (error) {
-            console.error('Error checking previous shift status:', error);
-            return {
-                canProceed: false,
-                message: 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูลกะก่อนหน้า'
-            };
+            // บันทึกประวัติการแก้ไข
+            try {
+                // สร้าง history record
+                const historyData = {
+                    ...dataToSave,
+                    originalDocId: docId,
+                    timestamp: serverTimestamp(),
+                    lastUpdatedBy: `${user?.firstName || ''} ${user?.lastName || ''}`.trim()
+                };
+                
+                await addDoc(collection(db, 'wardDataHistory'), historyData);
+            } catch (historyError) {
+                console.error('Error saving history record:', historyError);
+            }
+            
+            // แสดงข้อความสำเร็จ
+            await Swal.fire({
+                title: 'บันทึกข้อมูลสำเร็จ',
+                text: 'ข้อมูลถูกบันทึกเรียบร้อยแล้ว',
+                icon: 'success',
+                confirmButtonColor: '#0ab4ab'
+            });
+            
+            // รีเซ็ตค่าต่างๆ
+            setHasUnsavedChanges(false);
+            setIsDraftMode(false);
+            
+            // โหลดข้อมูลใหม่
+            const updatedData = await fetchWardData(selectedDate, selectedWard, selectedShift);
+            if (updatedData) {
+                setFormData(updatedData);
+                setOriginalData(updatedData);
+            }
+        } catch (submitError) {
+            console.error('Error submitting data:', submitError);
+            await Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: submitError.message || 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    if (isLoading) {
-        return <LoadingScreen />;
-    }
+    // เพิ่มฟังก์ชัน handleLocalDateSelect
+    const handleLocalDateSelect = async (date) => {
+        try {
+            if (hasUnsavedChanges) {
+                const result = await Swal.fire({
+                    title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
+                    text: 'คุณต้องการบันทึกข้อมูลก่อนเปลี่ยนวันหรือไม่?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'บันทึกฉบับร่าง',
+                    cancelButtonText: 'ไม่บันทึก',
+                    confirmButtonColor: '#0ab4ab'
+                });
+
+                if (result.isConfirmed) {
+                    await onSaveDraft();
+                }
+            }
+
+            // อัพเดตวันที่ที่เลือก
+            setSelectedDate(date);
+            setThaiDate(formatThaiDate(date));
+
+            // ตรวจสอบข้อมูล 7 วันย้อนหลัง
+            try {
+                const checkResult = await checkLast7DaysData(selectedWard, date);
+                setHas7DaysData(checkResult.hasData);
+                
+                // แสดง notification เมื่อมีข้อมูล 7 วันย้อนหลัง
+                if (checkResult.hasData) {
+                    await Swal.fire({
+                        title: 'พบข้อมูลย้อนหลัง',
+                        text: 'พบข้อมูลย้อนหลัง 7 วัน',
+                        icon: 'info',
+                        confirmButtonColor: '#0ab4ab',
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                }
+            } catch (error) {
+                console.error('Error checking 7 days data:', error);
+            }
+
+        } catch (error) {
+            console.error('Error in handleLocalDateSelect:', error);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถเลือกวันที่ได้',
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+        }
+    };
+
+    // handleShiftChange function
+    const handleShiftChange = async (newShift) => {
+        // ถ้าเป็นกะเดิมไม่ต้องทำอะไร
+        if (newShift === selectedShift) return;
+        
+        // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
+        if (hasUnsavedChanges) {
+            const result = await Swal.fire({
+                title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
+                text: 'คุณต้องการบันทึกข้อมูลก่อนเปลี่ยนกะหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'บันทึกฉบับร่าง',
+                cancelButtonText: 'ไม่บันทึก',
+                confirmButtonColor: '#0ab4ab',
+                cancelButtonColor: '#d33',
+                reverseButtons: true
+            });
+            
+            if (result.isConfirmed) {
+                const draftResult = await onSaveDraft();
+                if (!draftResult.success) {
+                    return;
+                }
+            }
+        }
+
+        setIsLoading(true);
+        
+        try {
+            // ตรวจสอบฉบับร่าง
+            let shouldLoadDraft = false;
+            if (user?.uid) {
+                const latestDraft = await getLatestDraft(
+                    user.uid,
+                    selectedWard,
+                    format(selectedDate, 'yyyy-MM-dd'),
+                    newShift
+                );
+                
+                if (latestDraft) {
+                    const result = await Swal.fire({
+                        title: 'พบฉบับร่าง',
+                        html: `พบฉบับร่างของกะ ${newShift} วันที่ ${format(selectedDate, 'dd/MM/yyyy')} ต้องการโหลดข้อมูลหรือไม่?`,
+                        icon: 'info',
+                        showCancelButton: true,
+                        confirmButtonText: 'โหลดข้อมูล',
+                        cancelButtonText: 'ไม่ต้องการ',
+                        confirmButtonColor: '#0ab4ab'
+                    });
+                    
+                    if (result.isConfirmed) {
+                        setFormData({
+                            ...latestDraft,
+                            firstName: latestDraft.firstName || user?.firstName || '',
+                            lastName: latestDraft.lastName || user?.lastName || ''
+                        });
+                        setIsDraftMode(true);
+                        shouldLoadDraft = true;
+                    }
+                }
+            }
+
+            // ถ้าไม่ได้โหลดฉบับร่าง ให้ดำเนินการตามกะที่เลือก
+            if (!shouldLoadDraft) {
+                if (newShift === 'เช้า') {
+                    // สำหรับกะเช้า: ดึงข้อมูล Overall Data จากกะดึกของวันก่อนหน้า
+                    const prevNightData = await fetchPreviousDayData('ดึก');
+                    if (prevNightData && prevNightData.overallData !== 'ยังไม่มีข้อมูลจากวันที่ผ่านมา') {
+                        const result = await Swal.fire({
+                            title: 'พบข้อมูลกะดึกวันก่อนหน้า',
+                            html: `ต้องการดึงข้อมูลจากกะดึกวันก่อนหน้ามาใช้หรือไม่?<br>
+                                  <small>Overall Data จะถูกใช้เป็น Patient Census</small>`,
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'ใช้ข้อมูล',
+                            cancelButtonText: 'ไม่ใช้',
+                            confirmButtonColor: '#0ab4ab'
+                        });
+
+                        if (result.isConfirmed) {
+                            // Set data for morning shift based on previous night data
+                            setFormData(prev => ({
+                                ...prev,
+                                patientCensus: prevNightData.overallData,
+                                newAdmit: '',
+                                transferIn: '',
+                                referIn: '',
+                                transferOut: '',
+                                referOut: '',
+                                discharge: '',
+                                dead: '',
+                                overallData: prevNightData.overallData // Initial value same as patientCensus
+                            }));
+                        } else {
+                            // If user doesn't want to use previous data, still need to set a default patientCensus
+                            setFormData(prev => ({
+                                ...prev,
+                                patientCensus: prev.patientCensus || '0',
+                                newAdmit: '',
+                                transferIn: '',
+                                referIn: '',
+                                transferOut: '',
+                                referOut: '',
+                                discharge: '',
+                                dead: '',
+                                overallData: ''
+                            }));
+                        }
+                    } else {
+                        // No previous data available
+                        setFormData(prev => ({
+                            ...prev,
+                            patientCensus: '0',
+                            newAdmit: '',
+                            transferIn: '',
+                            referIn: '',
+                            transferOut: '',
+                            referOut: '',
+                            discharge: '',
+                            dead: '',
+                            overallData: '0'
+                        }));
+                    }
+                } else if (newShift === 'ดึก') {
+                    // สำหรับกะดึก: ดึงข้อมูลจากกะเช้าของวันเดียวกันเพื่อนำมาเป็นค่าเริ่มต้น
+                    const morningData = await fetchWardData(selectedDate, selectedWard, 'เช้า');
+                    if (morningData) {
+                        const result = await Swal.fire({
+                            title: 'พบข้อมูลกะเช้า',
+                            html: `ต้องการดึงข้อมูลจากกะเช้ามาใช้หรือไม่?<br>
+                                  <small>Overall Data จากกะเช้าจะถูกใช้เป็น Patient Census</small>`,
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'ใช้ข้อมูล',
+                            cancelButtonText: 'ไม่ใช้',
+                            confirmButtonColor: '#0ab4ab'
+                        });
+
+                        if (result.isConfirmed) {
+                            // Use morning shift's overall data as night shift's patient census
+                            setFormData(prev => ({
+                                ...prev,
+                                patientCensus: morningData.overallData,
+                                morningShiftData: morningData, // Store morning data for reference
+                                newAdmit: '',
+                                transferIn: '',
+                                referIn: '',
+                                transferOut: '',
+                                referOut: '',
+                                discharge: '',
+                                dead: '',
+                                overallData: morningData.overallData // Initial value same as patientCensus
+                            }));
+                        } else {
+                            // If user doesn't want to use morning data
+                            setFormData(prev => ({
+                                ...prev,
+                                patientCensus: prev.patientCensus || '0',
+                                newAdmit: '',
+                                transferIn: '',
+                                referIn: '',
+                                transferOut: '',
+                                referOut: '',
+                                discharge: '',
+                                dead: '',
+                                overallData: ''
+                            }));
+                        }
+                    } else {
+                        // No morning data available
+                        setFormData(prev => ({
+                            ...prev,
+                            patientCensus: '0',
+                            newAdmit: '',
+                            transferIn: '',
+                            referIn: '',
+                            transferOut: '',
+                            referOut: '',
+                            discharge: '',
+                            dead: '',
+                            overallData: '0'
+                        }));
+                    }
+                }
+            }
+
+            // อัพเดทกะที่เลือก
+            setSelectedShift(newShift);
+            setHasUnsavedChanges(false);
+            
+        } catch (shiftError) {
+            console.error('Error in handleShiftChange:', shiftError);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: `ไม่สามารถเปลี่ยนกะได้: ${shiftError.message}`,
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
-        <div className={`max-w-7xl mx-auto ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'} p-6 rounded-xl shadow-lg transition-colors duration-300`}>
-            {/* แสดงแจ้งเตือนถ้าไม่มีข้อมูลย้อนหลัง 7 วัน */}
-            {!has7DaysData && (
-                <div className="mb-4 p-3 bg-red-100 border-l-4 border-red-500 text-red-700 rounded">
-                    <div className="flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <p className="font-medium">ไม่พบข้อมูลย้อนหลัง 7 วันที่ผ่านมา ไม่สามารถบันทึกข้อมูลได้</p>
-                    </div>
-                    <p className="ml-7 mt-1">กรุณาติดต่อผู้ดูแลระบบเพื่อตรวจสอบ</p>
-                </div>
-            )}
-            
-            {/* Header Section */}
-            <div className="mb-8">
-                <h1 className={`text-2xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'} flex items-center justify-between`}>
-                    <span>Ward Form</span>
-                    
-                    {/* Draft Status Badge */}
-                    {isDraftMode && (
-                        <span className="text-sm px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full">ฉบับร่าง</span>
-                    )}
-                </h1>
-                <div className={`${
-                    theme === 'dark' ? 'bg-gray-800/50' : 'bg-gradient-to-r from-blue-50 to-teal-50'
-                } p-4 rounded-lg ${
-                    theme === 'dark' ? 'border-gray-700' : 'border-blue-100'
-                } border`}>
-                    <div className="flex flex-wrap items-center gap-4">
-                        <div className="flex items-center">
-                            <span className={`text-base font-medium ${theme === 'dark' ? 'text-gray-100' : 'text-gray-700'}`}>Ward:</span>
-                            <span className={`ml-2 text-base font-semibold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>{selectedWard}</span>
-                        </div>
-                        <div className="flex items-center">
-                            <span className={`text-base font-medium ${theme === 'dark' ? 'text-gray-100' : 'text-gray-700'}`}>วันที่:</span>
-                            <span className={`ml-2 text-base font-semibold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>{thaiDate}</span>
-                            <button
-                                type="button"
-                                className={`ml-2 p-1.5 ${
-                                    theme === 'dark' 
-                                        ? 'text-blue-300 hover:text-blue-200 hover:bg-gray-700' 
-                                        : 'text-blue-500 hover:text-blue-600 hover:bg-blue-50'
-                                } rounded-full transition-all`}
-                                onClick={() => setShowCalendar(!showCalendar)}
-                            >
-                                <svg className={`w-5 h-5 ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`} fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm8 0v3H7V4h6zm-6 8v4h6v-4H7z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div className="flex items-center">
-                            <span className={`text-base font-medium ${theme === 'dark' ? 'text-gray-100' : 'text-gray-700'}`}>กะ:</span>
-                            <span className={`ml-2 text-base font-semibold ${theme === 'dark' ? 'text-blue-300' : 'text-blue-600'}`}>{selectedShift}</span>
-                        </div>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center justify-between mt-3">
-                        <div className="flex items-center space-x-2">
-                            <ApprovalStatusIndicator status={approvalStatus} />
-                            {/* เพิ่มปุ่มดูประวัติ */}
-                            <button
-                                type="button"
-                                onClick={showHistoryComparison}
-                                className={`inline-flex items-center px-3 py-1.5 ${
-                                    theme === 'dark' 
-                                    ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' 
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                } rounded-md text-sm font-medium transition-colors`}
-                            >
-                                <svg className={`w-4 h-4 mr-1 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>ดูประวัติ</span>
-                            </button>
-                            <ContactSupervisorButton 
-                                approvalStatus={approvalStatus} 
-                                wardId={selectedWard} 
-                                thaiDate={thaiDate} 
-                                shift={selectedShift} 
-                            />
-                        </div>
-
-                        <div className="flex gap-2">
-                            {approvalStatus && <ApprovalDataButton approvalStatus={approvalStatus} />}
-                            {latestRecordDate && <LatestRecordButton latestRecordDate={latestRecordDate} />}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            {/* Calendar and Shift Selection */}
-            <div className="space-y-6 mb-8">
-                <CalendarSection
-                    selectedDate={selectedDate}
-                    onDateSelect={handleLocalDateSelect}
-                    datesWithData={datesWithData}
-                    showCalendar={showCalendar}
-                    setShowCalendar={setShowCalendar}
-                    thaiDate={thaiDate}
-                />
+        <MainFormContent
+            isLoading={isLoading}
+            selectedDate={selectedDate}
+            selectedShift={selectedShift}
+            selectedWard={selectedWard}
+            formData={formData}
+            setFormData={(updatedData) => {
+                // Ensure numeric fields only contain numbers
+                const numericFields = [
+                    'nurseManager', 'RN', 'PN', 'WC', 'NA', 
+                    'newAdmit', 'transferIn', 'referIn', 
+                    'transferOut', 'referOut', 'discharge', 'dead',
+                    'availableBeds', 'unavailable', 'plannedDischarge'
+                ];
                 
-                {/* แทนที่ PatientMovementSection ด้วย PatientCensusSection จาก WardSections.js */}
-                <PatientCensusSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                    selectedShift={selectedShift}
-                />
+                const sanitizedData = { ...updatedData };
                 
-                <StaffSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                />
+                // Process each numeric field to ensure it only contains numbers
+                numericFields.forEach(field => {
+                    if (sanitizedData[field] !== undefined && sanitizedData[field] !== '') {
+                        // Replace any non-numeric characters with empty string
+                        sanitizedData[field] = sanitizedData[field].toString().replace(/[^0-9]/g, '');
+                    }
+                });
                 
-                <NotesSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                />
-            </div>
-
-            {/* Submit Button Section */}
-            <form onSubmit={onSubmit} className="space-y-8">
-                {/* Submit Button Section */}
-                <div className={`flex justify-between items-center pt-6 border-t ${
-                    theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
-                }`}>
-                    <div>
-                        {hasUnsavedChanges && (
-                            <div className="flex items-center text-yellow-400">
-                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                <span className="font-medium text-base">คุณมีข้อมูลที่ยังไม่ได้บันทึก</span>
-                            </div>
-                        )}
-                        {draftsAvailable && !isDraftMode && (
-                            <div className="flex items-center text-blue-400 mt-2">
-                                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0v3H7V4h6zm-6 8v4h6v-4H7z" clipRule="evenodd" />
-                                </svg>
-                                <span className="font-medium text-base">มีฉบับร่างที่บันทึกไว้</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={onSaveDraft}
-                            className={`inline-flex items-center px-6 py-3 ${
-                                theme === 'dark'
-                                    ? 'bg-gray-600 hover:bg-gray-700'
-                                    : 'bg-gray-500 hover:bg-gray-600'
-                            } text-white font-medium rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
-                            disabled={!has7DaysData || isSubmitting}
-                        >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                            </svg>
-                            Save Draft
-                        </button>
-                        <button
-                            type="submit"
-                            className={`inline-flex items-center px-6 py-3 ${
-                                !has7DaysData || isSubmitting ? 
-                                'bg-gray-400 cursor-not-allowed text-white' : 
-                                theme === 'dark'
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : 'bg-[#0ab4ab] hover:bg-[#0ab4ab]/90 text-white'
-                            } font-medium rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0ab4ab]`}
-                            disabled={!has7DaysData || isSubmitting}
-                        >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            Save Final
-                        </button>
-                    </div>
-                </div>
-            </form>
-        </div>
+                setFormData(sanitizedData);
+                setHasUnsavedChanges(true);
+            }}
+            handleLocalDateSelect={handleLocalDateSelect}
+            handleShiftChange={handleShiftChange}
+            thaiDate={thaiDate}
+            setThaiDate={setThaiDate}
+            showCalendar={showCalendar}
+            setShowCalendar={setShowCalendar}
+            datesWithData={datesWithData}
+            theme={theme}
+            approvalStatus={approvalStatus}
+            setHasUnsavedChanges={setHasUnsavedChanges}
+            onSaveDraft={onSaveDraft}
+            onSubmit={onSubmit}
+            isSubmitting={isSubmitting}
+        />
     );
 };
 

@@ -1,7 +1,8 @@
 const ShiftSelection = ({
     selectedShift,
     onShiftChange,
-    variant = 'form' // 'form' | 'dashboard'
+    variant = 'form', // 'form' | 'dashboard'
+    theme = 'light' // 'light' | 'dark'
 }) => {
     const shifts = variant === 'dashboard' 
         ? [
@@ -15,7 +16,11 @@ const ShiftSelection = ({
           ];
 
     return (
-        <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
+        <div className={`${
+            theme === 'dark' 
+                ? 'bg-gray-800/60 shadow-gray-900 border border-gray-700' 
+                : 'bg-white/60 shadow-gray-200'
+            } backdrop-blur-sm rounded-xl p-3 shadow-sm hover:shadow-md transition-all`}>
             <div className="flex flex-col md:flex-row justify-center gap-4">
                 {shifts.map(({ id, label, value }) => (
                     <div key={id} className="flex items-center justify-center">
@@ -28,19 +33,32 @@ const ShiftSelection = ({
                                 onChange={() => onShiftChange(value)}
                                 className="hidden"
                             />
-                            <div className={`w-4 h-4 rounded-full border-2 transition-all ${
+                            <div className={`w-5 h-5 rounded-full border-2 transition-all ${
                                 selectedShift === value 
-                                ? 'border-[#0ab4ab] bg-[#0ab4ab]' 
-                                : 'border-gray-300 group-hover:border-[#0ab4ab]/50'
+                                ? theme === 'dark' 
+                                    ? 'border-[#0ab4ab] bg-[#0ab4ab]' 
+                                    : 'border-[#0ab4ab] bg-[#0ab4ab]'
+                                : theme === 'dark' 
+                                    ? 'border-gray-500 group-hover:border-[#0ab4ab]/70' 
+                                    : 'border-gray-300 group-hover:border-[#0ab4ab]/50'
                             }`}>
                                 {selectedShift === value && (
-                                    <div className="w-1.5 h-1.5 bg-white rounded-full m-auto mt-0.5"></div>
+                                    <div className="w-2 h-2 bg-white rounded-full m-auto mt-0.5"></div>
                                 )}
                             </div>
                             <span className={`text-sm transition-colors ${
-                                selectedShift === value ? 'text-[#0ab4ab] font-medium' : 'text-gray-600'
+                                selectedShift === value 
+                                    ? theme === 'dark'
+                                        ? 'text-[#0ab4ab] font-medium'
+                                        : 'text-[#0ab4ab] font-medium' 
+                                    : theme === 'dark'
+                                        ? 'text-gray-200'
+                                        : 'text-gray-600'
                             }`}>
-                                {label} ({value})
+                                {label} 
+                                <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
+                                    ({value})
+                                </span>
                             </span>
                         </label>
                     </div>

@@ -11,7 +11,7 @@ import { wardMapping, WARD_ORDER, initialWardData } from '../../utils/wardConsta
 import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay } from '../../utils/dateHelpers';
 import SignatureSection from './SignatureSection';
 import SummarySection from './SummarySection';
-import CalendarSection from './CalendarSection';
+import FormDateShiftSelector from '../common/FormDateShiftSelector';
 import { Swal } from '../../utils/alertService';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -352,13 +352,8 @@ const ShiftForm = ({ isApprovalMode = false }) => {
     const filterWardsByUser = useCallback(() => {
         if (!user) return WARD_ORDER;
         
-<<<<<<< HEAD
-        // ถ้าเป็น admin ให้แสดงทั้งหมด
-        if (user.role?.toLowerCase() === 'admin') {
-=======
         // ถ้าเป็น admin หรือ approver ให้แสดงทั้งหมด
         if (user.role?.toLowerCase() === 'admin' || user.role?.toLowerCase() === 'approver') {
->>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
             return WARD_ORDER;
         }
         
@@ -396,8 +391,6 @@ const ShiftForm = ({ isApprovalMode = false }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-<<<<<<< HEAD
-=======
         // ถ้าเป็นโหมดอ่านอย่างเดียว ไม่ให้บันทึกข้อมูล
         if (isReadOnly) {
             Swal.fire({
@@ -409,7 +402,6 @@ const ShiftForm = ({ isApprovalMode = false }) => {
             return;
         }
         
->>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
         // ถ้าเป็น user ปกติ ไม่ให้บันทึกข้อมูล
         if (user?.role?.toLowerCase() === 'user') {
             Swal.fire({
@@ -1258,21 +1250,30 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     WARD_ORDER={WARD_ORDER}
                 />
 
-                <CalendarSection 
+                <FormDateShiftSelector
+                    selectedDate={selectedDate}
+                    onDateSelect={(date) => {
+                        setSelectedDate(date);
+                        const isoDate = date.toISOString().split('T')[0];
+                        setFormData(prev => ({
+                            ...prev,
+                            date: isoDate
+                        }));
+                        setThaiDate(formatThaiDate(date));
+                        // Check if there's existing data for this date
+                        checkExistingData(isoDate, formData.shift);
+                    }}
+                    datesWithData={datesWithData}
                     showCalendar={showCalendar}
                     setShowCalendar={setShowCalendar}
-                                selectedDate={selectedDate}
-                    setSelectedDate={setSelectedDate}
-                    formData={formData}
-                    setFormData={setFormData}
                     thaiDate={thaiDate}
-                    setThaiDate={setThaiDate}
-                    fetchPreviousShiftData={fetchPreviousShiftData}
-                    handleShiftChange={handleShiftChange}
-                                datesWithData={datesWithData}
-                    checkExistingData={checkExistingData}
-                    setSummaryData={setSummaryData}
-                            />
+                    selectedShift={formData.shift}
+                    onShiftChange={(value) => {
+                        handleShiftChange(value);
+                        // Check if there's existing data for this shift
+                        checkExistingData(formData.date, value);
+                    }}
+                />
 
                 {/* Desktop View */}
                 <div className="hidden md:block w-full">
@@ -1323,17 +1324,10 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     ) : (
                         <button
                             type="submit"
-<<<<<<< HEAD
-                            disabled={isLoading}
-                            className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
-                        >
-                            {isLoading ? 'Saving...' : 'Save Data'}
-=======
                             disabled={isLoading || isReadOnly}
                             className="px-12 py-4 bg-gradient-to-r from-[#0ab4ab] to-blue-400 text-white text-lg font-bold rounded-xl shadow-lg hover:from-[#0ab4ab] hover:to-blue-500 transition-all transform hover:scale-105 disabled:from-gray-400 disabled:to-gray-500 font-THSarabun"
                         >
                             {isLoading ? 'Saving...' : (isReadOnly ? 'View Only Mode' : 'Save Data')}
->>>>>>> 1d399f398291bd2444678283fa37ce9d496cc905
                         </button>
                     )}
                 </div>
