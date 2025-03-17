@@ -29,28 +29,40 @@ export const handleInputChange = (e, formData, setFormData, setHasUnsavedChanges
         'availableBeds', 'unavailable', 'plannedDischarge'
     ];
     
+    let finalValue = value;
+    
     // ตรวจสอบว่าเป็นฟิลด์ที่ต้องเป็นตัวเลขหรือไม่
     if (numericFields.includes(name)) {
         // ถ้าเป็นฟิลด์ที่ต้องเป็นตัวเลข ให้ตรวจสอบค่าที่กรอก
         // ยอมรับเฉพาะตัวเลขเท่านั้น (ไม่รวมทศนิยม)
-        if (value !== '' && !/^\d+$/.test(value)) {
-            // ถ้าไม่ใช่ตัวเลข ให้ไม่เปลี่ยนค่า
-            return;
-        }
+        finalValue = value.replace(/[^0-9]/g, '');
     }
     
-    // ไม่ต้องแปลงค่า ใช้ค่าที่ป้อนเข้ามาโดยตรง
-    setFormData(prev => ({
-        ...prev,
-        [name]: value
-    }));
-    
-    // อัพเดทสถานะมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
-    setHasUnsavedChanges(true);
+    // ปรับปรุงค่าที่กรอกเข้ามา
+    try {
+        if (setFormData) {
+            setFormData(prev => ({
+                ...prev,
+                [name]: finalValue
+            }));
+        }
+        
+        // อัพเดทสถานะมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+        if (setHasUnsavedChanges) {
+            setHasUnsavedChanges(true);
+        }
+    } catch (error) {
+        console.error('Error in handleInputChange:', error, { name, value, finalValue });
+    }
 };
 
 export const handleShiftChange = (shift, setSelectedShift) => {
-    setSelectedShift(shift);
+    // ตรวจสอบว่า setSelectedShift เป็นฟังก์ชันหรือไม่ก่อนเรียกใช้
+    if (typeof setSelectedShift === 'function') {
+        setSelectedShift(shift);
+    } else {
+        console.warn('handleShiftChange: setSelectedShift is not a function');
+    }
 };
 
 export const handleDateSelect = async (

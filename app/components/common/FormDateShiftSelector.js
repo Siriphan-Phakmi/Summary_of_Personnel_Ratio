@@ -17,6 +17,15 @@ const FormDateShiftSelector = ({
   onShiftChange,
   theme = 'light',
 }) => {
+  // ป้องกันการเกิด error ถ้า onShiftChange ไม่ใช่ฟังก์ชัน
+  const handleShiftChange = (value) => {
+    if (typeof onShiftChange === 'function') {
+      onShiftChange(value);
+    } else {
+      console.warn('onShiftChange is not a function in FormDateShiftSelector');
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Calendar Section */}
@@ -41,7 +50,7 @@ const FormDateShiftSelector = ({
         }`}>กะทำงาน <span className="text-[#0ab4ab]">*</span></div>
         <ShiftSelection 
           selectedShift={selectedShift}
-          onShiftChange={onShiftChange}
+          onShiftChange={handleShiftChange}
           variant="form" 
           theme={theme}
         />

@@ -1,20 +1,20 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { db } from '../../lib/firebase';
+import { db } from '../../../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 import React from 'react';
-import { DataTable } from './ShiftForm/DataTable';
-import DataComparisonModal from './ShiftForm/DataComparisonModal';
-import { formatThaiDate, getThaiDateNow, getUTCDateString } from '../../utils/dateUtils';
-import { wardMapping, WARD_ORDER, initialWardData } from '../../utils/wardConstants';
-import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay } from '../../utils/dateHelpers';
-import SignatureSection from './SignatureSection';
-import SummarySection from './SummarySection';
-import FormDateShiftSelector from '../common/FormDateShiftSelector';
-import { Swal } from '../../utils/alertService';
+import { DataTable } from './DataTable';
+import DataComparisonModal from './DataComparisonModal';
+import { formatThaiDate, getThaiDateNow, getUTCDateString } from '../../../utils/dateUtils';
+import { wardMapping, WARD_ORDER, initialWardData } from '../../../utils/wardConstants';
+import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay } from '../../../utils/dateHelpers';
+import SignatureSection from '../SignatureSection';
+import SummarySection from '../SummarySection';
+import CalendarSection from '../../common/CalendarSection';
+import { Swal } from '../../../utils/alertService';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 const ShiftForm = ({ isApprovalMode = false }) => {
     const router = useRouter();
@@ -375,17 +375,58 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         return value === undefined || value === null || value === '' ? '0' : value;
     };
     
-    // แก้ไขฟังก์ชัน handleInputChange ให้เป็นแบบดูอย่างเดียว
-    const handleInputChange = useCallback((type, ward, data) => {
+    // แก้ไขฟังก์ชัน handleInputChange ให้รองรับการป้อนข้อมูล
+    const handleInputChange = useCallback((type, ward, value) => {
         // ถ้าเป็น user ปกติ ไม่ให้แก้ไขข้อมูล
-        if (user?.role?.toLowerCase() === 'user') {
+        if (user?.role?.toLowerCase() === 'user' || isReadOnly) {
             console.log('View only mode: Changes are disabled');
             return;
         }
         
-        // โค้ดส่วนนี้จะทำงานเฉพาะเมื่อเป็น admin เท่านั้น
-        // ... โค้ดเดิมในฟังก์ชัน handleInputChange ...
-    }, [formData, setFormData, user]);
+        // ตรวจสอบว่า ward และ type ถูกส่งมาหรือไม่
+        if (!ward || !type) {
+            console.error('Missing ward or field type in handleInputChange');
+            return;
+        }
+
+        // อัพเดทค่าใน formData
+        setFormData(prev => {
+            // ทำสำเนาของ state เก่า
+            const newState = { ...prev };
+            
+            // สร้าง object ของ ward หากยังไม่มี
+            if (!newState.wards[ward]) {
+                newState.wards[ward] = {};
+            }
+            
+            // อัพเดทค่าที่ต้องการเปลี่ยน
+            newState.wards[ward][type] = value;
+
+            // ข้อมูลเกี่ยวกับจำนวนเตียงที่ต้องอัพเดทโดยอัตโนมัติ
+            // คำนวณ Patient Census = (New Admit + Transfer In + Refer In) - (Transfer Out + Refer Out + Discharge + Dead)
+            if (['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(type)) {
+                const ward_data = newState.wards[ward];
+                
+                // ตรวจสอบค่า
+                const newAdmit = Number(ward_data.newAdmit || 0);
+                const transferIn = Number(ward_data.transferIn || 0);
+                const referIn = Number(ward_data.referIn || 0);
+                const transferOut = Number(ward_data.transferOut || 0);
+                const referOut = Number(ward_data.referOut || 0);
+                const discharge = Number(ward_data.discharge || 0);
+                const dead = Number(ward_data.dead || 0);
+                
+                // Patient Census calculation (based on the formula provided)
+                const patientCensus = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+                newState.wards[ward].numberOfPatients = String(patientCensus >= 0 ? patientCensus : 0);
+                
+                // Overall Data calculation
+                newState.wards[ward].overallData = String(patientCensus >= 0 ? patientCensus : 0);
+            }
+            
+            return newState;
+        });
+    }, [user, isReadOnly, setFormData]);
     
     // แก้ไขฟังก์ชัน handleSubmit ให้เป็นแบบดูอย่างเดียว
     const handleSubmit = async (e) => {
@@ -1250,30 +1291,21 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     WARD_ORDER={WARD_ORDER}
                 />
 
-                <FormDateShiftSelector
-                    selectedDate={selectedDate}
-                    onDateSelect={(date) => {
-                        setSelectedDate(date);
-                        const isoDate = date.toISOString().split('T')[0];
-                        setFormData(prev => ({
-                            ...prev,
-                            date: isoDate
-                        }));
-                        setThaiDate(formatThaiDate(date));
-                        // Check if there's existing data for this date
-                        checkExistingData(isoDate, formData.shift);
-                    }}
-                    datesWithData={datesWithData}
+                <CalendarSection 
                     showCalendar={showCalendar}
                     setShowCalendar={setShowCalendar}
+                                selectedDate={selectedDate}
+                    setSelectedDate={setSelectedDate}
+                    formData={formData}
+                    setFormData={setFormData}
                     thaiDate={thaiDate}
-                    selectedShift={formData.shift}
-                    onShiftChange={(value) => {
-                        handleShiftChange(value);
-                        // Check if there's existing data for this shift
-                        checkExistingData(formData.date, value);
-                    }}
-                />
+                    setThaiDate={setThaiDate}
+                    fetchPreviousShiftData={fetchPreviousShiftData}
+                    handleShiftChange={handleShiftChange}
+                                datesWithData={datesWithData}
+                    checkExistingData={checkExistingData}
+                    setSummaryData={setSummaryData}
+                            />
 
                 {/* Desktop View */}
                 <div className="hidden md:block w-full">

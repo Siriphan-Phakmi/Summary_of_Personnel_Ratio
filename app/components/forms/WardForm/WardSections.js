@@ -34,34 +34,32 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
         // Ensure the input is numeric only
         const inputValue = e.target.value.replace(/[^0-9]/g, '');
         
-        // Update with numeric-only value
-        const updatedEvent = {
-            ...e,
-            target: {
-                ...e.target,
-                value: inputValue
-            }
-        };
+        // Update form data directly
+        const name = e.target.name;
         
-        handleInputChange(updatedEvent, formData, setFormData, setHasUnsavedChanges);
-        
-        // ถ้าเป็นฟิลด์ที่เกี่ยวข้องกับการคำนวณ ให้อัพเดทค่า overall data
-        if (['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(e.target.name)) {
-            const updatedFormData = {
-                ...formData,
-                [e.target.name]: inputValue
+        setFormData(prev => {
+            const updated = {
+                ...prev,
+                [name]: inputValue
             };
             
-            const calculatedMovement = calculatePatientMovement(updatedFormData);
+            // ถ้าเป็นฟิลด์ที่เกี่ยวข้องกับการคำนวณ ให้อัพเดทค่า overall data
+            if (['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(name)) {
+                const calculatedMovement = calculatePatientMovement(updated);
+                
+                // อัพเดทค่า overallData โดยคำนวณจาก patientCensus + movement
+                const patientCensus = parseInt(updated.patientCensus) || 0;
+                const calculatedOverall = patientCensus + calculatedMovement;
+                
+                updated.overallData = calculatedOverall.toString();
+            }
             
-            // อัพเดทค่า overallData โดยคำนวณจาก patientCensus + movement
-            const patientCensus = parseInt(updatedFormData.patientCensus) || 0;
-            const calculatedOverall = patientCensus + calculatedMovement;
-            
-            setFormData(prev => ({
-                ...updatedFormData,
-                overallData: calculatedOverall.toString()
-            }));
+            return updated;
+        });
+        
+        // Set has unsaved changes
+        if (setHasUnsavedChanges) {
+            setHasUnsavedChanges(true);
         }
     };
     
@@ -80,17 +78,13 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         onChange={(e) => {
                             // Only allow numeric input
                             const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                            const updatedEvent = {
-                                ...e,
-                                target: {
-                                    ...e.target,
-                                    value: numericValue
-                                }
-                            };
-                            handleInputChange(updatedEvent, formData, setFormData, setHasUnsavedChanges);
+                            setFormData(prev => ({...prev, patientCensus: numericValue}));
+                            if (setHasUnsavedChanges) setHasUnsavedChanges(true);
                         }}
                         className="w-full p-2 bg-gray-100 border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                         readOnly={true} // Make read-only for both shifts
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                     />
                     {selectedShift === 'ดึก' && 
                         <p className="text-xs text-gray-500 mt-1">*ค่านี้จะถูกคำนวณจากกะเช้าและไม่สามารถแก้ไขได้</p>
@@ -109,6 +103,8 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         value={formData?.overallData || ''}
                         className="w-full p-2 bg-gray-100 border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                         readOnly={true} // ไม่ให้แก้ไขได้เลย เพราะคำนวณอัตโนมัติ
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                         *คำนวณตามสูตร: Patient Census + (New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead)
@@ -265,14 +261,18 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
     const handleNumericInput = (e) => {
         // Ensure the input is numeric only
         const numericValue = e.target.value.replace(/[^0-9]/g, '');
-        const updatedEvent = {
-            ...e,
-            target: {
-                ...e.target,
-                value: numericValue
-            }
-        };
-        handleInputChange(updatedEvent, formData, setFormData, setHasUnsavedChanges);
+        const name = e.target.name;
+        
+        // Update form data directly
+        setFormData(prev => ({
+            ...prev,
+            [name]: numericValue
+        }));
+        
+        // Set has unsaved changes
+        if (setHasUnsavedChanges) {
+            setHasUnsavedChanges(true);
+        }
     };
     
     return (
@@ -341,8 +341,8 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                     </label>
                     <input
                         type="text"
-                        name="nas"
-                        value={formData?.nas || ''}
+                        name="NA"
+                        value={formData?.NA || ''}
                         onChange={handleNumericInput}
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                         pattern="[0-9]*"
@@ -421,7 +421,11 @@ export const MainFormContent = ({
                         selectedShift={selectedShift === 'เช้า' ? '07:00-19:00' : '19:00-07:00'}
                         onShiftChange={(value) => {
                             const newShift = value === '07:00-19:00' ? 'เช้า' : 'ดึก';
-                            handleShiftChange(newShift);
+                            if (typeof handleShiftChange === 'function') {
+                                handleShiftChange(newShift);
+                            } else {
+                                console.warn('handleShiftChange is not a function in MainFormContent');
+                            }
                         }}
                         showCalendar={showCalendar}
                         setShowCalendar={setShowCalendar}
@@ -489,7 +493,11 @@ export const MainFormContent = ({
                     selectedShift={selectedShift === 'เช้า' ? '07:00-19:00' : '19:00-07:00'}
                     onShiftChange={(value) => {
                         const newShift = value === '07:00-19:00' ? 'เช้า' : 'ดึก';
-                        handleShiftChange(newShift);
+                        if (typeof handleShiftChange === 'function') {
+                            handleShiftChange(newShift);
+                        } else {
+                            console.warn('handleShiftChange is not a function in MainFormContent');
+                        }
                     }}
                     showCalendar={showCalendar}
                     setShowCalendar={setShowCalendar}
