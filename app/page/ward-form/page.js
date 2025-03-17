@@ -26,13 +26,17 @@ export default function WardFormPage() {
 
   return (
     <PageLayout title="แบบฟอร์มบันทึกข้อมูล Ward">
-      {isReady ? (
-        <WardForm wardId={wardId} />
-      ) : (
-        <div className="flex justify-center items-center p-8">
-          <LoadingScreen />
-        </div>
-      )}
+      <div className="flex flex-col items-center justify-center w-full">
+        {isReady ? (
+          <div className="w-full max-w-4xl mx-auto">
+            <WardForm wardId={wardId} />
+          </div>
+        ) : (
+          <div className="flex justify-center items-center p-8">
+            <LoadingScreen />
+          </div>
+        )}
+      </div>
     </PageLayout>
   );
 } 

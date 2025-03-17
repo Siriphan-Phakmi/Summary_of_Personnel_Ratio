@@ -4,7 +4,7 @@ import React from 'react';
 const PatientMovement = ({ ward, data, onChange }) => {
   const movementTypes = [
     'New Admit', 'Transfer In', 'Refer In',
-    'Transfer Out', 'Refer Out', 'Discharge', 'Dead'
+    'Transfer Out', 'Refer Out', 'Discharge', 'Dead', 'Planned Discharge'
   ];
 
   return (

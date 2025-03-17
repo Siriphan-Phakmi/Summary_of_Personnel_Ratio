@@ -356,20 +356,34 @@ export const invalidateSession = async (sessionId) => {
 
 /**
  * ฟังก์ชันสร้าง session ใหม่
+ * @param {string} userId - ID ของผู้ใช้
+ * @param {string} username - ชื่อผู้ใช้
+ * @returns {Promise<string>} - ID ของ session ที่สร้าง
  */
 export const createUserSession = async (userId, username) => {
   try {
+    // สร้าง sessionId ที่มีความหมายโดยใช้วันที่และเวลา
+    const now = new Date();
+    const formattedDate = now.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+    const formattedTime = now.toISOString().split('T')[1].substring(0, 8).replace(/:/g, ''); // HHMMSS
+    
+    // สร้าง sessionId แบบมีความหมาย: userId_YYYYMMDD_HHMMSS
+    const sessionId = `${userId}_${formattedDate}_${formattedTime}`;
+    
     const sessionData = {
       userId,
       username,
       loginTime: serverTimestamp(),
       active: true,
       device: typeof window !== 'undefined' ? navigator.userAgent : 'Unknown',
-      ip: 'Unknown' // ในสภาพแวดล้อมจริงควรใช้บริการดึง IP จากภายนอก
+      ip: 'Unknown', // ในสภาพแวดล้อมจริงควรใช้บริการดึง IP จากภายนอก
+      createdAt: formattedDate + '_' + formattedTime // เก็บเวลาที่สร้างในรูปแบบที่อ่านง่าย
     };
     
-    const docRef = await addDoc(collection(db, 'userSessions'), sessionData);
-    return docRef.id;
+    // ใช้ setDoc แทน addDoc เพื่อกำหนด ID เอง
+    await setDoc(doc(db, 'userSessions', sessionId), sessionData);
+    
+    return sessionId;
   } catch (error) {
     console.error('Error creating user session:', error.message);
     throw error;
@@ -621,5 +635,41 @@ export const getLatestDraft = async (userId, wardId, date, shift) => {
   } catch (error) {
     console.error('Error getting latest draft:', error.message);
     return null;
+  }
+};
+
+/**
+ * บันทึกประวัติการเปลี่ยนแปลงข้อมูล ward
+ * @param {Object} wardData - ข้อมูลที่จะบันทึก
+ * @param {string} action - ประเภทการกระทำ (create, update, delete)
+ * @param {string} userId - ID ของผู้ใช้ที่ทำรายการ
+ * @returns {Promise<Object>} - ผลลัพธ์การบันทึก
+ */
+export const logWardDataHistory = async (wardData, action, userId) => {
+  try {
+    const now = new Date();
+    const formattedDate = now.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+    const formattedTime = now.toISOString().split('T')[1].substring(0, 8).replace(/:/g, ''); // HHMMSS
+    const historyId = `${wardData.wardId}_${formattedDate}_${formattedTime}`;
+    
+    await setDoc(doc(db, 'wardDataHistory', historyId), {
+      ...wardData,
+      action,
+      userId,
+      historyTimestamp: serverTimestamp(),
+      historyDate: formattedDate,
+      historyTime: formattedTime
+    });
+    
+    return {
+      success: true,
+      historyId
+    };
+  } catch (error) {
+    console.error('Error logging ward data history:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 };

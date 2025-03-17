@@ -5,7 +5,7 @@ import LoadingScreen from '../../ui/LoadingScreen';
 import FormDateShiftSelector from '../../common/FormDateShiftSelector';
 import ApprovalStatusIndicator from '../../common/ApprovalStatusIndicator';
 
-export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChanges, selectedShift }) => {
+export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChanges, selectedShift, theme }) => {
     // ฟังก์ชันช่วยคำนวณค่าตามสูตร
     const calculatePatientMovement = (data) => {
         if (!data) return '';
@@ -64,11 +64,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
     };
     
     return (
-        <div className="mb-6 p-4 bg-primary-pastel rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Number of patients and movement</h2>
+        <div className={`mb-6 p-4 rounded-lg shadow-md ${
+            theme === 'dark' 
+            ? 'bg-gray-700 text-white' 
+            : 'bg-primary-pastel'
+        }`}>
+            <h2 className={`text-xl font-semibold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-primary'
+            }`}>Number of patients and movement</h2>
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Patient Census <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -81,38 +89,56 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                             setFormData(prev => ({...prev, patientCensus: numericValue}));
                             if (setHasUnsavedChanges) setHasUnsavedChanges(true);
                         }}
-                        className="w-full p-2 bg-gray-100 border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-gray-100 border-primary-light text-gray-900'
+                        }`}
                         readOnly={true} // Make read-only for both shifts
                         inputMode="numeric"
                         pattern="[0-9]*"
                     />
                     {selectedShift === 'ดึก' && 
-                        <p className="text-xs text-gray-500 mt-1">*ค่านี้จะถูกคำนวณจากกะเช้าและไม่สามารถแก้ไขได้</p>
+                        <p className={`text-xs mt-1 ${
+                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                        }`}>*ค่านี้จะถูกคำนวณจากกะเช้าและไม่สามารถแก้ไขได้</p>
                     }
                     {selectedShift === 'เช้า' && 
-                        <p className="text-xs text-gray-500 mt-1">*คำนวณอัตโนมัติจาก Overall Data ของกะดึกวันก่อนหน้า ไม่สามารถแก้ไขได้</p>
+                        <p className={`text-xs mt-1 ${
+                            theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                        }`}>*คำนวณอัตโนมัติจาก Overall Data ของกะดึกวันก่อนหน้า ไม่สามารถแก้ไขได้</p>
                     }
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Overall Data <span className="text-red-500">*</span>
                     </label>
                     <input
                         type="text"
                         name="overallData"
                         value={formData?.overallData || ''}
-                        className="w-full p-2 bg-gray-100 border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-gray-100 border-primary-light text-gray-900'
+                        }`}
                         readOnly={true} // ไม่ให้แก้ไขได้เลย เพราะคำนวณอัตโนมัติ
                         inputMode="numeric"
                         pattern="[0-9]*"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className={`text-xs mt-1 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-500'
+                    }`}>
                         *คำนวณตามสูตร: Patient Census + (New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead)
                     </p>
                 </div>
                 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         New Admit
                     </label>
                     <input
@@ -120,13 +146,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="newAdmit"
                         value={formData?.newAdmit || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Transfer In
                     </label>
                     <input
@@ -134,13 +166,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="transferIn"
                         value={formData?.transferIn || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Refer In
                     </label>
                     <input
@@ -148,13 +186,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="referIn"
                         value={formData?.referIn || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Transfer Out
                     </label>
                     <input
@@ -162,13 +206,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="transferOut"
                         value={formData?.transferOut || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Refer Out
                     </label>
                     <input
@@ -176,13 +226,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="referOut"
                         value={formData?.referOut || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Discharge
                     </label>
                     <input
@@ -190,13 +246,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="discharge"
                         value={formData?.discharge || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Dead
                     </label>
                     <input
@@ -204,13 +266,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="dead"
                         value={formData?.dead || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Available
                     </label>
                     <input
@@ -218,13 +286,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="availableBeds"
                         value={formData?.availableBeds || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Unavailable
                     </label>
                     <input
@@ -232,13 +306,19 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="unavailable"
                         value={formData?.unavailable || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Planned Discharge
                     </label>
                     <input
@@ -246,7 +326,11 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         name="plannedDischarge"
                         value={formData?.plannedDischarge || ''}
                         onChange={handleNumericChange}
-                        className="w-full p-2 bg-white border border-primary-light rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
@@ -256,7 +340,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
     );
 };
 
-export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) => {
+export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges, theme }) => {
     // Add numeric input handler
     const handleNumericInput = (e) => {
         // Ensure the input is numeric only
@@ -276,11 +360,19 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
     };
     
     return (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Number of Personnel</h2>
+        <div className={`mb-6 p-4 rounded-lg shadow-md ${
+            theme === 'dark' 
+            ? 'bg-gray-700 text-white' 
+            : 'bg-white'
+        }`}>
+            <h2 className={`text-xl font-semibold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-primary'
+            }`}>Number of Personnel</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         Nurse Manager
                     </label>
                     <input
@@ -288,13 +380,19 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         name="nurseManager"
                         value={formData?.nurseManager || ''}
                         onChange={handleNumericInput}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         RN
                     </label>
                     <input
@@ -302,13 +400,19 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         name="RN"
                         value={formData?.RN || ''}
                         onChange={handleNumericInput}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         PN
                     </label>
                     <input
@@ -316,13 +420,19 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         name="PN"
                         value={formData?.PN || ''}
                         onChange={handleNumericInput}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         WC
                     </label>
                     <input
@@ -330,13 +440,19 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         name="WC"
                         value={formData?.WC || ''}
                         onChange={handleNumericInput}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         NA
                     </label>
                     <input
@@ -344,7 +460,11 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         name="NA"
                         value={formData?.NA || ''}
                         onChange={handleNumericInput}
-                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         pattern="[0-9]*"
                         inputMode="numeric"
                     />
@@ -354,10 +474,16 @@ export const StaffSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
     );
 };
 
-export const NotesSection = ({ formData, setFormData, setHasUnsavedChanges }) => {
+export const NotesSection = ({ formData, setFormData, setHasUnsavedChanges, theme }) => {
     return (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Comment</h2>
+        <div className={`mb-6 p-4 rounded-lg shadow-md ${
+            theme === 'dark' 
+            ? 'bg-gray-700 text-white' 
+            : 'bg-white'
+        }`}>
+            <h2 className={`text-xl font-semibold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-primary'
+            }`}>Comment</h2>
             <div>
                 <textarea
                     name="comment"
@@ -367,7 +493,11 @@ export const NotesSection = ({ formData, setFormData, setHasUnsavedChanges }) =>
                         setFormData(prev => ({...prev, comment: e.target.value}));
                         setHasUnsavedChanges(true);
                     }}
-                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
+                        theme === 'dark' 
+                        ? 'bg-gray-600 border-gray-500 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
                     rows="3"
                     placeholder="Add comment..."
                 ></textarea>
@@ -396,7 +526,8 @@ export const MainFormContent = ({
     setHasUnsavedChanges,
     onSaveDraft,
     onSubmit,
-    isSubmitting
+    isSubmitting,
+    isDraftMode
 }) => {
     // ฟังก์ชันสำหรับการแสดงผลตามเงื่อนไข
     const renderContent = () => {
@@ -407,84 +538,117 @@ export const MainFormContent = ({
         // ถ้ายังไม่เลือกวันที่หรือกะ ให้แสดงเฉพาะส่วนเลือกวันที่และกะเท่านั้น
         if (!selectedDate || !selectedShift) {
             return (
-                <div className="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <div className={`flex flex-col items-center justify-center p-6 ${
+                    theme === 'dark' 
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-gradient-to-r from-teal-50 to-blue-50 border-teal-100'
+                } rounded-lg shadow-md border`}>
                     <div className="text-center mb-8">
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">กรุณาเลือกข้อมูลเริ่มต้น</h2>
-                        <p className="text-gray-600 dark:text-gray-300">โปรดเลือกวันที่และกะก่อนเริ่มกรอกข้อมูล</p>
+                        <h2 className={`text-2xl font-bold mb-2 ${
+                            theme === 'dark' ? 'text-teal-300' : 'text-teal-700'
+                        }`}>กรุณาเลือกข้อมูลเริ่มต้น</h2>
+                        <p className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
+                            โปรดเลือกวันที่และกะก่อนเริ่มกรอกข้อมูล
+                        </p>
                     </div>
                     
-                    <FormDateShiftSelector
-                        selectedDate={selectedDate}
-                        onDateSelect={handleLocalDateSelect}
-                        thaiDate={thaiDate}
-                        setThaiDate={setThaiDate}
-                        selectedShift={selectedShift === 'เช้า' ? '07:00-19:00' : '19:00-07:00'}
-                        onShiftChange={(value) => {
-                            const newShift = value === '07:00-19:00' ? 'เช้า' : 'ดึก';
-                            if (typeof handleShiftChange === 'function') {
-                                handleShiftChange(newShift);
-                            } else {
-                                console.warn('handleShiftChange is not a function in MainFormContent');
-                            }
-                        }}
-                        showCalendar={showCalendar}
-                        setShowCalendar={setShowCalendar}
-                        datesWithData={datesWithData}
-                        theme={theme}
-                    />
+                    <div className={`w-full max-w-md p-6 rounded-xl shadow-lg border ${
+                        theme === 'dark' 
+                        ? 'bg-gray-800 border-gray-700' 
+                        : 'bg-white border-teal-200'
+                    }`}>
+                        <FormDateShiftSelector
+                            selectedDate={selectedDate}
+                            onDateSelect={handleLocalDateSelect}
+                            thaiDate={thaiDate}
+                            setThaiDate={setThaiDate}
+                            selectedShift={selectedShift === 'เช้า' ? '07:00-19:00' : '19:00-07:00'}
+                            onShiftChange={(value) => {
+                                const newShift = value === '07:00-19:00' ? 'เช้า' : 'ดึก';
+                                if (typeof handleShiftChange === 'function') {
+                                    handleShiftChange(newShift);
+                                } else {
+                                    console.warn('handleShiftChange is not a function in MainFormContent');
+                                }
+                            }}
+                            showCalendar={showCalendar}
+                            setShowCalendar={setShowCalendar}
+                            datesWithData={datesWithData}
+                            theme={theme}
+                        />
+                    </div>
                 </div>
             );
         }
-        
-        // ถ้าเลือกวันที่และกะแล้ว แสดงฟอร์มทั้งหมด (เปลี่ยนลำดับ Component ให้ NotesSection อยู่ก่อน RecordingOfficerSection)
-        return (
-            <form onSubmit={onSubmit} className="space-y-8">
-                <PatientCensusSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                    selectedShift={selectedShift}
-                />
-                
-                <StaffSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                />
-                
-                <NotesSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                />
-                
-                <RecordingOfficerSection
-                    formData={formData}
-                    setFormData={setFormData}
-                    setHasUnsavedChanges={setHasUnsavedChanges}
-                />
 
-                <ActionButtons
-                    onSaveDraft={onSaveDraft}
-                    isSubmitting={isSubmitting}
-                />
+        return (
+            <form onSubmit={(e) => {
+                e.preventDefault();
+                onSubmit();
+            }} className="space-y-6">
+                {/* แสดงสถานะ Draft Mode ถ้ากำลังอยู่ใน Draft */}
+                {isDraftMode && (
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 rounded-md">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-yellow-700">
+                                    <span className="font-medium">โหมดฉบับร่าง:</span> คุณกำลังแก้ไขข้อมูลในโหมดฉบับร่าง กรุณาบันทึกข้อมูลฉบับสมบูรณ์เมื่อกรอกข้อมูลครบถ้วน
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className={`p-6 rounded-lg shadow-md border ${
+                    isDraftMode 
+                    ? 'bg-yellow-50 border-yellow-200' 
+                    : theme === 'dark'
+                        ? 'bg-gray-800 border-gray-700 text-white'
+                        : 'bg-white border-gray-200'
+                }`}>
+                    <PatientCensusSection 
+                        formData={formData} 
+                        setFormData={setFormData} 
+                        setHasUnsavedChanges={setHasUnsavedChanges}
+                        selectedShift={selectedShift}
+                        theme={theme}
+                    />
+                    
+                    <StaffSection 
+                        formData={formData} 
+                        setFormData={setFormData} 
+                        setHasUnsavedChanges={setHasUnsavedChanges}
+                        theme={theme}
+                    />
+                    
+                    <NotesSection 
+                        formData={formData} 
+                        setFormData={setFormData} 
+                        setHasUnsavedChanges={setHasUnsavedChanges}
+                        theme={theme}
+                    />
+                    
+                    <RecordingOfficerSection 
+                        formData={formData} 
+                        setFormData={setFormData} 
+                        setHasUnsavedChanges={setHasUnsavedChanges}
+                        theme={theme}
+                    />
+                    
+                    <ActionButtons onSaveDraft={onSaveDraft} isSubmitting={isSubmitting} />
+                </div>
             </form>
         );
     };
 
     return (
-        <div className="max-w-5xl mx-auto my-8 px-4">
+        <div className="container mx-auto max-w-4xl p-4">
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">
-                    บันทึกข้อมูลประจำวัน
-                </h1>
-                
-                <div className="bg-primary-light/20 dark:bg-primary-dark/20 p-3 rounded-lg mb-6 text-center">
-                    <h2 className="text-xl font-semibold text-primary dark:text-primary-light">
-                        {selectedWard || 'กรุณาเลือกวอร์ด'}
-                    </h2>
-                </div>
-                
                 <FormDateShiftSelector
                     selectedDate={selectedDate}
                     onDateSelect={handleLocalDateSelect}
@@ -507,7 +671,7 @@ export const MainFormContent = ({
                 
                 {approvalStatus && (
                     <div className="mb-4">
-                        <ApprovalStatusIndicator status={approvalStatus} />
+                        <ApprovalStatusIndicator status={approvalStatus} theme={theme} />
                     </div>
                 )}
             </div>
@@ -520,15 +684,23 @@ export const MainFormContent = ({
 };
 
 // เพิ่ม RecordingOfficerSection component
-export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedChanges }) => {
+export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedChanges, theme }) => {
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800">
+        <div className={`mb-6 p-4 rounded-lg shadow-md ${
+            theme === 'dark' 
+            ? 'bg-gray-700 text-white' 
+            : 'bg-white'
+        }`}>
+            <h3 className={`text-lg font-semibold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-gray-800'
+            }`}>
                 Recording Officer <span className="text-red-500">*</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         ชื่อ <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -540,12 +712,18 @@ export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedCh
                             setFormData(prev => ({...prev, firstName: e.target.value}));
                             setHasUnsavedChanges(true);
                         }}
-                        className="w-full p-2 border rounded-md bg-white text-gray-700"
+                        className={`w-full p-2 border rounded-md ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         required
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className={`block text-sm font-medium mb-1 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                         นามสกุล <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -557,7 +735,11 @@ export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedCh
                             setFormData(prev => ({...prev, lastName: e.target.value}));
                             setHasUnsavedChanges(true);
                         }}
-                        className="w-full p-2 border rounded-md bg-white text-gray-700"
+                        className={`w-full p-2 border rounded-md ${
+                            theme === 'dark' 
+                            ? 'bg-gray-600 border-gray-500 text-white' 
+                            : 'bg-white border-gray-300 text-gray-900'
+                        }`}
                         required
                     />
                 </div>
