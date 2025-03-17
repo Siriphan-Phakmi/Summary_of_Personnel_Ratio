@@ -25,7 +25,6 @@ export * from './WardSections';
 export { handleFirebaseIndexError, navigateToCreateIndex, safeQuery };
 
 // เพิ่มการ export ฟังก์ชันทั้งหมดโดยตรงเพื่อความแน่นอน
-// IMPORTANT: นำเข้าฟังก์ชันจากโมดูลที่ถูกต้องและ re-export เพื่อให้แน่ใจว่าฟังก์ชันทั้งหมดพร้อมใช้งาน
 import { 
     fetchDatesWithData,
     fetchPreviousShiftData,
@@ -108,3 +107,5 @@ export {
     RecordingOfficerSection,
     ActionButtons
 };
+
+export { default } from './WardForm';

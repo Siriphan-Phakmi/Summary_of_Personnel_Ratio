@@ -27,11 +27,15 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
           });
           return;
         }
-        router.push('/admin/user-management');
+        router.push('/page/user-management/');
         break;
 
       case PAGES.WARD:
-        router.push('/ward-form');
+        router.push('/page/ward-form/');
+        break;
+
+      case PAGES.SHIFT:
+        router.push('/page/shift-form/');
         break;
 
       case PAGES.FORM: // Approval page

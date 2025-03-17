@@ -15,6 +15,15 @@ const ShiftSelection = ({
             { id: 'night', label: 'กะดึก', value: '19:00-07:00' }
           ];
 
+    // ป้องกันการเกิด error ถ้า onShiftChange ไม่ใช่ฟังก์ชัน
+    const handleShiftChange = (value) => {
+        if (typeof onShiftChange === 'function') {
+            onShiftChange(value);
+        } else {
+            console.warn('onShiftChange is not a function in ShiftSelection');
+        }
+    };
+
     return (
         <div className={`${
             theme === 'dark' 
@@ -30,7 +39,7 @@ const ShiftSelection = ({
                                 name="shift"
                                 value={value}
                                 checked={selectedShift === value}
-                                onChange={() => onShiftChange(value)}
+                                onChange={() => handleShiftChange(value)}
                                 className="hidden"
                             />
                             <div className={`w-5 h-5 rounded-full border-2 transition-all ${

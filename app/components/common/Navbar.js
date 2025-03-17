@@ -36,6 +36,9 @@ const Navbar = () => {
     else if (pathname === '/page/ward-form' || pathname === '/ward-form') {
       setActivePage(PAGES.WARD);
     }
+    else if (pathname === '/page/shift-form' || pathname === '/shift-form') {
+      setActivePage(PAGES.SHIFT);
+    }
     else if (pathname === '/page/approval' || pathname === '/approval') {
       setActivePage(PAGES.FORM);
     }
@@ -66,6 +69,9 @@ const Navbar = () => {
     switch(page) {
       case PAGES.WARD:
         router.push('/page/ward-form/');
+        break;
+      case PAGES.SHIFT:
+        router.push('/page/shift-form/');
         break;
       case PAGES.FORM:  // Approval
         router.push('/page/approval/');
@@ -184,14 +190,9 @@ const Navbar = () => {
           
           <button
             onClick={handleLogout}
-            className={`flex items-center px-4 py-2 ${
-              theme === 'dark' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'
-            } rounded-md transition-all duration-200 font-medium text-base`}
+            className="py-2 px-3 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors duration-200"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            ออกจากระบบ
+            <span>ออกจากระบบ</span>
           </button>
         </div>
       </div>
