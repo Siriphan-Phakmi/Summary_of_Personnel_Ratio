@@ -751,6 +751,85 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         setLoadingMessage('กำลังบันทึกข้อมูล...');
 
         try {
+            // Check if trying to save night shift before morning shift
+            if (formData.shift === '19:00-07:00') {
+                const morningExists = await checkMorningShiftExists(formData.date);
+                if (!morningExists) {
+                    Swal.fire({
+                        title: 'ไม่สามารถบันทึกข้อมูลได้',
+                        html: 'ไม่พบข้อมูลกะเช้าของวันที่นี้<br>กรุณาบันทึกข้อมูลกะเช้าก่อน',
+                        icon: 'error',
+                        confirmButtonColor: '#0ab4ab'
+                    });
+                    setLoadingStates(prev => ({ ...prev, savingData: false }));
+                    return false;
+                }
+            }
+
+            // Validate required fields
+            const missingFields = [];
+            
+            // Check staff fields across all wards
+            Object.entries(formData.wards).forEach(([wardName, ward]) => {
+                if (!ward.nurseManager || ward.nurseManager === '0') {
+                    missingFields.push(`${wardName}: Nurse Manager`);
+                }
+                if (!ward.RN || ward.RN === '0') {
+                    missingFields.push(`${wardName}: RN`);
+                }
+                if (!ward.PN || ward.PN === '0') {
+                    missingFields.push(`${wardName}: PN`);
+                }
+                if (!ward.WC || ward.WC === '0') {
+                    missingFields.push(`${wardName}: WC`);
+                }
+                
+                // Check patient movement fields
+                if (!ward.newAdmit || ward.newAdmit === '0') {
+                    missingFields.push(`${wardName}: New Admit`);
+                }
+                if (!ward.transferIn || ward.transferIn === '0') {
+                    missingFields.push(`${wardName}: Transfer In`);
+                }
+                if (!ward.referIn || ward.referIn === '0') {
+                    missingFields.push(`${wardName}: Refer In`);
+                }
+                if (!ward.transferOut || ward.transferOut === '0') {
+                    missingFields.push(`${wardName}: Transfer Out`);
+                }
+                if (!ward.referOut || ward.referOut === '0') {
+                    missingFields.push(`${wardName}: Refer Out`);
+                }
+                if (!ward.discharge || ward.discharge === '0') {
+                    missingFields.push(`${wardName}: Discharge`);
+                }
+                if (!ward.dead || ward.dead === '0') {
+                    missingFields.push(`${wardName}: Dead`);
+                }
+                if (!ward.plannedDischarge || ward.plannedDischarge === '0') {
+                    missingFields.push(`${wardName}: Planned Discharge`);
+                }
+                
+                // Check bed availability fields
+                if (!ward.availableBeds || ward.availableBeds === '0') {
+                    missingFields.push(`${wardName}: Available Beds`);
+                }
+                if (!ward.unavailable || ward.unavailable === '0') {
+                    missingFields.push(`${wardName}: Unavailable`);
+                }
+            });
+            
+            if (missingFields.length > 0) {
+                Swal.fire({
+                    title: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+                    html: `พบข้อมูลที่ยังไม่ได้กรอก:<br><ul class="text-left mt-2">${missingFields.map(field => `<li>- ${field}</li>`).join('')}</ul>`,
+                    icon: 'warning',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                setLoadingStates(prev => ({ ...prev, savingData: false }));
+                return false;
+            }
+
             const now = new Date();
             const formattedTime = now.toLocaleTimeString('th-TH', {
                 hour: '2-digit',

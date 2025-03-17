@@ -11,10 +11,13 @@ import { handleFirebaseIndexError } from './index';
 let isFetchingData = false;
 
 export const handleBeforeUnload = (hasUnsavedChanges, e) => {
+    // ยืนยันทุกครั้งที่มีการ refresh หน้า ไม่ว่าจะมีข้อมูลที่ยังไม่ได้บันทึกหรือไม่ก็ตาม
+    e.preventDefault();
+    e.returnValue = '';
     if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
         return 'คุณมีข้อมูลที่ยังไม่ได้บันทึก คุณแน่ใจหรือไม่ว่าต้องการออกจากหน้านี้?';
+    } else {
+        return 'คุณแน่ใจหรือไม่ว่าต้องการรีเฟรชหน้านี้? การรีเฟรชจะทำให้ข้อมูลที่กำลังดำเนินการอยู่หายไป';
     }
 };
 
@@ -59,7 +62,16 @@ export const handleInputChange = (e, formData, setFormData, setHasUnsavedChanges
 export const handleShiftChange = (shift, setSelectedShift) => {
     // ตรวจสอบว่า setSelectedShift เป็นฟังก์ชันหรือไม่ก่อนเรียกใช้
     if (typeof setSelectedShift === 'function') {
-        setSelectedShift(shift);
+        // ถามยืนยันก่อนเปลี่ยนกะ เนื่องจากข้อมูลจะหายไป
+        const confirmed = window.confirm(
+            'คุณกำลังเปลี่ยนกะการทำงาน\n\n' +
+            'การเปลี่ยนกะจะทำให้ข้อมูลที่คุณกำลังกรอกอยู่หายไปทั้งหมด\n\n' +
+            'คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนกะ?'
+        );
+        
+        if (confirmed) {
+            setSelectedShift(shift);
+        }
     } else {
         console.warn('handleShiftChange: setSelectedShift is not a function');
     }
