@@ -9,6 +9,9 @@ import { handleFirebaseIndexError, safeQuery } from '../../../utils/firebase-hel
 const dataCache = new Map();
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
+// ปรับปรุงเวลาหมดอายุของแคชให้สั้นลง เพื่อให้ข้อมูลอัพเดทบ่อยขึ้น
+const DATA_CACHE_EXPIRY = 1 * 60 * 1000; // 1 minute
+
 export const fetchDatesWithData = async (selectedWard) => {
     try {
         if (!selectedWard) {
@@ -286,7 +289,11 @@ export const fetchLatestRecord = async (targetWard) => {
 
 // Modified fetchWardData function with caching and improved error handling
 export const fetchWardData = async (date, selectedWard, selectedShift) => {
+    // เพิ่ม console.log เพื่อดูว่าฟังก์ชันถูกเรียกด้วยพารามิเตอร์อะไร
+    console.log('fetchWardData called with:', { date, selectedWard, selectedShift });
+    
     try {
+        // ถ้าไม่มีพารามิเตอร์ที่จำเป็น ให้ return null ทันที
         if (!date || !selectedWard || !selectedShift) {
             console.warn('fetchWardData: Missing required parameters', {
                 date,
@@ -296,57 +303,105 @@ export const fetchWardData = async (date, selectedWard, selectedShift) => {
             return null;
         }
         
-        // Create a cache key
+        // สร้าง key สำหรับแคช
         const cacheKey = `${date}_${selectedWard}_${selectedShift}`;
         
-        // Check if data is in cache and not expired
+        // ตรวจสอบว่าข้อมูลอยู่ในแคชและยังไม่หมดอายุหรือไม่
         const cachedData = dataCache.get(cacheKey);
-        if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRY)) {
+        if (cachedData && (Date.now() - cachedData.timestamp < DATA_CACHE_EXPIRY)) {
             console.log('Returning cached data for:', cacheKey);
             return cachedData.data;
         }
         
-        // If not in cache, fetch from Firestore
+        // ถ้าไม่มีในแคช ดึงข้อมูลจาก Firestore
         const dateObj = new Date(date);
         const dateString = getUTCDateString(dateObj);
         
         console.log(`Fetching data for ${selectedWard} on ${dateString}, shift: ${selectedShift}`);
         
-        const wardDailyRef = collection(db, 'wardDailyRecords');
-        const q = query(
-            wardDailyRef,
-            where('wardId', '==', selectedWard),
-            where('date', '==', dateString),
-        );
-        
         try {
+            // กำหนด query ที่จะใช้ดึงข้อมูล
+            const wardDailyRef = collection(db, 'wardDailyRecords');
+            const q = query(
+                wardDailyRef,
+                where('wardId', '==', selectedWard),
+                where('date', '==', dateString),
+                where('shift', '==', selectedShift)
+            );
+            
+            // ดึงข้อมูลตาม query
             const querySnapshot = await getDocs(q);
             
+            // ถ้าไม่พบข้อมูล
             if (querySnapshot.empty) {
-                console.log(`No data found for ${selectedWard} on ${dateString}`);
+                console.log(`No data found for ${selectedWard} on ${dateString}, shift: ${selectedShift}`);
                 return null;
             }
             
-            const wardData = querySnapshot.docs[0].data();
+            // ดึงข้อมูลจาก snapshot
+            const doc = querySnapshot.docs[0];
+            const wardData = doc.data();
             
-            if (!wardData.shifts || !wardData.shifts[selectedShift]) {
-                console.log(`No shift data found for ${selectedShift}`);
-                return null;
-            }
+            // เตรียมข้อมูลสำหรับ return
+            const returnData = {
+                ...wardData,
+                id: doc.id
+            };
             
-            // Store in cache
+            // เก็บข้อมูลในแคช
             dataCache.set(cacheKey, {
-                data: wardData.shifts[selectedShift],
+                data: returnData,
                 timestamp: Date.now()
             });
             
-            return wardData.shifts[selectedShift];
+            console.log('Successfully fetched ward data:', returnData);
+            return returnData;
         } catch (error) {
-            // Check if this is an index error and handle it
+            // ตรวจสอบว่าเป็น index error หรือไม่
             if (handleFirebaseIndexError(error)) {
+                // ถ้าเป็น index error ให้พยายามใช้ query ที่ไม่ต้องการ index
+                console.warn('Index error detected, trying alternative query');
+                
+                const wardDailyRef = collection(db, 'wardDailyRecords');
+                const q = query(
+                    wardDailyRef,
+                    where('wardId', '==', selectedWard),
+                    where('date', '==', dateString)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) {
+                    console.log(`No data found for ${selectedWard} on ${dateString}`);
+                    return null;
+                }
+                
+                // ค้นหาข้อมูลของกะที่ต้องการจาก snapshot
+                let foundData = null;
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.shift === selectedShift) {
+                        foundData = {
+                            ...data,
+                            id: doc.id
+                        };
+                    }
+                });
+                
+                // ถ้าพบข้อมูล ให้เก็บในแคชและ return
+                if (foundData) {
+                    dataCache.set(cacheKey, {
+                        data: foundData,
+                        timestamp: Date.now()
+                    });
+                    return foundData;
+                }
+                
                 return null;
             }
-            throw error; // Re-throw if not an index error or if handling failed
+            
+            // ถ้าไม่ใช่ index error ให้โยน error ต่อ
+            throw error;
         }
     } catch (error) {
         console.error('Error fetching ward data:', error);
@@ -441,5 +496,32 @@ export const checkPast7DaysData = async (ward, date) => {
             success: false,
             error: error.message
         };
+    }
+};
+
+// เพิ่มฟังก์ชันสำหรับตรวจสอบว่ามีข้อมูลกะเช้าหรือไม่
+export const checkMorningShiftDataExists = async (date, selectedWard) => {
+    try {
+        if (!date || !selectedWard) {
+            console.warn('checkMorningShiftDataExists: Missing required parameters');
+            return false;
+        }
+        
+        const dateObj = new Date(date);
+        const dateString = getUTCDateString(dateObj);
+        
+        const wardDailyRef = collection(db, 'wardDailyRecords');
+        const q = query(
+            wardDailyRef,
+            where('wardId', '==', selectedWard),
+            where('date', '==', dateString),
+            where('shift', '==', 'เช้า')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        return !querySnapshot.empty;
+    } catch (error) {
+        console.error('Error checking morning shift data:', error);
+        return false;
     }
 };
