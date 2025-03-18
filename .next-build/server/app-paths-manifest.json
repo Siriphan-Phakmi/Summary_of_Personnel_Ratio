@@ -1,6 +1,15 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
   "/api/logs/route": "app/api/logs/route.js",
+  "/approval/page": "app/approval/page.js",
+  "/admin/logs/page": "app/admin/logs/page.js",
+  "/admin/user-management/page": "app/admin/user-management/page.js",
+  "/page/dashboard/page": "app/page/dashboard/page.js",
+  "/page/approval/page": "app/page/approval/page.js",
+  "/page": "app/page.js",
   "/page/login/page": "app/page/login/page.js",
-  "/page/ward-form/page": "app/page/ward-form/page.js",
-  "/page": "app/page.js"
+  "/page/shift-form/page": "app/page/shift-form/page.js",
+  "/page/user-management/page": "app/page/user-management/page.js",
+  "/ward/page": "app/ward/page.js",
+  "/page/ward-form/page": "app/page/ward-form/page.js"
 }
