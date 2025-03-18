@@ -113,9 +113,13 @@ const Calendar = ({
         const newDate = new Date(displayDate.getFullYear(), displayDate.getMonth(), day);
         setCurrentDate(newDate);
         
-        onDateSelect(newDate);
+        if (typeof onDateSelect === 'function') {
+            onDateSelect(newDate);
+        }
         
-        onClickOutside && onClickOutside();
+        if (typeof onClickOutside === 'function') {
+            onClickOutside();
+        }
     };
 
     const checkHasData = (date) => {

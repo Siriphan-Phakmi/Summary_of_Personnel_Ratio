@@ -287,6 +287,8 @@ export const fetchLatestRecord = async (targetWard) => {
 // Modified fetchWardData function with caching and improved error handling
 export const fetchWardData = async (date, selectedWard, selectedShift) => {
     try {
+        console.log('fetchWardData called with params:', { date, selectedWard, selectedShift });
+        
         if (!date || !selectedWard || !selectedShift) {
             console.warn('fetchWardData: Missing required parameters', {
                 date,
@@ -302,7 +304,7 @@ export const fetchWardData = async (date, selectedWard, selectedShift) => {
         // Check if data is in cache and not expired
         const cachedData = dataCache.get(cacheKey);
         if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRY)) {
-            console.log('Returning cached data for:', cacheKey);
+            console.log('Returning cached data for:', cacheKey, cachedData.data);
             return cachedData.data;
         }
         
@@ -322,17 +324,40 @@ export const fetchWardData = async (date, selectedWard, selectedShift) => {
         try {
             const querySnapshot = await getDocs(q);
             
+            console.log(`Query returned ${querySnapshot.size} documents`);
+            
             if (querySnapshot.empty) {
                 console.log(`No data found for ${selectedWard} on ${dateString}`);
                 return null;
             }
             
             const wardData = querySnapshot.docs[0].data();
+            console.log('Raw ward data:', wardData);
             
             if (!wardData.shifts || !wardData.shifts[selectedShift]) {
-                console.log(`No shift data found for ${selectedShift}`);
-                return null;
+                console.log(`No shift data found for ${selectedShift} in:`, wardData);
+                // ถ้าไม่มีข้อมูลกะ ให้สร้างข้อมูลเปล่า
+                return {
+                    patientCensus: '0',
+                    overallData: '0',
+                    newAdmit: '0',
+                    transferIn: '0',
+                    referIn: '0',
+                    transferOut: '0',
+                    referOut: '0',
+                    discharge: '0',
+                    dead: '0',
+                    rns: '0',
+                    pns: '0', 
+                    nas: '0',
+                    aides: '0',
+                    studentNurses: '0',
+                    notes: '',
+                    isDraft: false
+                };
             }
+            
+            console.log('Shift data found:', wardData.shifts[selectedShift]);
             
             // Store in cache
             dataCache.set(cacheKey, {
@@ -441,5 +466,31 @@ export const checkPast7DaysData = async (ward, date) => {
             success: false,
             error: error.message
         };
+    }
+};
+
+/**
+ * ตรวจสอบว่ามีการบันทึกข้อมูลกะเช้าหรือไม่
+ * @param {Date|string} date - วันที่ที่ต้องการตรวจสอบ
+ * @param {string} selectedWard - รหัสวอร์ด
+ * @returns {Promise<boolean>} - true ถ้ามีการบันทึกข้อมูลกะเช้าแล้ว
+ */
+export const checkMorningShiftDataExists = async (date, selectedWard) => {
+    try {
+        const dateObj = date instanceof Date ? date : new Date(date);
+        const formattedDate = dateObj.toISOString().split('T')[0];
+        
+        const q = query(
+            collection(db, 'wardDataFinal'),
+            where('wardId', '==', selectedWard),
+            where('date', '==', formattedDate),
+            where('shift', '==', '07:00-19:00')
+        );
+        
+        const snapshot = await getDocs(q);
+        return !snapshot.empty;
+    } catch (error) {
+        console.error('Error checking morning shift data:', error);
+        return false;
     }
 };

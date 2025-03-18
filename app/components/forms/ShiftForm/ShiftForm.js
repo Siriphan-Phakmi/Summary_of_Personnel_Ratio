@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, query, where, getDocs, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import 'react-datepicker/dist/react-datepicker.css';
 import React from 'react';
 import { DataTable } from './DataTable';
@@ -248,55 +248,180 @@ const ShiftForm = ({ isApprovalMode = false }) => {
 
     // อัพเดทฟังก์ชัน handleDateChange
     const handleDateChange = async (element) => {
-        const newDate = element.target.value;
-        if (!newDate) {
-            const today = new Date();
-            setSelectedDate(today);
-            setFormData(prev => ({ ...prev, date: today.toISOString().split('T')[0] }));
-            setThaiDate(formatThaiDate(today));
-            return;
-        }
+        const selectedDateValue = element.target.value;
+        if (!selectedDateValue) return;
 
-        const dateObj = new Date(newDate);
-        setSelectedDate(dateObj);
+        setLoadingStates(prev => ({ ...prev, fetchingData: true }));
+        setLoadingMessage('กำลังตรวจสอบข้อมูล...');
 
-        // ตรวจสอบวันก่อนหน้า
-        const previousDate = new Date(dateObj);
-        previousDate.setDate(previousDate.getDate() - 1);
-        const formattedPreviousDate = previousDate.toISOString().split('T')[0];
-        
-        // ตรวจสอบการบันทึกกะของวันก่อนหน้า
-        const previousDateShifts = await checkDateHasCompletedShifts(formattedPreviousDate);
-        
-        if (!previousDateShifts.hasNightShift && previousDateShifts.hasMorningShift) {
-            // ถ้าวันก่อนหน้ามีแค่กะเช้า แต่ยังไม่มีกะดึก
-            await Swal.fire({
-                title: 'แจ้งเตือน',
-                html: `วันที่ ${formatThaiDate(previousDate)} ยังไม่ได้บันทึกข้อมูลกะดึก<br>กรุณาบันทึกข้อมูลกะดึกของวันที่ ${formatThaiDate(previousDate)} ก่อน`,
-                icon: 'warning',
+        try {
+            const selectedDate = new Date(selectedDateValue);
+            
+            // ตรวจสอบว่าวันที่เลือกอยู่ในอดีตมากกว่า 30 วันหรือไม่
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            if (selectedDate < thirtyDaysAgo) {
+                await Swal.fire({
+                    title: 'ไม่สามารถเลือกวันที่ย้อนหลังเกิน 30 วันได้',
+                    text: 'กรุณาเลือกวันที่ภายใน 30 วันที่ผ่านมา',
+                    icon: 'warning',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                return;
+            }
+            
+            // ตรวจสอบว่าวันที่เลือกเป็นวันในอนาคตมากกว่า 1 วันหรือไม่
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(0, 0, 0, 0);
+            
+            if (selectedDate > tomorrow) {
+                await Swal.fire({
+                    title: 'ไม่สามารถเลือกวันที่ล่วงหน้าเกิน 1 วันได้',
+                    text: 'กรุณาเลือกวันที่ปัจจุบันหรือวันพรุ่งนี้เท่านั้น',
+                    icon: 'warning',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                return;
+            }
+            
+            // ตรวจสอบสถานะการอนุมัติของวันที่เลือก
+            const hasPendingApproval = await checkDateHasPendingApproval(selectedDateValue);
+            if (hasPendingApproval) {
+                await Swal.fire({
+                    title: 'มีข้อมูลรออนุมัติ',
+                    html: `
+                        <div class="text-left">
+                            <p>วันที่ ${formatThaiDate(selectedDate)} มีข้อมูลที่กำลังรออนุมัติจาก Supervisor</p>
+                            <p class="mt-2 text-sm text-gray-600">คุณจะสามารถบันทึกข้อมูลได้หลังจากข้อมูลนี้ได้รับการอนุมัติแล้ว</p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                // ยังคงแสดงข้อมูล แต่จะไม่สามารถบันทึกได้
+                setIsReadOnly(true);
+            } else {
+                setIsReadOnly(false);
+            }
+
+            // Update form data with selected date
+            const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+            setFormData(prev => ({ ...prev, date: formattedDate }));
+            
+            // ตรวจสอบว่ามีการบันทึกกะเช้าแล้วหรือไม่
+            const morningShiftExists = await checkMorningShiftExists(formattedDate);
+            
+            // ถ้ายังไม่มีกะเช้า ให้เลือกกะเช้าเป็นค่าเริ่มต้น
+            // ถ้ามีกะเช้าแล้ว ให้เลือกกะดึกเป็นค่าเริ่มต้น
+            const defaultShift = morningShiftExists ? '19:00-07:00' : '07:00-19:00';
+            
+            // ตรวจสอบว่ากะดึกถูกบันทึกไปแล้วหรือไม่
+            let nightShiftExists = false;
+            if (morningShiftExists) {
+                nightShiftExists = await checkExistingData(formattedDate, '19:00-07:00');
+            }
+            
+            // แสดง message เตือนหากมีการบันทึกกะทั้งสองแล้ว
+            if (morningShiftExists && nightShiftExists) {
+                await Swal.fire({
+                    title: 'มีข้อมูลครบทั้งสองกะแล้ว',
+                    html: `
+                        <div class="text-left">
+                            <p>วันที่ ${formatThaiDate(selectedDate)} มีการบันทึกข้อมูลครบทั้งกะเช้าและกะดึกแล้ว</p>
+                            <p class="mt-2">คุณสามารถดูข้อมูลได้ หรือบันทึกทับข้อมูลเดิมได้</p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    confirmButtonColor: '#0ab4ab'
+                });
+            } else if (morningShiftExists) {
+                await Swal.fire({
+                    title: 'พบข้อมูลกะเช้า',
+                    html: `
+                        <div class="text-left">
+                            <p>วันที่ ${formatThaiDate(selectedDate)} มีการบันทึกข้อมูลกะเช้าแล้ว</p>
+                            <p class="mt-2">ระบบจะตั้งค่าเริ่มต้นให้คุณบันทึกข้อมูลกะดึก</p>
+                        </div>
+                    `,
+                    icon: 'info',
+                    confirmButtonColor: '#0ab4ab'
+                });
+            }
+            
+            setFormData(prev => ({ ...prev, shift: defaultShift }));
+            
+            // ดึงข้อมูลวันที่มีการบันทึกข้อมูล
+            await fetchDatesWithData();
+            
+            // ดึงข้อมูล approval statuses
+            await fetchApprovalStatuses(formattedDate);
+            
+            // แสดง date selector หากยังไม่ได้เลือกวันที่
+            setShowDateSelector(false);
+            
+            // รีเซ็ตฟอร์ม
+            resetForm();
+            setFormData(prev => ({ 
+                ...prev, 
+                date: formattedDate,
+                shift: defaultShift
+            }));
+            
+            setHasUnsavedChanges(false);
+            
+            // ตรวจสอบ duplicate data
+            const hasDuplicateData = await checkExistingData(formattedDate, defaultShift);
+            if (hasDuplicateData) {
+                // แสดง popup ถามว่าต้องการโหลดข้อมูลเดิมหรือบันทึกทับ
+                const result = await Swal.fire({
+                    title: 'พบข้อมูลในระบบ',
+                    html: `
+                        <div class="text-left">
+                            <p>พบข้อมูลของวันที่ ${formatThaiDate(selectedDate)} กะ ${defaultShift} ในระบบแล้ว</p>
+                            <p class="mt-2">คุณต้องการดำเนินการอย่างไร?</p>
+                        </div>
+                    `,
+                    icon: 'question',
+                    showDenyButton: true,
+                    showCancelButton: true,
+                    confirmButtonText: 'โหลดข้อมูลเดิม',
+                    denyButtonText: 'สร้างข้อมูลใหม่',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#0ab4ab',
+                    denyButtonColor: '#d33',
+                    cancelButtonColor: '#6c757d'
+                });
+                
+                if (result.isConfirmed) {
+                    // โหลดข้อมูลเดิม
+                    await fetchPreviousShiftData(formattedDate, defaultShift);
+                } else if (result.isDenied) {
+                    // สร้างข้อมูลใหม่
+                    resetForm();
+                    setFormData(prev => ({ 
+                        ...prev, 
+                        date: formattedDate,
+                        shift: defaultShift
+                    }));
+                } else {
+                    // ยกเลิก
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error handling date change:', error);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถตรวจสอบข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
-            
-            // Reset date selection
-            setSelectedDate(previousDate);
-            setFormData(prev => ({
-                ...prev,
-                date: formattedPreviousDate,
-                shift: '19:00-07:00' // Set shift to night shift
-            }));
-            setThaiDate(formatThaiDate(previousDate));
-            return;
+        } finally {
+            setLoadingStates(prev => ({ ...prev, fetchingData: false }));
+            setLoadingMessage('');
         }
-
-        // ถ้าผ่านการตรวจสอบ อัพเดทข้อมูลตามปกติ
-        setFormData(prev => ({
-            ...prev,
-            date: newDate
-        }));
-        setThaiDate(formatThaiDate(dateObj));
-        
-        // Fetch approval statuses for the new date
-        fetchApprovalStatuses(newDate);
     };
 
     // เพิ่มฟังก์ชันคำนวณ totals
@@ -530,17 +655,16 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         return changes;
     }, [formData.wards]);
 
-    // เพิ่มฟังก์ชันตรวจสอบการเปลี่ยนแปลง
-    const checkFormChanges = useCallback(() => {
+    // เพิ่มฟังก์ชันตรวจสอบการเปลี่ยนแปลง (ย้ายมาไว้ต่อจาก hasDataChanges)
+    const hasFormChanges = useCallback(() => {
         const changes = hasDataChanges(formData);
         return changes.staff || changes.movement || changes.additional;
-    }, [formData]);
+    }, [formData, hasDataChanges]);
 
     // ตรวจจับการเปลี่ยนแปลงของฟอร์ม
     useEffect(() => {
-        const hasChanges = checkFormChanges();
-        setHasUnsavedChanges(hasChanges);
-    }, [formData, checkFormChanges]);
+        setHasUnsavedChanges(hasFormChanges());
+    }, [formData, summaryData, hasFormChanges]);
 
     // เพิ่ม event listener สำหรับ beforeunload
     useEffect(() => {
@@ -558,7 +682,7 @@ const ShiftForm = ({ isApprovalMode = false }) => {
     // เพิ่มการตรวจสอบการนำทาง
     useEffect(() => {
         const handleRouteChange = async () => {
-            if (hasUnsavedChanges) {
+            if (hasFormChanges()) {  // ใช้ฟังก์ชันแทนการอ้างอิง state เพื่อตรวจสอบการเปลี่ยนแปลงแบบ real-time
                 const result = await Swal.fire({
                     title: 'แจ้งเตือนการออกจากหน้าบันทึกข้อมูล',
                     html: `
@@ -591,10 +715,12 @@ const ShiftForm = ({ isApprovalMode = false }) => {
 
         // Add router event listeners
         router.events?.on('routeChangeStart', handleRouteChange);
+
+        // Cleanup function
         return () => {
             router.events?.off('routeChangeStart', handleRouteChange);
         };
-    }, [hasUnsavedChanges, router]);
+    }, [router, hasFormChanges]); // เพิ่ม hasFormChanges ในรายการ dependencies เพื่อให้ React ใช้เวอร์ชั่นล่าสุด
 
     // แก้ไข validateFormData
     const validateFormData = useCallback(async () => {
@@ -751,6 +877,19 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         setLoadingMessage('กำลังบันทึกข้อมูล...');
 
         try {
+            // ตรวจสอบสถานะการอนุมัติสำหรับวันที่เลือก
+            const hasUnapprovedData = await checkDateHasPendingApproval(formData.date);
+            if (hasUnapprovedData) {
+                Swal.fire({
+                    title: 'ไม่สามารถบันทึกข้อมูลได้',
+                    html: 'พบข้อมูลของวันที่นี้ที่ยังรออนุมัติจาก Supervisor<br>กรุณารอการอนุมัติก่อนบันทึกข้อมูลใหม่',
+                    icon: 'error',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                setLoadingStates(prev => ({ ...prev, savingData: false }));
+                return false;
+            }
+
             // Check if trying to save night shift before morning shift
             if (formData.shift === '19:00-07:00') {
                 const morningExists = await checkMorningShiftExists(formData.date);
@@ -830,6 +969,23 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 return false;
             }
 
+            // ยืนยันการบันทึกข้อมูล
+            const confirmResult = await Swal.fire({
+                title: 'ยืนยันการบันทึกข้อมูล',
+                text: 'เมื่อบันทึกแล้ว ข้อมูลจะถูกส่งเพื่อรออนุมัติจาก Supervisor และไม่สามารถแก้ไขได้อีก ต้องการดำเนินการต่อหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, บันทึกข้อมูล',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33'
+            });
+
+            if (!confirmResult.isConfirmed) {
+                setLoadingStates(prev => ({ ...prev, savingData: false }));
+                return false;
+            }
+
             const now = new Date();
             const formattedTime = now.toLocaleTimeString('th-TH', {
                 hour: '2-digit',
@@ -881,13 +1037,19 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     supervisorLastName: summaryData.supervisorLastName || ''
                 },
                 timestamp: serverTimestamp(),
-                lastModified: serverTimestamp()
+                lastModified: serverTimestamp(),
+                approvalStatus: 'pending',  // เพิ่มสถานะการอนุมัติเป็น pending
+                submittedBy: user ? {
+                    uid: user.uid,
+                    displayName: user.displayName || '',
+                    email: user.email || ''
+                } : null
             };
 
             console.log('Saving sanitized data:', sanitizedData);
             await setDoc(doc(db, 'staffRecords', docId), sanitizedData);
 
-            // Also create/update wardDailyRecords for each ward with pending approval status
+            // บันทึกข้อมูลลงใน wardDailyRecords เท่านั้น ไม่ต้องบันทึกลง approvalQueue อีก
             const wardDailyPromises = Object.entries(formData.wards).map(async ([wardId, wardData]) => {
                 if (Object.values(wardData).some(value => value !== '0' && value !== '')) {
                     const wardDailyRef = doc(db, 'wardDailyRecords', `${formData.date}_${wardId}`);
@@ -900,6 +1062,12 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                             overallData: wardData.overallData || '0',
                             approvalStatus: 'pending',
                             lastUpdated: serverTimestamp(),
+                            submittedBy: user ? {
+                                uid: user.uid,
+                                displayName: user.displayName || '',
+                                email: user.email || ''
+                            } : null,
+                            dateSubmitted: serverTimestamp(),
                             shifts: {
                                 [formData.shift]: {
                                     nurseManager: wardData.nurseManager || '0',
@@ -938,28 +1106,49 @@ const ShiftForm = ({ isApprovalMode = false }) => {
             resetForm();
             Swal.fire({
                 title: 'บันทึกข้อมูลสำเร็จ',
-                text: 'ข้อมูลถูกบันทึกเรียบร้อยแล้ว',
+                html: `
+                    <div class="text-center">
+                        <p class="mb-2">ข้อมูลถูกบันทึกและส่งเพื่อรออนุมัติจาก Supervisor เรียบร้อยแล้ว</p>
+                        <p class="text-sm text-gray-600">คุณจะสามารถบันทึกข้อมูลกะต่อไปได้หลังจากข้อมูลนี้ได้รับการอนุมัติแล้ว</p>
+                    </div>
+                `,
                 icon: 'success',
                 confirmButtonColor: '#0ab4ab'
             }).then(() => {
                 window.location.reload();
             });
+            
+            return true;
         } catch (error) {
             console.error('Error saving data:', error);
             Swal.fire({
                 title: 'เกิดข้อผิดพลาด',
-                text: error.message,
+                text: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองอีกครั้ง',
                 icon: 'error',
                 confirmButtonColor: '#0ab4ab'
             });
+            return false;
         } finally {
-            setLoadingStates(prev => ({
-                ...prev,
-                savingData: false,
-                checkingDuplicates: false
-            }));
-            setLoadingMessage('');
-            setShowDataComparison(false);
+            setLoadingStates(prev => ({ ...prev, savingData: false }));
+        }
+    };
+
+    // เพิ่มฟังก์ชันตรวจสอบว่ามีข้อมูลที่รออนุมัติของวันนี้หรือไม่
+    const checkDateHasPendingApproval = async (date) => {
+        try {
+            // ตรวจสอบใน wardDailyRecords แทน approvalQueue
+            const wardDailyRef = collection(db, 'wardDailyRecords');
+            const q = query(
+                wardDailyRef,
+                where('date', '==', date),
+                where('approvalStatus', '==', 'pending')
+            );
+            
+            const snapshot = await getDocs(q);
+            return !snapshot.empty;
+        } catch (error) {
+            console.error('Error checking pending approval:', error);
+            return false;
         }
     };
 
@@ -1017,8 +1206,94 @@ const ShiftForm = ({ isApprovalMode = false }) => {
     }, []);
 
     // Update the handleShiftChange function
-    const handleShiftChange = (shift) => {
-        setFormData(prev => ({ ...prev, shift }));
+    const handleShiftChange = async (shift) => {
+        // ตรวจสอบว่ามีสถานะ pending อยู่หรือไม่
+        const hasPendingApproval = await checkDateHasPendingApproval(formData.date);
+        if (hasPendingApproval) {
+            Swal.fire({
+                title: 'ไม่สามารถเปลี่ยนกะได้',
+                text: 'ข้อมูลของวันนี้กำลังรออนุมัติจาก Supervisor ไม่สามารถเปลี่ยนกะได้',
+                icon: 'warning',
+                confirmButtonColor: '#0ab4ab'
+            });
+            return;
+        }
+        
+        // ตรวจสอบว่ากำลังจะเปลี่ยนเป็นกะดึกและยังไม่ได้บันทึกกะเช้า
+        if (shift === '19:00-07:00') {
+            const morningExists = await checkMorningShiftExists(formData.date);
+            if (!morningExists) {
+                Swal.fire({
+                    title: 'ไม่สามารถเลือกกะดึกได้',
+                    html: 'ไม่พบข้อมูลกะเช้าของวันที่นี้<br>กรุณาบันทึกข้อมูลกะเช้าก่อน',
+                    icon: 'warning',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                return;
+            }
+        }
+
+        // ถ้ามีการเปลี่ยนแปลงข้อมูลที่ยังไม่ได้บันทึก ให้แสดงข้อความยืนยัน
+        if (hasUnsavedChanges) {
+            const confirm = await Swal.fire({
+                title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
+                text: 'การเปลี่ยนกะจะทำให้ข้อมูลที่กำลังป้อนหายไป คุณต้องการดำเนินการต่อหรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, เปลี่ยนกะ',
+                cancelButtonText: 'ไม่, ยกเลิก',
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6'
+            });
+            
+            if (!confirm.isConfirmed) {
+                return;
+            }
+        }
+        
+        // ตรวจสอบว่ามีข้อมูลของกะนี้อยู่แล้วหรือไม่
+        const existingData = await checkExistingData(formData.date, shift);
+        if (existingData) {
+            const result = await Swal.fire({
+                title: 'พบข้อมูลในระบบ',
+                html: `
+                    <div class="text-left">
+                        <p>พบข้อมูลของวันที่ ${formatThaiDate(new Date(formData.date))} กะ ${shift} ในระบบแล้ว</p>
+                        <p class="mt-2">คุณต้องการดำเนินการอย่างไร?</p>
+                    </div>
+                `,
+                icon: 'question',
+                showDenyButton: true,
+                showCancelButton: true,
+                confirmButtonText: 'โหลดข้อมูลเดิม',
+                denyButtonText: 'สร้างข้อมูลใหม่',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#0ab4ab',
+                denyButtonColor: '#d33',
+                cancelButtonColor: '#6c757d'
+            });
+            
+            if (result.isConfirmed) {
+                // โหลดข้อมูลเดิม
+                resetForm();
+                setFormData(prev => ({ ...prev, shift }));
+                await fetchPreviousShiftData(formData.date, shift);
+            } else if (result.isDenied) {
+                // สร้างข้อมูลใหม่
+                resetForm();
+                setFormData(prev => ({ ...prev, shift }));
+            } else {
+                // ยกเลิก
+                return;
+            }
+        } else {
+            // ไม่มีข้อมูลเดิม สร้างข้อมูลใหม่
+            resetForm();
+            setFormData(prev => ({ ...prev, shift }));
+        }
+        
+        // อัปเดตสถานะฟอร์ม
+        setHasUnsavedChanges(false);
     };
 
     // เพิ่มฟังก์ชันสำหรับดึงข้อมูล Overall Data จากกะก่อนหน้า
@@ -1247,41 +1522,6 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         }
     };
 
-    // ปรับปรุงฟังก์ชันตรวจสอบการเปลี่ยนแปลง
-    const hasFormChanges = useCallback(() => {
-        // ตรวจสอบการเปลี่ยนแปลงใน wards
-        const hasWardChanges = Object.values(formData.wards).some(ward => {
-        return (
-                ward.nurseManager !== '0' ||
-                ward.RN !== '0' ||
-                ward.PN !== '0' ||
-                ward.WC !== '0' ||
-                ward.newAdmit !== '0' ||
-                ward.transferIn !== '0' ||
-                ward.referIn !== '0' ||
-                ward.transferOut !== '0' ||
-                ward.referOut !== '0' ||
-                ward.discharge !== '0' ||
-                ward.dead !== '0' ||
-                ward.availableBeds !== '0' ||
-                ward.unavailable !== '0' ||
-                ward.plannedDischarge !== '0' ||
-                ward.comment.trim() !== ''
-            );
-        });
-
-        // ตรวจสอบการเปลี่ยนแปลงใน summaryData
-        const hasSummaryChanges = 
-            summaryData.opdTotal24hr !== '' ||
-            summaryData.existingPatients !== '' ||
-            summaryData.newPatients !== '' ||
-            summaryData.admissions24hr !== '' ||
-            summaryData.supervisorFirstName !== '' ||
-            summaryData.supervisorLastName !== '';
-
-        return hasWardChanges || hasSummaryChanges;
-    }, [formData.wards, summaryData]);
-
     // อัพเดท useEffect สำหรับตรวจจับการเปลี่ยนแปลง
     useEffect(() => {
         setHasUnsavedChanges(hasFormChanges());
@@ -1295,8 +1535,8 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 html: `
                     <div class="text-left">
                         <p class="font-semibold text-red-600">ข้อควรระวัง: พบข้อมูลที่ยังไม่ได้บันทึก</p>
-                        <div class="mt-4 space-y-2">
-                            <p class="text-gray-700">การเปลี่ยนไปยังหน้า Dashboard จะส่งผลดังนี้:</p>
+                        <div className="mt-4 space-y-2">
+                            <p className="text-gray-700">การเปลี่ยนไปยังหน้า Dashboard จะส่งผลดังนี้:</p>
                             <ul className="list-disc pl-5 space-y-1">
                                 <li class="text-gray-600">ข้อมูลที่ท่านกรอกจะไม่ถูกบันทึก</li>
                                 <li class="text-gray-600">ข้อมูลทั้งหมดในแบบฟอร์มจะถูกรีเซ็ต</li>
@@ -1306,9 +1546,9 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                                 <p className="text-sm text-yellow-700">
                                     <span class="font-medium">คำแนะนำ:</span> กรุณาบันทึกข้อมูลให้เรียบร้อยก่อนออกจากหน้านี้
                                 </p>
-                                        </div>
-                                        </div>
-                                    </div>
+                            </div>
+                        </div>
+                    </div>
                 `,
                 icon: 'warning',
                 showCancelButton: true,
@@ -1373,7 +1613,7 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 <CalendarSection 
                     showCalendar={showCalendar}
                     setShowCalendar={setShowCalendar}
-                                selectedDate={selectedDate}
+                    selectedDate={selectedDate}
                     setSelectedDate={setSelectedDate}
                     formData={formData}
                     setFormData={setFormData}
@@ -1381,10 +1621,10 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     setThaiDate={setThaiDate}
                     fetchPreviousShiftData={fetchPreviousShiftData}
                     handleShiftChange={handleShiftChange}
-                                datesWithData={datesWithData}
+                    datesWithData={datesWithData}
                     checkExistingData={checkExistingData}
                     setSummaryData={setSummaryData}
-                            />
+                />
 
                 {/* Desktop View */}
                 <div className="hidden md:block w-full">
