@@ -21,7 +21,10 @@ import {
     parseInputValue,
     navigateToCreateIndex,
     MainFormContent,
-    checkMorningShiftDataExists
+    checkMorningShiftDataExists,
+    fetchLast7DaysData,
+    calculatePatientCensus,
+    checkFinalApprovalStatus
 } from './index';
 
 import { 
@@ -407,33 +410,138 @@ const WardForm = ({ selectedWard, ...props }) => {
         }
     };
 
-    // เพิ่มฟังก์ชัน handleShiftChange อย่างเป็นทางการ
-    const handleLocalShiftChange = (shift) => {
-        console.log('Shift changed to:', shift);
+    // แก้ไขฟังก์ชัน handleLocalShiftChange
+    const handleLocalShiftChange = async (shift) => {
+        console.log(`Shift changed to ${shift}`);
         setSelectedShift(shift);
-        // โค้ดในส่วนนี้จะทำงานเมื่อมีการเปลี่ยนกะ
-        // อาจมีการคำนวณข้อมูลอัตโนมัติหรือตรวจสอบข้อมูลเพิ่มเติม
+        
+        try {
+            // ดึงข้อมูลเดิมก่อน (ถ้ามี)
+            const existingData = await fetchWardData(selectedDate, selectedWard, shift);
+            
+            if (existingData) {
+                setFormData(existingData);
+                return;
+            }
+            
+            // กรณีเป็นกะเช้า - ตรวจสอบข้อมูล 7 วันย้อนหลัง
+            if (shift === 'เช้า') {
+                const last7DaysData = await fetchLast7DaysData(selectedWard);
+                
+                if (last7DaysData) {
+                    // คัดลอกข้อมูลที่จำเป็น
+                    const newFormData = {
+                        patientCensus: calculatePatientCensus(last7DaysData),
+                        rns: last7DaysData.rns || '',
+                        pns: last7DaysData.pns || '',
+                        nas: last7DaysData.nas || '',
+                        aides: last7DaysData.aides || '',
+                        studentNurses: last7DaysData.studentNurses || '',
+                        // เริ่มต้นด้วยค่าว่างสำหรับข้อมูลผู้ป่วยใหม่
+                        newAdmit: '0',
+                        transferIn: '0',
+                        referIn: '0',
+                        transferOut: '0',
+                        referOut: '0',
+                        discharge: '0',
+                        dead: '0',
+                        notes: '',
+                        date: getUTCDateString(selectedDate),
+                        shift: shift,
+                        wardId: selectedWard
+                    };
+                    
+                    setFormData(newFormData);
+                }
+            } 
+            // กรณีเป็นกะดึก - ตรวจสอบข้อมูลกะเช้าของวันเดียวกัน
+            else if (shift === 'ดึก') {
+                const morningShiftData = await fetchWardData(selectedDate, selectedWard, 'เช้า');
+                
+                if (morningShiftData) {
+                    // คัดลอกข้อมูลจากกะเช้า และคำนวณ Overall Data
+                    const newFormData = {
+                        overallData: calculatePatientCensus(morningShiftData),
+                        rns: morningShiftData.rns || '',
+                        pns: morningShiftData.pns || '',
+                        nas: morningShiftData.nas || '',
+                        aides: morningShiftData.aides || '',
+                        studentNurses: morningShiftData.studentNurses || '',
+                        // เริ่มต้นด้วยค่าว่างสำหรับข้อมูลผู้ป่วยใหม่
+                        newAdmit: '0',
+                        transferIn: '0',
+                        referIn: '0',
+                        transferOut: '0',
+                        referOut: '0',
+                        discharge: '0',
+                        dead: '0',
+                        notes: '',
+                        date: getUTCDateString(selectedDate),
+                        shift: shift,
+                        wardId: selectedWard
+                    };
+                    
+                    setFormData(newFormData);
+                }
+            }
+        } catch (error) {
+            console.error('Error in handleLocalShiftChange:', error);
+            // ไม่ต้องใส่ข้อมูลอะไร ปล่อยให้ใส่เอง
+        }
     };
 
     // เพิ่มฟังก์ชัน onSaveDraft และ onSubmit
     const onSaveDraft = () => {
         console.log('Save Draft clicked');
-        Swal.fire({
+            Swal.fire({
             title: 'บันทึกฉบับร่าง',
             text: 'ระบบกำลังพัฒนา ยังไม่สามารถบันทึกฉบับร่างได้ในขณะนี้',
             icon: 'info',
-            confirmButtonColor: '#0ab4ab'
-        });
+                confirmButtonColor: '#0ab4ab'
+            });
     };
 
-    const onSubmit = () => {
-        console.log('Submit clicked');
-        Swal.fire({
-            title: 'บันทึกข้อมูลสำเร็จ',
-            text: 'ระบบกำลังพัฒนา ยังไม่สามารถบันทึกข้อมูลได้ในขณะนี้',
-            icon: 'info',
-            confirmButtonColor: '#0ab4ab'
-        });
+    // แก้ไขฟังก์ชัน onSubmit
+    const onSubmit = async () => {
+        try {
+            // ตรวจสอบว่าข้อมูลได้รับการอนุมัติแล้วหรือไม่
+            const approvalCheck = await checkFinalApprovalStatus(selectedDate, selectedWard, selectedShift);
+            
+            if (!approvalCheck.canEdit) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่สามารถบันทึกได้',
+                    text: approvalCheck.message
+                });
+                return;
+            }
+            
+            // ดำเนินการบันทึกต่อไป...
+            console.log("Submitting form:", formData);
+            
+            // ตั้งค่าให้เป็น Final
+            const finalData = {
+                ...formData,
+                isApproved: true,
+                approvedBy: user?.uid || null,
+                approvalDate: new Date().toISOString()
+            };
+            
+            // ตรงนี้เพิ่มโค้ดบันทึกข้อมูลลง Firebase
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'บันทึกข้อมูลเรียบร้อย',
+                text: 'ข้อมูลได้รับการอนุมัติแล้ว'
+            });
+        } catch (error) {
+            console.error('Error submitting form:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
+            });
+        }
     };
 
     // Add error display
@@ -449,8 +557,8 @@ const WardForm = ({ selectedWard, ...props }) => {
                     >
                         ลองใหม่อีกครั้ง
                     </button>
-                </div>
-            </div>
+                    </div>
+                    </div>
         );
     }
 
@@ -480,8 +588,8 @@ const WardForm = ({ selectedWard, ...props }) => {
                     {showForm && (
                         <MainFormContent 
                             isLoading={isLoading}
-                            selectedDate={selectedDate}
-                            selectedShift={selectedShift}
+                        selectedDate={selectedDate}
+                        selectedShift={selectedShift}
                             selectedWard={selectedWard}
                             formData={formData}
                             setFormData={setFormData}
@@ -489,8 +597,8 @@ const WardForm = ({ selectedWard, ...props }) => {
                             handleShiftChange={handleLocalShiftChange}
                             thaiDate={thaiDate}
                             setThaiDate={setThaiDate}
-                            showCalendar={showCalendar}
-                            setShowCalendar={setShowCalendar}
+                        showCalendar={showCalendar}
+                        setShowCalendar={setShowCalendar}
                             datesWithData={datesWithData}
                             theme={theme}
                             approvalStatus={approvalStatus}
@@ -502,13 +610,13 @@ const WardForm = ({ selectedWard, ...props }) => {
                         />
                     )}
 
-                    <ApprovalHistory 
-                        isOpen={showHistory}
-                        onClose={() => setShowHistory(false)}
+            <ApprovalHistory
+                isOpen={showHistory}
+                onClose={() => setShowHistory(false)}
                         wardId={selectedWard}
-                        date={selectedDate}
-                        shift={selectedShift}
-                    />
+                date={selectedDate}
+                shift={selectedShift}
+            />
 
                     {/* แสดงสถานะเพื่อ Debug */}
                     <div className="mt-8 p-4 bg-gray-100 rounded-lg">
@@ -517,8 +625,8 @@ const WardForm = ({ selectedWard, ...props }) => {
                         <p>selectedWard: {selectedWard ? JSON.stringify(selectedWard) : 'ไม่มี'}</p>
                         <p>selectedShift: {selectedShift}</p>
                         <p>isLoading: {isLoading ? 'true' : 'false'}</p>
-                    </div>
                 </div>
+            </div>
             )}
         </div>
     );

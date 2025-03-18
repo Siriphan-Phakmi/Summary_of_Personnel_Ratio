@@ -447,6 +447,33 @@ export const checkPast7DaysData = async (ward, date) => {
     // Logic implementation here
 };
 
+// เพิ่มฟังก์ชัน checkMorningShiftDataExists
+export const checkMorningShiftDataExists = async (date, wardId) => {
+    try {
+        if (!date || !wardId) {
+            console.error('checkMorningShiftDataExists: Missing required parameters', { date, wardId });
+            return false;
+        }
+
+        const dateObj = new Date(date);
+        const dateString = getUTCDateString(dateObj);
+        
+        // ตรวจสอบว่ามีข้อมูลกะเช้าหรือไม่
+        const q = query(
+            collection(db, 'wardDailyRecords'),
+            where('wardId', '==', wardId),
+            where('date', '==', dateString),
+            where('shift', '==', 'เช้า')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        return !querySnapshot.empty;
+    } catch (error) {
+        console.error('Error checking morning shift data:', error);
+        return false;
+    }
+};
+
 export const safeFetchWardData = async (dateString, wardId, shift) => {
     try {
         // ดึงข้อมูลทั้งหมดของ ward
@@ -508,4 +535,60 @@ export const safeFetchWardData = async (dateString, wardId, shift) => {
         console.error('Error in safeFetchWardData:', error);
         return null;
     }
+};
+
+// เพิ่มฟังก์ชันคำนวณค่าอัตโนมัติ
+export const calculatePatientCensus = (data) => {
+  if (!data) return '0';
+  
+  const newAdmit = parseInt(data.newAdmit || '0');
+  const transferIn = parseInt(data.transferIn || '0');
+  const referIn = parseInt(data.referIn || '0');
+  const transferOut = parseInt(data.transferOut || '0');
+  const referOut = parseInt(data.referOut || '0');
+  const discharge = parseInt(data.discharge || '0');
+  const dead = parseInt(data.dead || '0');
+  
+  return String((newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead));
+};
+
+// เพิ่มฟังก์ชันดึงข้อมูล 7 วันล่าสุด
+export const fetchLast7DaysData = async (ward) => {
+  try {
+    if (!ward) return null;
+    
+    // ดึงข้อมูลทั้งหมดของ ward นี้ โดยไม่มีการใช้ orderBy และ where date >=
+    const q = query(
+      collection(db, 'wardDailyRecords'),
+      where('wardId', '==', ward)
+    );
+    
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    
+    // คำนวณวันที่ย้อนหลัง 7 วันในรูปแบบ string
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoString = getUTCDateString(sevenDaysAgo);
+    
+    // กรองและเรียงลำดับข้อมูลด้วย JavaScript แทน
+    const results = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.date >= sevenDaysAgoString) {
+        results.push({
+          id: doc.id,
+          ...data
+        });
+      }
+    });
+    
+    // เรียงลำดับตามวันที่จากใหม่ไปเก่า
+    results.sort((a, b) => b.date.localeCompare(a.date));
+    
+    return results.length > 0 ? results[0] : null;
+  } catch (error) {
+    console.error('Error fetching last 7 days data:', error);
+    return null;
+  }
 };

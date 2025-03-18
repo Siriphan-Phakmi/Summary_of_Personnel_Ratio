@@ -7,6 +7,7 @@
 
 // Import firebase helpers
 import { handleFirebaseIndexError, navigateToCreateIndex, safeQuery } from '../../../utils/firebase-helpers';
+import { fetchWardData } from './DataFetchers';
 
 // Data Fetchers - ฟังก์ชันสำหรับดึงข้อมูล
 export * from './DataFetchers';

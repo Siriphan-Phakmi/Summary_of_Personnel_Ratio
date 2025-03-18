@@ -166,4 +166,23 @@ export const handleWardFormSubmit = async (e, formData, selectedWard, selectedDa
         console.error('Error saving data:', error);
         return { success: false, error: error.message };
     }
+};
+
+// เพิ่มฟังก์ชันตรวจสอบสถานะการอนุมัติ
+export const checkFinalApprovalStatus = async (date, ward, shift) => {
+  try {
+    const approvalStatus = await checkApprovalStatus(date, ward, shift);
+    
+    if (approvalStatus && approvalStatus.status === 'approved') {
+      return {
+        canEdit: false,
+        message: 'ข้อมูลนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขได้'
+      };
+    }
+    
+    return { canEdit: true };
+  } catch (error) {
+    console.error('Error checking final approval status:', error);
+    return { canEdit: true };
+  }
 }; 

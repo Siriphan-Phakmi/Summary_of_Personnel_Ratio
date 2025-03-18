@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { handleInputChange } from './EventHandlers';
 import LoadingScreen from '../../ui/LoadingScreen';
 import FormDateShiftSelector from '../../common/FormDateShiftSelector';
@@ -62,6 +62,32 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
             setHasUnsavedChanges(true);
         }
     };
+    
+    useEffect(() => {
+        if (formData && formData.shift) {
+            const calculatedValue = calculatePatientMovement(formData);
+            
+            if (formData.shift === 'เช้า') {
+                setFormData(prev => ({
+                    ...prev,
+                    patientCensus: calculatedValue
+                }));
+            } else {
+                setFormData(prev => ({
+                    ...prev,
+                    overallData: calculatedValue
+                }));
+            }
+        }
+    }, [
+        formData?.newAdmit, 
+        formData?.transferIn, 
+        formData?.referIn, 
+        formData?.transferOut, 
+        formData?.referOut, 
+        formData?.discharge, 
+        formData?.dead
+    ]);
     
     return (
         <div className={`mb-6 p-4 rounded-lg shadow-md ${
