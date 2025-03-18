@@ -1,5 +1,6 @@
 {
-  "/page/approval/page": "app/page/approval/page.js",
+  "/api/logs/route": "app/api/logs/route.js",
+  "/page/login/page": "app/page/login/page.js",
   "/page/ward-form/page": "app/page/ward-form/page.js",
-  "/page/login/page": "app/page/login/page.js"
+  "/page": "app/page.js"
 }

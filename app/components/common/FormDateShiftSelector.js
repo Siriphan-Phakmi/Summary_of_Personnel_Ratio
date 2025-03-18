@@ -9,6 +9,7 @@ import ShiftSelection from './ShiftSelection';
 const FormDateShiftSelector = ({
   selectedDate,
   onDateSelect,
+  onDateChange,
   datesWithData = [],
   showCalendar,
   setShowCalendar,
@@ -19,6 +20,9 @@ const FormDateShiftSelector = ({
 }) => {
   // เพิ่ม state สำหรับเก็บเวลาปัจจุบัน
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // สร้าง local state สำหรับปฏิทิน กรณีที่ไม่ได้รับ prop
+  const [localShowCalendar, setLocalShowCalendar] = useState(false);
   
   // อัพเดทเวลาทุก 1 วินาที
   useEffect(() => {
@@ -49,6 +53,35 @@ const FormDateShiftSelector = ({
     }
   };
 
+  // ป้องกันการเกิด error ถ้า onDateSelect ไม่ใช่ฟังก์ชัน
+  const handleDateSelect = (date) => {
+    if (typeof onDateSelect === 'function') {
+      onDateSelect(date);
+    } else if (typeof onDateChange === 'function') {
+      // ถ้าไม่มี onDateSelect แต่มี onDateChange ให้ใช้ onDateChange แทน
+      onDateChange(date);
+      console.warn('Using onDateChange instead of onDateSelect in FormDateShiftSelector');
+    } else {
+      console.warn('Neither onDateSelect nor onDateChange is a function in FormDateShiftSelector');
+    }
+  };
+
+  // ป้องกันการเกิด error ถ้า setShowCalendar ไม่ใช่ฟังก์ชัน
+  const handleToggleCalendar = (value) => {
+    if (typeof setShowCalendar === 'function') {
+      setShowCalendar(value);
+    } else {
+      // ถ้าไม่มี setShowCalendar ให้ใช้ local state แทน
+      setLocalShowCalendar(value);
+      console.warn('Using local state for showCalendar in FormDateShiftSelector');
+    }
+  };
+
+  // ใช้ค่า showCalendar จาก props ถ้ามี ไม่งั้นใช้ค่าจาก local state
+  const calendarVisible = showCalendar !== undefined ? showCalendar : localShowCalendar;
+  // ใช้ฟังก์ชัน setShowCalendar จาก props ถ้ามี ไม่งั้นใช้ฟังก์ชัน handleToggleCalendar
+  const toggleCalendar = typeof setShowCalendar === 'function' ? setShowCalendar : handleToggleCalendar;
+
   return (
     <div className="space-y-4">
       {/* Calendar Section with Current Time */}
@@ -56,10 +89,10 @@ const FormDateShiftSelector = ({
         <div className="flex-1">
           <CalendarSection
             selectedDate={selectedDate}
-            onDateSelect={onDateSelect}
+            onDateSelect={handleDateSelect}
             datesWithData={datesWithData}
-            showCalendar={showCalendar}
-            setShowCalendar={setShowCalendar}
+            showCalendar={calendarVisible}
+            setShowCalendar={toggleCalendar}
             thaiDate={thaiDate}
             theme={theme}
           />

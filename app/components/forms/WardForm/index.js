@@ -33,7 +33,8 @@ import {
     fetchLatestRecord,
     fetchWardData,
     fetchWardHistory,
-    checkPast30DaysRecords
+    checkPast30DaysRecords,
+    checkMorningShiftDataExists
 } from './DataFetchers';
 
 // สร้างเวอร์ชันที่ปลอดภัยมากขึ้นของ fetchWardData
@@ -103,6 +104,7 @@ export {
     StaffSection,
     NotesSection,
     checkPast30DaysRecords,
+    checkMorningShiftDataExists,
     MainFormContent,
     RecordingOfficerSection,
     ActionButtons

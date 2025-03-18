@@ -701,7 +701,7 @@ export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedCh
                     <label className={`block text-sm font-medium mb-1 ${
                         theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
                     }`}>
-                        ชื่อ <span className="text-red-500">*</span>
+                        first name <span className="text-red-500">*</span>
                     </label>
                     <input
                         type="text"
@@ -724,7 +724,7 @@ export const RecordingOfficerSection = ({ formData, setFormData, setHasUnsavedCh
                     <label className={`block text-sm font-medium mb-1 ${
                         theme === 'dark' ? 'text-gray-200' : 'text-gray-700'
                     }`}>
-                        นามสกุล <span className="text-red-500">*</span>
+                        last name <span className="text-red-500">*</span>
                     </label>
                     <input
                         type="text"
@@ -758,7 +758,7 @@ export const ActionButtons = ({ onSaveDraft, isSubmitting }) => {
                 className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition"
                 disabled={isSubmitting}
             >
-                {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกฉบับร่าง'}
+                {isSubmitting ? 'กำลังบันทึก...' : 'Save Draft'}
             </button>
             
             <button
@@ -766,7 +766,7 @@ export const ActionButtons = ({ onSaveDraft, isSubmitting }) => {
                 className="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md transition"
                 disabled={isSubmitting}
             >
-                {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                {isSubmitting ? 'กำลังบันทึก...' : 'Save Final'}
             </button>
         </div>
     );

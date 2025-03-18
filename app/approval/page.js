@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import ShiftForm from '../components/forms/ShiftForm';
+import ApprovalList from '../components/approval/ApprovalList';
 import { useAuth } from '../context/AuthContext';
 import AuthGuard from '../components/auth/AuthGuard';
 import LoadingScreen from '../components/ui/LoadingScreen';
@@ -28,14 +28,14 @@ export default function ApprovalPage() {
   }
 
   return (
-    <AuthGuard requiredRole="user">
+    <AuthGuard requiredRole="supervisor">
       <div className="min-h-screen pb-16 relative">
         <main className="container mx-auto px-4 pt-20">
-          <div className="bg-yellow-50 p-4 mb-6 rounded-lg border border-yellow-200">
-            <h2 className="font-medium text-yellow-700 mb-2">หน้าแสดงผลข้อมูลเท่านั้น</h2>
-            <p className="text-sm text-yellow-600">คุณสามารถดูข้อมูลได้ แต่ไม่สามารถแก้ไขหรือบันทึกข้อมูลได้ โดยจะแสดงเฉพาะข้อมูลของ ward ที่คุณสังกัดเท่านั้น</p>
+          <div className="bg-blue-50 p-4 mb-6 rounded-lg border border-blue-200">
+            <h2 className="font-medium text-blue-700 mb-2">หน้าอนุมัติข้อมูล</h2>
+            <p className="text-sm text-blue-600">คุณสามารถตรวจสอบและอนุมัติข้อมูลที่ถูกส่งจากผู้ใช้งานได้ที่นี่ โดยแบ่งตามประเภทข้อมูล Ward และ Shift</p>
           </div>
-          <ShiftForm />
+          <ApprovalList />
         </main>
 
         {/* App version display */}
