@@ -24,19 +24,6 @@ export * from './WardSections';
 // Re-export firebase helpers
 export { handleFirebaseIndexError, navigateToCreateIndex, safeQuery };
 
-// เพิ่มการ export ฟังก์ชันทั้งหมดโดยตรงเพื่อความแน่นอน
-import { 
-    fetchDatesWithData,
-    fetchPreviousShiftData,
-    fetchApprovalData,
-    checkApprovalStatus,
-    fetchLatestRecord,
-    fetchWardData,
-    fetchWardHistory,
-    checkPast30DaysRecords,
-    checkMorningShiftDataExists
-} from './DataFetchers';
-
 // สร้างเวอร์ชันที่ปลอดภัยมากขึ้นของ fetchWardData
 export const safeFetchWardData = async (date, ward, shift) => {
     // ตรวจสอบค่าก่อนเรียกใช้ fetchWardData
@@ -53,61 +40,65 @@ export const safeFetchWardData = async (date, ward, shift) => {
     }
 };
 
-import {
-    parseInputValue,
-    calculateTotal,
-    handleWardFormSubmit
-} from './FormHandlers';
+export const handleInputChange = (e, setFormData, setHasUnsavedChanges) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (setHasUnsavedChanges) setHasUnsavedChanges(true);
+};
 
-import {
-    handleBeforeUnload,
-    handleInputChange,
-    handleShiftChange,
-    handleDateSelect
-} from './EventHandlers';
+export const handleShiftChange = (shift, setSelectedShift) => {
+    setSelectedShift(shift);
+};
 
-import {
-    ApprovalDataButton,
-    LatestRecordButton
-} from './ApprovalButtons';
+export const handleDateSelect = (date, setSelectedDate, setThaiDate, formatThaiDate) => {
+    setSelectedDate(date);
+    if (setThaiDate && formatThaiDate) {
+        setThaiDate(formatThaiDate(date));
+    }
+};
 
-import {
-    PatientCensusSection,
-    PatientMovementSection,
-    StaffSection,
-    NotesSection,
-    MainFormContent,
-    RecordingOfficerSection,
-    ActionButtons
-} from './WardSections';
+export const handleBeforeUnload = (e, hasUnsavedChanges) => {
+    if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+};
 
-// Re-export ฟังก์ชันทั้งหมดอีกครั้งแบบตัวต่อตัว
-export {
-    fetchDatesWithData,
-    fetchPreviousShiftData,
-    fetchApprovalData,
-    checkApprovalStatus,
-    fetchLatestRecord,
-    fetchWardData,
-    fetchWardHistory,
-    parseInputValue,
-    calculateTotal,
-    handleWardFormSubmit,
-    handleBeforeUnload,
-    handleInputChange,
-    handleShiftChange,
-    handleDateSelect,
-    ApprovalDataButton,
-    LatestRecordButton,
-    PatientCensusSection,
-    PatientMovementSection,
-    StaffSection,
-    NotesSection,
-    checkPast30DaysRecords,
-    checkMorningShiftDataExists,
-    MainFormContent,
-    RecordingOfficerSection,
-    ActionButtons
+export const handleWardFormSubmit = (e, onSubmit) => {
+    e.preventDefault();
+    if (onSubmit) onSubmit();
+};
+
+export const calculateTotal = (values = []) => {
+    return values.reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+};
+
+export const parseInputValue = (value) => {
+    if (!value) return '0';
+    return value.toString().replace(/[^0-9]/g, '') || '0';
+};
+
+// Placeholder components for future implementation
+export const ApprovalDataButton = ({ onClick, label = "View Approval Data" }) => {
+    return (
+        <button 
+            onClick={onClick} 
+            className="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm"
+        >
+            {label}
+        </button>
+    );
+};
+
+export const LatestRecordButton = ({ onClick, label = "View Latest Record" }) => {
+    return (
+        <button 
+            onClick={onClick} 
+            className="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200 text-sm"
+        >
+            {label}
+        </button>
+    );
 };
 
 export { default } from './WardForm';
