@@ -20,8 +20,17 @@ export const getThaiDateNow = () => {
 
 // Add utility function for date string formatting
 export const getUTCDateString = (date) => {
+    if (!date) return '';
+    
     const d = new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (isNaN(d.getTime())) return '';
+    
+    // สร้างวันที่ในรูปแบบ YYYY-MM-DD
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
 };
 
 // เพิ่มฟังก์ชันสำหรับตรวจสอบความถูกต้องของวันที่

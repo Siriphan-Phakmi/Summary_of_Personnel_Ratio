@@ -38,7 +38,7 @@ import {
 
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { getThaiDateNow, formatThaiDate } from '../../../utils/dateUtils';
+import { getThaiDateNow, formatThaiDate, getUTCDateString } from '../../../utils/dateUtils';
 import { getCurrentShift } from '../../../utils/dateHelpers';
 import { format } from 'date-fns';
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -421,105 +421,111 @@ const WardForm = ({ selectedWard, ...props }) => {
             
             if (existingData) {
                 setFormData(existingData);
-                return;
-            }
-            
+            return;
+        }
+
             // กรณีเป็นกะเช้า - ตรวจสอบข้อมูล 7 วันย้อนหลัง
-            if (shift === 'เช้า') {
+            if (shift === 'เช้า' || shift === '07:00-19:00') {
+                console.log('Fetching last 7 days data for morning shift');
+                // เรียกใช้ฟังก์ชันดึงข้อมูล 7 วันย้อนหลัง
                 const last7DaysData = await fetchLast7DaysData(selectedWard);
                 
                 if (last7DaysData) {
+                    console.log('Found data from past 7 days:', last7DaysData);
+                    
                     // คัดลอกข้อมูลที่จำเป็น
                     const newFormData = {
-                        patientCensus: calculatePatientCensus(last7DaysData),
                         rns: last7DaysData.rns || '',
                         pns: last7DaysData.pns || '',
                         nas: last7DaysData.nas || '',
                         aides: last7DaysData.aides || '',
                         studentNurses: last7DaysData.studentNurses || '',
-                        // เริ่มต้นด้วยค่าว่างสำหรับข้อมูลผู้ป่วยใหม่
-                        newAdmit: '0',
-                        transferIn: '0',
-                        referIn: '0',
-                        transferOut: '0',
-                        referOut: '0',
-                        discharge: '0',
-                        dead: '0',
+                        newAdmit: '',
+                        transferIn: '',
+                        referIn: '',
+                        transferOut: '',
+                        referOut: '',
+                        discharge: '', 
+                        dead: '',
                         notes: '',
-                        date: getUTCDateString(selectedDate),
+                        date: formatDate(selectedDate),
                         shift: shift,
-                        wardId: selectedWard
+                        wardId: selectedWard,
+                        patientCensus: ''
                     };
                     
                     setFormData(newFormData);
-                }
-            } 
-            // กรณีเป็นกะดึก - ตรวจสอบข้อมูลกะเช้าของวันเดียวกัน
-            else if (shift === 'ดึก') {
-                const morningShiftData = await fetchWardData(selectedDate, selectedWard, 'เช้า');
-                
-                if (morningShiftData) {
-                    // คัดลอกข้อมูลจากกะเช้า และคำนวณ Overall Data
-                    const newFormData = {
-                        overallData: calculatePatientCensus(morningShiftData),
-                        rns: morningShiftData.rns || '',
-                        pns: morningShiftData.pns || '',
-                        nas: morningShiftData.nas || '',
-                        aides: morningShiftData.aides || '',
-                        studentNurses: morningShiftData.studentNurses || '',
-                        // เริ่มต้นด้วยค่าว่างสำหรับข้อมูลผู้ป่วยใหม่
-                        newAdmit: '0',
-                        transferIn: '0',
-                        referIn: '0',
-                        transferOut: '0',
-                        referOut: '0',
-                        discharge: '0',
-                        dead: '0',
-                        notes: '',
-                        date: getUTCDateString(selectedDate),
+                    
+                    // อัพเดทค่า patientCensus ทันที
+                    setTimeout(() => {
+                        const newAdmit = parseInt(newFormData.newAdmit || '0');
+                        const transferIn = parseInt(newFormData.transferIn || '0');
+                        const referIn = parseInt(newFormData.referIn || '0');
+                        const transferOut = parseInt(newFormData.transferOut || '0');
+                        const referOut = parseInt(newFormData.referOut || '0');
+                        const discharge = parseInt(newFormData.discharge || '0');
+                        const dead = parseInt(newFormData.dead || '0');
+                        
+                        const calculatedValue = String(
+                            (newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead)
+                        );
+                        
+                            setFormData(prev => ({
+                                ...prev,
+                            patientCensus: calculatedValue
+                        }));
+                    }, 100);
+                } else {
+                    console.log('No data found from past 7 days');
+                    // ไม่พบข้อมูล 7 วันย้อนหลัง เริ่มต้นด้วยค่าว่าง
+        setFormData({
+                        patientCensus: '',
+                        newAdmit: '',
+                        transferIn: '',
+                        referIn: '',
+                        transferOut: '',
+                        referOut: '',
+                        discharge: '',
+                        dead: '',
+            rns: '',
+            pns: '',
+            nas: '',
+            aides: '',
+            studentNurses: '',
+            notes: '',
+                        date: formatDate(selectedDate),
                         shift: shift,
                         wardId: selectedWard
-                    };
-                    
-                    setFormData(newFormData);
+                    });
                 }
             }
         } catch (error) {
             console.error('Error in handleLocalShiftChange:', error);
-            // ไม่ต้องใส่ข้อมูลอะไร ปล่อยให้ใส่เอง
-        }
-    };
-
-    // เพิ่มฟังก์ชัน onSaveDraft และ onSubmit
-    const onSaveDraft = () => {
-        console.log('Save Draft clicked');
+            // แจ้งเตือนผู้ใช้
             Swal.fire({
-            title: 'บันทึกฉบับร่าง',
-            text: 'ระบบกำลังพัฒนา ยังไม่สามารถบันทึกฉบับร่างได้ในขณะนี้',
-            icon: 'info',
-                confirmButtonColor: '#0ab4ab'
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
             });
+        }
     };
 
     // แก้ไขฟังก์ชัน onSubmit
     const onSubmit = async () => {
         try {
-            // ตรวจสอบว่าข้อมูลได้รับการอนุมัติแล้วหรือไม่
-            const approvalCheck = await checkFinalApprovalStatus(selectedDate, selectedWard, selectedShift);
+            // ตรวจสอบสถานะการอนุมัติ
+            const approvalStatus = await checkApprovalStatus(selectedDate, selectedWard, selectedShift);
             
-            if (!approvalCheck.canEdit) {
+            if (approvalStatus && approvalStatus.status === 'approved') {
                 Swal.fire({
                     icon: 'error',
                     title: 'ไม่สามารถบันทึกได้',
-                    text: approvalCheck.message
+                    text: 'ข้อมูลนี้ได้รับการอนุมัติเป็น Final แล้ว ไม่สามารถแก้ไขได้'
                 });
                 return;
             }
             
-            // ดำเนินการบันทึกต่อไป...
-            console.log("Submitting form:", formData);
-            
-            // ตั้งค่าให้เป็น Final
+            // อัพเดทฟอร์มข้อมูลให้เป็น Final
             const finalData = {
                 ...formData,
                 isApproved: true,
@@ -527,19 +533,60 @@ const WardForm = ({ selectedWard, ...props }) => {
                 approvalDate: new Date().toISOString()
             };
             
-            // ตรงนี้เพิ่มโค้ดบันทึกข้อมูลลง Firebase
+            // ทำการบันทึกข้อมูลลง Firebase
+            // บันทึกโค้ดที่ใช้จริงตรงนี้
             
-            Swal.fire({
-                icon: 'success',
-                title: 'บันทึกข้อมูลเรียบร้อย',
-                text: 'ข้อมูลได้รับการอนุมัติแล้ว'
-            });
+                Swal.fire({
+                    icon: 'success',
+                title: 'บันทึกเรียบร้อย',
+                text: 'ข้อมูลได้รับการอนุมัติเป็น Final แล้ว'
+                });
         } catch (error) {
             console.error('Error submitting form:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'เกิดข้อผิดพลาด',
                 text: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง'
+            });
+        }
+    };
+
+    // แก้ไขฟังก์ชัน onSaveDraft
+    const onSaveDraft = async () => {
+        try {
+            // ตรวจสอบสถานะการอนุมัติ
+            const approvalStatus = await checkApprovalStatus(selectedDate, selectedWard, selectedShift);
+            
+            if (approvalStatus && approvalStatus.status === 'approved') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่สามารถบันทึกฉบับร่างได้',
+                    text: 'ข้อมูลนี้ได้รับการอนุมัติเป็น Final แล้ว ไม่สามารถแก้ไขได้'
+                });
+                return;
+            }
+            
+            // อัพเดทฟอร์มข้อมูลให้เป็นฉบับร่าง
+            const draftData = {
+                ...formData,
+                isDraft: true,
+                isApproved: false
+            };
+            
+            // ทำการบันทึกข้อมูลลง Firebase
+            // บันทึกโค้ดที่ใช้จริงตรงนี้
+
+            Swal.fire({
+                icon: 'success',
+                title: 'บันทึกฉบับร่างเรียบร้อย',
+                text: 'ข้อมูลถูกบันทึกเป็นฉบับร่างแล้ว'
+            });
+        } catch (error) {
+            console.error('Error saving draft:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถบันทึกฉบับร่างได้ กรุณาลองใหม่อีกครั้ง'
             });
         }
     };
@@ -630,6 +677,20 @@ const WardForm = ({ selectedWard, ...props }) => {
             )}
         </div>
     );
+};
+
+// แก้ไขฟังก์ชัน formatDate
+const formatDate = (date) => {
+  if (!date) return '';
+  
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
 };
 
 export default WardForm;

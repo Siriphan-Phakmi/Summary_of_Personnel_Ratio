@@ -4,6 +4,7 @@ import { handleInputChange } from './EventHandlers';
 import LoadingScreen from '../../ui/LoadingScreen';
 import FormDateShiftSelector from '../../common/FormDateShiftSelector';
 import ApprovalStatusIndicator from '../../common/ApprovalStatusIndicator';
+import { calculatePatientCensus } from './DataFetchers';
 
 export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChanges, selectedShift, theme }) => {
     // ฟังก์ชันช่วยคำนวณค่าตามสูตร
@@ -30,44 +31,70 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
     };
     
     // Handle input changes with recalculation
-    const handleNumericChange = (e) => {
-        // Ensure the input is numeric only
-        const inputValue = e.target.value.replace(/[^0-9]/g, '');
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
         
-        // Update form data directly
-        const name = e.target.name;
+        // กรองให้เป็นตัวเลขเท่านั้น
+        const numericValue = value.replace(/[^0-9]/g, '');
         
-        setFormData(prev => {
-            const updated = {
-                ...prev,
-                [name]: inputValue
-            };
-            
-            // ถ้าเป็นฟิลด์ที่เกี่ยวข้องกับการคำนวณ ให้อัพเดทค่า overall data
-            if (['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(name)) {
-                const calculatedMovement = calculatePatientMovement(updated);
-                
-                // อัพเดทค่า overallData โดยคำนวณจาก patientCensus + movement
-                const patientCensus = parseInt(updated.patientCensus) || 0;
-                const calculatedOverall = patientCensus + calculatedMovement;
-                
-                updated.overallData = calculatedOverall.toString();
-            }
-            
-            return updated;
-        });
+        // อัพเดทค่าในฟอร์ม
+        setFormData(prev => ({
+            ...prev,
+            [name]: numericValue || '0'
+        }));
         
-        // Set has unsaved changes
-        if (setHasUnsavedChanges) {
-            setHasUnsavedChanges(true);
+        // สั่งคำนวณใหม่ทันที (เฉพาะฟิลด์ที่เกี่ยวข้องกับการคำนวณ)
+        if ([
+            'newAdmit', 'transferIn', 'referIn', 
+            'transferOut', 'referOut', 'discharge', 'dead'
+        ].includes(name)) {
+            // ฟอร์มควรคำนวณอัตโนมัติผ่าน useEffect
         }
     };
     
     useEffect(() => {
-        if (formData && formData.shift) {
-            const calculatedValue = calculatePatientMovement(formData);
+        if (formData) {
+            // ตรวจสอบก่อนว่ามีการใส่ข้อมูลบ้างหรือยัง
+            const hasInputValues = formData.newAdmit || 
+                                  formData.transferIn || 
+                                  formData.referIn || 
+                                  formData.transferOut || 
+                                  formData.referOut || 
+                                  formData.discharge || 
+                                  formData.dead;
             
-            if (formData.shift === 'เช้า') {
+            // ถ้ายังไม่ได้ใส่ข้อมูลใดๆ เลย ให้เว้นว่าง ไม่ใส่ 0
+            if (!hasInputValues) {
+                if (formData.shift === 'เช้า' || formData.shift === '07:00-19:00') {
+                    setFormData(prev => ({
+                        ...prev,
+                        patientCensus: ''
+                    }));
+                } else {
+                    setFormData(prev => ({
+                        ...prev,
+                        overallData: ''
+                    }));
+                }
+                return;
+            }
+            
+            // คำนวณต่อเมื่อมีข้อมูลอย่างน้อย 1 ช่อง
+            const newAdmit = parseInt(formData.newAdmit || '0');
+            const transferIn = parseInt(formData.transferIn || '0');
+            const referIn = parseInt(formData.referIn || '0');
+            const transferOut = parseInt(formData.transferOut || '0');
+            const referOut = parseInt(formData.referOut || '0');
+            const discharge = parseInt(formData.discharge || '0');
+            const dead = parseInt(formData.dead || '0');
+            
+            // คำนวณค่าใหม่
+            const calculatedValue = String(
+                (newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead)
+            );
+            
+            // อัพเดทค่าตามกะที่เลือก
+            if (formData.shift === 'เช้า' || formData.shift === '07:00-19:00') {
                 setFormData(prev => ({
                     ...prev,
                     patientCensus: calculatedValue
@@ -80,13 +107,14 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
             }
         }
     }, [
-        formData?.newAdmit, 
-        formData?.transferIn, 
-        formData?.referIn, 
-        formData?.transferOut, 
-        formData?.referOut, 
-        formData?.discharge, 
-        formData?.dead
+        formData?.newAdmit,
+        formData?.transferIn,
+        formData?.referIn,
+        formData?.transferOut,
+        formData?.referOut,
+        formData?.discharge,
+        formData?.dead,
+        formData?.shift
     ]);
     
     return (
@@ -109,12 +137,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="patientCensus"
                         value={formData?.patientCensus || ''}
-                        onChange={(e) => {
-                            // Only allow numeric input
-                            const numericValue = e.target.value.replace(/[^0-9]/g, '');
-                            setFormData(prev => ({...prev, patientCensus: numericValue}));
-                            if (setHasUnsavedChanges) setHasUnsavedChanges(true);
-                        }}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -171,7 +194,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="newAdmit"
                         value={formData?.newAdmit || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -191,7 +214,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="transferIn"
                         value={formData?.transferIn || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -211,7 +234,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="referIn"
                         value={formData?.referIn || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -231,7 +254,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="transferOut"
                         value={formData?.transferOut || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -251,7 +274,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="referOut"
                         value={formData?.referOut || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -271,7 +294,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="discharge"
                         value={formData?.discharge || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -291,7 +314,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="dead"
                         value={formData?.dead || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -311,7 +334,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="availableBeds"
                         value={formData?.availableBeds || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -331,7 +354,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="unavailable"
                         value={formData?.unavailable || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 
@@ -351,7 +374,7 @@ export const PatientCensusSection = ({ formData, setFormData, setHasUnsavedChang
                         type="text"
                         name="plannedDischarge"
                         value={formData?.plannedDischarge || ''}
-                        onChange={handleNumericChange}
+                        onChange={handleInputChange}
                         className={`w-full p-2 border rounded focus:ring-2 focus:ring-primary focus:border-transparent ${
                             theme === 'dark' 
                             ? 'bg-gray-600 border-gray-500 text-white' 

@@ -552,30 +552,37 @@ export const calculatePatientCensus = (data) => {
   return String((newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead));
 };
 
-// เพิ่มฟังก์ชันดึงข้อมูล 7 วันล่าสุด
+// เพิ่มฟังก์ชันดึงข้อมูล 7 วันย้อนหลัง
 export const fetchLast7DaysData = async (ward) => {
   try {
     if (!ward) return null;
     
-    // ดึงข้อมูลทั้งหมดของ ward นี้ โดยไม่มีการใช้ orderBy และ where date >=
+    console.log('Fetching data for ward:', ward);
+    
+    // ดึงข้อมูลทั้งหมดของวอร์ดนี้
     const q = query(
       collection(db, 'wardDailyRecords'),
       where('wardId', '==', ward)
     );
     
     const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
+    if (snapshot.empty) {
+      console.log('No data found for ward:', ward);
+      return null;
+    }
     
-    // คำนวณวันที่ย้อนหลัง 7 วันในรูปแบบ string
+    // คำนวณวันที่ย้อนหลัง 7 วัน
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoString = getUTCDateString(sevenDaysAgo);
     
-    // กรองและเรียงลำดับข้อมูลด้วย JavaScript แทน
+    console.log('Searching for data since:', sevenDaysAgoString);
+    
+    // กรองและเรียงลำดับข้อมูลด้วย JavaScript
     const results = [];
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (data.date >= sevenDaysAgoString) {
+      if (data.date && data.date >= sevenDaysAgoString) {
         results.push({
           id: doc.id,
           ...data
@@ -584,8 +591,17 @@ export const fetchLast7DaysData = async (ward) => {
     });
     
     // เรียงลำดับตามวันที่จากใหม่ไปเก่า
-    results.sort((a, b) => b.date.localeCompare(a.date));
+    results.sort((a, b) => {
+      // เรียงตามวันที่ก่อน
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      
+      // ถ้าวันที่เท่ากัน ให้กะดึกมาก่อนกะเช้า
+      const shiftOrder = { 'ดึก': 0, 'เช้า': 1, '19:00-07:00': 0, '07:00-19:00': 1 };
+      return shiftOrder[a.shift] - shiftOrder[b.shift];
+    });
     
+    console.log('Found results:', results.length > 0 ? results[0] : 'None');
     return results.length > 0 ? results[0] : null;
   } catch (error) {
     console.error('Error fetching last 7 days data:', error);
