@@ -1,9 +1,10 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { loginUser, validateSession, invalidateSession } from '../lib/dataAccess';
 import { logEvent } from '../utils/sessionRecording';
+import { v4 as uuidv4 } from 'uuid';
 
 // ระยะเวลาที่ session token หมดอายุ (20 นาที)
 const SESSION_EXPIRY_TIME = 20 * 60 * 1000; // 20 นาที ในมิลลิวินาที
@@ -70,24 +71,33 @@ export function AuthProvider({ children }) {
           try {
             const userData = JSON.parse(storedUser);
             console.log('Successfully parsed user data');
-            setUser(userData);
-
-            // ตรวจสอบความถูกต้องของ session
-            validateUserSession(userData);
+            
+            // ตรวจสอบข้อมูลพื้นฐาน
+            if (userData && userData.uid && userData.username) {
+              console.log('Setting user state with data from sessionStorage');
+              setUser(userData);
+              // ไม่ต้องตรวจสอบ session อีกต่อไป
+              setLoading(false);
+            } else {
+              console.log('Invalid user data, missing required fields');
+              sessionStorage.removeItem('user');
+              setLoading(false);
+            }
           } catch (parseError) {
             console.error('Error parsing user data from sessionStorage:', parseError);
             // ล้างข้อมูลที่อาจเสียหาย
             sessionStorage.removeItem('user');
             setAuthError('ข้อมูลการเข้าสู่ระบบไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่');
+            setLoading(false);
           }
         } else {
-          // ไม่พบข้อมูลผู้ใช้ใน sessionStorage - ไม่ต้องตั้งค่า error เพราะอาจเป็นแค่ผู้ใช้ยังไม่ได้เข้าสู่ระบบ
+          // ไม่พบข้อมูลผู้ใช้ใน sessionStorage
           console.log('No user data found in sessionStorage');
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error checking sessionStorage:', error);
         setAuthError(error.message || 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูลผู้ใช้');
-      } finally {
         setLoading(false);
       }
     };
@@ -102,144 +112,144 @@ export function AuthProvider({ children }) {
 
   // ติดตามการเปลี่ยนแปลงของ session
   useEffect(() => {
-    // ตั้ง listener เพื่อติดตามการเปลี่ยนแปลงของ session
-    let unsubscribe = () => {};
+    // ยกเลิกการติดตาม session เนื่องจากอาจทำให้เกิดปัญหา
+    console.log('Session tracking disabled for troubleshooting');
     
-    if (user && user.uid && user.sessionId) {
-      try {
-        // ติดตามการเปลี่ยนแปลงของเอกสาร session ปัจจุบัน
-        unsubscribe = onSnapshot(
-          doc(db, 'userSessions', user.sessionId),
-          (snapshot) => {
-            if (snapshot.exists()) {
-              const sessionData = snapshot.data();
-              // ถ้า session ไม่ active แล้ว ให้ logout อัตโนมัติ
-              if (!sessionData.active) {
-                console.log('Session expired or invalidated, logging out...');
-                logout(false); // ไม่ต้องเรียก invalidateSession เพราะ session ถูกยกเลิกไปแล้ว
-              }
-            } else {
-              // ไม่พบ session ให้ logout
-              console.log('Session not found, logging out...');
-              logout(false);
-            }
-          },
-          (error) => {
-            console.error('Error listening to session changes:', error);
-            setAuthError('เกิดข้อผิดพลาดในการตรวจสอบเซสชัน กรุณาลองใหม่อีกครั้ง');
-          }
-        );
-      } catch (error) {
-        console.error('Error setting up session listener:', error);
+    // แทนที่จะใช้ listener ให้ใช้ setInterval ตรวจสอบข้อมูลผู้ใช้เป็นระยะ
+    const checkInterval = setInterval(() => {
+      if (user) {
+        // ตรวจสอบว่า user ยังมีอยู่ใน sessionStorage หรือไม่
+        const storedUser = sessionStorage.getItem('user');
+        if (!storedUser) {
+          console.log('User data removed from sessionStorage, logging out');
+          setUser(null);
+        }
       }
-    }
+    }, 30000); // ตรวจสอบทุก 30 วินาที
     
-    // Clean up listener เมื่อ component unmount หรือ user เปลี่ยน
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      clearInterval(checkInterval);
     };
-  }, [user?.uid, user?.sessionId]);
+  }, [user]);
 
-  // ฟังก์ชันตรวจสอบความถูกต้องของ session
+  // ฟังก์ชันตรวจสอบความถูกต้องของ session (แบบง่าย)
   const validateUserSession = async (user) => {
-    if (!user || !user.uid || !user.sessionId) {
-      setUser(null);
-      sessionStorage.removeItem('user');
-      return;
-    }
-    
     try {
-      const isValid = await validateSession(user.uid, user.sessionId);
-      if (!isValid) {
-        // ถ้า session ไม่ถูกต้อง ให้ logout
-        console.log('Invalid session, logging out...');
-        logout(false);
-        setAuthError('เซสชันไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่');
+      console.log('Basic user validation');
+      
+      // ตรวจสอบเฉพาะข้อมูลพื้นฐาน
+      if (!user || !user.uid || !user.username) {
+        console.error('Invalid user data - missing required fields');
+        logout();
+        return false;
       }
+      
+      return true;
     } catch (error) {
-      console.error('Error validating session:', error);
-      setAuthError('เกิดข้อผิดพลาดในการตรวจสอบเซสชัน กรุณาลองใหม่อีกครั้ง');
+      console.error('Error in validateUserSession:', error);
+      setLoading(false);
+      return false;
     }
   };
 
-  // ... rest of the code for session checking and login/logout ...
-
-  // Login function
+  // Login function - simplified version
   const login = async (username, password) => {
-    console.log('Login function called with username:', username);
+    setLoading(true);
     setAuthError(null);
+    
     try {
-      const result = await Promise.race([
-        loginUser(username, password),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Login timeout')), 10000)
-        )
-      ]);
+      console.log('[DEBUG-AUTH] Attempting login with username:', username);
+      console.log('[DEBUG-AUTH] Password length:', password?.length || 0);
       
-      if (result && result.success) {
-        // สร้าง session token ใหม่
-        const sessionToken = generateSessionToken();
-        
-        // บันทึก token ลง sessionStorage
-        sessionStorage.setItem('sessionToken', sessionToken);
-        sessionStorage.setItem('user', JSON.stringify(result.user));
-        setUser(result.user);
-        
-        // บันทึก session token และเวลาลงใน Firestore
-        const userRef = doc(db, 'users', result.user.uid);
-        await updateDoc(userRef, {
-          sessionToken: sessionToken,
-          lastActivity: serverTimestamp(),
-          lastLogin: serverTimestamp()
-        });
-        
-        // Wrap logging in try-catch
-        try {
-          logEvent('user_login', {
-            userId: result.user.uid,
-            username: username,
-            sessionId: result.user.sessionId,
-            role: result.user.role,
-            name: result.user.displayName,
-            timestamp: new Date().toISOString(),
-            action: 'Login success'
-          });
-        } catch (logError) {
-          console.warn('Login logging failed:', logError);
-        }
-        
-        return result;
-      } else if (result && !result.success) {
-        setAuthError(result.error || 'การเข้าสู่ระบบล้มเหลว กรุณาตรวจสอบข้อมูลอีกครั้ง');
+      // ตรวจสอบค่า input
+      if (!username?.trim() || !password?.trim()) {
+        console.error('[DEBUG-AUTH] Empty username or password');
+        setAuthError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+        setLoading(false);
+        return {
+          success: false,
+          error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'
+        };
       }
+      
+      // เรียกใช้ฟังก์ชัน loginUser ที่ปรับปรุงใหม่
+      const result = await loginUser(username, password);
+      
+      // ตรวจสอบผลลัพธ์
+      if (!result || !result.success) {
+        const errorMsg = result?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+        console.error('[DEBUG-AUTH] Login failed:', errorMsg);
+        setAuthError(errorMsg);
+        setLoading(false);
+        return result || { 
+          success: false,
+          error: errorMsg
+        };
+      }
+      
+      console.log('[DEBUG-AUTH] Login successful, user data:', {
+        uid: result.user.uid,
+        username: result.user.username,
+        role: result.user.role
+      });
+      
+      // ตรวจสอบว่ามีข้อมูลผู้ใช้หรือไม่
+      if (!result.user || !result.user.uid) {
+        console.error('[DEBUG-AUTH] User data is incomplete');
+        setAuthError('ข้อมูลผู้ใช้ไม่สมบูรณ์ โปรดติดต่อผู้ดูแลระบบ');
+        setLoading(false);
+        return {
+          success: false,
+          error: 'ข้อมูลผู้ใช้ไม่สมบูรณ์'
+        };
+      }
+      
+      // บันทึกข้อมูลใน sessionStorage
+      try {
+        const userData = JSON.stringify(result.user);
+        sessionStorage.setItem('user', userData);
+        console.log('[DEBUG-AUTH] User data saved to sessionStorage, length:', userData.length);
+      } catch (storageError) {
+        console.error('[DEBUG-AUTH] Error saving to sessionStorage:', storageError);
+      }
+      
+      // อัปเดตสถานะผู้ใช้ใน state
+      setUser(result.user);
+      
+      // บันทึกการเข้าสู่ระบบ
+      try {
+        logEvent('user_login', {
+          userId: result.user.uid,
+          username: result.user.username,
+          role: result.user.role,
+          timestamp: new Date().toISOString()
+        });
+      } catch (logError) {
+        console.warn('[DEBUG-AUTH] Error logging login event:', logError);
+      }
+      
+      console.log('[DEBUG-AUTH] Login process complete, returning result');
+      setLoading(false);
       return result;
     } catch (error) {
-      console.error('Login error:', error);
-      setAuthError(error.message === 'Login timeout' 
-        ? 'การเข้าสู่ระบบใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง'
-        : (error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ')
-      );
-      return { success: false, error: error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' };
+      console.error('[DEBUG-AUTH] Login error in AuthContext:', error);
+      const errorMsg = error.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง';
+      setAuthError(errorMsg);
+      setLoading(false);
+      return {
+        success: false,
+        error: errorMsg
+      };
     }
   };
 
-  // Logout function
-  const logout = (invalidateCurrentSession = true) => {
+  // Logout function (simplified)
+  const logout = () => {
     try {
-      const currentUser = user;
+      console.log('Logging out user');
       
       // ล้างข้อมูลใน sessionStorage
       sessionStorage.removeItem('user');
-      sessionStorage.removeItem('sessionToken');
-      
-      // ยกเลิก session ปัจจุบันใน Firestore (ถ้าต้องการ)
-      if (invalidateCurrentSession && currentUser && currentUser.uid && currentUser.sessionId) {
-        invalidateSession(currentUser.sessionId).catch(error => {
-          console.error('Error invalidating session:', error);
-        });
-      }
       
       // รีเซ็ต state
       setUser(null);
@@ -247,22 +257,16 @@ export function AuthProvider({ children }) {
       
       console.log('Logged out successfully');
       
-      // Log event แบบ fire-and-forget
+      // ไม่ต้องอัปเดตข้อมูลใน Firestore เพื่อลดความซับซ้อน
+      
+      // นำทางไปยังหน้า login หลังจากการออกจากระบบ
       try {
-        if (currentUser) {
-          logEvent('user_logout', {
-            userId: currentUser.uid,
-            username: currentUser.username,
-            timestamp: new Date().toISOString(),
-            action: 'Logout'
-          });
-        }
-      } catch (logError) {
-        console.warn('Logout logging failed:', logError);
+        window.location.href = '/page/login';
+      } catch (navError) {
+        console.error('Error navigating after logout:', navError);
       }
     } catch (error) {
       console.error('Logout error:', error);
-      setAuthError('เกิดข้อผิดพลาดในการออกจากระบบ: ' + error.message);
     }
   };
 
