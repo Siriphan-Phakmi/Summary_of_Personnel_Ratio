@@ -96,10 +96,26 @@ export const handleDateSelect = async (
     try {
         isFetchingData = true;  // กำลังเริ่มดึงข้อมูล
         
-        if (!date || !selectedWard || !selectedShift) {
+        // ตรวจสอบ user จาก sessionStorage เพื่อใช้ department โดยตรง
+        const userStr = sessionStorage.getItem('user');
+        let department = '';
+        
+        if (userStr) {
+            try {
+                const userData = JSON.parse(userStr);
+                department = userData.department || '';
+            } catch (e) {
+                console.error('Error parsing user data from sessionStorage:', e);
+            }
+        }
+        
+        // ใช้ department จาก user ไม่ใช่ selectedWard
+        const wardId = department || selectedWard;
+        
+        if (!date || !wardId || !selectedShift) {
             console.warn('handleDateSelect: Missing required parameters', {
                 date,
-                selectedWard,
+                wardId,
                 selectedShift
             });
             return;
@@ -115,7 +131,7 @@ export const handleDateSelect = async (
         // แสดง loading indicator
         const loadingSwal = Swal.fire({
             title: 'กำลังโหลดข้อมูล',
-            text: `กำลังดึงข้อมูลของ ${selectedWard} วันที่ ${formatThaiDate(date)}`,
+            text: `กำลังดึงข้อมูลของ ${wardId} วันที่ ${formatThaiDate(date)}`,
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
@@ -125,7 +141,7 @@ export const handleDateSelect = async (
         // ตรวจสอบสถานะการอนุมัติ
         if (setApprovalStatus) {
             try {
-                const status = await checkApprovalStatus(date, selectedWard);
+                const status = await checkApprovalStatus(date, selectedShift, wardId);
                 setApprovalStatus(status);
             } catch (error) {
                 console.error('Error checking approval status:', error);
@@ -137,7 +153,7 @@ export const handleDateSelect = async (
         // ดึงข้อมูล ward
         if (setFormData) {
             try {
-                const wardData = await fetchWardData(date, selectedWard, selectedShift);
+                const wardData = await fetchWardData(date, wardId, selectedShift);
                 if (wardData) {
                     setFormData(prevData => ({
                         ...prevData,

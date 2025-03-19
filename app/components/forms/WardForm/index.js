@@ -21,7 +21,13 @@ export * from './EventHandlers';
 
 // UI Components - คอมโพเนนต์สำหรับ UI
 export * from './ApprovalButtons';
-export * from './WardSections';
+
+// Export only the components from WardSections we need, omitting the duplicate WardFormSections
+import { PatientCensusSection, StaffingSection, NotesSection } from './WardSections';
+export { PatientCensusSection, StaffingSection, NotesSection };
+
+// Export WardFormSections from the dedicated file
+export { default as WardFormSections } from './WardFormSections';
 
 // Re-export firebase helpers
 export { handleFirebaseIndexError, navigateToCreateIndex, safeQuery };

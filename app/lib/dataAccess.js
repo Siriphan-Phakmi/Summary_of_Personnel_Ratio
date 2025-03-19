@@ -571,12 +571,12 @@ export const loginUser = async (username, password) => {
       username: userData.username,
       displayName: userData.displayName || userData.username,
       role: userData.role || 'user',
-      ward: userData.ward || null,
+      department: userData.department || null,
       sessionToken,
       sessionId
     };
 
-    console.log('[DEBUG-LOGIN] Login successful, returning user data');
+    console.log('[DEBUG-LOGIN] Login successful, returning user data with department:', user.department);
     return {
       success: true,
       user: user
