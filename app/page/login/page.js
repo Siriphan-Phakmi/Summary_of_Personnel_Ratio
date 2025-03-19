@@ -71,7 +71,7 @@ export default function Login() {
       // แสดงข้อความ error ถ้ามี
       if (!result || !result.success) {
         const errorMsg = result?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-        console.error('[DEBUG-LOGIN-PAGE] Login failed:', errorMsg);
+        console.debug('[DEBUG-LOGIN-PAGE] Login failed:', errorMsg);
         setError(errorMsg);
         setLoading(false);
         return;
@@ -79,7 +79,7 @@ export default function Login() {
 
       // ตรวจสอบว่าได้รับข้อมูลผู้ใช้หรือไม่
       if (!result.user) {
-        console.error('[DEBUG-LOGIN-PAGE] Login successful but user data is missing');
+        console.debug('[DEBUG-LOGIN-PAGE] Login successful but user data is missing');
         setError('ไม่พบข้อมูลผู้ใช้ โปรดติดต่อผู้ดูแลระบบ');
         setLoading(false);
         return;
@@ -97,7 +97,7 @@ export default function Login() {
         sessionStorage.setItem('user', userData);
         console.log('[DEBUG-LOGIN-PAGE] User data saved to sessionStorage, length:', userData.length);
       } catch (storageError) {
-        console.error('[DEBUG-LOGIN-PAGE] Error saving to sessionStorage:', storageError);
+        console.debug('[DEBUG-LOGIN-PAGE] Error saving to sessionStorage:', storageError);
       }
 
       // ตรวจสอบว่าข้อมูลถูกบันทึกจริงๆ

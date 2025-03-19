@@ -4,16 +4,6 @@ import Image from 'next/image';
 
 const LoadingScreen = ({ timeout = 15000, onTimeout, showRetry = false }) => {
     const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
-    const [currentTime, setCurrentTime] = useState(new Date());
-
-    // Update time every second
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentTime(new Date());
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, []);
 
     useEffect(() => {
         const timeoutTimer = setTimeout(() => {
@@ -29,15 +19,6 @@ const LoadingScreen = ({ timeout = 15000, onTimeout, showRetry = false }) => {
     const handleRetry = useCallback(() => {
         window.location.reload();
     }, []);
-
-    const formatTime = (date) => {
-        return date.toLocaleTimeString('th-TH', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-        });
-    };
 
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-white via-blue-50 to-[#0ab4ab]/10 flex items-center justify-center z-50">
@@ -59,17 +40,6 @@ const LoadingScreen = ({ timeout = 15000, onTimeout, showRetry = false }) => {
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0ab4ab] mb-3"></div>
                                 <p className="text-gray-600 font-medium">กำลังโหลดข้อมูล...</p>
                                 <p className="text-sm text-gray-500 mt-1">กรุณารอสักครู่ ระบบกำลังเตรียมข้อมูลให้คุณ...</p>
-                                
-                                {/* Current Time Display */}
-                                <div className="mb-6 p-3 rounded-lg bg-red-50 text-red-800 border border-red-100 inline-block">
-                                    <div className="text-center font-medium mb-1">เวลาปัจจุบัน</div>
-                                    <div className="text-xl font-bold">{formatTime(currentTime)}</div>
-                                    <div className="text-xs mt-1 opacity-80">
-                                        {currentTime.getHours() >= 7 && currentTime.getHours() < 19 
-                                        ? 'อยู่ในช่วงกะเช้า (07:00-19:00)' 
-                                        : 'อยู่ในช่วงกะดึก (19:00-07:00)'}
-                                    </div>
-                                </div>
                             </>
                         ) : (
                             <>

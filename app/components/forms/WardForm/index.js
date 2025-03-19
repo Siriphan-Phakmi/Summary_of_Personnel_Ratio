@@ -8,6 +8,7 @@
 // Import firebase helpers
 import { handleFirebaseIndexError, navigateToCreateIndex, safeQuery } from '../../../utils/firebase-helpers';
 import { fetchWardData } from './DataFetchers';
+import { parseInputValue, calculateTotal } from '../../../utils/calculateTotal';
 
 // Data Fetchers - ฟังก์ชันสำหรับดึงข้อมูล
 export * from './DataFetchers';
@@ -24,6 +25,9 @@ export * from './WardSections';
 
 // Re-export firebase helpers
 export { handleFirebaseIndexError, navigateToCreateIndex, safeQuery };
+
+// Re-export calculate functions
+export { parseInputValue, calculateTotal };
 
 // สร้างเวอร์ชันที่ปลอดภัยมากขึ้นของ fetchWardData
 export const safeFetchWardData = async (date, ward, shift) => {
@@ -68,15 +72,6 @@ export const handleBeforeUnload = (e, hasUnsavedChanges) => {
 export const handleWardFormSubmit = (e, onSubmit) => {
     e.preventDefault();
     if (onSubmit) onSubmit();
-};
-
-export const calculateTotal = (values = []) => {
-    return values.reduce((sum, val) => sum + (parseInt(val) || 0), 0);
-};
-
-export const parseInputValue = (value) => {
-    if (!value) return '0';
-    return value.toString().replace(/[^0-9]/g, '') || '0';
 };
 
 // Placeholder components for future implementation

@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
-import { loginUser, validateSession, invalidateSession } from '../lib/dataAccess';
+import { loginUser, validateSession, invalidateSession, logoutUser } from '../lib/dataAccess';
 import { logEvent } from '../utils/sessionRecording';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -178,7 +178,7 @@ export function AuthProvider({ children }) {
       // ตรวจสอบผลลัพธ์
       if (!result || !result.success) {
         const errorMsg = result?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-        console.error('[DEBUG-AUTH] Login failed:', errorMsg);
+        console.debug('[DEBUG-AUTH] Login failed:', errorMsg);
         setAuthError(errorMsg);
         setLoading(false);
         return result || { 
@@ -195,7 +195,7 @@ export function AuthProvider({ children }) {
       
       // ตรวจสอบว่ามีข้อมูลผู้ใช้หรือไม่
       if (!result.user || !result.user.uid) {
-        console.error('[DEBUG-AUTH] User data is incomplete');
+        console.debug('[DEBUG-AUTH] User data is incomplete');
         setAuthError('ข้อมูลผู้ใช้ไม่สมบูรณ์ โปรดติดต่อผู้ดูแลระบบ');
         setLoading(false);
         return {
@@ -244,9 +244,39 @@ export function AuthProvider({ children }) {
   };
 
   // Logout function (simplified)
-  const logout = () => {
+  const logout = async () => {
     try {
       console.log('Logging out user');
+      
+      // ตรวจสอบว่ามี user ที่ล็อกอินอยู่หรือไม่
+      if (user && user.uid && user.sessionToken) {
+        try {
+          console.log('Calling logoutUser function');
+          // เรียกใช้ฟังก์ชัน logoutUser แทน invalidateSession
+          const result = await logoutUser(user.uid, user.sessionToken, user.sessionId);
+          if (result.success) {
+            console.log('Logout successful in database');
+          } else {
+            console.warn('Issue during logout:', result.messages || result.error);
+          }
+        } catch (dbError) {
+          console.error('Error during database logout:', dbError);
+        }
+      } else {
+        // กรณีไม่มี user data ใน state แต่อาจมีใน sessionStorage
+        const userData = sessionStorage.getItem('user');
+        if (userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            if (parsedUser && parsedUser.uid && parsedUser.sessionToken) {
+              console.log('Logging out user from sessionStorage data');
+              await logoutUser(parsedUser.uid, parsedUser.sessionToken, parsedUser.sessionId);
+            }
+          } catch (parseError) {
+            console.error('Error parsing user data for logout:', parseError);
+          }
+        }
+      }
       
       // ล้างข้อมูลใน sessionStorage
       sessionStorage.removeItem('user');
@@ -255,9 +285,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       setAuthError(null);
       
-      console.log('Logged out successfully');
-      
-      // ไม่ต้องอัปเดตข้อมูลใน Firestore เพื่อลดความซับซ้อน
+      console.log('Logged out successfully (client-side)');
       
       // นำทางไปยังหน้า login หลังจากการออกจากระบบ
       try {

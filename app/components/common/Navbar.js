@@ -180,7 +180,9 @@ const Navbar = () => {
         
         <div className="flex flex-wrap items-center">
           <div className="text-white text-sm mr-4 mb-2 md:mb-0">
-            Logged in as: {user.username || 'user'} | Department: {user.department || ''} | Role: {user.role || 'user'}
+            Logged in as: {user.username || user.email || 'user'} | 
+            Department: {user.department || (user?.department === undefined ? 'ไม่ระบุแผนก' : user.department)} | 
+            Role: {user.role || 'user'}
           </div>
           
           {/* Theme Toggle Button */}

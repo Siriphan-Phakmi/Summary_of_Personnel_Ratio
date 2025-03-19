@@ -102,3 +102,24 @@ export const formatDateToYYYYMMDD = (date) => {
     return '';
   }
 };
+
+/**
+ * รับรายชื่อเดือนทั้งหมด
+ * @returns {Array} รายชื่อเดือน 0-11
+ */
+export const getMonths = () => {
+  return Array.from({ length: 12 }, (_, i) => i);
+};
+
+/**
+ * รับช่วงปีสำหรับ dropdown
+ * @param {number} currentYear - ปีปัจจุบัน
+ * @param {number} range - จำนวนปีย้อนหลังและล่วงหน้า (default: 5)
+ * @returns {Array} ช่วงปีตั้งแต่ currentYear-range ถึง currentYear+range
+ */
+export const getYearRange = (currentYear, range = 5) => {
+  return Array.from(
+    { length: range * 2 + 1 },
+    (_, i) => currentYear - range + i
+  );
+};
