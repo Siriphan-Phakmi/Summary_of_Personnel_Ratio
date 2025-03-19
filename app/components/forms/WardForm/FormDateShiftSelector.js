@@ -68,16 +68,25 @@ const FormDateShiftSelector = ({
     };
     
     return (
-        <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        <div className="mb-2">
+            <div className="grid grid-cols-1 gap-4">
                 {/* วันที่ */}
-                <div className="relative md:col-span-5">
+                <div className="relative w-full">
                     <div onClick={() => handleToggleCalendar(!calendarVisible)} className="cursor-pointer">
-                        <div className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-800 border-gray-200'} border rounded-lg p-3 flex items-center h-full shadow-sm hover:shadow transition-all`}>
-                            <span className="mr-3 text-blue-500">📅</span>
+                        <div className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-gray-50 text-gray-800 border-gray-200'} border rounded-lg p-5 flex items-center h-full shadow-sm hover:shadow-md transition-all duration-300`}>
+                            <div className={`${theme === 'dark' ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-600'} p-3 rounded-full mr-4`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
                             <div className="flex-1">
-                                <div className="font-medium text-gray-600 mb-0.5">วันที่</div>
-                                <div className="text-gray-900 font-medium">{thaiDate}</div>
+                                <div className={`font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} mb-1 text-sm`}>วันที่</div>
+                                <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'} font-medium text-lg`}>{thaiDate}</div>
+                            </div>
+                            <div className={`${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
                             </div>
                         </div>
                     </div>
@@ -85,7 +94,18 @@ const FormDateShiftSelector = ({
                     {/* Calendar component */}
                     {calendarVisible && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                            <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{maxWidth: '280px'}}>
+                            <div className="bg-white rounded-lg shadow-lg overflow-hidden" style={{maxWidth: '350px'}}>
+                                <div className="flex justify-between items-center p-3 bg-blue-50 border-b border-blue-100">
+                                    <h3 className="font-medium text-blue-700">เลือกวันที่</h3>
+                                    <button 
+                                        onClick={() => handleToggleCalendar(false)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <Calendar
                                     selectedDate={selectedDate}
                                     onDateSelect={handleDateSelect}
@@ -96,15 +116,6 @@ const FormDateShiftSelector = ({
                             </div>
                         </div>
                     )}
-                </div>
-                
-                {/* กะการทำงาน */}
-                <div className="md:col-span-7">
-                    <ShiftSelection
-                        selectedShift={selectedShift}
-                        onShiftChange={handleShiftChange}
-                        theme={theme}
-                    />
                 </div>
             </div>
         </div>

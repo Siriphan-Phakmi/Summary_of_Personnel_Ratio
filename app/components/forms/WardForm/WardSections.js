@@ -101,12 +101,27 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
 
   const isDark = theme === 'dark';
 
-  // ฟังก์ชันสำหรับจัดการเมื่อมีการป้อนข้อมูล
-  const handleNumericInput = (e) => {
+  // ฟังก์ชันสำหรับจัดการอินพุตที่เป็นตัวเลขเท่านั้น
+  const handleNumericInput = (e, section) => {
     const { name, value } = e.target;
+    
     // อนุญาตเฉพาะตัวเลขเท่านั้น
     const numericValue = value.replace(/[^0-9]/g, '');
-    handleInputChange({ target: { name, value: numericValue } });
+    
+    if (section === 'patientCensus') {
+        // ส่งข้อมูลไปยัง handleInputChange สำหรับ patientCensus
+        handleInputChange('patientCensus', name, numericValue);
+        
+        // รีคำนวณ total หลังจากการอัปเดต (อาจต้องรอให้ state อัปเดตก่อน)
+        setTimeout(() => {
+            if (typeof handleInputChange === 'function') {
+                handleInputChange('', 'recalculateTotal', true);
+            }
+        }, 100);
+    } else if (section === 'bedManagement') {
+        // ส่งข้อมูลไปยัง handleInputChange สำหรับ bedManagement
+        handleInputChange('bedManagement', name, numericValue);
+    }
   };
 
   // สีพื้นหลัง Pastel สำหรับแต่ละส่วน
@@ -136,8 +151,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             </label>
             <input
               type="text"
-              name="patientCensus"
-              value={formData?.patientCensus || '0'}
+              name="total"
+              value={formData?.patientCensus?.total || '0'}
               readOnly
               className="w-full px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-2xl font-bold text-center text-blue-800"
             />
@@ -151,85 +166,99 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="overallData"
-              defaultValue={formData?.overallData || '0'}
+              value={formData?.overallData || '0'}
+              onChange={(e) => handleInputChange('', 'overallData', e.target.value)}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-2xl font-bold text-center text-blue-800"
             />
           </div>
         </div>
-      </div>
-
-      <div className={sectionColors.divider}></div>
-
-      {/* Section 2: Staff Details */}
-      <div className={`${sectionColors.staff} rounded-lg p-4 mb-4`}>
-        <h3 className="text-lg font-bold mb-2 text-green-800">
-          Staff Details
-        </h3>
+        <div className={sectionColors.divider}></div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Nurse Manager */}
-          <div className="mb-2">
-            <label className="block text-sm font-medium mb-1 text-green-700">
-              Nurse Manager
-            </label>
-            <input
-              type="text"
-              name="nurseManager"
-              value={formData?.nurseManager || '0'}
-              onChange={handleNumericInput}
-              disabled={isReadOnly}
-              className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
-            />
-          </div>
-          
-          {/* RN */}
-          <div className="mb-2">
-            <label className="block text-sm font-medium mb-1 text-green-700">
-              RN
-            </label>
-            <input
-              type="text"
-              name="rns"
-              value={formData?.rns || '0'}
-              onChange={handleNumericInput}
-              disabled={isReadOnly}
-              className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
-            />
-          </div>
-          
-          {/* PN */}
-          <div className="mb-2">
-            <label className="block text-sm font-medium mb-1 text-green-700">
-              PN
-            </label>
-            <input
-              type="text"
-              name="pns"
-              value={formData?.pns || '0'}
-              onChange={handleNumericInput}
-              disabled={isReadOnly}
-              className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
-            />
-          </div>
-          
-          {/* WC */}
-          <div className="mb-2">
-            <label className="block text-sm font-medium mb-1 text-green-700">
-              WC
-            </label>
-            <input
-              type="text"
-              name="wcs"
-              value={formData?.wcs || '0'}
-              onChange={handleNumericInput}
-              disabled={isReadOnly}
-              className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
-            />
-          </div>
-        </div>
       </div>
-      
+          {/* Staff Details embedded inside Patient Census section */}
+          <div className={`mt-4 ${isDark ? 'bg-gray-800 text-white shadow-md' : 'bg-green-50 shadow-sm'} rounded-lg p-4`}>
+            <h3 className={`text-lg font-bold mb-2 ${isDark ? 'text-green-300' : 'text-green-700'} flex items-center`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              Staff Details
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Nurse Manager */}
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1 text-green-700">
+                  Nurse Manager
+                </label>
+                <input
+                  type="text"
+                  name="nurseManager"
+                  value={formData?.staffing?.nurseManager || '0'}
+                  onChange={(e) => {
+                    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                    handleInputChange('staffing', 'nurseManager', numericValue);
+                  }}
+                  disabled={isReadOnly}
+                  className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
+                />
+              </div>
+              
+              {/* RN */}
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1 text-green-700">
+                  RN
+                </label>
+                <input
+                  type="text"
+                  name="rn"
+                  value={formData?.staffing?.rn || '0'}
+                  onChange={(e) => {
+                    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                    handleInputChange('staffing', 'rn', numericValue);
+                  }}
+                  disabled={isReadOnly}
+                  className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
+                />
+              </div>
+              
+              {/* PN */}
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1 text-green-700">
+                  PN
+                </label>
+                <input
+                  type="text"
+                  name="lpn"
+                  value={formData?.staffing?.lpn || '0'}
+                  onChange={(e) => {
+                    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                    handleInputChange('staffing', 'lpn', numericValue);
+                  }}
+                  disabled={isReadOnly}
+                  className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
+                />
+              </div>
+              
+              {/* WC */}
+              <div className="mb-2">
+                <label className="block text-sm font-medium mb-1 text-green-700">
+                  WC
+                </label>
+                <input
+                  type="text"
+                  name="wc"
+                  value={formData?.staffing?.wc || '0'}
+                  onChange={(e) => {
+                    const numericValue = e.target.value.replace(/[^0-9]/g, '');
+                    handleInputChange('staffing', 'wc', numericValue);
+                  }}
+                  disabled={isReadOnly}
+                  className="w-full px-3 py-2 bg-green-50 border border-green-200 rounded-md text-xl font-bold text-center text-green-800"
+                />
+              </div>
+            </div>
+          </div>
+
       <div className={sectionColors.divider}></div>
 
       {/* Section 3: Patient Admission */}
@@ -247,8 +276,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="newAdmit"
-              value={formData?.newAdmit || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.newAdmit || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
             />
@@ -262,8 +291,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="transferIn"
-              value={formData?.transferIn || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.transferIn || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
             />
@@ -277,8 +306,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="referIn"
-              value={formData?.referIn || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.referIn || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
             />
@@ -294,7 +323,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
           Patient Discharge
         </h3>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Transfer Out */}
           <div className="mb-2">
             <label className="block text-sm font-medium mb-1 text-red-700">
@@ -303,8 +332,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="transferOut"
-              value={formData?.transferOut || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.transferOut || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
             />
@@ -318,8 +347,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="referOut"
-              value={formData?.referOut || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.referOut || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
             />
@@ -333,8 +362,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="discharge"
-              value={formData?.discharge || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.discharge || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
             />
@@ -348,8 +377,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="dead"
-              value={formData?.dead || '0'}
-              onChange={handleNumericInput}
+              value={formData?.patientCensus?.dead || '0'}
+              onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
             />
@@ -373,9 +402,9 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             </label>
             <input
               type="text"
-              name="availableBeds"
-              value={formData?.availableBeds || '0'}
-              onChange={handleNumericInput}
+              name="available"
+              value={formData?.bedManagement?.available || '0'}
+              onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
             />
@@ -389,8 +418,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="unavailable"
-              value={formData?.unavailable || '0'}
-              onChange={handleNumericInput}
+              value={formData?.bedManagement?.unavailable || '0'}
+              onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
             />
@@ -404,8 +433,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="plannedDischarge"
-              value={formData?.plannedDischarge || '0'}
-              onChange={handleNumericInput}
+              value={formData?.bedManagement?.plannedDischarge || '0'}
+              onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
             />
@@ -426,8 +455,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
           <div className="mb-2">
             <textarea
               name="notes"
-              value={formData?.notes || ''}
-              onChange={handleNumericInput}
+              value={formData?.staffing?.notes || ''}
+              onChange={(e) => handleInputChange('staffing', 'notes', e.target.value)}
               disabled={isReadOnly}
               rows="3"
               placeholder="Enter any additional notes or comments here..."
@@ -453,8 +482,9 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             </label>
             <input
               type="text"
-              name="recorderFirstName"
-              defaultValue={formData?.recorderFirstName || ''}
+              name="firstName"
+              value={formData?.staffing?.firstName || ''}
+              onChange={(e) => handleInputChange('staffing', 'firstName', e.target.value)}
               disabled={isReadOnly}
               placeholder="ชื่อผู้บันทึก"
               className="w-full px-3 py-2 bg-teal-50 border border-teal-200 rounded-md text-teal-800"
@@ -468,8 +498,9 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             </label>
             <input
               type="text"
-              name="recorderLastName"
-              defaultValue={formData?.recorderLastName || ''}
+              name="lastName"
+              value={formData?.staffing?.lastName || ''}
+              onChange={(e) => handleInputChange('staffing', 'lastName', e.target.value)}
               disabled={isReadOnly}
               placeholder="นามสกุลผู้บันทึก"
               className="w-full px-3 py-2 bg-teal-50 border border-teal-200 rounded-md text-teal-800"
@@ -481,26 +512,69 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
   );
 };
 
-// ส่วนรายละเอียดบุคลากร - ส่วนนี้ไม่ใช้แล้ว เพราะรวมไปที่ PatientCensusSection แล้ว
+// ส่วนรายละเอียดบุคลากร
 export const StaffingSection = ({ formData, handleInputChange, isReadOnly, theme }) => {
+  // No longer needed since we embedded the Staff Details inside PatientCensusSection
   return null;
 };
 
-// ส่วนรายละเอียดอื่นๆ - ส่วนนี้ไม่ใช้แล้ว เพราะรวมไปที่ PatientCensusSection แล้ว
+// ส่วนรายละเอียดอื่นๆ
 export const NotesSection = ({ formData, handleInputChange, isReadOnly, theme }) => {
-  return null;
+  const isDark = theme === 'dark';
+
+  // ฟังก์ชันสำหรับจัดการเมื่อมีการป้อนข้อความ
+  const handleTextInput = (e) => {
+    const { name, value } = e.target;
+    handleInputChange('staffing', name, value);
+  };
+
+  return (
+    <div className={`${isDark ? 'bg-gray-800 text-white shadow-md' : 'bg-white shadow-sm'} rounded-lg mb-4 p-4`}>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-2 text-pink-700">
+          Comments
+        </label>
+        <textarea
+          name="notes"
+          value={formData?.staffing?.notes || ''}
+          onChange={handleTextInput}
+          disabled={isReadOnly}
+          rows="4"
+          className="w-full px-3 py-2 bg-pink-50 border border-pink-200 rounded-md text-gray-800"
+          placeholder="Enter any additional notes or comments here..."
+        ></textarea>
+      </div>
+    </div>
+  );
 };
 
 // Create a simple wrapped component that puts all sections together
 export const WardFormSections = ({ formData, handleInputChange, isReadOnly, theme }) => {
+  const isDark = theme === 'dark';
+  
   return (
-    <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
-      <PatientCensusSection 
-        formData={formData} 
-        handleInputChange={handleInputChange} 
-        isReadOnly={isReadOnly} 
-        theme={theme} 
-      />
+    <div className={`${isDark ? 'text-white' : 'text-gray-800'} space-y-8`}>
+      {/* Patient Census Section */}
+      <div className={`rounded-lg overflow-hidden shadow-md border ${isDark ? 'border-indigo-900 bg-gray-800' : 'border-blue-100 bg-blue-50'}`}>
+        <div className={`px-5 py-4 ${isDark ? 'bg-indigo-900' : 'bg-blue-100'} border-b ${isDark ? 'border-indigo-800' : 'border-blue-200'}`}>
+          <h3 className={`font-semibold ${isDark ? 'text-blue-300' : 'text-blue-700'} flex items-center`}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            Patient Census & Overall Data
+          </h3>
+        </div>
+        <div className="p-5">
+          <PatientCensusSection 
+            formData={formData} 
+            handleInputChange={handleInputChange} 
+            isReadOnly={isReadOnly} 
+            theme={theme} 
+          />
+          
+
+        </div>
+      </div>
     </div>
   );
 };

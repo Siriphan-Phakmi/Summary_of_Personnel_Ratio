@@ -190,7 +190,8 @@ export function AuthProvider({ children }) {
       console.log('[DEBUG-AUTH] Login successful, user data:', {
         uid: result.user.uid,
         username: result.user.username,
-        role: result.user.role
+        role: result.user.role,
+        department: result.user.department
       });
       
       // ตรวจสอบว่ามีข้อมูลผู้ใช้หรือไม่
@@ -209,6 +210,7 @@ export function AuthProvider({ children }) {
         const userData = JSON.stringify(result.user);
         sessionStorage.setItem('user', userData);
         console.log('[DEBUG-AUTH] User data saved to sessionStorage, length:', userData.length);
+        console.log('[DEBUG-AUTH] User department in storage:', result.user.department);
       } catch (storageError) {
         console.error('[DEBUG-AUTH] Error saving to sessionStorage:', storageError);
       }
