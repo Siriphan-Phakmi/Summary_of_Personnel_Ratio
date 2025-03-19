@@ -5,6 +5,72 @@ import { getSubcollection, getDocumentById } from '../../../lib/firebase';
 import { format } from 'date-fns';
 
 /**
+ * ฟังก์ชันสำหรับตรวจสอบการอนุมัติ
+ * @param {string} date วันที่ตรวจสอบ
+ * @param {string} shift กะงานที่ตรวจสอบ
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Object>} สถานะการอนุมัติ
+ */
+export const checkApprovalStatus = async (date, shift, wardId) => {
+  try {
+    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+    // ตรวจสอบข้อมูลในฐานข้อมูล
+    const wardData = await getWardDataByDate(formattedDate, shift, wardId);
+    
+    if (!wardData) {
+      return { status: 'not_submitted', message: 'ยังไม่ได้บันทึกข้อมูล' };
+    }
+    
+    if (wardData.approvalStatus === 'approved') {
+      return { 
+        status: 'approved', 
+        message: 'ได้รับการอนุมัติแล้ว', 
+        timestamp: wardData.approvalTimestamp,
+        approvedBy: wardData.approvedBy 
+      };
+    }
+    
+    if (wardData.approvalStatus === 'rejected') {
+      return { 
+        status: 'rejected', 
+        message: 'ถูกปฏิเสธการอนุมัติ', 
+        timestamp: wardData.approvalTimestamp,
+        rejectedBy: wardData.rejectedBy,
+        rejectionReason: wardData.rejectionReason 
+      };
+    }
+    
+    return { status: 'pending', message: 'รอการอนุมัติ' };
+  } catch (error) {
+    console.error('Error checking approval status:', error);
+    return { status: 'error', message: 'เกิดข้อผิดพลาดในการตรวจสอบ' };
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลวอร์ด
+ * @param {string} date วันที่ต้องการดึงข้อมูล
+ * @param {string} wardId รหัสวอร์ด
+ * @param {string} shift กะงาน
+ * @returns {Promise<Object|null>} ข้อมูลวอร์ดหรือ null ถ้าไม่พบ
+ */
+export const fetchWardData = async (date, wardId, shift) => {
+  try {
+    if (!date || !wardId || !shift) {
+      console.error('fetchWardData: Missing parameters', { date, wardId, shift });
+      return null;
+    }
+    
+    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+    const data = await getWardDataByDate(formattedDate, shift, wardId);
+    return data;
+  } catch (error) {
+    console.error('Error fetching ward data:', error);
+    return null;
+  }
+};
+
+/**
  * ฟังก์ชันสำหรับตรวจสอบว่ามีข้อมูลกะเช้าหรือไม่
  * @param {Date} date วันที่ต้องการตรวจสอบ
  * @param {string} wardId รหัสวอร์ด
@@ -137,5 +203,161 @@ export const checkFinalApprovalStatus = async (date, shift, wardId, supervisorId
       approved: false, 
       message: 'เกิดข้อผิดพลาดในการตรวจสอบสถานะ' 
     };
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงวันที่ที่มีข้อมูลอยู่แล้วในระบบ
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Array<Object>>} อาร์เรย์ของวันที่ที่มีข้อมูล
+ */
+export const fetchDatesWithData = async (wardId) => {
+  try {
+    if (!wardId) {
+      console.error('fetchDatesWithData: Missing wardId');
+      return [];
+    }
+    
+    // ดึงข้อมูลจากทั้ง collection wardDataFinal และ wardDataDrafts
+    // โค้ดจำลองการดึงข้อมูล
+    const dates = [
+      { date: '2025-03-18', shifts: ['Morning (07:00-19:00)', 'Night (19:00-07:00)'] },
+      { date: '2025-03-17', shifts: ['Morning (07:00-19:00)'] },
+      { date: '2025-03-16', shifts: ['Night (19:00-07:00)'] }
+    ];
+    
+    return dates;
+  } catch (error) {
+    console.error('Error fetching dates with data:', error);
+    return [];
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลกะงานก่อนหน้า
+ * @param {string} date วันที่
+ * @param {string} wardId รหัสวอร์ด
+ * @param {string} currentShift กะงานปัจจุบัน
+ * @returns {Promise<Object|null>} ข้อมูลกะงานก่อนหน้า หรือ null ถ้าไม่พบ
+ */
+export const fetchPreviousShiftData = async (date, wardId, currentShift) => {
+  try {
+    if (!date || !wardId || !currentShift) {
+      return null;
+    }
+    
+    // กำหนดกะงานก่อนหน้า
+    let previousShift;
+    let previousDate = new Date(date);
+    
+    if (currentShift === 'Morning (07:00-19:00)') {
+      // ถ้าเป็นกะเช้า ให้ดูกะดึกของวันก่อนหน้า
+      previousDate.setDate(previousDate.getDate() - 1);
+      previousShift = 'Night (19:00-07:00)';
+    } else {
+      // ถ้าเป็นกะดึก ให้ดูกะเช้าของวันเดียวกัน
+      previousShift = 'Morning (07:00-19:00)';
+    }
+    
+    const formattedPreviousDate = format(previousDate, 'yyyy-MM-dd');
+    const previousData = await getWardDataByDate(formattedPreviousDate, previousShift, wardId);
+    
+    return previousData;
+  } catch (error) {
+    console.error('Error fetching previous shift data:', error);
+    return null;
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลการอนุมัติ
+ * @param {string} date วันที่
+ * @param {string} wardId รหัสวอร์ด
+ * @param {string} shift กะงาน
+ * @returns {Promise<Object|null>} ข้อมูลการอนุมัติ หรือ null ถ้าไม่พบ
+ */
+export const fetchApprovalData = async (date, wardId, shift) => {
+  try {
+    if (!date || !wardId || !shift) {
+      return null;
+    }
+    
+    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+    const wardData = await getWardDataByDate(formattedDate, shift, wardId);
+    
+    if (!wardData) {
+      return null;
+    }
+    
+    return {
+      status: wardData.approvalStatus || 'pending',
+      approvedBy: wardData.approvedBy || null,
+      approvalTimestamp: wardData.approvalTimestamp || null,
+      rejectedBy: wardData.rejectedBy || null,
+      rejectionReason: wardData.rejectionReason || null,
+      comments: wardData.approvalComments || null
+    };
+  } catch (error) {
+    console.error('Error fetching approval data:', error);
+    return null;
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลล่าสุด
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Object|null>} ข้อมูลล่าสุด หรือ null ถ้าไม่พบ
+ */
+export const fetchLatestRecord = async (wardId) => {
+  try {
+    if (!wardId) {
+      return null;
+    }
+    
+    // ตรวจสอบย้อนหลังจากวันปัจจุบันไปจนถึง 30 วันก่อนหน้า
+    const currentDate = new Date();
+    let latestData = null;
+    
+    for (let i = 0; i < 30; i++) {
+      const checkDate = new Date(currentDate);
+      checkDate.setDate(checkDate.getDate() - i);
+      
+      const formattedDate = format(checkDate, 'yyyy-MM-dd');
+      
+      // ตรวจสอบกะดึกก่อน แล้วจึงตรวจสอบกะเช้า
+      const nightData = await getWardDataByDate(formattedDate, 'Night (19:00-07:00)', wardId);
+      if (nightData) {
+        return nightData;
+      }
+      
+      const morningData = await getWardDataByDate(formattedDate, 'Morning (07:00-19:00)', wardId);
+      if (morningData) {
+        return morningData;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching latest record:', error);
+    return null;
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับตรวจสอบว่ามีข้อมูลใน 30 วันล่าสุดหรือไม่
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<boolean>} true ถ้ามีข้อมูลใน 30 วันล่าสุด, false ถ้าไม่มี
+ */
+export const checkPast30DaysRecords = async (wardId) => {
+  try {
+    if (!wardId) {
+      return false;
+    }
+    
+    const latestRecord = await fetchLatestRecord(wardId);
+    return latestRecord !== null;
+  } catch (error) {
+    console.error('Error checking past 30 days records:', error);
+    return false;
   }
 };

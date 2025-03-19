@@ -994,15 +994,17 @@ const Dashboard = () => {
                         <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white rounded-xl shadow-sm p-6">
                             {/* Calendar Section */}
                             <div className="w-full md:w-3/4">
-                                <CalendarSection
-                                    selectedDate={selectedDate}
-                                    onDateSelect={handleDateSelect}
-                                    datesWithData={datesWithData}
-                                    showCalendar={showCalendar}
-                                    setShowCalendar={setShowCalendar}
-                                    thaiDate={displayDate}
-                                    variant="dashboard"
-                                />
+                                <div className="mt-4">
+                                    <CalendarSection
+                                        selectedDate={selectedDate}
+                                        onDateSelect={(date) => handleDateSelect(date)}
+                                        datesWithData={datesWithData}
+                                        showCalendar={showCalendar}
+                                        setShowCalendar={setShowCalendar}
+                                        thaiDate={displayDate}
+                                        variant="dashboard"
+                                    />
+                                </div>
                             </div>
                             
                             {/* Shift Selection - Horizontal Layout */}

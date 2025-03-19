@@ -1,4 +1,4 @@
-// File: C:\Users\B_SIR\OneDrive\เดสก์ท็อป\Active 14-3-2025\Summary_of_Personnel_Ratio\app\page\ward-form\page.js
+// File: C:\Active 14-3-2025\Summary_of_Personnel_Ratio\app\page\ward-form\page.js
 import * as entry from '../../../../../app/page/ward-form/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

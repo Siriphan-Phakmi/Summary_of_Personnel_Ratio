@@ -11,10 +11,11 @@ import { wardMapping, WARD_ORDER, initialWardData } from '../../../utils/wardCon
 import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay } from '../../../utils/dateHelpers';
 import SignatureSection from '../SignatureSection';
 import SummarySection from '../SummarySection';
-import CalendarSection from '../../common/CalendarSection';
+import CalendarSection from '../../../components/common/CalendarSection';
 import { Swal } from '../../../utils/alertService';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
+import { HeaderSection } from './HeaderSection';
 
 const ShiftForm = ({ isApprovalMode = false }) => {
     const router = useRouter();
@@ -528,7 +529,7 @@ const ShiftForm = ({ isApprovalMode = false }) => {
             newState.wards[ward][type] = value;
 
             // ข้อมูลเกี่ยวกับจำนวนเตียงที่ต้องอัพเดทโดยอัตโนมัติ
-            // คำนวณ Patient Census = (New Admit + Transfer In + Refer In) - (Transfer Out + Refer Out + Discharge + Dead)
+            // คำนวณเมื่อมีการเปลี่ยนแปลงข้อมูลการเคลื่อนไหวของผู้ป่วย
             if (['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(type)) {
                 const ward_data = newState.wards[ward];
                 
@@ -541,17 +542,24 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 const discharge = Number(ward_data.discharge || 0);
                 const dead = Number(ward_data.dead || 0);
                 
-                // Patient Census calculation (based on the formula provided)
-                const patientCensus = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
-                newState.wards[ward].numberOfPatients = String(patientCensus >= 0 ? patientCensus : 0);
+                // คำนวณตามสูตร: New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead
+                const movementCalculation = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
                 
-                // Overall Data calculation
-                newState.wards[ward].overallData = String(patientCensus >= 0 ? patientCensus : 0);
+                // ตรวจสอบว่าเป็นกะอะไร
+                if (newState.shift === '07:00-19:00') {
+                    // กรณีกะเช้า: คำนวณและอัพเดต Patient Census
+                    const previousCensus = Number(ward_data.numberOfPatients || 0);
+                    newState.wards[ward].numberOfPatients = String(Math.max(movementCalculation, 0));
+                } else if (newState.shift === '19:00-07:00') {
+                    // กรณีกะดึก: คำนวณและอัพเดต Overall Data
+                    const patientCensus = Number(ward_data.numberOfPatients || 0);
+                    newState.wards[ward].overallData = String(Math.max(patientCensus + movementCalculation, 0));
+                }
             }
             
             return newState;
         });
-    }, [user, isReadOnly, setFormData]);
+    }, [user, isReadOnly]);
     
     // แก้ไขฟังก์ชัน handleSubmit ให้เป็นแบบดูอย่างเดียว
     const handleSubmit = async (e) => {
@@ -872,6 +880,33 @@ const ShiftForm = ({ isApprovalMode = false }) => {
         }
     };
 
+    // เพิ่มฟังก์ชันคำนวณ Patient Census สำหรับกะเช้า
+    const calculatePatientCensus = (wardData) => {
+        const newAdmit = parseInt(wardData.newAdmit || 0);
+        const transferIn = parseInt(wardData.transferIn || 0);
+        const referIn = parseInt(wardData.referIn || 0);
+        const transferOut = parseInt(wardData.transferOut || 0);
+        const referOut = parseInt(wardData.referOut || 0);
+        const discharge = parseInt(wardData.discharge || 0);
+        const dead = parseInt(wardData.dead || 0);
+
+        return (newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead).toString();
+    };
+
+    // เพิ่มฟังก์ชันคำนวณ Overall Data สำหรับกะดึก
+    const calculateOverallData = (wardData, previousPatientCensus) => {
+        const patientCensus = parseInt(previousPatientCensus || 0);
+        const newAdmit = parseInt(wardData.newAdmit || 0);
+        const transferIn = parseInt(wardData.transferIn || 0);
+        const referIn = parseInt(wardData.referIn || 0);
+        const transferOut = parseInt(wardData.transferOut || 0);
+        const referOut = parseInt(wardData.referOut || 0);
+        const discharge = parseInt(wardData.discharge || 0);
+        const dead = parseInt(wardData.dead || 0);
+
+        return (patientCensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead).toString();
+    };
+
     const saveData = async (overwrite = false) => {
         setLoadingStates(prev => ({ ...prev, savingData: true }));
         setLoadingMessage('กำลังบันทึกข้อมูล...');
@@ -903,6 +938,19 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     setLoadingStates(prev => ({ ...prev, savingData: false }));
                     return false;
                 }
+            }
+            
+            // ตรวจสอบว่ามีข้อมูล Final ของกะนี้ในวันนี้แล้วหรือไม่
+            const existingFinalData = await checkExistingData(formData.date, formData.shift);
+            if (existingFinalData && !overwrite) {
+                Swal.fire({
+                    title: 'ไม่สามารถบันทึกข้อมูลได้',
+                    html: 'พบว่ามีการบันทึกข้อมูล Final ของกะนี้ในวันนี้แล้ว<br>ไม่สามารถบันทึกทับข้อมูลได้',
+                    icon: 'error',
+                    confirmButtonColor: '#0ab4ab'
+                });
+                setLoadingStates(prev => ({ ...prev, savingData: false }));
+                return false;
             }
 
             // Validate required fields
@@ -1340,11 +1388,54 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                         const shiftData = wardData.shifts[queryShift];
                         
                         // Update ward data with previous shift's data
-                        updatedWards[wardId] = {
-                            ...formData.wards[wardId],
-                            numberOfPatients: wardData.overallData || '0',
-                            overallData: wardData.overallData || '0'
-                        };
+                        if (selectedShift === '07:00-19:00') {
+                            // สำหรับกะเช้า ใช้ข้อมูลจากกะดึกของวันก่อน แล้วคำนวณใหม่อัตโนมัติ
+                            const previousPatientCensus = wardData.overallData || '0';
+                            
+                            // คัดลอกข้อมูลจากกะก่อนหน้า
+                            updatedWards[wardId] = {
+                                ...formData.wards[wardId],
+                                numberOfPatients: previousPatientCensus,
+                                nurseManager: shiftData.nurseManager || '0',
+                                RN: shiftData.RN || '0',
+                                PN: shiftData.PN || '0',
+                                WC: shiftData.WC || '0',
+                                newAdmit: '0',
+                                transferIn: '0',
+                                referIn: '0',
+                                transferOut: '0',
+                                referOut: '0',
+                                discharge: '0',
+                                dead: '0',
+                                availableBeds: shiftData.availableBeds || '0',
+                                unavailable: shiftData.unavailable || '0',
+                                plannedDischarge: shiftData.plannedDischarge || '0'
+                            };
+                        } else if (selectedShift === '19:00-07:00') {
+                            // สำหรับกะดึก ใช้ข้อมูลจากกะเช้าของวันเดียวกัน แล้วคำนวณ Overall Data อัตโนมัติ
+                            const patientCensus = wardData.patientCensus || '0';
+                            
+                            // คัดลอกข้อมูลจากกะเช้า
+                            updatedWards[wardId] = {
+                                ...formData.wards[wardId],
+                                numberOfPatients: patientCensus,
+                                overallData: patientCensus,  // เริ่มต้นด้วยค่า Patient Census จากกะเช้า 
+                                nurseManager: shiftData.nurseManager || '0',
+                                RN: shiftData.RN || '0',
+                                PN: shiftData.PN || '0',
+                                WC: shiftData.WC || '0',
+                                newAdmit: '0',
+                                transferIn: '0',
+                                referIn: '0',
+                                transferOut: '0',
+                                referOut: '0',
+                                discharge: '0',
+                                dead: '0',
+                                availableBeds: shiftData.availableBeds || '0',
+                                unavailable: shiftData.unavailable || '0',
+                                plannedDischarge: shiftData.plannedDischarge || '0'
+                            };
+                        }
                     }
                 });
 
@@ -1356,14 +1447,20 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                 setLoadingMessage(`ดึงข้อมูลสำเร็จ\nจากวันที่ ${thaiQueryDate}\nกะ ${queryShift}`);
                 setTimeout(() => setLoadingMessage(''), 2000);
             } else {
-                // ถ้าไม่พบข้อมูลกะก่อนหน้า ให้ค้นหาข้อมูลล่าสุด
-                setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด...');
+                // ถ้าไม่พบข้อมูลกะก่อนหน้า ให้ค้นหาข้อมูลล่าสุด 7 วันย้อนหลัง
+                setLoadingMessage('กำลังค้นหาข้อมูลล่าสุด 7 วันย้อนหลัง...');
+                
+                // ย้อนหลัง 7 วัน
+                const sevenDaysAgo = new Date(selectedDate);
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                const formattedSevenDaysAgo = getUTCDateString(sevenDaysAgo);
                 
                 const latestDataQuery = query(
                     wardDailyRef,
+                    where('date', '>=', formattedSevenDaysAgo),
                     where('date', '<=', formattedQueryDate),
                     orderBy('date', 'desc'),
-                    limit(1)
+                    limit(7)
                 );
 
                 const latestSnapshot = await getDocs(latestDataQuery);
@@ -1374,14 +1471,35 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     setLoadingMessage(`พบข้อมูลล่าสุดจาก\nวันที่ ${latestDate}`);
 
                     // Update all wards with the latest data
-                    Object.keys(formData.wards).forEach(wardId => {
-                        const wardLatestData = querySnapshot.docs.find(doc => doc.data().wardId === wardId)?.data();
-                        if (wardLatestData) {
-                            updatedWards[wardId] = {
-                                ...formData.wards[wardId],
-                                numberOfPatients: wardLatestData.overallData || '0',
-                                overallData: wardLatestData.overallData || '0'
-                            };
+                    latestSnapshot.docs.forEach(doc => {
+                        const wardData = doc.data();
+                        const wardId = wardData.wardId;
+                        
+                        if (wardId && wardData.shifts) {
+                            const latestShift = Object.keys(wardData.shifts)[0];
+                            const shiftData = wardData.shifts[latestShift];
+                            
+                            if (updatedWards[wardId] && shiftData) {
+                                updatedWards[wardId] = {
+                                    ...formData.wards[wardId],
+                                    numberOfPatients: wardData.patientCensus || '0',
+                                    overallData: wardData.overallData || '0',
+                                    nurseManager: shiftData.nurseManager || '0',
+                                    RN: shiftData.RN || '0',
+                                    PN: shiftData.PN || '0',
+                                    WC: shiftData.WC || '0',
+                                    newAdmit: '0',
+                                    transferIn: '0',
+                                    referIn: '0',
+                                    transferOut: '0',
+                                    referOut: '0',
+                                    discharge: '0',
+                                    dead: '0',
+                                    availableBeds: shiftData.availableBeds || '0',
+                                    unavailable: shiftData.unavailable || '0',
+                                    plannedDischarge: shiftData.plannedDischarge || '0'
+                                };
+                            }
                         }
                     });
 
@@ -1392,7 +1510,7 @@ const ShiftForm = ({ isApprovalMode = false }) => {
 
                     setTimeout(() => setLoadingMessage(''), 2000);
                 } else {
-                    setLoadingMessage('ไม่พบข้อมูลก่อนหน้า');
+                    setLoadingMessage('ไม่พบข้อมูลย้อนหลัง 7 วัน');
                     setTimeout(() => setLoadingMessage(''), 2000);
                 }
             }
@@ -1610,20 +1728,18 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     WARD_ORDER={WARD_ORDER}
                 />
 
-                <CalendarSection 
+                {/* Header Section */}
+                <HeaderSection
                     showCalendar={showCalendar}
                     setShowCalendar={setShowCalendar}
+                    thaiDate={thaiDate}
                     selectedDate={selectedDate}
                     setSelectedDate={setSelectedDate}
-                    formData={formData}
                     setFormData={setFormData}
-                    thaiDate={thaiDate}
                     setThaiDate={setThaiDate}
-                    fetchPreviousShiftData={fetchPreviousShiftData}
-                    handleShiftChange={handleShiftChange}
                     datesWithData={datesWithData}
-                    checkExistingData={checkExistingData}
-                    setSummaryData={setSummaryData}
+                    formData={formData}
+                    handleShiftChange={handleShiftChange}
                 />
 
                 {/* Desktop View */}

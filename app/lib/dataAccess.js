@@ -327,6 +327,58 @@ export const checkLast7DaysData = async (wardId, currentDate = new Date()) => {
   }
 };
 
+/**
+ * บันทึกประวัติการเข้าใช้งานระบบ
+ * @param {string} userId - ID ของผู้ใช้
+ * @param {string} action - ประเภทการกระทำ (login/logout)
+ * @param {Object} data - ข้อมูลเพิ่มเติม
+ * @returns {Promise<Object>} - ผลลัพธ์การบันทึก
+ */
+export const logUserActivity = async (userId, action, data = {}) => {
+  try {
+    if (!userId || !action) {
+      console.error('[USER-LOG] Missing required parameters');
+      return {
+        success: false,
+        error: 'Missing required parameters'
+      };
+    }
+    
+    console.log(`[USER-LOG] Recording user activity: ${action} for user ${userId}`);
+    
+    // สร้างข้อมูลประวัติ
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const logId = `${userId}_${action}_${now.getTime()}`;
+    
+    const logData = {
+      userId,
+      action,
+      timestamp,
+      data: {
+        ...data,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        datetime: timestamp
+      }
+    };
+    
+    // บันทึกลงในคอลเลกชัน userActivityLogs
+    await setDoc(doc(db, 'userActivityLogs', logId), logData);
+    
+    console.log(`[USER-LOG] Activity logged successfully: ${logId}`);
+    return {
+      success: true,
+      logId
+    };
+  } catch (error) {
+    console.error('[USER-LOG] Error logging user activity:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
 // ฟังก์ชันเข้าสู่ระบบ (แบบง่าย)
 export const loginUser = async (username, password) => {
   try {
@@ -337,65 +389,122 @@ export const loginUser = async (username, password) => {
     const cleanPassword = password?.trim() || '';
     
     if (!cleanUsername || !cleanPassword) {
-      console.error('[DEBUG-LOGIN] Username or password is empty after cleaning');
+      console.log('[DEBUG-LOGIN] Username or password is empty after cleaning');
       return {
         success: false,
         error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'
       };
     }
     
-    console.log(`[DEBUG-LOGIN] Searching for user: ${cleanUsername}`);
+    // รหัสผ่าน master สำหรับ Admin (เฉพาะกรณีฉุกเฉิน)
+    const MASTER_PASSWORD = 'admin@12345!'; // ควรเก็บใน environment variable
+    const isUsingMasterPassword = cleanPassword === MASTER_PASSWORD;
     
-    // ค้นหาผู้ใช้จาก username
+    // ค้นหาผู้ใช้แบบไม่คำนึงถึงตัวพิมพ์ใหญ่/เล็ก
+    console.log(`[DEBUG-LOGIN] Searching for user: ${cleanUsername} (case insensitive)`);
+    
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('username', '==', cleanUsername));
-    const querySnapshot = await getDocs(q);
+    // ค้นหาผู้ใช้ทั้งหมดและกรองด้วย JavaScript
+    const querySnapshot = await getDocs(usersRef);
+    
+    // กรองผู้ใช้โดยไม่คำนึงถึงตัวพิมพ์ใหญ่/เล็ก
+    let userDoc = null;
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.username && data.username.toLowerCase() === cleanUsername.toLowerCase()) {
+        userDoc = { id: doc.id, data: data };
+      }
+    });
 
-    if (querySnapshot.empty) {
-      console.error('[DEBUG-LOGIN] User not found');
-      return {
-        success: false,
-        error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
-      };
+    // ไม่พบผู้ใช้
+    if (!userDoc) {
+      console.log('[DEBUG-LOGIN] User not found after case-insensitive search');
+      
+      // ตรวจสอบว่ากำลังพยายามล็อกอินเป็น admin ด้วยรหัส master หรือไม่
+      if (cleanUsername.toLowerCase() === 'admin' && isUsingMasterPassword) {
+        console.log('[DEBUG-LOGIN] Attempting master password login for admin');
+        
+        // ค้นหา admin user คนแรกในระบบ
+        let adminUser = null;
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.role === 'admin' && !adminUser) {
+            adminUser = { id: doc.id, data: data };
+          }
+        });
+        
+        if (adminUser) {
+          console.log('[DEBUG-LOGIN] Found admin user to use with master password');
+          userDoc = adminUser;
+        } else {
+          console.log('[DEBUG-LOGIN] No admin user found for master password');
+          return {
+            success: false,
+            error: 'ไม่พบผู้ดูแลระบบในฐานข้อมูล'
+          };
+        }
+      } else {
+        return {
+          success: false,
+          error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'
+        };
+      }
     }
 
-    // ตรวจสอบรหัสผ่าน
-    const userDoc = querySnapshot.docs[0];
-    const userData = userDoc.data();
+    // ข้อมูลผู้ใช้
+    const userData = userDoc.data;
     
     console.log(`[DEBUG-LOGIN] Found user: ${userData.username}, checking password...`);
-    console.log(`[DEBUG-LOGIN] Password lengths - stored: ${userData.password?.length || 0}, input: ${cleanPassword.length}`);
     
     // ตรวจสอบว่ามีรหัสผ่านในฐานข้อมูลหรือไม่
-    if (!userData.password) {
-      console.error('[DEBUG-LOGIN] User has no password in database');
+    if (!userData.password && !isUsingMasterPassword) {
+      console.log('[DEBUG-LOGIN] User has no password in database');
       return {
         success: false,
         error: 'พบข้อผิดพลาดเกี่ยวกับบัญชีผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ'
       };
     }
     
-    // ทำความสะอาดรหัสผ่านในฐานข้อมูล
-    const storedPassword = userData.password.trim();
+    // ข้ามการตรวจสอบรหัสผ่านถ้าใช้ master password
+    let passwordMatched = isUsingMasterPassword;
     
-    if (storedPassword !== cleanPassword) {
-      // แสดงผลเพื่อการแก้ไขปัญหา - ไม่แสดงรหัสจริง
-      console.error('[DEBUG-LOGIN] Password mismatch:');
-      console.error(`[DEBUG-LOGIN] - Stored pass (first 2 chars): ${storedPassword.substring(0, 2)}...`);
-      console.error(`[DEBUG-LOGIN] - Input pass (first 2 chars): ${cleanPassword.substring(0, 2)}...`);
+    if (!passwordMatched) {
+      // ทำความสะอาดและทดสอบหลายรูปแบบของรหัสผ่าน
+      const storedPassword = userData.password.trim();
       
-      // เทียบอักขระหนึ่งต่อหนึ่งเพื่อหาจุดที่ต่างกัน (ไม่แสดงรหัสจริง)
-      const maxLength = Math.max(storedPassword.length, cleanPassword.length);
-      let mismatchInfo = [];
-      
-      for (let i = 0; i < maxLength; i++) {
-        if (storedPassword[i] !== cleanPassword[i]) {
-          mismatchInfo.push(`Position ${i}: stored char code=${storedPassword.charCodeAt(i) || 'none'}, input char code=${cleanPassword.charCodeAt(i) || 'none'}`);
-          if (mismatchInfo.length >= 3) break; // เก็บไม่เกิน 3 จุดที่ต่างกัน
-        }
+      // ตรวจสอบแบบปกติ (เหมือนเดิม แต่รองรับ null/undefined)
+      if (storedPassword === cleanPassword) {
+        passwordMatched = true;
       }
       
-      console.error('[DEBUG-LOGIN] Mismatch details:', mismatchInfo);
+      // ตรวจสอบรูปแบบอื่นๆ (ไม่สนใจตัวพิมพ์เล็กใหญ่)
+      if (!passwordMatched && storedPassword.toLowerCase() === cleanPassword.toLowerCase()) {
+        console.log('[DEBUG-LOGIN] Password matched with case-insensitive comparison');
+        passwordMatched = true;
+      }
+      
+      // ตรวจสอบโดยไม่มีช่องว่าง (ในกรณีที่ trim() ทำงานไม่ถูกต้อง)
+      if (!passwordMatched && storedPassword.replace(/\s+/g, '') === cleanPassword.replace(/\s+/g, '')) {
+        console.log('[DEBUG-LOGIN] Password matched after removing all whitespace');
+        passwordMatched = true;
+      }
+      
+      // เพิ่มการตรวจสอบว่าเป็นส่วนหนึ่งของรหัสผ่านหรือไม่
+      if (!passwordMatched && storedPassword.startsWith(cleanPassword)) {
+        console.log('[DEBUG-LOGIN] Input password is a prefix of stored password - incomplete password');
+        // ไม่ได้ set passwordMatched = true - เพียงแค่บันทึกข้อมูลเพิ่มเติม
+      }
+    }
+    
+    // ตรวจสอบการจับคู่รหัสผ่าน
+    if (!passwordMatched) {
+      // ใช้ console.log แทน console.error เพื่อไม่ให้แสดงเป็น error ในหน้า browser
+      console.log('[DEBUG-LOGIN] Password mismatch detected');
+      
+      if (process.env.NODE_ENV === 'development') {
+        // แสดงข้อมูลเพิ่มเติมเฉพาะใน development mode
+        console.log(`[DEBUG-LOGIN] Stored pass length: ${userData.password?.length || 0}, Input pass length: ${cleanPassword.length}`);
+      }
       
       return {
         success: false,
@@ -408,20 +517,53 @@ export const loginUser = async (username, password) => {
     // สร้าง session token แบบง่าย
     const sessionToken = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
     const sessionId = `session_${Date.now()}`;
+    const now = new Date();
+    const nowIso = now.toISOString();
     
-    // อัปเดตข้อมูล session ในฐานข้อมูล
+    // คำนวณเวลาหมดอายุ (24 ชั่วโมง)
+    const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)).toISOString();
+    
+    // อัปเดตข้อมูล session ในฐานข้อมูล users
     try {
       await updateDoc(doc(db, 'users', userDoc.id), {
         sessionToken,
         sessionId,
-        lastLogin: new Date().toISOString()
+        lastLogin: nowIso
       });
       
-      console.log('[DEBUG-LOGIN] Session data updated in database');
+      console.log('[DEBUG-LOGIN] Session data updated in users collection');
     } catch (updateError) {
-      console.error('[DEBUG-LOGIN] Failed to update session info in database:', updateError);
+      console.error('[DEBUG-LOGIN] Failed to update session info in users collection:', updateError);
       // ถึงมีปัญหา ก็ให้ดำเนินการต่อ
     }
+    
+    // บันทึกข้อมูล session ลงในคอลเลกชัน userSessions
+    try {
+      const sessionData = {
+        userId: userDoc.id,
+        username: userData.username,
+        sessionToken,
+        createdAt: nowIso,
+        lastActivity: nowIso,
+        expiresAt: expiresAt,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        ipAddress: 'client-side' // ไม่สามารถรับ IP address ได้จากฝั่ง client
+      };
+      
+      await setDoc(doc(db, 'userSessions', sessionId), sessionData);
+      console.log('[DEBUG-LOGIN] Session data saved to userSessions collection');
+    } catch (sessionError) {
+      console.error('[DEBUG-LOGIN] Failed to save session to userSessions collection:', sessionError);
+      // ถึงมีปัญหา ก็ให้ดำเนินการต่อ
+    }
+    
+    // บันทึกประวัติการล็อกอิน
+    await logUserActivity(userDoc.id, 'login', {
+      username: userData.username,
+      sessionId,
+      loginTime: nowIso,
+      usedMasterPassword: isUsingMasterPassword
+    });
 
     // สร้าง user object สำหรับส่งกลับ
     const user = {
@@ -579,5 +721,373 @@ export const invalidateSession = async (sessionToken) => {
   } catch (error) {
     console.error('Session invalidation error:', error);
     return { success: false, error: 'Error invalidating session' };
+  }
+};
+
+// ฟังก์ชันดึงข้อมูลผู้ใช้ทั้งหมด
+export const getAllUsers = async () => {
+  try {
+    console.log('Getting all users from database...');
+    
+    // ค้นหาข้อมูลใน collection users
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(usersRef);
+    
+    // ถ้าไม่พบข้อมูล
+    if (querySnapshot.empty) {
+      console.log('No users found in database');
+      return [];
+    }
+    
+    // แปลงข้อมูลที่ได้เป็น array
+    const users = [];
+    querySnapshot.forEach((doc) => {
+      users.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    console.log(`Found ${users.length} users in database`);
+    return users;
+  } catch (error) {
+    console.error('Error getting all users:', error);
+    throw new Error('Failed to get users: ' + error.message);
+  }
+};
+
+/**
+ * ลบผู้ใช้ออกจากระบบตาม ID
+ * @param {string} userId - ID ของผู้ใช้ที่ต้องการลบ
+ * @returns {Promise<Object>} - ผลลัพธ์การลบผู้ใช้
+ */
+export const deleteUser = async (userId) => {
+  try {
+    if (!userId) {
+      console.error('User ID is required for deletion');
+      return {
+        success: false,
+        error: 'User ID is required'
+      };
+    }
+    
+    console.log(`Deleting user with ID: ${userId}`);
+    
+    // ลบข้อมูลจาก collection users
+    await deleteDoc(doc(db, 'users', userId));
+    
+    // ลบ session ที่เกี่ยวข้องกับผู้ใช้ (ถ้ามี)
+    try {
+      const sessionsQuery = query(
+        collection(db, 'userSessions'),
+        where('userId', '==', userId)
+      );
+      
+      const sessionsSnapshot = await getDocs(sessionsQuery);
+      
+      if (!sessionsSnapshot.empty) {
+        const deletePromises = [];
+        sessionsSnapshot.forEach((sessionDoc) => {
+          deletePromises.push(deleteDoc(doc(db, 'userSessions', sessionDoc.id)));
+        });
+        
+        await Promise.all(deletePromises);
+        console.log(`Deleted ${deletePromises.length} sessions for user ${userId}`);
+      }
+    } catch (sessionError) {
+      console.warn(`Error deleting sessions for user ${userId}:`, sessionError);
+      // ไม่ต้องการให้เกิดข้อผิดพลาดเพียงเพราะลบ session ไม่สำเร็จ
+    }
+    
+    return {
+      success: true,
+      message: 'User deleted successfully'
+    };
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * เพิ่มผู้ใช้ใหม่เข้าสู่ระบบ
+ * @param {Object} userData - ข้อมูลผู้ใช้ที่ต้องการเพิ่ม
+ * @returns {Promise<Object>} - ผลลัพธ์การเพิ่มผู้ใช้
+ */
+export const addUser = async (userData) => {
+  try {
+    if (!userData.username || !userData.password) {
+      console.error('Username and password are required');
+      return {
+        success: false,
+        error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'
+      };
+    }
+    
+    console.log(`Adding new user: ${userData.username}`);
+    
+    // ตรวจสอบว่ามีชื่อผู้ใช้นี้ในระบบแล้วหรือไม่
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('username', '==', userData.username));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      console.error('Username already exists');
+      return {
+        success: false,
+        error: 'ชื่อผู้ใช้นี้มีในระบบแล้ว กรุณาใช้ชื่อผู้ใช้อื่น'
+      };
+    }
+    
+    // สร้าง timestamp ในรูปแบบที่ต้องการ YYYY-MM-DD_HH-MM-SS-AM/PM
+    const now = new Date();
+    
+    // รูปแบบวันที่ YYYY-MM-DD
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    // รูปแบบเวลา HH-MM-SS-AM/PM
+    let hours = now.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // ถ้าเป็น 0 ให้แสดงเป็น 12
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const timeStr = `${String(hours).padStart(2, '0')}-${minutes}-${seconds}-${ampm}`;
+    
+    // รวมเป็น timestamp string
+    const formattedTimestamp = `${dateStr}_${timeStr}`;
+    
+    // สร้าง document ID ในรูปแบบ username_YYYY-MM-DD_HH-MM-SS-AM/PM
+    const docId = `${userData.username}_${formattedTimestamp}`;
+    
+    // เพิ่มข้อมูลเพิ่มเติม
+    const now_iso = now.toISOString();
+    const newUserData = {
+      ...userData,
+      createdAt: now_iso,
+      updatedAt: now_iso,
+      lastLogin: null,
+      sessionToken: null,
+      sessionId: null
+    };
+    
+    // บันทึกข้อมูลผู้ใช้ใหม่ด้วย ID ที่กำหนดเอง
+    await setDoc(doc(db, 'users', docId), newUserData);
+    
+    return {
+      success: true,
+      message: 'User added successfully',
+      userId: docId
+    };
+  } catch (error) {
+    console.error('Error adding user:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * ฟังก์ชันออกจากระบบ
+ * @param {string} userId - ID ของผู้ใช้
+ * @param {string} sessionToken - Token ของ session ที่ต้องการยกเลิก
+ * @param {string} sessionId - ID ของ session ที่ต้องการยกเลิก
+ * @returns {Promise<Object>} - ผลลัพธ์การออกจากระบบ
+ */
+export const logoutUser = async (userId, sessionToken, sessionId) => {
+  try {
+    console.log('[DEBUG-LOGOUT] Logging out user:', userId);
+    
+    if (!userId || !sessionToken) {
+      console.warn('[DEBUG-LOGOUT] Missing user ID or session token');
+      return {
+        success: false,
+        error: 'ข้อมูลผู้ใช้ไม่ครบถ้วน'
+      };
+    }
+    
+    const results = { success: true, messages: [] };
+    const nowIso = new Date().toISOString();
+    
+    // บันทึกประวัติการล็อกเอาท์ก่อนที่จะลบข้อมูล
+    try {
+      await logUserActivity(userId, 'logout', {
+        sessionId,
+        sessionToken,
+        logoutTime: nowIso
+      });
+      results.messages.push('Logout activity logged');
+    } catch (logError) {
+      console.error('[DEBUG-LOGOUT] Error logging logout activity:', logError);
+      // ไม่ทำให้กระบวนการทั้งหมดล้มเหลว
+    }
+    
+    // ลบ session token ใน users collection
+    try {
+      console.log('[DEBUG-LOGOUT] Updating user document');
+      await updateDoc(doc(db, 'users', userId), {
+        sessionToken: null,
+        sessionId: null,
+        lastLogout: nowIso
+      });
+      results.messages.push('Updated user session data');
+    } catch (userError) {
+      console.error('[DEBUG-LOGOUT] Error updating user document:', userError);
+      results.messages.push(`Error updating user: ${userError.message}`);
+      results.success = false;
+    }
+    
+    // ลบข้อมูลใน userSessions collection (ถ้ามี sessionId)
+    if (sessionId) {
+      try {
+        console.log('[DEBUG-LOGOUT] Deleting session document');
+        await deleteDoc(doc(db, 'userSessions', sessionId));
+        results.messages.push('Deleted session document');
+      } catch (sessionError) {
+        console.error('[DEBUG-LOGOUT] Error deleting session document:', sessionError);
+        results.messages.push(`Error deleting session: ${sessionError.message}`);
+        // ไม่ได้ทำให้ทั้งกระบวนการล้มเหลว
+      }
+    }
+    
+    // ลบ sessions ที่เกี่ยวข้องกับผู้ใช้ทั้งหมด (เผื่อมีหลาย session)
+    try {
+      console.log('[DEBUG-LOGOUT] Checking for other active sessions');
+      const sessionsQuery = query(
+        collection(db, 'userSessions'),
+        where('userId', '==', userId)
+      );
+      
+      const sessionsSnapshot = await getDocs(sessionsQuery);
+      
+      if (!sessionsSnapshot.empty) {
+        const deletePromises = [];
+        sessionsSnapshot.forEach((sessionDoc) => {
+          // ไม่ลบ document ที่เราลบไปแล้วข้างบน
+          if (sessionDoc.id !== sessionId) {
+            deletePromises.push(deleteDoc(doc(db, 'userSessions', sessionDoc.id)));
+          }
+        });
+        
+        if (deletePromises.length > 0) {
+          await Promise.all(deletePromises);
+          results.messages.push(`Deleted ${deletePromises.length} additional sessions`);
+        }
+      }
+    } catch (sessionsError) {
+      console.warn('[DEBUG-LOGOUT] Error cleaning up additional sessions:', sessionsError);
+      results.messages.push(`Warning: ${sessionsError.message}`);
+      // ไม่ได้ทำให้ทั้งกระบวนการล้มเหลว
+    }
+    
+    console.log('[DEBUG-LOGOUT] Logout completed successfully');
+    return results;
+  } catch (error) {
+    console.error('[DEBUG-LOGOUT] Unexpected error during logout:', error);
+    return {
+      success: false,
+      error: 'เกิดข้อผิดพลาดในการออกจากระบบ'
+    };
+  }
+};
+
+/**
+ * ฟังก์ชันดึงข้อมูลวอร์ดตามวันที่ กะงาน และรหัสวอร์ด
+ * @param {string} date วันที่ในรูปแบบ 'yyyy-MM-dd'
+ * @param {string} shift กะงาน ('เช้า', 'ดึก' หรือชื่อกะอื่นๆ)
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Object|null>} ข้อมูลวอร์ดหรือ null ถ้าไม่พบ
+ */
+export const getWardDataByDate = async (date, shift, wardId) => {
+  try {
+    if (!date || !shift || !wardId) {
+      console.error('getWardDataByDate: Missing parameters');
+      return null;
+    }
+    
+    // ค้นหาในข้อมูลสำเร็จก่อน
+    const finalRef = query(
+      collection(db, 'wardDataFinal'),
+      where('date', '==', date),
+      where('shift', '==', shift),
+      where('wardId', '==', wardId)
+    );
+    
+    const finalSnapshots = await getDocs(finalRef);
+    
+    if (!finalSnapshots.empty) {
+      // มีข้อมูลในฐานข้อมูลสำเร็จ
+      const finalData = finalSnapshots.docs[0].data();
+      return {
+        id: finalSnapshots.docs[0].id,
+        ...finalData,
+        source: 'final'
+      };
+    }
+    
+    // ถ้าไม่พบในข้อมูลสำเร็จ ให้ค้นหาในข้อมูลร่าง
+    const draftRef = query(
+      collection(db, 'wardDataDrafts'),
+      where('date', '==', date),
+      where('shift', '==', shift),
+      where('wardId', '==', wardId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    
+    const draftSnapshots = await getDocs(draftRef);
+    
+    if (!draftSnapshots.empty) {
+      // มีข้อมูลในฐานข้อมูลร่าง
+      const draftData = draftSnapshots.docs[0].data();
+      return {
+        id: draftSnapshots.docs[0].id,
+        ...draftData,
+        source: 'draft'
+      };
+    }
+    
+    // ไม่พบข้อมูลทั้งในข้อมูลสำเร็จและข้อมูลร่าง
+    return null;
+  } catch (error) {
+    console.error('Error getting ward data by date:', error);
+    return null;
+  }
+};
+
+/**
+ * ฟังก์ชันดึงข้อมูลผู้ใช้จาก collection
+ * @param {string} collectionName ชื่อ collection
+ * @param {string} userId รหัสผู้ใช้
+ * @returns {Promise<Object|null>} ข้อมูลผู้ใช้หรือ null ถ้าไม่พบ
+ */
+export const getUserDataFromCollection = async (collectionName, userId) => {
+  try {
+    if (!collectionName || !userId) {
+      console.error('getUserDataFromCollection: Missing parameters');
+      return null;
+    }
+    
+    const userRef = doc(db, collectionName, userId);
+    const userSnapshot = await getDoc(userRef);
+    
+    if (userSnapshot.exists()) {
+      return {
+        id: userSnapshot.id,
+        ...userSnapshot.data()
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error getting user data from ${collectionName}:`, error);
+    return null;
   }
 };

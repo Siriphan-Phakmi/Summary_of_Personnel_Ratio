@@ -1,4 +1,4 @@
-// File: C:\Users\B_SIR\OneDrive\เดสก์ท็อป\Active 14-3-2025\Summary_of_Personnel_Ratio\app\api\logs\route.js
+// File: C:\Active 14-3-2025\Summary_of_Personnel_Ratio\app\api\logs\route.js
 import * as entry from '../../../../../app/api/logs/route.js'
 import type { NextRequest } from 'next/server.js'
 

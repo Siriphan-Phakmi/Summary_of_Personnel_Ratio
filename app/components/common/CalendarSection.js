@@ -9,22 +9,23 @@ const CalendarSection = ({
     datesWithData = [],
     showCalendar,
     setShowCalendar,
-    thaiDate,
+    thaiDate = formatThaiDate(new Date()),
     variant = 'form',
     theme = 'light'
 }) => {
     // สร้าง local state สำหรับ fallback กรณีที่ไม่มี prop showCalendar
     const [localShowCalendar, setLocalShowCalendar] = useState(false);
     
-    // ตรวจสอบว่า setShowCalendar เป็นฟังก์ชันหรือไม่
-    const isShowCalendarFunction = typeof setShowCalendar === 'function';
+    // ตรวจสอบว่า showCalendar และ setShowCalendar เป็น undefined หรือไม่
+    const isShowCalendarDefined = showCalendar !== undefined;
+    const isSetShowCalendarFunction = typeof setShowCalendar === 'function';
     
     // ใช้ค่า showCalendar จาก props ถ้ามี มิฉะนั้นใช้ค่าจาก local state
-    const calendarVisible = showCalendar !== undefined ? showCalendar : localShowCalendar;
+    const calendarVisible = isShowCalendarDefined ? showCalendar : localShowCalendar;
     
     // สร้างฟังก์ชันสำหรับเปิด/ปิดปฏิทิน
     const toggleCalendar = (value) => {
-        if (isShowCalendarFunction) {
+        if (isSetShowCalendarFunction) {
             setShowCalendar(value);
         } else {
             setLocalShowCalendar(value);
@@ -39,6 +40,14 @@ const CalendarSection = ({
     
     // สร้างฟังก์ชันสำหรับจัดการเมื่อคลิกภายนอกปฏิทิน
     const handleClickOutside = () => {
+        toggleCalendar(false);
+    };
+    
+    // สร้าง function เพื่อส่งต่อ onDateSelect และจัดการ calendar
+    const handleDateSelect = (date) => {
+        if (typeof onDateSelect === 'function') {
+            onDateSelect(date);
+        }
         toggleCalendar(false);
     };
     
@@ -74,13 +83,13 @@ const CalendarSection = ({
 
             {/* Calendar Modal */}
             {calendarVisible && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className={`relative ${
                         theme === 'dark' ? 'bg-gray-800' : 'bg-white'
                     } rounded-2xl shadow-2xl transform transition-all`}>
                         <Calendar
                             selectedDate={selectedDate}
-                            onDateSelect={onDateSelect}
+                            onDateSelect={handleDateSelect}
                             onClickOutside={handleClickOutside}
                             datesWithData={datesWithData}
                             variant={variant}
