@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import CalendarSection from './CalendarSection';
+import React, { useState } from 'react';
+import { formatThaiDate, getCurrentDate } from '../../utils/dateUtils';
+import Calendar from '../ui/Calendar';
 import ShiftSelection from './ShiftSelection';
 
 /**
- * A reusable component that combines calendar selection and shift selection
- * Can be used across different forms to maintain consistent UI
+ * Component สำหรับเลือกวันที่และกะการทำงาน
  */
 const FormDateShiftSelector = ({
   selectedDate,
@@ -18,120 +18,75 @@ const FormDateShiftSelector = ({
   onShiftChange,
   theme = 'light',
 }) => {
-  // เพิ่ม state สำหรับเก็บเวลาปัจจุบัน
-  const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // สร้าง local state สำหรับปฏิทิน กรณีที่ไม่ได้รับ prop
-  const [localShowCalendar, setLocalShowCalendar] = useState(false);
-  
-  // อัพเดทเวลาทุก 1 วินาที
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    
-    // เคลียร์ timer เมื่อ component unmount
-    return () => clearInterval(timer);
-  }, []);
-  
-  // ฟอร์แมตเวลาให้อยู่ในรูปแบบ HH:MM:SS
-  const formatTime = (date) => {
-    return date.toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    });
-  };
-  
-  // ป้องกันการเกิด error ถ้า onShiftChange ไม่ใช่ฟังก์ชัน
-  const handleShiftChange = (value) => {
-    if (typeof onShiftChange === 'function') {
-      onShiftChange(value);
-    } else {
-      console.warn('onShiftChange is not a function in FormDateShiftSelector');
-    }
-  };
-
-  // ป้องกันการเกิด error ถ้า onDateSelect ไม่ใช่ฟังก์ชัน
+  /**
+   * อีเวนต์เมื่อเลือกวันที่
+   * @param {Date} date - วันที่ที่เลือก
+   */
   const handleDateSelect = (date) => {
     if (typeof onDateSelect === 'function') {
       onDateSelect(date);
-    } else if (typeof onDateChange === 'function') {
-      // ถ้าไม่มี onDateSelect แต่มี onDateChange ให้ใช้ onDateChange แทน
-      onDateChange(date);
-      console.warn('Using onDateChange instead of onDateSelect in FormDateShiftSelector');
-    } else {
-      console.warn('Neither onDateSelect nor onDateChange is a function in FormDateShiftSelector');
+    }
+    if (typeof setShowCalendar === 'function') {
+      setShowCalendar(false);
     }
   };
-
-  // ป้องกันการเกิด error ถ้า setShowCalendar ไม่ใช่ฟังก์ชัน
+  
+  /**
+   * อีเวนต์เมื่อเลือกกะทำงาน
+   * @param {string} shift - กะทำงานที่เลือก
+   */
+  const handleShiftChange = (shift) => {
+    if (typeof onShiftChange === 'function') {
+      onShiftChange(shift);
+    }
+  };
+  
+  /**
+   * อีเวนต์เมื่อคลิกที่ปุ่มแสดง/ซ่อนปฏิทิน
+   * @param {boolean} value - สถานะที่ต้องการเปลี่ยน
+   */
   const handleToggleCalendar = (value) => {
     if (typeof setShowCalendar === 'function') {
       setShowCalendar(value);
-    } else {
-      // ถ้าไม่มี setShowCalendar ให้ใช้ local state แทน
-      setLocalShowCalendar(value);
-      console.warn('Using local state for showCalendar in FormDateShiftSelector');
     }
   };
-
-  // ใช้ค่า showCalendar จาก props ถ้ามี ไม่งั้นใช้ค่าจาก local state
-  const calendarVisible = showCalendar !== undefined ? showCalendar : localShowCalendar;
-  // ใช้ฟังก์ชัน setShowCalendar จาก props ถ้ามี ไม่งั้นใช้ฟังก์ชัน handleToggleCalendar
-  const toggleCalendar = typeof setShowCalendar === 'function' ? setShowCalendar : handleToggleCalendar;
-
+  
   return (
-    <div className="space-y-4">
-      {/* Calendar Section with Current Time */}
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <CalendarSection
-            selectedDate={selectedDate}
-            onDateSelect={handleDateSelect}
-            datesWithData={datesWithData}
-            showCalendar={calendarVisible}
-            setShowCalendar={toggleCalendar}
-            thaiDate={thaiDate}
+    <div className="mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* วันที่ */}
+        <div className="relative">
+          <div onClick={() => handleToggleCalendar(!showCalendar)} className="cursor-pointer">
+            <div className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-800 border-gray-200'} border rounded-lg p-2 flex items-center`}>
+              <span className="mr-2">📅</span>
+              <div className="flex-1 text-sm">
+                <div className="font-medium">วันที่</div>
+                <div>{thaiDate}</div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Calendar component */}
+          {showCalendar && (
+            <div className="absolute z-20 mt-1 w-full">
+              <Calendar
+                selectedDate={selectedDate}
+                onDateSelect={handleDateSelect}
+                onClickOutside={() => handleToggleCalendar(false)}
+                datesWithData={datesWithData}
+                variant="form"
+              />
+            </div>
+          )}
+        </div>
+        
+        {/* กะการทำงาน */}
+        <div>
+          <ShiftSelection
+            selectedShift={selectedShift}
+            onShiftChange={handleShiftChange}
             theme={theme}
           />
-        </div>
-        {/* Current Time Display */}
-        <div className={`ml-4 p-3 rounded-lg ${
-          theme === 'dark' 
-            ? 'bg-gray-800 text-white border border-gray-700' 
-            : 'bg-red-100 text-red-800 border border-red-200'
-        }`}>
-          <div className="text-center font-medium mb-1">เวลาปัจจุบัน</div>
-          <div className="text-xl font-bold">{formatTime(currentTime)}</div>
-          <div className="text-xs mt-1 opacity-80">
-            {currentTime.getHours() >= 7 && currentTime.getHours() < 19 
-              ? 'อยู่ในช่วงกะเช้า (07:00-19:00)' 
-              : 'อยู่ในช่วงกะดึก (19:00-07:00)'}
-          </div>
-        </div>
-      </div>
-      
-      {/* Shift Selection */}
-      <div className={`${
-        theme === 'dark' 
-          ? 'bg-gray-800/70 border border-gray-700 hover:bg-gray-700/80' 
-          : 'bg-white/60 hover:shadow-md'
-      } backdrop-blur-sm rounded-xl p-4 shadow-sm transition-all`}>
-        <div className={`mb-2 font-medium ${
-          theme === 'dark' ? 'text-gray-100' : 'text-gray-700'
-        }`}>กะทำงาน <span className="text-[#0ab4ab]">*</span></div>
-        <ShiftSelection 
-          selectedShift={selectedShift}
-          onShiftChange={handleShiftChange}
-          variant="form" 
-          theme={theme}
-        />
-        <div className={`text-xs mt-2 ${
-          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-        }`}>
-          การเปลี่ยนกะจะทำให้ข้อมูลที่ยังไม่ได้บันทึกหายไป กรุณาบันทึกข้อมูลก่อนเปลี่ยนกะ
         </div>
       </div>
     </div>

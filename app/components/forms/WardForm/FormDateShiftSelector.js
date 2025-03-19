@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import CalendarSection from '../../common/CalendarSection';
-import { getCurrentDate, getCurrentShift, formatDateForDisplay, parseDate } from '../../../utils/dateHelpers';
-import ShiftSelector from '../../common/ShiftSelector';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
 import { formatThaiDate } from '../../../utils/dateUtils';
+import { getCurrentDate } from '../../../utils/dateUtils';
+import ShiftSelection from '../../../components/common/ShiftSelection';
+import Calendar from '../../../components/ui/Calendar';
 
-// Dynamic Shift Selector for WardForm and ShiftForm components
+/**
+ * Component สำหรับเลือกวันที่และกะการทำงาน
+ */
 const FormDateShiftSelector = ({
     selectedDate,
     selectedShift,
@@ -17,77 +18,78 @@ const FormDateShiftSelector = ({
     thaiDate = formatThaiDate(selectedDate || getCurrentDate()),
     theme = 'light'
 }) => {
-    // สร้าง local state สำหรับใช้ในกรณีที่ไม่ได้รับ props มา
-    const [localShowCalendar, setLocalShowCalendar] = useState(false);
-    const [localSelectedDate, setLocalSelectedDate] = useState(selectedDate || getCurrentDate());
-    const [localSelectedShift, setLocalSelectedShift] = useState(selectedShift || getCurrentShift());
-    
-    // ใช้ props ถ้ามี ไม่มีก็ใช้ local state
-    const calendarVisible = showCalendar !== undefined ? showCalendar : localShowCalendar;
-    const displayDate = selectedDate || localSelectedDate;
-    const displayShift = selectedShift || localSelectedShift;
-    
-    // สร้างฟังก์ชัน handler ที่ปลอดภัย
+    /**
+     * อีเวนต์เมื่อเลือกวันที่
+     * @param {Date} date - วันที่ที่เลือก
+     */
     const handleDateSelect = (date) => {
         if (typeof onDateSelect === 'function') {
             onDateSelect(date);
-        } else {
-            console.warn('onDateSelect is not provided as a function in FormDateShiftSelector');
-            setLocalSelectedDate(date);
         }
-        
-        // ปิดปฏิทินหลังจากเลือกวันที่
         if (typeof setShowCalendar === 'function') {
             setShowCalendar(false);
-        } else {
-            setLocalShowCalendar(false);
         }
     };
     
+    /**
+     * อีเวนต์เมื่อเลือกกะทำงาน
+     * @param {string} shift - กะทำงานที่เลือก
+     */
     const handleShiftChange = (shift) => {
         if (typeof onShiftChange === 'function') {
             onShiftChange(shift);
-        } else {
-            console.warn('onShiftChange is not provided as a function in FormDateShiftSelector');
-            setLocalSelectedShift(shift);
         }
     };
     
+    /**
+     * อีเวนต์เมื่อคลิกที่ปุ่มแสดง/ซ่อนปฏิทิน
+     * @param {boolean} value - สถานะที่ต้องการเปลี่ยน
+     */
     const handleToggleCalendar = (value) => {
         if (typeof setShowCalendar === 'function') {
             setShowCalendar(value);
-        } else {
-            setLocalShowCalendar(value);
         }
     };
     
     return (
-        <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 space-y-3"
-        >
-            <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                    <CalendarSection
-                        selectedDate={displayDate}
-                        onDateSelect={handleDateSelect}
-                        datesWithData={datesWithData}
-                        showCalendar={calendarVisible}
-                        setShowCalendar={handleToggleCalendar}
-                        thaiDate={thaiDate}
-                        theme={theme}
-                    />
+        <div className="mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* วันที่ */}
+                <div className="relative">
+                    <div onClick={() => handleToggleCalendar(!showCalendar)} className="cursor-pointer">
+                        <div className={`${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white text-gray-800 border-gray-200'} border rounded-lg p-2 flex items-center`}>
+                            <span className="mr-2">📅</span>
+                            <div className="flex-1 text-sm">
+                                <div className="font-medium">วันที่</div>
+                                <div>{thaiDate}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Calendar component */}
+                    {showCalendar && (
+                        <div className="absolute z-20 mt-1 w-full">
+                            <Calendar
+                                selectedDate={selectedDate}
+                                onDateSelect={handleDateSelect}
+                                onClickOutside={() => handleToggleCalendar(false)}
+                                datesWithData={datesWithData}
+                                variant="form"
+                            />
+                        </div>
+                    )}
                 </div>
-                <div className="flex-1 lg:flex-none lg:w-52">
-                    <ShiftSelector
-                        selected={displayShift}
-                        onChange={handleShiftChange}
+                
+                {/* กะการทำงาน */}
+                <div>
+                    <ShiftSelection
+                        selectedShift={selectedShift}
+                        onShiftChange={handleShiftChange}
                         theme={theme}
                     />
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

@@ -61,31 +61,30 @@ export const fetchLast7DaysData = async (currentDate, wardId) => {
 };
 
 /**
- * ฟังก์ชันสำหรับคำนวณ Patient Census
- * @param {object} data ข้อมูลที่ใช้ในการคำนวณ
- * @returns {string} ผลลัพธ์การคำนวณ
+ * ฟังก์ชันสำหรับคำนวณค่า Patient Census
+ * @param {Object} formData ข้อมูลฟอร์ม
+ * @returns {string} ค่า Patient Census ที่คำนวณได้
  */
-export const calculatePatientCensus = (data) => {
-  if (!data) return '';
-
-  // ฟังก์ชันช่วยแปลงค่าที่อาจเป็นข้อความให้เป็นตัวเลข (ถ้าแปลงไม่ได้ ให้เป็น 0)
-  const safeParseInt = (value) => {
-    if (value === '' || value === null || value === undefined) return 0;
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? 0 : parsed;
-  };
-
-  // แปลงค่าก่อนคำนวณ
-  const newAdmit = safeParseInt(data.newAdmit);
-  const transferIn = safeParseInt(data.transferIn);
-  const referIn = safeParseInt(data.referIn);
-  const transferOut = safeParseInt(data.transferOut);
-  const referOut = safeParseInt(data.referOut);
-  const discharge = safeParseInt(data.discharge);
-  const dead = safeParseInt(data.dead);
-
-  const result = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
-  return result !== 0 ? String(result) : '';
+export const calculatePatientCensus = (formData) => {
+  try {
+    // แปลงค่าเป็นตัวเลข หากไม่ใช่ตัวเลขให้ใช้ค่า 0
+    const newAdmit = parseInt(formData.newAdmit || '0');
+    const transferIn = parseInt(formData.transferIn || '0');
+    const referIn = parseInt(formData.referIn || '0');
+    const transferOut = parseInt(formData.transferOut || '0');
+    const referOut = parseInt(formData.referOut || '0');
+    const discharge = parseInt(formData.discharge || '0');
+    const dead = parseInt(formData.dead || '0');
+    
+    // คำนวณตามสูตร: (New Admit + Transfer In + Refer In) - (Transfer Out + Refer Out + Discharge + Dead)
+    const census = (newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead);
+    
+    // ส่งค่ากลับเป็น string
+    return census.toString();
+  } catch (error) {
+    console.error('Error calculating patient census:', error);
+    return '0'; // ส่งค่าเริ่มต้นเป็น 0 หากมีข้อผิดพลาด
+  }
 };
 
 /**
