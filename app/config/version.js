@@ -1,4 +1,4 @@
-export const APP_VERSION = 'v.2.3.3.2025';
+export const APP_VERSION = 'v.2.20.3';
 
 export const VERSION_INFO = {
     version: 'v.1.21.2.2025',
