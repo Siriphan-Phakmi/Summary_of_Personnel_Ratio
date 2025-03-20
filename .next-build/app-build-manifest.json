@@ -6,22 +6,9 @@
       "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_esm_format_index_js-_app-pages-browser_node_-8eae99.js",
       "static/chunks/vendors-_app-pages-browser_node_modules_firebase_firestore_dist_index_cjs_js.js",
       "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
-      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
+      "static/chunks/_app-pages-browser_app_context_ThemeContext_js-_app-pages-browser_app_utils_alertService_js.js",
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
-    ],
-    "/page/ward-form/page": [
-      "static/chunks/runtime.js",
-      "static/chunks/main-app.js",
-      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_esm_format_index_js-_app-pages-browser_node_-8eae99.js",
-      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js.js",
-      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_esm_addYears_index_js-_app-pages-browser_nod-cf9168.js",
-      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
-      "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js.js",
-      "static/chunks/_app-pages-browser_app_components_common_ShiftSelection_js-_app-pages-browser_app_components_-f3e650.js",
-      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
-      "static/chunks/_app-pages-browser_app_components_forms_WardForm_FormDateShiftSelector_js.js",
-      "static/chunks/app/page/ward-form/page.js"
     ],
     "/page": [
       "static/chunks/runtime.js",
@@ -46,6 +33,19 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/logs/route.js"
     ],
+    "/page/ward-form/page": [
+      "static/chunks/runtime.js",
+      "static/chunks/main-app.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_esm_format_index_js-_app-pages-browser_node_-8eae99.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_next_dist_api_image_js.js",
+      "static/chunks/vendors-_app-pages-browser_node_modules_date-fns_esm_addYears_index_js-_app-pages-browser_nod-cf9168.js",
+      "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
+      "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js.js",
+      "static/chunks/_app-pages-browser_app_components_ui_Calendar_js-_app-pages-browser_app_utils_dateHelpers_js.js",
+      "static/chunks/_app-pages-browser_app_context_ThemeContext_js-_app-pages-browser_app_utils_alertService_js.js",
+      "static/chunks/_app-pages-browser_app_components_forms_WardForm_EventHandlers_js-_app-pages-browser_app_comp-4828b8.js",
+      "static/chunks/app/page/ward-form/page.js"
+    ],
     "/page/approval/page": [
       "static/chunks/runtime.js",
       "static/chunks/main-app.js",
@@ -55,9 +55,9 @@
       "static/css/vendors-node_modules_react-datepicker_dist_react-datepicker_css.css",
       "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
       "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js.js",
-      "static/chunks/_app-pages-browser_app_components_common_ShiftSelection_js-_app-pages-browser_app_components_-f3e650.js",
-      "static/chunks/_app-pages-browser_app_utils_alertService_js.js",
-      "static/chunks/_app-pages-browser_app_components_forms_WardForm_FormDateShiftSelector_js.js",
+      "static/chunks/_app-pages-browser_app_components_ui_Calendar_js-_app-pages-browser_app_utils_dateHelpers_js.js",
+      "static/chunks/_app-pages-browser_app_context_ThemeContext_js-_app-pages-browser_app_utils_alertService_js.js",
+      "static/chunks/_app-pages-browser_app_components_forms_WardForm_EventHandlers_js-_app-pages-browser_app_comp-4828b8.js",
       "static/chunks/app/page/approval/page.js"
     ],
     "/page/dashboard/page": [
@@ -69,7 +69,7 @@
       "static/chunks/vendors-_app-pages-browser_node_modules_react-chartjs-2_dist_index_js.js",
       "static/chunks/_app-pages-browser_app_context_AuthContext_js.js",
       "static/chunks/_app-pages-browser_app_components_layouts_PageLayout_js.js",
-      "static/chunks/_app-pages-browser_app_components_common_ShiftSelection_js-_app-pages-browser_app_components_-f3e650.js",
+      "static/chunks/_app-pages-browser_app_components_ui_Calendar_js-_app-pages-browser_app_utils_dateHelpers_js.js",
       "static/chunks/app/page/dashboard/page.js"
     ]
   }

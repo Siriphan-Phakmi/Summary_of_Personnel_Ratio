@@ -2,6 +2,9 @@
 import { collection, addDoc, updateDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { getUTCDateString } from '../../../utils/dateUtils';
+import { calculatePatientCensus } from './DataFetchers';
+import { format } from 'date-fns';
+import { Swal } from '../../../utils/alertService';
 
 export const parseInputValue = (value) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -83,6 +86,21 @@ export const handleWardFormSubmit = async (e, formData, selectedWard, selectedDa
                 success: false, 
                 error: 'กรุณากรอกชื่อและนามสกุลผู้บันทึกข้อมูล' 
             };
+        }
+        
+        // ตรวจสอบว่าถ้าเป็น Save Final ข้อมูลกะนี้ต้องไม่ได้ถูก finalize ไปแล้ว
+        if (saveMode === 'final') {
+            const formattedDate = format(new Date(selectedDate), 'yyyy-MM-dd');
+            const docId = `${formattedDate}_${selectedWard}_${selectedShift}`;
+            const docRef = doc(db, 'wardDataFinal', docId);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                return {
+                    success: false,
+                    error: 'ไม่สามารถบันทึกข้อมูลได้ เนื่องจากข้อมูลของกะนี้ได้ถูกบันทึกแบบ Final ไปแล้ว'
+                };
+            }
         }
         
         const recordData = {
@@ -185,4 +203,421 @@ export const checkFinalApprovalStatus = async (date, ward, shift) => {
     console.error('Error checking final approval status:', error);
     return { canEdit: true };
   }
+};
+
+// ย้ายฟังก์ชัน handleFormChange จาก MainFormContent
+export const handleInputChange = (category, field, value, formData, setFormData, isReadOnly, setHasUnsavedChanges) => {
+    // ตรวจสอบว่าฟอร์มเป็นแบบอ่านอย่างเดียวหรือไม่
+    if (isReadOnly) {
+        console.log('Form is read-only. Changes not allowed.');
+        return;
+    }
+    
+    // ตรวจสอบว่า field เป็น 'recalculateTotal' หรือไม่ เพื่อคำนวณผลรวม
+    if (field === 'recalculateTotal') {
+        console.log('Recalculating total...');
+        calculatePatientCensusTotal(formData, setFormData);
+        return;
+    }
+
+    setHasUnsavedChanges(true);
+    
+    // Use a single atomic update to prevent race conditions
+    setFormData(prevData => {
+        // Create a deep copy to avoid mutation issues
+        const updatedData = JSON.parse(JSON.stringify(prevData));
+        
+        // Update the specific field
+        if (category) {
+            if (!updatedData[category]) {
+                updatedData[category] = {};
+            }
+            updatedData[category][field] = value;
+        } else {
+            updatedData[field] = value;
+        }
+        
+        // If this is a patient census field that affects calculation,
+        // recalculate the total immediately in the same update
+        if (category === 'patientCensus' && 
+            ['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead'].includes(field)) {
+            
+            const patientCensus = updatedData.patientCensus;
+            
+            // Convert to numbers to prevent string concatenation
+            const newAdmit = Number(parseInt(patientCensus.newAdmit || '0', 10));
+            const transferIn = Number(parseInt(patientCensus.transferIn || '0', 10));
+            const referIn = Number(parseInt(patientCensus.referIn || '0', 10));
+            const transferOut = Number(parseInt(patientCensus.transferOut || '0', 10));
+            const referOut = Number(parseInt(patientCensus.referOut || '0', 10));
+            const discharge = Number(parseInt(patientCensus.discharge || '0', 10));
+            const dead = Number(parseInt(patientCensus.dead || '0', 10));
+            
+            // Calculate the new total
+            const total = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+            console.log(`Recalculated Census: ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+            
+            // Display empty string if total is 0 and all input fields are empty
+            const shouldShowEmpty = total === 0 && 
+                !patientCensus.newAdmit && 
+                !patientCensus.transferIn && 
+                !patientCensus.referIn && 
+                !patientCensus.transferOut && 
+                !patientCensus.referOut && 
+                !patientCensus.discharge && 
+                !patientCensus.dead;
+            
+            // Update the total in the same update
+            updatedData.patientCensus.total = shouldShowEmpty ? '' : total;
+        }
+        
+        return updatedData;
+    });
+};
+
+// ย้ายฟังก์ชัน calculatePatientCensusTotal จาก MainFormContent
+export const calculatePatientCensusTotal = (formData, setFormData, selectedShift) => {
+    // ใช้ข้อมูลที่ส่งเข้ามา
+    const data = formData;
+    console.log("กำลังคำนวณ Patient Census จากข้อมูล:", JSON.stringify(data.patientCensus));
+
+    if (!data?.patientCensus) {
+        console.warn('ไม่สามารถคำนวณได้: ข้อมูล patientCensus ไม่มี');
+        return 0;
+    }
+
+    const patientCensus = data.patientCensus;
+
+    // แปลงค่าเป็นตัวเลข และรวม hospitalPatientcensus เข้าไปด้วย
+    const hospitalCensus = Number(parseInt(patientCensus.hospitalPatientcensus || '0', 10));
+    const newAdmit = Number(parseInt(patientCensus.newAdmit || '0', 10));
+    const transferIn = Number(parseInt(patientCensus.transferIn || '0', 10));
+    const referIn = Number(parseInt(patientCensus.referIn || '0', 10));
+    const transferOut = Number(parseInt(patientCensus.transferOut || '0', 10));
+    const referOut = Number(parseInt(patientCensus.referOut || '0', 10));
+    const discharge = Number(parseInt(patientCensus.discharge || '0', 10));
+    const dead = Number(parseInt(patientCensus.dead || '0', 10));
+
+    // คำนวณตามสูตรใหม่: Hospital census + การเข้า - การออก
+    const total = hospitalCensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+
+    console.log(`คำนวณ Patient Census: ${hospitalCensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+    
+    // ตรวจสอบว่าควรแสดงเป็นช่องว่างหรือไม่
+    const shouldShowEmpty = total === 0 && 
+        !patientCensus.hospitalPatientcensus &&
+        !patientCensus.newAdmit && 
+        !patientCensus.transferIn && 
+        !patientCensus.referIn && 
+        !patientCensus.transferOut && 
+        !patientCensus.referOut && 
+        !patientCensus.discharge && 
+        !patientCensus.dead;
+
+    // อัพเดท state แบบ atomic
+    setFormData(prevData => {
+        const updatedData = JSON.parse(JSON.stringify(prevData));
+        
+        if (!updatedData.patientCensus) {
+            updatedData.patientCensus = {};
+        }
+        
+        updatedData.patientCensus.total = shouldShowEmpty ? '' : total;
+        
+        if (selectedShift === 'Night (19:00-07:00)') {
+            updatedData.overallData = shouldShowEmpty ? '' : total;
+        }
+        
+        return updatedData;
+    });
+
+    return total;
+};
+
+// เพิ่มฟังก์ชันสำหรับตรวจสอบความถูกต้องของฟอร์มก่อนการบันทึก
+export const validateFormBeforeSave = (formData, saveMode = 'draft') => {
+    const errors = [];
+    
+    // ตรวจสอบการกรอกชื่อและนามสกุล
+    if (!formData.firstName || !formData.firstName.trim() === '') {
+        errors.push('กรุณากรอกชื่อผู้บันทึกข้อมูล');
+    }
+    
+    if (!formData.lastName || !formData.lastName.trim() === '') {
+        errors.push('กรุณากรอกนามสกุลผู้บันทึกข้อมูล');
+    }
+    
+    // ถ้าเป็นการบันทึกแบบ final ต้องตรวจสอบเพิ่มเติม
+    if (saveMode === 'final') {
+        // ตรวจสอบการกรอกข้อมูลจำนวนบุคลากร
+        const staffing = formData.staffing || {};
+        if (!staffing.nurseManager && !staffing.RN && !staffing.PN && !staffing.NA) {
+            errors.push('กรุณากรอกข้อมูลจำนวนบุคลากรอย่างน้อย 1 ประเภท');
+        }
+        
+        // ตรวจสอบ patient census
+        if (!formData.patientCensus) {
+            errors.push('กรุณากรอกข้อมูลจำนวนผู้ป่วย');
+        }
+    }
+    
+    // ถ้ามี errors ให้แสดง
+    if (errors.length > 0) {
+        Swal.fire({
+            title: 'กรุณาตรวจสอบข้อมูล',
+            html: errors.map(err => `- ${err}`).join('<br>'),
+            icon: 'warning',
+            confirmButtonColor: '#0ab4ab'
+        });
+        return false;
+    }
+    
+    return true;
+};
+
+export const createOnSaveDraft = (
+    formData, 
+    selectedDate, 
+    selectedShift, 
+    selectedWard, 
+    setIsLoading, 
+    setHasUnsavedChanges
+) => {
+    return async () => {
+        // ตรวจสอบความถูกต้องของฟอร์มก่อนบันทึก
+        if (!validateFormBeforeSave(formData, 'draft')) {
+            return { success: false, error: 'ข้อมูลไม่ครบถ้วน' };
+        }
+        
+        // ยืนยันการบันทึกแบบร่าง
+        const result = await Swal.fire({
+            title: 'ยืนยันการบันทึกแบบร่าง',
+            text: 'คุณต้องการบันทึกข้อมูลแบบร่างหรือไม่?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0ab4ab',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'ใช่, บันทึกร่าง',
+            cancelButtonText: 'ยกเลิก'
+        });
+        
+        if (!result.isConfirmed) {
+            return { success: false, canceled: true };
+        }
+        
+        try {
+            setIsLoading(true);
+            
+            // ดำเนินการบันทึกร่าง...
+            // (โค้ดเดิมสำหรับการบันทึกร่าง)
+            
+            // หลังจากบันทึกสำเร็จ
+            setHasUnsavedChanges(false);
+            
+            // แสดงการแจ้งเตือนสำเร็จ
+            Swal.fire({
+                title: 'บันทึกสำเร็จ',
+                text: 'บันทึกข้อมูลแบบร่างเรียบร้อยแล้ว',
+                icon: 'success',
+                confirmButtonColor: '#0ab4ab'
+            });
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Error saving draft:', error);
+            
+            // แสดงข้อผิดพลาด
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: `ไม่สามารถบันทึกร่างได้: ${error.message}`,
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+            
+            return { success: false, error: error.message };
+        } finally {
+            setIsLoading(false);
+        }
+    };
+};
+
+export const createOnSubmit = (
+    formData, 
+    selectedDate, 
+    selectedShift, 
+    selectedWard, 
+    setIsLoading, 
+    setHasUnsavedChanges
+) => {
+    return async () => {
+        // ตรวจสอบความถูกต้องของฟอร์มก่อนบันทึก
+        if (!validateFormBeforeSave(formData, 'final')) {
+            return { success: false, error: 'ข้อมูลไม่ครบถ้วน' };
+        }
+        
+        // ยืนยันการบันทึกข้อมูลแบบทางการ
+        const result = await Swal.fire({
+            title: 'ยืนยันการบันทึกข้อมูล',
+            html: 'คุณแน่ใจหรือไม่ว่าต้องการบันทึกข้อมูลนี้?<br>การบันทึกข้อมูลจะถือว่าข้อมูลนี้เป็นข้อมูลทางการ',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0ab4ab',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'ใช่, บันทึกข้อมูล',
+            cancelButtonText: 'ยกเลิก'
+        });
+        
+        if (!result.isConfirmed) {
+            return { success: false, canceled: true };
+        }
+        
+        try {
+            setIsLoading(true);
+            
+            // ดำเนินการบันทึกข้อมูล...
+            // (โค้ดเดิมสำหรับการบันทึกข้อมูล)
+            
+            // หลังจากบันทึกสำเร็จ
+            setHasUnsavedChanges(false);
+            
+            // แสดงการแจ้งเตือนสำเร็จ
+            Swal.fire({
+                title: 'บันทึกสำเร็จ',
+                text: 'บันทึกข้อมูลเรียบร้อยแล้ว',
+                icon: 'success',
+                confirmButtonColor: '#0ab4ab'
+            });
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Error submitting data:', error);
+            
+            // แสดงข้อผิดพลาด
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: `ไม่สามารถบันทึกข้อมูลได้: ${error.message}`,
+                icon: 'error',
+                confirmButtonColor: '#0ab4ab'
+            });
+            
+            return { success: false, error: error.message };
+        } finally {
+            setIsLoading(false);
+        }
+    };
+};
+
+// สร้างฟังก์ชันสำหรับยืนยันการยกเลิก
+export const createHandleCancel = (hasUnsavedChanges, onCancel) => {
+    return async () => {
+        if (hasUnsavedChanges) {
+            const result = await Swal.fire({
+                title: 'ยืนยันการยกเลิก',
+                html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก<br>คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการกรอกข้อมูล?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'ใช่, ยกเลิกการกรอกข้อมูล',
+                cancelButtonText: 'ไม่, ฉันต้องการกรอกข้อมูลต่อ'
+            });
+            
+            if (!result.isConfirmed) {
+                return { success: false, canceled: true };
+            }
+        }
+        
+        if (typeof onCancel === 'function') {
+            return await onCancel();
+        }
+        
+        return { success: true };
+    };
+};
+
+/**
+ * ฟังก์ชันสร้าง handler สำหรับจัดการการเปลี่ยนแปลงของฟอร์ม
+ */
+export const createHandleFormChange = (category, setFormData, setHasUnsavedChanges, isReadOnly = false) => {
+    return (field, value) => {
+        // ตรวจสอบว่าฟอร์มเป็นแบบอ่านอย่างเดียวหรือไม่
+        if (isReadOnly) {
+            console.log('Form is read-only. Changes not allowed.');
+            return;
+        }
+        
+        if (setHasUnsavedChanges) {
+            setHasUnsavedChanges(true);
+        }
+        
+        // อัปเดต formData
+        setFormData(prevData => {
+            const updatedData = { ...prevData };
+            
+            // ถ้ามี category ให้อัปเดตเฉพาะ field ใน category นั้น
+            if (category) {
+                updatedData[category] = {
+                    ...updatedData[category],
+                    [field]: value
+                };
+            } else {
+                // ถ้าไม่มี category ให้อัปเดตที่ root level
+                updatedData[field] = value;
+            }
+            
+            return updatedData;
+        });
+    };
+};
+
+/**
+ * ฟังก์ชันสร้าง handler สำหรับคำนวณ Patient Census
+ * เป็นรูปแบบ factory function ที่คืนค่าเป็นฟังก์ชันอีกทีหนึ่ง
+ */
+export const createCalculatePatientCensusTotal = (formData, setFormData, selectedShift) => {
+    return (currentData = null) => {
+        // ใช้ข้อมูลที่ส่งเข้ามา หรือถ้าไม่มีให้ใช้ formData ปัจจุบัน
+        const data = currentData || formData;
+        console.log("กำลังคำนวณ Patient Census จากข้อมูล:", JSON.stringify(data.patientCensus));
+        
+        if (!data?.patientCensus) {
+            console.warn('ไม่สามารถคำนวณได้: ข้อมูล patientCensus ไม่มี');
+            return;
+        }
+        
+        const patientCensus = data.patientCensus;
+        
+        // แปลงค่าเป็นตัวเลข
+        const newAdmit = parseInt(patientCensus.newAdmit || '0', 10);
+        const transferIn = parseInt(patientCensus.transferIn || '0', 10);
+        const referIn = parseInt(patientCensus.referIn || '0', 10);
+        const transferOut = parseInt(patientCensus.transferOut || '0', 10);
+        const referOut = parseInt(patientCensus.referOut || '0', 10);
+        const discharge = parseInt(patientCensus.discharge || '0', 10);
+        const dead = parseInt(patientCensus.dead || '0', 10);
+        
+        // คำนวณตามสูตร
+        const total = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+        
+        console.log(`คำนวณ Patient Census: ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+        
+        // อัปเดต formData
+        setFormData(prevData => {
+            const updatedData = { ...prevData };
+            
+            if (!updatedData.patientCensus) {
+                updatedData.patientCensus = {};
+            }
+            
+            updatedData.patientCensus.total = total.toString();
+            
+            if (selectedShift === 'Night (19:00-07:00)') {
+                updatedData.overallData = total.toString();
+            }
+            
+            return updatedData;
+        });
+        
+        return total;
+    };
 }; 

@@ -1,6 +1,7 @@
 {
+  "/api/logs/route": "app/api/logs/route.js",
   "/page/ward-form/page": "app/page/ward-form/page.js",
   "/page/login/page": "app/page/login/page.js",
-  "/page/dashboard/page": "app/page/dashboard/page.js",
-  "/page/approval/page": "app/page/approval/page.js"
+  "/page/approval/page": "app/page/approval/page.js",
+  "/page/dashboard/page": "app/page/dashboard/page.js"
 }
