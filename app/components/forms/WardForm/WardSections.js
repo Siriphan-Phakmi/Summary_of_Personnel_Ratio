@@ -22,7 +22,7 @@ import React, { useEffect, useRef } from 'react';
 import { calculatePatientCensus } from './DataFetchers';
 
 // ส่วนรายละเอียดผู้ป่วย
-export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, theme }) => {
+export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, theme, numericOnly = true }) => {
   // ใช้ ref เพื่อเก็บค่า previous formData และป้องกันการเกิด infinite loop
   const prevValuesRef = useRef({});
   const isInitialRender = useRef(true);
@@ -34,6 +34,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
       isInitialRender.current = false;
       // ข้อมูลปัจจุบันไปเก็บไว้ใน ref
       prevValuesRef.current = {
+        hospitalPatientcensus: formData?.hospitalPatientcensus,
         newAdmit: formData?.newAdmit,
         transferIn: formData?.transferIn,
         referIn: formData?.referIn,
@@ -48,20 +49,37 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
 
     if (formData) {
       // คำนวณ Patient Census ทันทีที่มีการเปลี่ยนแปลงค่าในฟิลด์
-      const newAdmit = parseInt(formData.newAdmit || '0');
-      const transferIn = parseInt(formData.transferIn || '0');
-      const referIn = parseInt(formData.referIn || '0');
-      const transferOut = parseInt(formData.transferOut || '0');
-      const referOut = parseInt(formData.referOut || '0');
-      const discharge = parseInt(formData.discharge || '0');
-      const dead = parseInt(formData.dead || '0');
+      // ใช้ parseInt แทน Number เพื่อให้แน่ใจว่าแปลงค่าเป็นตัวเลขที่ถูกต้อง
+      const hospitalPatientcensus = parseInt(formData.hospitalPatientcensus || '0', 10) || 0;
+      const newAdmit = parseInt(formData.newAdmit || '0', 10) || 0;
+      const transferIn = parseInt(formData.transferIn || '0', 10) || 0;
+      const referIn = parseInt(formData.referIn || '0', 10) || 0;
+      const transferOut = parseInt(formData.transferOut || '0', 10) || 0;
+      const referOut = parseInt(formData.referOut || '0', 10) || 0;
+      const discharge = parseInt(formData.discharge || '0', 10) || 0;
+      const dead = parseInt(formData.dead || '0', 10) || 0;
       
-      // คำนวณค่า Patient Census ใหม่
-      const calculatedCensus = (newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead);
+      // Debug: แสดงค่าทุกตัวที่นำมาคำนวณ
+      console.log('DEBUG - VALUES:', {
+        hospitalPatientcensus,
+        newAdmit,
+        transferIn,
+        referIn,
+        transferOut,
+        referOut,
+        discharge,
+        dead
+      });
+      
+      // คำนวณค่า Patient Census ใหม่โดยรวม hospitalPatientcensus
+      const calculatedCensus = hospitalPatientcensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
       const calculatedCensusStr = calculatedCensus.toString();
+      
+      console.log(`ค่าที่คำนวณได้: ${hospitalPatientcensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${calculatedCensus}`);
       
       // ตรวจสอบว่ามีการเปลี่ยนค่าจริงๆ หรือไม่ และค่าที่คำนวณได้แตกต่างจากค่าปัจจุบัน
       const valuesChanged = 
+        prevValuesRef.current.hospitalPatientcensus !== formData.hospitalPatientcensus ||
         prevValuesRef.current.newAdmit !== formData.newAdmit ||
         prevValuesRef.current.transferIn !== formData.transferIn ||
         prevValuesRef.current.referIn !== formData.referIn ||
@@ -78,6 +96,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
         
         // อัพเดทค่าใน ref
         prevValuesRef.current = {
+          hospitalPatientcensus: formData.hospitalPatientcensus,
           newAdmit: formData.newAdmit,
           transferIn: formData.transferIn,
           referIn: formData.referIn,
@@ -90,6 +109,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
       }
     }
   }, [
+    formData?.hospitalPatientcensus,
     formData?.newAdmit, 
     formData?.transferIn, 
     formData?.referIn, 
@@ -101,11 +121,15 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
 
   const isDark = theme === 'dark';
 
+  const patientCensus = formData?.patientCensus || {};
+  
   // ฟังก์ชันสำหรับจัดการอินพุตที่เป็นตัวเลขเท่านั้น
   const handleNumericInput = (e, section) => {
     const { name, value } = e.target;
     
     // อนุญาตเฉพาะตัวเลขเท่านั้น
+    if (numericOnly && value !== '' && !/^\d*$/.test(value)) return;
+    
     const numericValue = value.replace(/[^0-9]/g, '');
     
     if (section === 'patientCensus') {
@@ -121,6 +145,9 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
     } else if (section === 'bedManagement') {
         // ส่งข้อมูลไปยัง handleInputChange สำหรับ bedManagement
         handleInputChange('bedManagement', name, numericValue);
+    } else {
+        // สำหรับกรณีอื่นๆ
+        handleInputChange(section, name, numericValue);
     }
   };
 
@@ -147,12 +174,12 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
           {/* Patient Census */}
           <div className="mb-2">
             <label className="block text-sm font-medium mb-1 text-blue-700">
-              Patient Census
+            Patient census
             </label>
             <input
               type="text"
               name="total"
-              value={formData?.patientCensus?.total || '0'}
+              value={formData?.patientCensus?.total || ''}
               readOnly
               className="w-full px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-2xl font-bold text-center text-blue-800"
             />
@@ -166,9 +193,8 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="overallData"
-              value={formData?.overallData || '0'}
-              onChange={(e) => handleInputChange('', 'overallData', e.target.value)}
-              disabled={isReadOnly}
+              value={formData?.patientCensus?.total || ''}
+              readOnly
               className="w-full px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-2xl font-bold text-center text-blue-800"
             />
           </div>
@@ -193,7 +219,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
                 <input
                   type="text"
                   name="nurseManager"
-                  value={formData?.staffing?.nurseManager || '0'}
+                  value={formData?.staffing?.nurseManager || ''}
                   onChange={(e) => {
                     const numericValue = e.target.value.replace(/[^0-9]/g, '');
                     handleInputChange('staffing', 'nurseManager', numericValue);
@@ -211,7 +237,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
                 <input
                   type="text"
                   name="rn"
-                  value={formData?.staffing?.rn || '0'}
+                  value={formData?.staffing?.rn || ''}
                   onChange={(e) => {
                     const numericValue = e.target.value.replace(/[^0-9]/g, '');
                     handleInputChange('staffing', 'rn', numericValue);
@@ -229,7 +255,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
                 <input
                   type="text"
                   name="lpn"
-                  value={formData?.staffing?.lpn || '0'}
+                  value={formData?.staffing?.lpn || ''}
                   onChange={(e) => {
                     const numericValue = e.target.value.replace(/[^0-9]/g, '');
                     handleInputChange('staffing', 'lpn', numericValue);
@@ -247,7 +273,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
                 <input
                   type="text"
                   name="wc"
-                  value={formData?.staffing?.wc || '0'}
+                  value={formData?.staffing?.wc || ''}
                   onChange={(e) => {
                     const numericValue = e.target.value.replace(/[^0-9]/g, '');
                     handleInputChange('staffing', 'wc', numericValue);
@@ -268,6 +294,22 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Hospital patient census (ส่วนที่เพิ่มใหม่) */}
+      <div className="mb-2">
+        <label className="block text-sm font-medium mb-1 text-yellow-700">
+          Hospital patient census
+        </label>
+        <input
+          type="text"
+          name="hospitalPatientcensus"
+          value={patientCensus.hospitalPatientcensus || ''}
+          onChange={(e) => handleNumericInput(e, 'patientCensus')}
+          disabled={isReadOnly}
+          className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
+        />
+      </div>
+  
           {/* New Admit */}
           <div className="mb-2">
             <label className="block text-sm font-medium mb-1 text-yellow-700">
@@ -276,7 +318,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="newAdmit"
-              value={formData?.patientCensus?.newAdmit || '0'}
+              value={formData?.patientCensus?.newAdmit || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
@@ -291,7 +333,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="transferIn"
-              value={formData?.patientCensus?.transferIn || '0'}
+              value={formData?.patientCensus?.transferIn || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
@@ -306,7 +348,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="referIn"
-              value={formData?.patientCensus?.referIn || '0'}
+              value={formData?.patientCensus?.referIn || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-md text-xl font-bold text-center text-yellow-800"
@@ -332,7 +374,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="transferOut"
-              value={formData?.patientCensus?.transferOut || '0'}
+              value={formData?.patientCensus?.transferOut || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
@@ -347,7 +389,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="referOut"
-              value={formData?.patientCensus?.referOut || '0'}
+              value={formData?.patientCensus?.referOut || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
@@ -362,7 +404,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="discharge"
-              value={formData?.patientCensus?.discharge || '0'}
+              value={formData?.patientCensus?.discharge || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
@@ -377,7 +419,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="dead"
-              value={formData?.patientCensus?.dead || '0'}
+              value={formData?.patientCensus?.dead || ''}
               onChange={(e) => handleNumericInput(e, 'patientCensus')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-red-50 border border-red-200 rounded-md text-xl font-bold text-center text-red-800"
@@ -403,7 +445,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="available"
-              value={formData?.bedManagement?.available || '0'}
+              value={formData?.bedManagement?.available || ''}
               onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
@@ -418,7 +460,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="unavailable"
-              value={formData?.bedManagement?.unavailable || '0'}
+              value={formData?.bedManagement?.unavailable || ''}
               onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
@@ -433,7 +475,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="plannedDischarge"
-              value={formData?.bedManagement?.plannedDischarge || '0'}
+              value={formData?.bedManagement?.plannedDischarge || ''}
               onChange={(e) => handleNumericInput(e, 'bedManagement')}
               disabled={isReadOnly}
               className="w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-md text-xl font-bold text-center text-purple-800"
@@ -571,10 +613,10 @@ export const WardFormSections = ({ formData, handleInputChange, isReadOnly, them
             isReadOnly={isReadOnly} 
             theme={theme} 
           />
-          
-
         </div>
       </div>
     </div>
   );
 };
+
+export default WardFormSections;

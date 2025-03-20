@@ -51,7 +51,7 @@ const Navbar = () => {
   }, [pathname]);
 
   // การนำทางไปยังหน้าต่างๆ
-  const navigateTo = (page) => {
+  const navigateTo = async (page) => {
     // ตรวจสอบสิทธิ์การเข้าถึง
     if (page === PAGES.USER_MANAGEMENT && user?.role?.toLowerCase() !== 'admin') {
       Swal.fire({
@@ -61,6 +61,24 @@ const Navbar = () => {
         confirmButtonColor: '#0ab4ab'
       });
       return;
+    }
+
+    // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
+    if (window.hasUnsavedChanges) {
+      const result = await Swal.fire({
+        title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
+        text: 'คุณต้องการออกจากหน้านี้หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#0ab4ab',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'ใช่, เปลี่ยนหน้า',
+        cancelButtonText: 'ไม่, อยู่หน้านี้ต่อ'
+      });
+      
+      if (!result.isConfirmed) {
+        return; // ยกเลิกการนำทาง
+      }
     }
 
     // ตั้งค่า activePage ก่อนเพื่อให้ UI อัปเดตทันที

@@ -3,6 +3,8 @@
 import { getUserDataFromCollection, getWardDataByDate, checkLast7DaysData } from '../../../lib/dataAccess';
 import { getSubcollection, getDocumentById } from '../../../lib/firebase';
 import { format } from 'date-fns';
+import { db } from '../../../lib/firebase';
+import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from 'firebase/firestore';
 
 /**
  * ฟังก์ชันสำหรับตรวจสอบการอนุมัติ
@@ -55,19 +57,49 @@ export const checkApprovalStatus = async (date, shift, wardId) => {
  * @returns {Promise<Object|null>} ข้อมูลวอร์ดหรือ null ถ้าไม่พบ
  */
 export const fetchWardData = async (date, wardId, shift) => {
-  try {
-    if (!date || !wardId || !shift) {
-      console.error('fetchWardData: Missing parameters', { date, wardId, shift });
-      return null;
+    try {
+        console.log('Fetching ward data:', { date, wardId, shift });
+        const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+        const docId = `${formattedDate}_${wardId}_${shift}`;
+        
+        // ลองดึงข้อมูลจาก wardDataFinal ก่อน
+        const docRef = doc(db, 'wardDataFinal', docId);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            console.log('Found data in wardDataFinal');
+            return docSnap.data();
+        }
+        
+        // ถ้าไม่มีข้อมูลใน wardDataFinal ให้ลองดึงข้อมูลร่าง
+        const draftsRef = collection(db, 'wardDataDrafts');
+        const draftsQuery = query(
+            draftsRef,
+            where('date', '==', formattedDate),
+            where('wardId', '==', wardId),
+            where('shift', '==', shift)
+        );
+        
+        const draftsSnap = await getDocs(draftsQuery);
+        
+        if (!draftsSnap.empty) {
+            console.log('Found data in wardDataDrafts');
+            // เรียงลำดับตาม timestamp เพื่อเอาร่างล่าสุด
+            const drafts = [];
+            draftsSnap.forEach(doc => {
+                drafts.push({ id: doc.id, ...doc.data() });
+            });
+            
+            drafts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            return drafts[0];
+        }
+        
+        console.log('No data found for this date/shift');
+        return null;
+    } catch (error) {
+        console.error('Error fetching ward data:', error);
+        throw error;
     }
-    
-    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
-    const data = await getWardDataByDate(formattedDate, shift, wardId);
-    return data;
-  } catch (error) {
-    console.error('Error fetching ward data:', error);
-    return null;
-  }
 };
 
 /**
@@ -129,28 +161,53 @@ export const fetchLast7DaysData = async (currentDate, wardId) => {
 /**
  * ฟังก์ชันสำหรับคำนวณค่า Patient Census
  * @param {Object} formData ข้อมูลฟอร์ม
- * @returns {string} ค่า Patient Census ที่คำนวณได้
+ * @returns {string|number} ค่า Patient Census ที่คำนวณได้ หรือ empty string ถ้าไม่มีข้อมูล
  */
-export const calculatePatientCensus = (formData) => {
-  try {
-    // แปลงค่าเป็นตัวเลข หากไม่ใช่ตัวเลขให้ใช้ค่า 0
-    const newAdmit = parseInt(formData.newAdmit || '0');
-    const transferIn = parseInt(formData.transferIn || '0');
-    const referIn = parseInt(formData.referIn || '0');
-    const transferOut = parseInt(formData.transferOut || '0');
-    const referOut = parseInt(formData.referOut || '0');
-    const discharge = parseInt(formData.discharge || '0');
-    const dead = parseInt(formData.dead || '0');
-    
-    // คำนวณตามสูตร: (New Admit + Transfer In + Refer In) - (Transfer Out + Refer Out + Discharge + Dead)
-    const census = (newAdmit + transferIn + referIn) - (transferOut + referOut + discharge + dead);
-    
-    // ส่งค่ากลับเป็น string
-    return census.toString();
-  } catch (error) {
-    console.error('Error calculating patient census:', error);
-    return '0'; // ส่งค่าเริ่มต้นเป็น 0 หากมีข้อผิดพลาด
+export const calculatePatientCensus = (patientData) => {
+  if (!patientData) {
+    console.warn('ไม่สามารถคำนวณได้: ข้อมูล patientData ไม่มี');
+    return '';
   }
+
+  // แปลงค่าเป็นตัวเลข และใช้ parseInt ด้วย radix เพื่อป้องกันการแปลงค่าที่ผิดพลาด
+  const hospitalPatientcensus = parseInt(patientData.hospitalPatientcensus || '0', 10) || 0;
+  const newAdmit = parseInt(patientData.newAdmit || '0', 10) || 0;
+  const transferIn = parseInt(patientData.transferIn || '0', 10) || 0;
+  const referIn = parseInt(patientData.referIn || '0', 10) || 0;
+  const transferOut = parseInt(patientData.transferOut || '0', 10) || 0;
+  const referOut = parseInt(patientData.referOut || '0', 10) || 0;
+  const discharge = parseInt(patientData.discharge || '0', 10) || 0;
+  const dead = parseInt(patientData.dead || '0', 10) || 0;
+
+  // Debug: แสดงค่าที่นำมาคำนวณ
+  console.log('DataFetchers - Patient Census Values:', {
+    hospitalPatientcensus,
+    newAdmit,
+    transferIn,
+    referIn,
+    transferOut,
+    referOut,
+    discharge,
+    dead
+  });
+
+  // คำนวณตามสูตร: Hospital Patient Census + New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead
+  const total = hospitalPatientcensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+  
+  console.log(`DataFetchers คำนวณ Patient Census: ${hospitalPatientcensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+  
+  // Display empty string if total is 0 and all input fields are empty
+  const shouldShowEmpty = total === 0 && 
+      !patientData.hospitalPatientcensus &&
+      !patientData.newAdmit && 
+      !patientData.transferIn && 
+      !patientData.referIn && 
+      !patientData.transferOut && 
+      !patientData.referOut && 
+      !patientData.discharge && 
+      !patientData.dead;
+  
+  return shouldShowEmpty ? '' : total.toString();
 };
 
 /**
@@ -360,4 +417,166 @@ export const checkPast30DaysRecords = async (wardId) => {
     console.error('Error checking past 30 days records:', error);
     return false;
   }
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลย้อนหลัง X วัน
+ */
+export const fetchPreviousWardData = async (department, currentDate, days = 7) => {
+    try {
+        console.log(`Getting previous ${days} days data for ${department} from ${currentDate}`);
+        // โค้ดดึงข้อมูลย้อนหลัง...
+        // (คัดลอกจาก WardForm.js ใส่ตรงนี้)
+        return [];
+    } catch (error) {
+        console.error('Error getting previous data:', error);
+        return [];
+    }
+};
+
+/**
+ * แปลงรูปแบบวันที่
+ */
+export const formatDate = (date) => {
+    if (!date) return '';
+    
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    return format(d, 'yyyy-MM-dd');
+};
+
+/**
+ * ฟังก์ชันสำหรับดึงข้อมูลและจัดการการโหลดข้อมูลอัตโนมัติตามกะ
+ * @param {string} date วันที่
+ * @param {string} wardId รหัสวอร์ด
+ * @param {string} shift กะงาน
+ * @returns {Promise<Object>} ข้อมูลที่โหลด พร้อมสถานะ
+ */
+export const fetchAndPrepareWardData = async (date, wardId, shift) => {
+    try {
+        console.log(`Fetching and preparing data for ${date}, ${wardId}, ${shift}`);
+        
+        // ดึงข้อมูลของกะปัจจุบัน
+        const wardData = await fetchWardData(date, wardId, shift);
+        let patientCensusTotal = 0;
+        let sourceMessage = '';
+        
+        // ตรวจสอบว่ามีข้อมูลหรือไม่
+        if (wardData) {
+            console.log('Found existing data for this shift');
+            
+            // คำนวณ Patient Census ถ้ามีข้อมูล
+            if (wardData.patientCensus) {
+                patientCensusTotal = calculatePatientCensus(wardData.patientCensus);
+                sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูลในระบบ';
+            }
+            
+            return {
+                data: wardData,
+                hasData: true,
+                patientCensusTotal,
+                sourceMessage
+            };
+        }
+        
+        // ถ้าไม่มีข้อมูล จะดึงข้อมูลตามกฎที่กำหนด
+        if (shift === 'Morning (07:00-19:00)') {
+            // กรณีกะเช้า: ดึงข้อมูลย้อนหลัง 7 วัน
+            const previousDate = new Date(date);
+            previousDate.setDate(previousDate.getDate() - 7);
+            const formattedPreviousDate = format(previousDate, 'yyyy-MM-dd');
+            
+            console.log('No data found for morning shift, checking data from 7 days ago:', formattedPreviousDate);
+            const previousData = await fetchWardData(formattedPreviousDate, wardId, shift);
+            
+            if (previousData) {
+                console.log('Found previous data from 7 days ago');
+                
+                // คำนวณ Patient Census ถ้ามีข้อมูล
+                if (previousData.patientCensus) {
+                    patientCensusTotal = calculatePatientCensus(previousData.patientCensus);
+                    sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูล 7 วันก่อน';
+                }
+                
+                // สร้างข้อมูลใหม่โดยใช้ข้อมูลเดิมแต่ไม่เอา ID และข้อมูลเฉพาะอื่นๆ
+                const newData = { ...previousData };
+                delete newData.id;
+                delete newData.timestamp;
+                delete newData.createdAt;
+                delete newData.updatedAt;
+                delete newData.approvalStatus;
+                delete newData.approvedBy;
+                delete newData.approvalTimestamp;
+                
+                // อัปเดตค่า Patient Census
+                if (newData.patientCensus) {
+                    newData.patientCensus.total = patientCensusTotal.toString();
+                }
+                
+                return {
+                    data: newData,
+                    hasData: true,
+                    patientCensusTotal,
+                    sourceMessage,
+                    isAutoFilledFromHistory: true
+                };
+            }
+        } else if (shift === 'Night (19:00-07:00)') {
+            // กรณีกะดึก: ดึงข้อมูลจากกะเช้าของวันเดียวกัน
+            console.log('No data found for night shift, checking morning shift from same day');
+            const morningData = await fetchWardData(date, wardId, 'Morning (07:00-19:00)');
+            
+            if (morningData) {
+                console.log('Found morning shift data from same day');
+                
+                // คำนวณ Patient Census ถ้ามีข้อมูล
+                if (morningData.patientCensus) {
+                    patientCensusTotal = calculatePatientCensus(morningData.patientCensus);
+                    sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูลกะเช้า';
+                }
+                
+                // สร้างข้อมูลใหม่โดยใช้ข้อมูลจากกะเช้า
+                const newData = { ...morningData };
+                delete newData.id;
+                delete newData.timestamp;
+                delete newData.createdAt;
+                delete newData.updatedAt;
+                delete newData.approvalStatus;
+                delete newData.approvedBy;
+                delete newData.approvalTimestamp;
+                
+                // อัปเดตค่า Patient Census และ Overall Data (สำหรับกะดึก)
+                if (newData.patientCensus) {
+                    newData.patientCensus.total = patientCensusTotal.toString();
+                }
+                newData.overallData = patientCensusTotal.toString();
+                
+                return {
+                    data: newData,
+                    hasData: true,
+                    patientCensusTotal,
+                    sourceMessage,
+                    isAutoFilledFromHistory: true
+                };
+            }
+        }
+        
+        // ถ้าไม่มีข้อมูลใดๆ ให้สร้างข้อมูลเปล่า
+        return {
+            data: null,
+            hasData: false,
+            patientCensusTotal: 0,
+            sourceMessage: 'ไม่พบข้อมูลก่อนหน้า'
+        };
+    } catch (error) {
+        console.error('Error fetching and preparing ward data:', error);
+        return {
+            data: null,
+            hasData: false,
+            patientCensusTotal: 0,
+            sourceMessage: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+            error: error.message
+        };
+    }
 };
