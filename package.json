@@ -10,7 +10,9 @@
     "export": "next build && next export",
     "clean": "rimraf .next out",
     "typecheck": "tsc",
-    "release": "standard-version"
+    "release": "standard-version",
+    "update-version": "node .hooks/update-version.js",
+    "release:auto": "npm run update-version && git add . && git commit -m \"release: อัพเดทเวอร์ชันเป็น $(node -e \"console.log(require('./.hooks/update-version.js'))\")\" && git tag -a \"$(node -e \"console.log(require('./.hooks/update-version.js'))\")\" -m \"เวอร์ชัน $(node -e \"console.log(require('./.hooks/update-version.js'))\")\" && git push --follow-tags origin main"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",

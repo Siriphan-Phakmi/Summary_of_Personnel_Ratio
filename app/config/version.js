@@ -1,7 +1,8 @@
-export const APP_VERSION = 'v.2.20.3';
+// อัพเดทอัตโนมัติเมื่อ: 20/3/2568 21:54:02
+export const APP_VERSION = 'v.2.20.3.2025';
 
 export const VERSION_INFO = {
-    version: 'v.1.21.2.2025',
-    releaseDate: '2024-02-21',
-    environment: process.env.NODE_ENV
-}; 
+  version: '2.3.3',
+  releaseDate: '2025-03-20',
+  environment: process.env.NODE_ENV
+};
