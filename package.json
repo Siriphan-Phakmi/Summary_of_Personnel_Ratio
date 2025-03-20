@@ -1,6 +1,6 @@
 {
   "name": "summary-of-manpower-rate-and-number-of-daily-patients",
-  "version": "0.1.1",
+  "version": "2.3.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
