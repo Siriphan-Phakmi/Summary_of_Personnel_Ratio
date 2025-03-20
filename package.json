@@ -12,7 +12,7 @@
     "typecheck": "tsc",
     "release": "standard-version",
     "update-version": "node .hooks/update-version.js",
-    "release:auto": "npm run update-version && git add . && git commit -m \"release: อัพเดทเวอร์ชันเป็น $(node -e \"console.log(require('./.hooks/update-version.js'))\")\" && git tag -a \"$(node -e \"console.log(require('./.hooks/update-version.js'))\")\" -m \"เวอร์ชัน $(node -e \"console.log(require('./.hooks/update-version.js'))\")\" && git push --follow-tags origin main"
+    "release:auto": "npm run update-version && node -e \"const version = require('./.hooks/update-version.js'); console.log('เวอร์ชัน: ' + version); require('child_process').execSync(`git add . && git commit -m \\\"release: อัพเดทเวอร์ชันเป็น ${version}\\\" && git tag -a \\\"${version}\\\" -m \\\"เวอร์ชัน ${version}\\\" && git push --follow-tags origin main`, {stdio: 'inherit'});\""
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
