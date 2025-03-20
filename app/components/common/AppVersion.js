@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-
-const APP_VERSION = 'v.2.3.3.2025';
+import { APP_VERSION } from '../../config/version';
 
 export default function AppVersion() {
   // เพิ่ม state สำหรับเวลาปัจจุบัน
