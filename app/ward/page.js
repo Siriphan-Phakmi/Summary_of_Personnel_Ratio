@@ -7,9 +7,8 @@ import AuthGuard from '../components/auth/AuthGuard';
 import LoadingScreen from '../components/ui/LoadingScreen';
 import { ThemeProvider } from '../context/ThemeContext';
 import { AuthProvider } from '../context/AuthContext';
-
-// APP_VERSION constant
-const APP_VERSION = 'v.2.3.3.2025';
+import { logout } from '../utils/authService';
+import { APP_VERSION } from '../config/version';
 
 export default function WardPage() {
   const { user, loading, isAuthenticated } = useAuth();

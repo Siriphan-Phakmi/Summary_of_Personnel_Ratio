@@ -5,9 +5,8 @@ import ApprovalList from '../components/approval/ApprovalList';
 import { useAuth } from '../context/AuthContext';
 import AuthGuard from '../components/auth/AuthGuard';
 import LoadingScreen from '../components/ui/LoadingScreen';
-
-// APP_VERSION constant
-const APP_VERSION = 'v.2.3.3.2025';
+import { logout } from '../utils/authService';
+import { APP_VERSION } from '../config/version';
 
 export default function ApprovalPage() {
   const { user, loading, isAuthenticated } = useAuth();
