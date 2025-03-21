@@ -58,6 +58,18 @@ const nextConfig = {
         source: '/admin/user-management',
         destination: '/page/user-management',
         permanent: true,
+      },
+      // เพิ่ม redirect สำหรับ shift-form
+      {
+        source: '/shift-form',
+        destination: '/page/shift-form',
+        permanent: true,
+      },
+      // แก้ไข path ที่ไม่ถูกต้อง
+      {
+        source: '/user-management',
+        destination: '/page/user-management',
+        permanent: true,
       }
     ]
   },

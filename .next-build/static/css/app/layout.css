@@ -538,6 +538,9 @@ video {
 .pointer-events-none {
   pointer-events: none;
 }
+.pointer-events-auto {
+  pointer-events: auto;
+}
 .visible {
   visibility: visible;
 }
@@ -698,6 +701,9 @@ video {
 .ml-3 {
   margin-left: 0.75rem;
 }
+.ml-auto {
+  margin-left: auto;
+}
 .mr-1 {
   margin-right: 0.25rem;
 }
@@ -727,9 +733,6 @@ video {
 }
 .mt-8 {
   margin-top: 2rem;
-}
-.ml-auto {
-  margin-left: auto;
 }
 .block {
   display: block;
@@ -1152,14 +1155,14 @@ video {
 .border-l-0 {
   border-left-width: 0px;
 }
+.border-l-4 {
+  border-left-width: 4px;
+}
 .border-t {
   border-top-width: 1px;
 }
 .border-t-2 {
   border-top-width: 2px;
-}
-.border-l-4 {
-  border-left-width: 4px;
 }
 .border-\[\#0ab4ab\] {
   --tw-border-opacity: 1;
@@ -1268,6 +1271,10 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(254 202 202 / var(--tw-border-opacity, 1));
 }
+.border-red-500 {
+  --tw-border-opacity: 1;
+  border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
+}
 .border-red-800 {
   --tw-border-opacity: 1;
   border-color: rgb(153 27 27 / var(--tw-border-opacity, 1));
@@ -1294,10 +1301,6 @@ video {
 .border-yellow-800 {
   --tw-border-opacity: 1;
   border-color: rgb(133 77 14 / var(--tw-border-opacity, 1));
-}
-.border-red-500 {
-  --tw-border-opacity: 1;
-  border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
 }
 .border-b-gray-200 {
   --tw-border-opacity: 1;
@@ -1610,9 +1613,6 @@ video {
 .bg-opacity-80 {
   --tw-bg-opacity: 0.8;
 }
-.bg-opacity-30 {
-  --tw-bg-opacity: 0.3;
-}
 .bg-gradient-to-b {
   background-image: linear-gradient(to bottom, var(--tw-gradient-stops));
 }
@@ -1914,6 +1914,9 @@ video {
 }
 .pt-20 {
   padding-top: 5rem;
+}
+.pt-3 {
+  padding-top: 0.75rem;
 }
 .text-left {
   text-align: left;
@@ -2787,6 +2790,27 @@ button,
   animation-name: fadeOutUp;
 }
 
+/* เพิ่ม style เพื่อให้ SweetAlert2 popup มองเห็นได้ชัดเจนและสวยงาม */
+.swal-popup {
+  padding: 20px !important;
+  border-radius: 15px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal-confirm-button {
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}
+
+.swal-cancel-button {
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}
+
+.swal-container {
+  z-index: 9999 !important;
+}
+
 .hover\:scale-105:hover {
   --tw-scale-x: 1.05;
   --tw-scale-y: 1.05;
@@ -3023,6 +3047,11 @@ button,
   color: rgb(229 231 235 / var(--tw-text-opacity, 1));
 }
 
+.hover\:text-gray-500:hover {
+  --tw-text-opacity: 1;
+  color: rgb(107 114 128 / var(--tw-text-opacity, 1));
+}
+
 .hover\:text-gray-600:hover {
   --tw-text-opacity: 1;
   color: rgb(75 85 99 / var(--tw-text-opacity, 1));
@@ -3051,11 +3080,6 @@ button,
 .hover\:text-white:hover {
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
-}
-
-.hover\:text-gray-500:hover {
-  --tw-text-opacity: 1;
-  color: rgb(107 114 128 / var(--tw-text-opacity, 1));
 }
 
 .hover\:shadow:hover {

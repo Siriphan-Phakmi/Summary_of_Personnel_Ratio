@@ -2,9 +2,10 @@
 import { collection, addDoc, updateDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { getUTCDateString } from '../../../utils/dateUtils';
-import { calculatePatientCensus } from './DataFetchers';
+import { calculatePatientCensus, checkMorningShiftDataExists } from './DataFetchers';
 import { format } from 'date-fns';
 import { Swal } from '../../../utils/alertService';
+import AlertUtil from '../../../utils/AlertUtil';
 
 export const parseInputValue = (value) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -222,6 +223,8 @@ export const handleInputChange = (category, field, value, formData, setFormData,
 
     setHasUnsavedChanges(true);
     
+    console.log(`handleInputChange: ${category ? category + '.' : ''}${field} = ${value}`);
+    
     // Use a single atomic update to prevent race conditions
     setFormData(prevData => {
         // Create a deep copy to avoid mutation issues
@@ -234,7 +237,9 @@ export const handleInputChange = (category, field, value, formData, setFormData,
             }
             updatedData[category][field] = value;
         } else {
+            // อัปเดตที่ root level
             updatedData[field] = value;
+            console.log(`อัปเดต root level: ${field} = ${value}`);
         }
         
         // If this is a patient census field that affects calculation,
@@ -324,8 +329,6 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
             updatedData.patientCensus = {};
         }
         
-        updatedData.patientCensus.total = shouldShowEmpty ? '' : total;
-        
         // กำหนดอัพเดท overallData สำหรับกะดึก (ตรวจสอบทุกรูปแบบชื่อกะที่อาจใช้)
         const isNightShift = 
             currentShift === 'night' || 
@@ -336,7 +339,17 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
             
         if (isNightShift) {
             console.log('อัพเดท overallData สำหรับกะดึก:', total);
-            updatedData.overallData = shouldShowEmpty ? '' : total;
+            // กำหนดค่าที่ root level โดยตรง
+            updatedData.overallData = shouldShowEmpty ? '' : total.toString();
+            console.log('กำหนดค่า overallData =', updatedData.overallData);
+            console.log('updatedData หลังกำหนด:', JSON.stringify(updatedData));
+            // กะดึกไม่ตั้งค่า patientCensus.total เพื่อไม่ให้แสดงผลซ้ำซ้อน
+            updatedData.patientCensus.total = '';
+        } else {
+            // ถ้าเป็นกะเช้า ให้อัพเดทเฉพาะค่า total
+            updatedData.patientCensus.total = shouldShowEmpty ? '' : total.toString();
+            // กะเช้าไม่ตั้งค่า overallData
+            updatedData.overallData = '';
         }
         
         return updatedData;
@@ -346,7 +359,7 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
 };
 
 // เพิ่มฟังก์ชันสำหรับตรวจสอบความถูกต้องของฟอร์มก่อนการบันทึก
-export const validateFormBeforeSave = (formData, saveMode = 'draft') => {
+export const validateFormBeforeSave = async (formData, saveMode = 'draft') => {
     const errors = [];
     
     // ตรวจสอบการกรอกชื่อและนามสกุล
@@ -370,6 +383,28 @@ export const validateFormBeforeSave = (formData, saveMode = 'draft') => {
         if (!formData.patientCensus) {
             errors.push('กรุณากรอกข้อมูลจำนวนผู้ป่วย');
         }
+        
+        // ตรวจสอบว่าเป็นกะดึกหรือไม่
+        const isNightShift = 
+            formData.shift === 'night' || 
+            formData.shift === 'Night' || 
+            formData.shift === 'Night (19:00-07:00)' || 
+            formData.shift === '19:00-07:00' ||
+            /night/i.test(formData.shift);
+            
+        // ถ้าเป็นกะดึก ต้องตรวจสอบว่ามีการบันทึกข้อมูลกะเช้าแล้วหรือไม่
+        if (isNightShift) {
+            try {
+                const hasMorningData = await checkMorningShiftDataExists(formData.date, formData.wardId);
+                
+                if (!hasMorningData) {
+                    errors.push('ไม่สามารถบันทึกข้อมูลกะดึกได้ กรุณาบันทึกข้อมูลกะเช้าให้เป็น Final และต้องผ่านการอนุมัติจาก Admin ที่หน้า Approval ก่อน');
+                }
+            } catch (error) {
+                console.error('Error checking morning shift data:', error);
+                errors.push('เกิดข้อผิดพลาดในการตรวจสอบข้อมูลกะเช้า');
+            }
+        }
     }
     
     // ถ้ามี errors ให้แสดง
@@ -380,10 +415,10 @@ export const validateFormBeforeSave = (formData, saveMode = 'draft') => {
             icon: 'warning',
             confirmButtonColor: '#0ab4ab'
         });
-        return false;
+        return { valid: false, message: errors.join('\n') };
     }
     
-    return true;
+    return { valid: true };
 };
 
 export const createOnSaveDraft = (
@@ -589,41 +624,71 @@ export const createCalculatePatientCensusTotal = (formData, setFormData, selecte
     return (currentData = null) => {
         // ใช้ข้อมูลที่ส่งเข้ามา หรือถ้าไม่มีให้ใช้ formData ปัจจุบัน
         const data = currentData || formData;
-        console.log("กำลังคำนวณ Patient Census จากข้อมูล:", JSON.stringify(data.patientCensus));
+        console.log("calculatePatientCensusTotal with data:", data);
         
         if (!data?.patientCensus) {
-            console.warn('ไม่สามารถคำนวณได้: ข้อมูล patientCensus ไม่มี');
-            return;
+            console.log("ไม่มีข้อมูล patientCensus");
+            return 0;
         }
         
         const patientCensus = data.patientCensus;
+        const currentShift = data.shift || selectedShift;
         
         // แปลงค่าเป็นตัวเลข
-        const newAdmit = parseInt(patientCensus.newAdmit || '0', 10);
-        const transferIn = parseInt(patientCensus.transferIn || '0', 10);
-        const referIn = parseInt(patientCensus.referIn || '0', 10);
-        const transferOut = parseInt(patientCensus.transferOut || '0', 10);
-        const referOut = parseInt(patientCensus.referOut || '0', 10);
-        const discharge = parseInt(patientCensus.discharge || '0', 10);
-        const dead = parseInt(patientCensus.dead || '0', 10);
+        const hospitalCensus = Number(parseInt(patientCensus.hospitalPatientcensus || '0', 10));
+        const newAdmit = Number(parseInt(patientCensus.newAdmit || '0', 10));
+        const transferIn = Number(parseInt(patientCensus.transferIn || '0', 10));
+        const referIn = Number(parseInt(patientCensus.referIn || '0', 10));
+        const transferOut = Number(parseInt(patientCensus.transferOut || '0', 10));
+        const referOut = Number(parseInt(patientCensus.referOut || '0', 10));
+        const discharge = Number(parseInt(patientCensus.discharge || '0', 10));
+        const dead = Number(parseInt(patientCensus.dead || '0', 10));
         
-        // คำนวณตามสูตร
-        const total = newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+        // คำนวณตามสูตร: hospitalCensus + การเข้า - การออก
+        const total = hospitalCensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
         
-        console.log(`คำนวณ Patient Census: ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+        console.log(`คำนวณ Patient Census: ${hospitalCensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
         
-        // อัปเดต formData
+        // ตรวจสอบว่าควรแสดงเป็นช่องว่างหรือไม่
+        const shouldShowEmpty = total === 0 && 
+            !patientCensus.hospitalPatientcensus &&
+            !patientCensus.newAdmit && 
+            !patientCensus.transferIn && 
+            !patientCensus.referIn && 
+            !patientCensus.transferOut && 
+            !patientCensus.referOut && 
+            !patientCensus.discharge && 
+            !patientCensus.dead;
+
+        // อัพเดท state แบบ atomic
         setFormData(prevData => {
-            const updatedData = { ...prevData };
+            const updatedData = JSON.parse(JSON.stringify(prevData));
             
             if (!updatedData.patientCensus) {
                 updatedData.patientCensus = {};
             }
             
-            updatedData.patientCensus.total = total.toString();
-            
-            if (selectedShift === 'Night (19:00-07:00)') {
-                updatedData.overallData = total.toString();
+            // กำหนดอัพเดท overallData สำหรับกะดึก (ตรวจสอบทุกรูปแบบชื่อกะที่อาจใช้)
+            const isNightShift = 
+                currentShift === 'night' || 
+                currentShift === 'Night' || 
+                currentShift === 'Night (19:00-07:00)' || 
+                currentShift === '19:00-07:00' ||
+                /night/i.test(currentShift);
+                
+            if (isNightShift) {
+                console.log('อัพเดท overallData สำหรับกะดึก:', total);
+                // กำหนดค่าที่ root level โดยตรง
+                updatedData.overallData = shouldShowEmpty ? '' : total.toString();
+                console.log('กำหนดค่า overallData =', updatedData.overallData);
+                console.log('updatedData หลังกำหนด:', JSON.stringify(updatedData));
+                // กะดึกไม่ตั้งค่า patientCensus.total เพื่อไม่ให้แสดงผลซ้ำซ้อน
+                updatedData.patientCensus.total = '';
+            } else {
+                // ถ้าเป็นกะเช้า ให้อัพเดทเฉพาะค่า total
+                updatedData.patientCensus.total = shouldShowEmpty ? '' : total.toString();
+                // กะเช้าไม่ตั้งค่า overallData
+                updatedData.overallData = '';
             }
             
             return updatedData;
@@ -631,4 +696,4 @@ export const createCalculatePatientCensusTotal = (formData, setFormData, selecte
         
         return total;
     };
-}; 
+};

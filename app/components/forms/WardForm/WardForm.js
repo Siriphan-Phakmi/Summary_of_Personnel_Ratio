@@ -46,6 +46,8 @@ import {
     createHandleBeforeUnload
 } from './EventHandlers';
 
+import DataComparisonModal from './DataComparisonModal';
+
 // Initial form data structure
 const initialFormData = {
     patientCensusData: {},
@@ -89,6 +91,9 @@ const WardForm = ({ selectedWard, preselectedDate, preselectedShift }) => {
     const [showCalendar, setShowCalendar] = useState(false);
     const [approvalStatus, setApprovalStatus] = useState(null);
     
+    // เพิ่ม state สำหรับควบคุม Modal
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    
     // ฟังก์ชันแปลงวันที่เป็นรูปแบบไทย
     function formatThaiDate(date) {
         if (!date) return '';
@@ -107,9 +112,9 @@ const WardForm = ({ selectedWard, preselectedDate, preselectedShift }) => {
     const handleLocalBeforeUnload = createHandleBeforeUnload(hasUnsavedChanges);
     
     // สร้าง callback สำหรับ reset form
-    const resetFormCallback = useCallback((initialData = initialFormData) => {
-        resetForm(setFormData, initialData, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting);
-    }, []);
+    const resetFormCallback = useCallback((shift = selectedShift) => {
+        resetForm(setFormData, initialFormData, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, shift);
+    }, [selectedShift]);
     
     // สร้าง callback สำหรับ save draft และ submit
     const onSaveDraft = useMemo(() =>
@@ -179,9 +184,12 @@ const WardForm = ({ selectedWard, preselectedDate, preselectedShift }) => {
                     setFormData, 
                     setIsLoading, 
                     setInitError, 
-                    resetFormCallback, 
+                    () => resetFormCallback(selectedShift),
                     setIsReadOnly, 
-                    setApprovalStatus
+                    setApprovalStatus,
+                    setHasUnsavedChanges,
+                    setIsDraftMode,
+                    setIsSubmitting
                 );
             } catch (error) {
                 console.error('Error in loadData:', error);
@@ -199,7 +207,19 @@ const WardForm = ({ selectedWard, preselectedDate, preselectedShift }) => {
         return () => {
             isMounted = false;
         };
-    }, [selectedDate, selectedWard, selectedShift, resetFormCallback, setApprovalStatus, setFormData, setInitError, setIsLoading, setIsReadOnly]);
+    }, [
+        selectedDate, 
+        selectedWard, 
+        selectedShift, 
+        resetFormCallback, 
+        setApprovalStatus, 
+        setFormData, 
+        setInitError, 
+        setIsLoading, 
+        setIsReadOnly,
+        setIsDraftMode,
+        setIsSubmitting
+    ]);
     
     // แสดงข้อความเมื่อมีข้อผิดพลาด
     if (initError) {
@@ -226,33 +246,35 @@ const WardForm = ({ selectedWard, preselectedDate, preselectedShift }) => {
     
     // ส่งค่าไปยัง MainFormContent
     return (
-        <MainFormContent
-            selectedDate={selectedDate}
-            selectedShift={selectedShift}
-            selectedWard={selectedWard}
-            formData={formData}
-            setFormData={setFormData}
-            handleLocalDateSelect={handleLocalDateSelect}
-            handleShiftChange={handleShiftChange}
-            thaiDate={thaiDate}
-            datesWithData={datesWithData}
-            theme={theme}
-            approvalStatus={approvalStatus}
-            setApprovalStatus={setApprovalStatus}
-            setHasUnsavedChanges={setHasUnsavedChanges}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onSaveDraft={onSaveDraft}
-            onSubmit={onSubmit}
-            isSubmitting={isSubmitting}
-            isDraftMode={isDraftMode}
-            isReadOnly={isReadOnly}
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
-            setInitError={setInitError}
-            showCalendar={showCalendar}
-            setShowCalendar={setShowCalendar}
-            calculatePatientCensusTotal={calculatePatientCensusTotal}
-        />
+        <div className="relative">
+            <MainFormContent
+                selectedDate={selectedDate}
+                selectedShift={selectedShift}
+                selectedWard={selectedWard}
+                formData={formData}
+                setFormData={setFormData}
+                handleLocalDateSelect={handleLocalDateSelect}
+                handleShiftChange={handleShiftChange}
+                thaiDate={thaiDate}
+                datesWithData={datesWithData}
+                theme={theme}
+                approvalStatus={approvalStatus}
+                setApprovalStatus={setApprovalStatus}
+                setHasUnsavedChanges={setHasUnsavedChanges}
+                hasUnsavedChanges={hasUnsavedChanges}
+                onSaveDraft={onSaveDraft}
+                onSubmit={onSubmit}
+                isSubmitting={isSubmitting}
+                isDraftMode={isDraftMode}
+                isReadOnly={isReadOnly}
+                isLoading={isLoading}
+                setIsLoading={setIsLoading}
+                setInitError={setInitError}
+                showCalendar={showCalendar}
+                setShowCalendar={setShowCalendar}
+                calculatePatientCensusTotal={calculatePatientCensusTotal}
+            />
+        </div>
     );
 };
 

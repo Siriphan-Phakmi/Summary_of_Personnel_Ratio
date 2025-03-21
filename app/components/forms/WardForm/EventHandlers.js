@@ -8,6 +8,7 @@ import { formatThaiDate } from '../../../utils/dateUtils';
 import { handleFirebaseIndexError } from './index';
 import { format } from 'date-fns';
 import { validateFormBeforeSave, showAlert, showConfirm } from './DataHandlers';
+import AlertUtil from '../../../utils/AlertUtil';
 
 // เพิ่ม state สำหรับติดตามว่ากำลังดึงข้อมูลหรือไม่
 let isFetchingData = false;
@@ -63,41 +64,98 @@ export const handleInputChange = (e, formData, setFormData, setHasUnsavedChanges
 };
 
 export const handleShiftChange = async (shift, setSelectedShift, hasUnsavedChanges = false, onSaveDraft = null) => {
-    // ตรวจสอบว่า setSelectedShift เป็นฟังก์ชันหรือไม่ก่อนเรียกใช้
-    if (typeof setSelectedShift !== 'function') {
-        console.warn('handleShiftChange: setSelectedShift is not a function');
-        return;
-    }
+    // Import dynamically to avoid circular references
+    const { default: Popup } = await import('../../../components/Popup');
     
-    // ถามยืนยันก่อนเปลี่ยนกะผ่าน SweetAlert
-    const message = hasUnsavedChanges ? 
-        'คุณมีข้อมูลที่ยังไม่ได้บันทึก หากเปลี่ยนกะการทำงาน ข้อมูลที่คุณกำลังกรอกอยู่จะหายไปทั้งหมด' : 
-        'การเปลี่ยนกะจะทำให้ข้อมูลที่คุณกำลังกรอกอยู่หายไปทั้งหมด';
-    
-    const result = await Swal.fire({
-        title: 'ยืนยันการเปลี่ยนกะการทำงาน',
-        html: message,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#0ab4ab',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'ใช่, เปลี่ยนกะ',
-        cancelButtonText: 'ยกเลิก',
-        showDenyButton: hasUnsavedChanges,
-        denyButtonText: 'บันทึกแบบร่างก่อน',
-        denyButtonColor: '#3085d6'
-    });
-    
-    if (result.isConfirmed) {
-        // ผู้ใช้ยืนยันแล้ว ให้เปลี่ยนกะได้เลย
+    // If there are no unsaved changes, just change the shift
+    if (!hasUnsavedChanges) {
         setSelectedShift(shift);
-    } else if (result.isDenied && hasUnsavedChanges && typeof onSaveDraft === 'function') {
-        // ผู้ใช้เลือกบันทึกแบบร่างก่อน
-        const saveResult = await onSaveDraft();
-        if (saveResult && saveResult.success) {
-            setSelectedShift(shift);
-        }
+        return true;
     }
+    
+    // Create a promise that will be resolved when the user makes a choice
+    return new Promise((resolve) => {
+        // Create a container for our popup
+        const popupContainer = document.createElement('div');
+        popupContainer.id = 'shift-change-popup-container';
+        document.body.appendChild(popupContainer);
+        
+        // Track if the popup is currently open
+        let popupOpen = true;
+        
+        // Function to remove the popup container
+        const cleanupPopup = () => {
+            if (popupContainer && popupContainer.parentNode) {
+                popupContainer.parentNode.removeChild(popupContainer);
+                popupOpen = false;
+            }
+        };
+        
+        // Create popup buttons
+        const buttons = [
+            {
+                text: 'ไม่, ยกเลิก',
+                color: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
+                onClick: () => {
+                    cleanupPopup();
+                    resolve(false); // User canceled the shift change
+                }
+            },
+            {
+                text: 'บันทึกแบบร่างก่อน',
+                color: 'bg-yellow-500 hover:bg-yellow-600 text-white',
+                onClick: async () => {
+                    if (typeof onSaveDraft === 'function') {
+                        const saveResult = await onSaveDraft();
+                        if (saveResult && saveResult.success) {
+                            setSelectedShift(shift);
+                            cleanupPopup();
+                            resolve(true); // Saved draft and confirmed shift change
+                        } else {
+                            // Draft save failed, keep popup open
+                            console.error('Failed to save draft');
+                        }
+                    }
+                },
+                closeOnClick: false
+            },
+            {
+                text: 'ใช่, เปลี่ยนกะการทำงาน',
+                color: 'bg-blue-500 hover:bg-blue-600 text-white',
+                onClick: () => {
+                    setSelectedShift(shift);
+                    cleanupPopup();
+                    resolve(true); // User confirmed the shift change
+                }
+            }
+        ];
+        
+        // Render the popup
+        const root = ReactDOM.createRoot(popupContainer);
+        root.render(
+            <Popup
+                type="warning"
+                title="ข้อมูลที่ยังไม่ได้บันทึก"
+                message="คุณต้องการเปลี่ยนกะการทำงานหรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป"
+                isOpen={true}
+                onClose={() => {
+                    cleanupPopup();
+                    resolve(false); // User closed the popup without making a choice
+                }}
+                buttons={buttons}
+                autoClose={0} // Don't auto-close
+            />
+        );
+        
+        // Add emergency close function to window for debugging
+        window.__closeShiftChangePopup = () => {
+            if (popupOpen) {
+                cleanupPopup();
+                resolve(false);
+                console.log('Shift change popup emergency closed');
+            }
+        };
+    });
 };
 
 /**
