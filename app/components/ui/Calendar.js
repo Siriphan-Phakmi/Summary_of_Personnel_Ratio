@@ -10,8 +10,10 @@ const Calendar = ({
     onDateSelect, 
     onClickOutside, 
     datesWithData = [], 
-    variant = 'form'
+    variant = 'form',
+    theme = 'light'
 }) => {
+    const isDark = theme === 'dark';
     const [currentDate, setCurrentDate] = useState(selectedDate ? new Date(selectedDate) : new Date());
     const [displayDate, setDisplayDate] = useState(selectedDate ? new Date(selectedDate) : new Date());
     const calendarRef = useRef(null);
@@ -56,39 +58,10 @@ const Calendar = ({
             }
         };
 
-        const preventDefault = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
-
-        // Get scrollbar width
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-        // Save current body styles
-        const originalStyles = {
-            overflow: window.getComputedStyle(document.body).overflow,
-            paddingRight: window.getComputedStyle(document.body).paddingRight
-        };
-
-        // Prevent all types of scrolling
         document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('wheel', preventDefault, { passive: false });
-        document.addEventListener('touchmove', preventDefault, { passive: false });
-        document.addEventListener('scroll', preventDefault, { passive: false });
-        
-        // Disable body scroll and compensate for scrollbar
-        document.body.style.overflow = 'hidden';
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            document.removeEventListener('wheel', preventDefault);
-            document.removeEventListener('touchmove', preventDefault);
-            document.removeEventListener('scroll', preventDefault);
-            
-            // Restore original body styles
-            document.body.style.overflow = originalStyles.overflow;
-            document.body.style.paddingRight = originalStyles.paddingRight;
         };
     }, [onClickOutside]);
 
@@ -177,8 +150,8 @@ const Calendar = ({
             date.getFullYear() === selectedDateObj.getFullYear();
         
         let baseClass = 'relative w-7 h-7 flex items-center justify-center rounded-full transition-all duration-200 text-xs';
-        let bgColor = 'hover:bg-gray-100';
-        let textColor = 'text-gray-700';
+        let bgColor = isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-100';
+        let textColor = isDark ? 'text-gray-300' : 'text-gray-700';
         let dotClass = '';
 
         if (isToday) {
@@ -188,10 +161,10 @@ const Calendar = ({
         
         if (hasData) {
             if (isComplete) {
-                bgColor = 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
+                bgColor = isDark ? 'bg-[#0ab4ab]/20 hover:bg-[#0ab4ab]/30' : 'bg-[#0ab4ab]/10 hover:bg-[#0ab4ab]/20';
                 dotClass = 'absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-[#0ab4ab]';
             } else {
-                bgColor = 'bg-orange-100 hover:bg-orange-200';
+                bgColor = isDark ? 'bg-orange-800/30 hover:bg-orange-800/40' : 'bg-orange-100 hover:bg-orange-200';
                 dotClass = 'absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-orange-500';
             }
         }
@@ -202,7 +175,7 @@ const Calendar = ({
 
         if (date < new Date(new Date().setHours(0,0,0,0))) {
             if (!isToday && !isSelected) {
-                textColor = 'text-gray-400';
+                textColor = isDark ? 'text-gray-600' : 'text-gray-400';
             }
         }
 
@@ -244,6 +217,8 @@ const Calendar = ({
 
         const weeks = [];
         let days = [];
+        // Track week number for unique keys
+        let weekNum = 0;
 
         // Add cells for days from previous month
         for (let i = 0; i < startingDayOfWeek; i++) {
@@ -281,33 +256,37 @@ const Calendar = ({
                 </td>
             );
 
-            if (days.length === 7) {
-                weeks.push(<tr key={`week-${weeks.length}`}>{days}</tr>);
+            // If it's the end of the week or the end of the month, start a new row
+            if ((startingDayOfWeek + day) % 7 === 0 || day === daysInMonth) {
+                // Create a unique key for each week using the year-month-weekNum format
+                const rowKey = `${year}-${month}-week-${weekNum}`;
+                weekNum++; // Increment week number for the next row
+                
+                // If it's the end of the month, add days from next month to fill the row
+                if (day === daysInMonth && (startingDayOfWeek + day) % 7 !== 0) {
+                    const daysLeft = 7 - ((startingDayOfWeek + day) % 7);
+                    for (let i = 1; i <= daysLeft; i++) {
+                        const nextMonthDay = i;
+                        const date = new Date(year, month + 1, nextMonthDay);
+                        const { cellClass, dayClass, dotClass } = getCellStyle(date);
+                        
+                        days.push(
+                            <td key={`next-${i}`} className={cellClass}>
+                                <div
+                                    onClick={() => handleDateSelect(nextMonthDay, false)}
+                                    className={`${dayClass} opacity-50`}
+                                >
+                                    {nextMonthDay}
+                                    {dotClass && <div className={dotClass}></div>}
+                                </div>
+                            </td>
+                        );
+                    }
+                }
+                
+                weeks.push(<tr key={rowKey}>{days}</tr>);
                 days = [];
             }
-        }
-
-        // Add cells for days from next month
-        if (days.length > 0) {
-            let nextMonthDay = 1;
-            while (days.length < 7) {
-                const date = new Date(year, month + 1, nextMonthDay);
-                const { cellClass, dayClass, dotClass } = getCellStyle(date);
-                
-                days.push(
-                    <td key={`next-${nextMonthDay}`} className={cellClass}>
-                        <div
-                            onClick={() => handleDateSelect(nextMonthDay, false)}
-                            className={`${dayClass} opacity-50`}
-                        >
-                            {nextMonthDay}
-                            {dotClass && <div className={dotClass}></div>}
-                        </div>
-                    </td>
-                );
-                nextMonthDay++;
-            }
-            weeks.push(<tr key={`week-${weeks.length}`}>{days}</tr>);
         }
 
         return weeks;
@@ -315,63 +294,67 @@ const Calendar = ({
 
     return (
         <div 
-            ref={calendarRef} 
-            className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 z-[9999] w-[280px]"
-            onTouchMove={(e) => e.preventDefault()}
-            onScroll={(e) => e.preventDefault()}
+            ref={calendarRef}
+            className={`p-4 rounded-lg shadow-lg calendar-container ${isDark ? 'bg-gray-800 text-white' : 'bg-white'}`}
+            style={{ minWidth: '300px' }}
         >
-            <div className="p-2">
-                <div className="text-center mb-2">
-                    <div className="text-sm font-medium mb-0.5">เลือกวันที่</div>
-                    <div className="text-xs text-gray-600">วันที่ปัจจุบัน: {formatThaiDate(new Date())}</div>
-                </div>
-
-                <div className="flex justify-center gap-1 mb-2">
-                    <select
-                        value={displayDate.getMonth()}
+            <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-800'}`}>เลือกวันที่</h2>
+                <div className="flex items-center space-x-2">
+                    <select 
+                        value={displayDate.getMonth()} 
                         onChange={handleMonthChange}
-                        className="px-2 py-0.5 border rounded text-xs text-gray-700"
+                        className={`px-2 py-1 text-sm rounded-md ${
+                            isDark 
+                                ? 'bg-gray-700 text-white border-gray-600' 
+                                : 'bg-white text-gray-700 border-gray-300'
+                        } border outline-none focus:ring-1 focus:ring-blue-500`}
                     >
                         {months.map((month, index) => (
                             <option key={month} value={index}>{month}</option>
                         ))}
                     </select>
-                    <select
-                        value={displayDate.getFullYear()}
+                    <select 
+                        value={displayDate.getFullYear()} 
                         onChange={handleYearChange}
-                        className="px-2 py-0.5 border rounded text-xs text-gray-700"
+                        className={`px-2 py-1 text-sm rounded-md ${
+                            isDark 
+                                ? 'bg-gray-700 text-white border-gray-600' 
+                                : 'bg-white text-gray-700 border-gray-300'
+                        } border outline-none focus:ring-1 focus:ring-blue-500`}
                     >
                         {years.map(year => (
                             <option key={year} value={year}>{year}</option>
                         ))}
                     </select>
                 </div>
+            </div>
 
-                <div className="grid grid-cols-7 gap-0.5 mb-0.5 text-center">
-                    {['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(day => (
-                        <div key={day} className="text-[10px] font-medium text-gray-600">{day}</div>
-                    ))}
+            <table className="w-full">
+                <thead>
+                    <tr>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>อา</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>จ</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>อ</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>พ</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>พฤ</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>ศ</th>
+                        <th className={`text-center p-1 text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>ส</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {generateCalendarDays()}
+                </tbody>
+            </table>
+
+            <div className="flex items-center justify-center mt-3 text-xs">
+                <div className="flex items-center mr-4">
+                    <div className="w-2 h-2 rounded-full bg-[#0ab4ab] mr-1"></div>
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>วันที่มีข้อมูล</span>
                 </div>
-
-                <table className="w-full">
-                    <tbody>
-                        {generateCalendarDays()}
-                    </tbody>
-                </table>
-
-                <div className="mt-2 flex justify-center gap-2 text-[10px]">
-                    <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#0ab4ab]"></div>
-                        <span className="text-gray-600">วันนี้</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300"></div>
-                        <span className="text-gray-600">ครบ 2 กะ</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-300"></div>
-                        <span className="text-gray-600">ไม่ครบ</span>
-                    </div>
+                <div className="flex items-center">
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mr-1"></div>
+                    <span className={isDark ? 'text-gray-300' : 'text-gray-600'}>ไม่ครบ</span>
                 </div>
             </div>
         </div>

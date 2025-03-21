@@ -1,10 +1,11 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { loginUser, validateSession, invalidateSession, logoutUser } from '../lib/dataAccess';
 import { logEvent } from '../utils/sessionRecording';
 import { v4 as uuidv4 } from 'uuid';
+import { Swal } from '../utils/alertService';
 
 // ระยะเวลาที่ session token หมดอายุ (20 นาที)
 const SESSION_EXPIRY_TIME = 20 * 60 * 1000; // 20 นาที ในมิลลิวินาที
@@ -38,6 +39,66 @@ export function AuthProvider({ children }) {
   const clearAuthError = () => {
     setAuthError(null);
   };
+
+  // เพิ่มการตรวจสอบ session ทุก 1 นาที
+  useEffect(() => {
+    if (!user) return; // ไม่ต้องตรวจสอบถ้าไม่ได้ล็อกอิน
+    
+    const checkSession = async () => {
+      try {
+        console.log('Checking if session is still valid...');
+        
+        if (!user.uid || !user.sessionToken || !user.sessionId) {
+          console.error('Missing user credentials for session check');
+          return;
+        }
+        
+        // ตรวจสอบว่า session ยังมีอยู่ใน Firebase หรือไม่
+        const sessionRef = doc(db, 'userSessions', user.sessionId);
+        const sessionSnap = await getDoc(sessionRef);
+        
+        if (!sessionSnap.exists()) {
+          // Session ถูกลบไปแล้ว (อาจเพราะมีการล็อกอินจากที่อื่น)
+          console.warn('Session no longer exists. User might have been logged out forcefully.');
+          
+          // แสดงข้อความแจ้งเตือน
+          Swal.fire({
+            title: 'ถูกบังคับออกจากระบบ',
+            text: 'บัญชีของคุณถูกล็อกอินจากอุปกรณ์อื่น คุณจะถูกนำกลับไปยังหน้าเข้าสู่ระบบ',
+            icon: 'warning',
+            confirmButtonText: 'ตกลง'
+          });
+          
+          // ล้างข้อมูลการเข้าสู่ระบบ
+          sessionStorage.removeItem('user');
+          setUser(null);
+          
+          // บันทึกเหตุการณ์
+          logEvent('session_terminated', {
+            reason: 'Session was deleted, possibly due to login from another device',
+            username: user.username,
+            timestamp: new Date().toISOString()
+          });
+          
+          // redirect ไปยังหน้า login
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+        }
+      } catch (error) {
+        console.error('Error checking session status:', error);
+      }
+    };
+    
+    // ตรวจสอบทุก 1 นาที
+    const intervalId = setInterval(checkSession, 60 * 1000);
+    
+    // ตรวจสอบครั้งแรกทันที
+    checkSession();
+    
+    // ล้าง interval เมื่อ component ถูก unmount
+    return () => clearInterval(intervalId);
+  }, [user]);
 
   useEffect(() => {
     // Add timeout to prevent indefinite loading
@@ -229,6 +290,9 @@ export function AuthProvider({ children }) {
       } catch (logError) {
         console.warn('[DEBUG-AUTH] Error logging login event:', logError);
       }
+      
+      // เพิ่มการแจ้งเตือนใน terminal เมื่อ login สำเร็จ
+      console.log('\x1b[32m%s\x1b[0m', `🚀 USER LOGIN: ${result.user.username} (${result.user.role}) logged in at ${new Date().toLocaleString()}`);
       
       console.log('[DEBUG-AUTH] Login process complete, returning result');
       setLoading(false);

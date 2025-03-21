@@ -1,43 +1,40 @@
 'use client';
 
 /**
- * Polyfill สำหรับ sweetalert2 เพื่อทดแทนการใช้งาน SweetAlert2 จริง
- * ไฟล์นี้จะถูกใช้เมื่อมีการ import sweetalert2 โดยตรง
+ * SweetAlert2 module for use in the app
+ * Direct import and export - fixed circular dependency issue
  */
 
-// สร้าง mock สำหรับ SweetAlert2 API
-const sweetalert2 = {
-  fire: async (options) => {
-    console.log('SweetAlert2 polyfill fire:', options);
-    // คืนค่าตามรูปแบบของ SweetAlert2 จริง
-    return {
-      isConfirmed: true,
-      isDismissed: false,
-      isDenied: false,
-      value: true
-    };
-  },
-  showLoading: () => {
-    console.log('SweetAlert2 polyfill showLoading');
-  },
-  close: () => {
-    console.log('SweetAlert2 polyfill close');
-  },
-  // เพิ่ม method อื่นๆ ตามที่จำเป็น
-  mixin: (params) => {
-    return {
-      fire: async (options) => {
-        console.log('SweetAlert2 polyfill mixin fire:', { params, options });
-        return {
-          isConfirmed: true,
-          isDismissed: false,
-          isDenied: false,
-          value: true
-        };
-      }
-    };
-  }
+// Import SweetAlert2 โดยตรง
+import Swal from 'sweetalert2';
+
+// Export default แยกกันเพื่อแก้ปัญหา circular dependency
+export default Swal;
+
+// Export functions for individual use
+export const fire = (...args) => Swal.fire(...args);
+export const showLoading = () => Swal.showLoading();
+export const close = () => Swal.close();
+export const mixin = (options) => Swal.mixin(options);
+
+// Default configuration
+export const defaultOptions = {
+  confirmButtonColor: '#0ab4ab',
+  cancelButtonColor: '#6c757d',
+  confirmButtonText: 'ตกลง',
+  cancelButtonText: 'ยกเลิก',
+  reverseButtons: true
 };
 
-// Export default เพื่อให้เข้ากันได้กับโค้ดเดิมที่ import sweetalert2 from 'sweetalert2'
-export default sweetalert2; 
+// Pre-configured toast notification
+export const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});

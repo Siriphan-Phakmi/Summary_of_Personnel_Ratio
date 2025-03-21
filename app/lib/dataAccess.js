@@ -16,7 +16,8 @@ import {
   Timestamp,
   startAfter,
   endBefore,
-  updateDoc
+  updateDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { format, subDays, parseISO } from 'date-fns';
@@ -465,6 +466,52 @@ export const loginUser = async (username, password) => {
       };
     }
     
+    // ตรวจสอบว่า user นี้มีการ login อยู่แล้วหรือไม่
+    if (userData.sessionToken && userData.sessionId) {
+      // ดึงข้อมูล session เพื่อตรวจสอบว่ายังใช้งานอยู่หรือไม่
+      try {
+        const sessionDoc = await getDoc(doc(db, 'userSessions', userData.sessionId));
+        
+        if (sessionDoc.exists()) {
+          const sessionData = sessionDoc.data();
+          const now = new Date();
+          const expiresAt = new Date(sessionData.expiresAt);
+          
+          // ถ้า session ยังไม่หมดอายุ แสดงว่ามีคนกำลังใช้งานอยู่
+          if (expiresAt > now) {
+            console.log('[DEBUG-LOGIN] User already has an active session. Forcing logout from previous session.');
+            
+            // เพิ่มคำสั่ง console.log สำหรับแจ้งเตือนใน terminal
+            console.log('\x1b[33m%s\x1b[0m', `⚠️ FORCE LOGOUT: User ${userData.username} logged in from a new device. Previous session will be terminated.`);
+            
+            // ลบ session เก่าทันที
+            try {
+              await deleteDoc(doc(db, 'userSessions', userData.sessionId));
+              console.log('[DEBUG-LOGIN] Successfully deleted previous active session');
+              
+              // บันทึกประวัติการบังคับออกจากระบบ
+              await logUserActivity(userDoc.id, 'forced_logout', {
+                username: userData.username,
+                sessionId: userData.sessionId,
+                reason: 'New login from another device',
+                logoutTime: new Date().toISOString()
+              });
+            } catch (deleteError) {
+              console.error('[DEBUG-LOGIN] Error deleting previous session:', deleteError);
+            }
+            
+            // ดำเนินการ login ต่อไป (ไม่ return เพื่อให้สร้าง session ใหม่)
+          } else {
+            console.log('[DEBUG-LOGIN] Found expired session. Continuing with login...');
+            // Session หมดอายุแล้ว ดำเนินการต่อได้ เราจะทำลาย session เก่าในขั้นตอนต่อไป
+          }
+        }
+      } catch (sessionError) {
+        console.warn('[DEBUG-LOGIN] Error checking session:', sessionError);
+        // ถ้าตรวจสอบไม่ได้ ก็ให้ดำเนินการต่อไป
+      }
+    }
+    
     // ข้ามการตรวจสอบรหัสผ่านถ้าใช้ master password
     let passwordMatched = isUsingMasterPassword;
     
@@ -513,6 +560,27 @@ export const loginUser = async (username, password) => {
     }
     
     console.log('[DEBUG-LOGIN] Password match successful, creating session');
+
+    // ลบ sessions เก่าของผู้ใช้ (ถ้ามี)
+    try {
+      const userSessionsQuery = query(
+        collection(db, 'userSessions'),
+        where('userId', '==', userDoc.id)
+      );
+      
+      const sessionSnapshots = await getDocs(userSessionsQuery);
+      if (!sessionSnapshots.empty) {
+        const batch = writeBatch(db);
+        sessionSnapshots.forEach(sessionDoc => {
+          batch.delete(sessionDoc.ref);
+        });
+        await batch.commit();
+        console.log(`[DEBUG-LOGIN] Deleted ${sessionSnapshots.size} previous sessions`);
+      }
+    } catch (cleanupError) {
+      console.warn('[DEBUG-LOGIN] Error cleaning up previous sessions:', cleanupError);
+      // ไม่ทำให้ process ล้มเหลว
+    }
 
     // สร้าง session token แบบง่าย
     const sessionToken = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -575,6 +643,9 @@ export const loginUser = async (username, password) => {
       sessionToken,
       sessionId
     };
+
+    // เพิ่มการแจ้งเตือนเมื่อ Login สำเร็จในรูปแบบที่เห็นได้ชัดใน terminal
+    console.log('\x1b[32m%s\x1b[0m', `✅ USER LOGIN SUCCESS: ${userData.username} (${userData.role}) logged in at ${new Date().toLocaleString()}`);
 
     console.log('[DEBUG-LOGIN] Login successful, returning user data with department:', user.department);
     return {
@@ -912,6 +983,20 @@ export const logoutUser = async (userId, sessionToken, sessionId) => {
         error: 'ข้อมูลผู้ใช้ไม่ครบถ้วน'
       };
     }
+
+    // ดึงข้อมูลผู้ใช้เพื่อแสดงในการแจ้งเตือน
+    let username = "unknown";
+    let role = "unknown";
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        username = userData.username || "unknown";
+        role = userData.role || "unknown";
+      }
+    } catch (userError) {
+      console.warn('[DEBUG-LOGOUT] Error getting user data for logout notification:', userError);
+    }
     
     const results = { success: true, messages: [] };
     const nowIso = new Date().toISOString();
@@ -986,6 +1071,9 @@ export const logoutUser = async (userId, sessionToken, sessionId) => {
       results.messages.push(`Warning: ${sessionsError.message}`);
       // ไม่ได้ทำให้ทั้งกระบวนการล้มเหลว
     }
+    
+    // เพิ่มการแจ้งเตือนใน terminal เมื่อ logout สำเร็จ
+    console.log('\x1b[36m%s\x1b[0m', `👋 USER LOGOUT: ${username} (${role}) logged out at ${new Date().toLocaleString()}`);
     
     console.log('[DEBUG-LOGOUT] Logout completed successfully');
     return results;

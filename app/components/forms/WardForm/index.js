@@ -19,8 +19,8 @@ import {
 
 import { 
   handleInputChange,
-  calculatePatientCensusTotal,
-  validateFormBeforeSave,
+  calculatePatientCensusTotal as formHandlersCalculatePatientCensusTotal,
+  validateFormBeforeSave as formHandlersValidateFormBeforeSave,
   createHandleCancel,
   createOnSaveDraft,
   createOnSubmit
@@ -39,8 +39,26 @@ import {
 
 // Import UI components - Import each component separately to avoid circular dependencies
 import WardForm from './WardForm';
+import MainFormContent from './MainFormContent';
 import { PatientCensusSection, StaffingSection, NotesSection } from './WardSections';
 import WardFormSections from './WardSections';
+
+// Import handlers ที่แยกใหม่
+import {
+  loadData,
+  resetForm,
+  calculatePatientCensusTotal,
+  validateFormBeforeSave,
+  showAlert,
+  showConfirm
+} from './DataHandlers';
+
+import {
+  createOnSaveDraft as formActionsCreateOnSaveDraft,
+  createOnSubmit as formActionsCreateOnSubmit,
+  handleWardFormSubmit,
+  createHandleCancel as formActionsCreateHandleCancel
+} from './FormActions';
 
 // Export ทุกอย่างที่จำเป็นต้องใช้
 export {
@@ -52,7 +70,7 @@ export {
   fetchWardData, fetchPreviousWardData, formatDate, calculatePatientCensus, fetchAndPrepareWardData,
   
   // FormHandlers
-  handleInputChange, calculatePatientCensusTotal, validateFormBeforeSave, 
+  handleInputChange, formHandlersCalculatePatientCensusTotal, formHandlersValidateFormBeforeSave, 
   createHandleCancel, createOnSaveDraft, createOnSubmit,
   
   // EventHandlers
@@ -61,7 +79,12 @@ export {
   createHandleSaveDraft, createHandleSubmit,
   
   // UI Components
-  PatientCensusSection, StaffingSection, NotesSection
+  PatientCensusSection, StaffingSection, NotesSection, MainFormContent,
+  
+  // New Modules Exports
+  loadData, resetForm, calculatePatientCensusTotal, validateFormBeforeSave, showAlert, showConfirm,
+  formActionsCreateOnSaveDraft, formActionsCreateOnSubmit, 
+  handleWardFormSubmit, formActionsCreateHandleCancel
 };
 
 // Utility functions

@@ -296,3 +296,76 @@ button,
 .dark button:not([class*="bg-"]):hover {
   background-color: var(--card-bg);
 }
+
+/* Focus highlight for form validation */
+.focus-highlight {
+  border: 2px solid #ff6b6b !important;
+  background-color: #fff0f0 !important;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.5) !important;
+  transition: all 0.3s ease-in-out;
+}
+
+/* CSS สำหรับ SweetAlert2 animations */
+.animated {
+  animation-duration: 0.5s;
+  animation-fill-mode: both;
+}
+
+.faster {
+  animation-duration: 0.3s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fadeIn {
+  animation-name: fadeIn;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.fadeOut {
+  animation-name: fadeOut;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.fadeInDown {
+  animation-name: fadeInDown;
+}
+
+@keyframes fadeOutUp {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+}
+
+.fadeOutUp {
+  animation-name: fadeOutUp;
+}

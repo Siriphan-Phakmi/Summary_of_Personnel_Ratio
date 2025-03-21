@@ -12,12 +12,6 @@ const nextConfig = {
   },
 
   webpack: (config, { dev, isServer }) => {
-    // เพิ่ม alias สำหรับ sweetalert2 ให้ใช้ polyfill ของเราแทน
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'sweetalert2': require.resolve('./app/utils/sweetalert2-polyfill.js')
-    };
-    
     // ปรับแต่ง optimization ให้ใช้ single runtime chunk แทน
     if (!isServer) {
       config.optimization.runtimeChunk = 'single';

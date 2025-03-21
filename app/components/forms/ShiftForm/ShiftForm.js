@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { HeaderSection } from './HeaderSection';
 
-const ShiftForm = ({ isApprovalMode = false }) => {
+const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
     const router = useRouter();
     const { user } = useAuth();
     // 1. State declarations
@@ -29,6 +29,11 @@ const ShiftForm = ({ isApprovalMode = false }) => {
     const [datesWithData, setDatesWithData] = useState([]);
     const [thaiDate, setThaiDate] = useState('');
     const [isReadOnly, setIsReadOnly] = useState(false);
+    // เพิ่ม state สำหรับเก็บข้อมูลทั้ง 2 กะ
+    const [morningShiftData, setMorningShiftData] = useState(null);
+    const [nightShiftData, setNightShiftData] = useState(null);
+    const [shiftToDisplay, setShiftToDisplay] = useState(isApprovalMode ? 'both' : getCurrentShift() === '07:00-19:00' ? 'morning' : 'night');
+    
     const [summaryData, setSummaryData] = useState({
         opdTotal24hr: '',
         existingPatients: '',
@@ -1035,16 +1040,15 @@ const ShiftForm = ({ isApprovalMode = false }) => {
             }
 
             const now = new Date();
-            const formattedTime = now.toLocaleTimeString('th-TH', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-            }).replace(':', '');
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            const timeString = `${hours}-${minutes}-${seconds}`;
 
             const formattedDate = formData.date.replace(/-/g, '');
             const docId = overwrite && existingData
                 ? existingData.id
-                : `data_${formattedTime}_${formattedDate}`;
+                : `${user.uid}_${formattedDate}_${timeString}`;
 
             console.log('Saving data with ID:', docId);
 
@@ -1158,6 +1162,7 @@ const ShiftForm = ({ isApprovalMode = false }) => {
                     <div class="text-center">
                         <p class="mb-2">ข้อมูลถูกบันทึกและส่งเพื่อรออนุมัติจาก Supervisor เรียบร้อยแล้ว</p>
                         <p class="text-sm text-gray-600">คุณจะสามารถบันทึกข้อมูลกะต่อไปได้หลังจากข้อมูลนี้ได้รับการอนุมัติแล้ว</p>
+                        <p class="text-xs text-blue-600 mt-2">รหัสเอกสาร: ${docId}</p>
                     </div>
                 `,
                 icon: 'success',
@@ -1684,6 +1689,72 @@ const ShiftForm = ({ isApprovalMode = false }) => {
             router.push('/dashboard');
         }
     };
+
+    // เพิ่ม useEffect สำหรับโหลดข้อมูลทั้ง 2 กะเมื่ออยู่ในโหมด Approval
+    useEffect(() => {
+        if (isApprovalMode && shiftToDisplay === 'both') {
+            fetchBothShiftsData(selectedDate);
+        }
+    }, [isApprovalMode, selectedDate, shiftToDisplay]);
+
+    // ฟังก์ชันสำหรับโหลดข้อมูลทั้งกะเช้าและกะดึก
+    const fetchBothShiftsData = async (date) => {
+        try {
+            setIsLoading(true);
+            const formattedDate = getUTCDateString(date);
+            
+            // โหลดข้อมูลกะเช้า
+            const morningData = await fetchShiftData(formattedDate, 'Morning (07:00-19:00)');
+            if (morningData) {
+                setMorningShiftData(morningData);
+            }
+            
+            // โหลดข้อมูลกะดึก
+            const nightData = await fetchShiftData(formattedDate, 'Night (19:00-07:00)');
+            if (nightData) {
+                setNightShiftData(nightData);
+            }
+            
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Error fetching both shifts data:', error);
+            setIsLoading(false);
+            Swal.fire({
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถโหลดข้อมูลกะได้ กรุณาลองใหม่อีกครั้ง',
+                icon: 'error',
+                confirmButtonText: 'ตกลง'
+            });
+        }
+    };
+    
+    // ฟังก์ชันสำหรับดึงข้อมูลของกะที่ระบุ
+    const fetchShiftData = async (date, shift) => {
+        try {
+            const q = query(
+                collection(db, 'shiftData'),
+                where('date', '==', date),
+                where('shift', '==', shift),
+                limit(1)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+            }
+            return null;
+        } catch (error) {
+            console.error(`Error fetching ${shift} data:`, error);
+            return null;
+        }
+    };
+    
+    // เพิ่ม Initial Loading Effect
+    useEffect(() => {
+        setIsInitialLoading(true);
+        fetchBothShiftsData(selectedDate);
+        setIsInitialLoading(false);
+    }, [selectedDate]);
 
     return (
         <div className="w-full px-2 py-2">

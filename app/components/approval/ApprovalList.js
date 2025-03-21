@@ -14,30 +14,50 @@ const ApprovalList = () => {
   const [filter, setFilter] = useState('all'); // 'all', 'ward', 'shift'
   const { user } = useAuth();
 
-  // ดึงข้อมูลที่รอการอนุมัติจาก wardDailyRecords แทน approvalQueue
+  // ดึงข้อมูลที่รอการอนุมัติจาก wardDailyRecords
   useEffect(() => {
     const fetchPendingApprovals = async () => {
       setLoading(true);
       try {
         const wardDailyRecords = collection(db, 'wardDailyRecords');
-        let q = query(
-          wardDailyRecords, 
-          where('approvalStatus', '==', 'pending'),
-          orderBy('lastUpdated', 'desc'),
-          limit(50)
-        );
+        let q;
+        
+        // ตรวจสอบบทบาทของผู้ใช้เพื่อกำหนดการ query
+        if (user && user.role === 'admin' || user.role === 'supervisor') {
+          // สำหรับ admin หรือ supervisor ดึงข้อมูลทุก ward
+          q = query(
+            wardDailyRecords, 
+            where('approvalStatus', '==', 'pending'),
+            orderBy('lastUpdated', 'desc'),
+            limit(50)
+          );
+        } else {
+          // สำหรับผู้ใช้ปกติดึงเฉพาะข้อมูลของ ward ตัวเอง
+          q = query(
+            wardDailyRecords, 
+            where('wardId', '==', user.department),
+            orderBy('lastUpdated', 'desc'),
+            limit(50)
+          );
+        }
         
         const querySnapshot = await getDocs(q);
         const items = [];
         
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          // ตรวจสอบว่ามีข้อมูลกะเช้าหรือกะดึกหรือไม่
+          const hasMorningData = data.morning || false;
+          const hasNightData = data.night || false;
+
           items.push({
             id: doc.id,
             ...data,
-            formType: 'ward', // ทุกรายการเป็นประเภท ward เพราะมาจาก wardDailyRecords
-            dateSubmitted: data.dateSubmitted?.toDate() || new Date(),
-            lastUpdated: data.lastUpdated?.toDate() || new Date()
+            formType: 'ward',
+            dateSubmitted: data.timestamp ? new Date(data.timestamp) : new Date(),
+            lastUpdated: data.lastUpdated ? new Date(data.lastUpdated) : new Date(),
+            hasMorningData,
+            hasNightData
           });
         });
         
@@ -55,7 +75,7 @@ const ApprovalList = () => {
     };
     
     fetchPendingApprovals();
-  }, [filter]);
+  }, [filter, user]);
 
   // ฟังก์ชันสำหรับอนุมัติข้อมูล
   const handleApprove = async (item) => {
@@ -97,7 +117,7 @@ const ApprovalList = () => {
       });
       
       // Refresh the list
-      fetchPendingApprovals();
+      setFilter(prev => prev); // ทำให้ useEffect ทำงานอีกครั้ง
     } catch (error) {
       console.error('Error approving item:', error);
       Swal.fire({
@@ -165,7 +185,7 @@ const ApprovalList = () => {
       });
       
       // Refresh the list
-      fetchPendingApprovals();
+      setFilter(prev => prev); // ทำให้ useEffect ทำงานอีกครั้ง
     } catch (error) {
       console.error('Error rejecting item:', error);
       Swal.fire({
@@ -182,35 +202,82 @@ const ApprovalList = () => {
     const wardId = item.wardId;
     const date = item.date;
     
+    // สร้าง HTML สำหรับแสดงข้อมูลทั้งกะเช้าและกะดึก
     let detailsHtml = `
       <div class="text-left">
         <p class="font-medium mb-2">ข้อมูล Ward: ${wardMapping[wardId] || wardId}</p>
         <p class="text-sm">วันที่: ${formatThaiDate(date)}</p>
         
-        <div class="mt-4">
-          <p class="font-medium">ข้อมูลกะ:</p>
-          <ul class="text-sm mt-1 space-y-1">
+        <div class="mt-4 grid grid-cols-2 gap-4">
     `;
     
-    // แสดงข้อมูลของแต่ละกะที่มีในข้อมูล
-    if (item.shifts) {
-      Object.entries(item.shifts).forEach(([shiftName, shiftData]) => {
-        detailsHtml += `<li class="pl-2 border-l-2 border-gray-300">${shiftName}</li>`;
-      });
+    // ตรวจสอบและแสดงข้อมูลกะเช้า
+    if (item.hasMorningData || item.morning) {
+      detailsHtml += `
+        <div class="border rounded p-3">
+          <p class="font-medium text-blue-600">กะเช้า</p>
+          <div class="mt-2 space-y-1 text-sm">
+            <p><span class="font-medium">Patient Census:</span> ${item.patientCensus || '-'}</p>
+            <p><span class="font-medium">Nurse Manager:</span> ${item.nurseManager?.morning || '-'}</p>
+            <p><span class="font-medium">RN:</span> ${item.RN?.morning || '-'}</p>
+            <p><span class="font-medium">PN:</span> ${item.PN?.morning || '-'}</p>
+            <p><span class="font-medium">WC:</span> ${item.WC?.morning || '-'}</p>
+            <p><span class="font-medium">NA:</span> ${item.NA?.morning || '-'}</p>
+            <p><span class="font-medium">New Admit:</span> ${item.newAdmit?.morning || '-'}</p>
+            <p><span class="font-medium">Transfer In:</span> ${item.transferIn?.morning || '-'}</p>
+            <p><span class="font-medium">Refer In:</span> ${item.referIn?.morning || '-'}</p>
+            <p><span class="font-medium">Transfer Out:</span> ${item.transferOut?.morning || '-'}</p>
+            <p><span class="font-medium">Refer Out:</span> ${item.referOut?.morning || '-'}</p>
+            <p><span class="font-medium">Discharge:</span> ${item.discharge?.morning || '-'}</p>
+            <p><span class="font-medium">Dead:</span> ${item.dead?.morning || '-'}</p>
+            <p><span class="font-medium">Available:</span> ${item.available?.morning || '-'}</p>
+            <p><span class="font-medium">Unavailable:</span> ${item.unavailable?.morning || '-'}</p>
+            <p><span class="font-medium">Planned Discharge:</span> ${item.plannedDischarge?.morning || '-'}</p>
+            <p><span class="font-medium">Comment:</span> ${item.comment?.morning || '-'}</p>
+          </div>
+        </div>
+      `;
     }
     
+    // ตรวจสอบและแสดงข้อมูลกะดึก
+    if (item.hasNightData || item.night) {
+      detailsHtml += `
+        <div class="border rounded p-3">
+          <p class="font-medium text-purple-600">กะดึก</p>
+          <div class="mt-2 space-y-1 text-sm">
+            <p><span class="font-medium">Overall Data:</span> ${item.overallData || '-'}</p>
+            <p><span class="font-medium">Nurse Manager:</span> ${item.nurseManager?.night || '-'}</p>
+            <p><span class="font-medium">RN:</span> ${item.RN?.night || '-'}</p>
+            <p><span class="font-medium">PN:</span> ${item.PN?.night || '-'}</p>
+            <p><span class="font-medium">WC:</span> ${item.WC?.night || '-'}</p>
+            <p><span class="font-medium">NA:</span> ${item.NA?.night || '-'}</p>
+            <p><span class="font-medium">New Admit:</span> ${item.newAdmit?.night || '-'}</p>
+            <p><span class="font-medium">Transfer In:</span> ${item.transferIn?.night || '-'}</p>
+            <p><span class="font-medium">Refer In:</span> ${item.referIn?.night || '-'}</p>
+            <p><span class="font-medium">Transfer Out:</span> ${item.transferOut?.night || '-'}</p>
+            <p><span class="font-medium">Refer Out:</span> ${item.referOut?.night || '-'}</p>
+            <p><span class="font-medium">Discharge:</span> ${item.discharge?.night || '-'}</p>
+            <p><span class="font-medium">Dead:</span> ${item.dead?.night || '-'}</p>
+            <p><span class="font-medium">Available:</span> ${item.available?.night || '-'}</p>
+            <p><span class="font-medium">Unavailable:</span> ${item.unavailable?.night || '-'}</p>
+            <p><span class="font-medium">Planned Discharge:</span> ${item.plannedDischarge?.night || '-'}</p>
+            <p><span class="font-medium">Comment:</span> ${item.comment?.night || '-'}</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    // แสดงข้อมูลสถานะการอนุมัติ
     detailsHtml += `
-          </ul>
         </div>
         
         <div class="mt-4">
-          <p class="font-medium">ผู้บันทึกข้อมูล:</p>
-          <p class="text-sm">${item.submittedBy?.displayName || '-'}</p>
-        </div>
-        
-        <div class="mt-4">
-          <p class="font-medium">เวลาบันทึก:</p>
-          <p class="text-sm">${item.dateSubmitted ? new Date(item.dateSubmitted).toLocaleString('th-TH') : '-'}</p>
+          <p class="font-medium">สถานะการอนุมัติ:</p>
+          <p class="text-sm">${item.approvalStatus === 'pending' ? 'รออนุมัติ' : 
+                              item.approvalStatus === 'approved' ? 'อนุมัติแล้ว' : 
+                              'ปฏิเสธ'}</p>
+          <p class="font-medium mt-2">เวลาอัพเดทล่าสุด:</p>
+          <p class="text-sm">${item.lastUpdated ? item.lastUpdated.toLocaleString('th-TH') : '-'}</p>
         </div>
       </div>
     `;
@@ -219,6 +286,29 @@ const ApprovalList = () => {
       title: 'รายละเอียดข้อมูล',
       html: detailsHtml,
       confirmButtonText: 'ปิด',
+      confirmButtonColor: '#0ab4ab',
+      width: '800px'
+    });
+  };
+
+  // ฟังก์ชันสำหรับอัปเดทข้อมูลที่แสดงในหน้าอนุมัติ
+  const updateApprovalData = async (item) => {
+    // ฟังก์ชันนี้สำหรับ admin หรือ supervisor ที่ต้องการแก้ไขข้อมูลก่อนอนุมัติ
+    if (!(user.role === 'admin' || user.role === 'supervisor')) {
+      Swal.fire({
+        title: 'ไม่มีสิทธิ์ในการแก้ไข',
+        text: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูล',
+        icon: 'warning',
+        confirmButtonColor: '#0ab4ab'
+      });
+      return;
+    }
+    
+    // ในอนาคตจะเพิ่มฟอร์มแก้ไขข้อมูลที่นี่
+    Swal.fire({
+      title: 'แก้ไขข้อมูล',
+      text: 'ฟังก์ชันนี้อยู่ระหว่างการพัฒนา',
+      icon: 'info',
       confirmButtonColor: '#0ab4ab'
     });
   };
@@ -241,8 +331,8 @@ const ApprovalList = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วอร์ด</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">กะ</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ผู้บันทึก</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วันที่บันทึก</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">สถานะ</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">อัพเดทล่าสุด</th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">การดำเนินการ</th>
               </tr>
             </thead>
@@ -250,46 +340,61 @@ const ApprovalList = () => {
               {pendingItems.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="font-medium text-gray-900">
+                    <div className="text-sm font-medium text-gray-900">
                       {wardMapping[item.wardId] || item.wardId}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{formatThaiDate(item.date)}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex space-x-2">
+                      {item.hasMorningData && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          เช้า
+                        </span>
+                      )}
+                      {item.hasNightData && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          ดึก
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      รออนุมัติ
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{formatThaiDate(item.date)}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {item.shifts ? Object.keys(item.shifts).join(', ') : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.submittedBy?.displayName || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {item.dateSubmitted ? new Date(item.dateSubmitted).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
+                    <div className="text-sm text-gray-500">
+                      {item.lastUpdated ? item.lastUpdated.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <div className="flex justify-center space-x-2">
                       <button
                         onClick={() => handleViewDetails(item)}
-                        className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        className="text-indigo-600 hover:text-indigo-900 px-2 py-1 rounded-md text-sm"
                       >
-                        ดูข้อมูล
+                        รายละเอียด
                       </button>
-                      <button
-                        onClick={() => handleApprove(item)}
-                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        อนุมัติ
-                      </button>
-                      <button
-                        onClick={() => handleReject(item)}
-                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                      >
-                        ปฏิเสธ
-                      </button>
+                      {(user.role === 'admin' || user.role === 'supervisor') && (
+                        <>
+                          <button
+                            onClick={() => handleApprove(item)}
+                            className="text-green-600 hover:text-green-900 px-2 py-1 rounded-md text-sm"
+                          >
+                            อนุมัติ
+                          </button>
+                          <button
+                            onClick={() => handleReject(item)}
+                            className="text-red-600 hover:text-red-900 px-2 py-1 rounded-md text-sm"
+                          >
+                            ปฏิเสธ
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

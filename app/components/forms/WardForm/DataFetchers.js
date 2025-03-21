@@ -447,7 +447,7 @@ export const formatDate = (date) => {
 };
 
 /**
- * ฟังก์ชันสำหรับดึงข้อมูลและจัดการการโหลดข้อมูลอัตโนมัติตามกะ
+ * ฟังก์ชันสำหรับโหลดและเตรียมข้อมูลวอร์ด
  * @param {string} date วันที่
  * @param {string} wardId รหัสวอร์ด
  * @param {string} shift กะงาน
@@ -457,126 +457,286 @@ export const fetchAndPrepareWardData = async (date, wardId, shift) => {
     try {
         console.log(`Fetching and preparing data for ${date}, ${wardId}, ${shift}`);
         
-        // ดึงข้อมูลของกะปัจจุบัน
-        const wardData = await fetchWardData(date, wardId, shift);
-        let patientCensusTotal = 0;
-        let sourceMessage = '';
-        
-        // ตรวจสอบว่ามีข้อมูลหรือไม่
-        if (wardData) {
-            console.log('Found existing data for this shift');
-            
-            // คำนวณ Patient Census ถ้ามีข้อมูล
-            if (wardData.patientCensus) {
-                patientCensusTotal = calculatePatientCensus(wardData.patientCensus);
-                sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูลในระบบ';
-            }
-            
+        // ตรวจสอบข้อมูลที่จำเป็น
+        if (!date || !wardId || !shift) {
+            console.error('Missing required parameters:', { date, wardId, shift });
             return {
-                data: wardData,
-                hasData: true,
-                patientCensusTotal,
-                sourceMessage
+                data: null,
+                hasData: false,
+                patientCensusTotal: '',
+                sourceMessage: 'ข้อมูลไม่ครบถ้วน',
+                isAutoFilledFromHistory: false
             };
         }
         
-        // ถ้าไม่มีข้อมูล จะดึงข้อมูลตามกฎที่กำหนด
-        if (shift === 'Morning (07:00-19:00)') {
-            // กรณีกะเช้า: ดึงข้อมูลย้อนหลัง 7 วัน
-            const previousDate = new Date(date);
-            previousDate.setDate(previousDate.getDate() - 7);
-            const formattedPreviousDate = format(previousDate, 'yyyy-MM-dd');
+        // ดึงข้อมูลของกะปัจจุบัน
+        console.log('Fetching current shift data');
+        const currentData = await fetchWardData(date, wardId, shift);
+        
+        // สร้างตัวแปรสำหรับเก็บข้อมูลที่จะส่งคืน
+        let patientCensusTotal = '';
+        let sourceMessage = '';
+        
+        // ถ้าพบข้อมูลของกะปัจจุบัน
+        if (currentData) {
+            console.log('Found current shift data');
             
-            console.log('No data found for morning shift, checking data from 7 days ago:', formattedPreviousDate);
-            const previousData = await fetchWardData(formattedPreviousDate, wardId, shift);
-            
-            if (previousData) {
-                console.log('Found previous data from 7 days ago');
-                
-                // คำนวณ Patient Census ถ้ามีข้อมูล
-                if (previousData.patientCensus) {
-                    patientCensusTotal = calculatePatientCensus(previousData.patientCensus);
-                    sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูล 7 วันก่อน';
-                }
-                
-                // สร้างข้อมูลใหม่โดยใช้ข้อมูลเดิมแต่ไม่เอา ID และข้อมูลเฉพาะอื่นๆ
-                const newData = { ...previousData };
-                delete newData.id;
-                delete newData.timestamp;
-                delete newData.createdAt;
-                delete newData.updatedAt;
-                delete newData.approvalStatus;
-                delete newData.approvedBy;
-                delete newData.approvalTimestamp;
-                
-                // อัปเดตค่า Patient Census
-                if (newData.patientCensus) {
-                    newData.patientCensus.total = patientCensusTotal.toString();
-                }
-                
-                return {
-                    data: newData,
-                    hasData: true,
-                    patientCensusTotal,
-                    sourceMessage,
-                    isAutoFilledFromHistory: true
-                };
+            // คำนวณ Patient Census ถ้ามีข้อมูล
+            if (currentData.patientCensus) {
+                patientCensusTotal = calculatePatientCensus(currentData.patientCensus);
+            } else if (currentData.overallData) {
+                patientCensusTotal = currentData.overallData.toString();
             }
-        } else if (shift === 'Night (19:00-07:00)') {
+            
+            // ส่งคืนข้อมูลปัจจุบันที่พบ
+            return {
+                data: currentData,
+                hasData: true,
+                patientCensusTotal,
+                sourceMessage: 'ข้อมูลกะปัจจุบัน',
+                isAutoFilledFromHistory: false
+            };
+        }
+        
+        // ถ้าไม่พบข้อมูลปัจจุบัน ลองดึงข้อมูลจากอดีต
+        console.log('No current shift data found, checking previous data');
+        
+        // กรณีกะเช้า: ลองดึงข้อมูลจากกะเช้าของวันที่ผ่านมา
+        if (shift === 'เช้า' || shift === 'Morning (07:00-19:00)') {
+            console.log('Morning shift: checking data from previous day');
+            
+            try {
+                // ดึงข้อมูลจากกะเช้าของวันที่ผ่านมา
+                const previousData = await fetchPreviousWardData(date, wardId, 'เช้า');
+                
+                if (previousData) {
+                    console.log('Found previous day morning data');
+                    
+                    // คำนวณ Patient Census ถ้ามีข้อมูล
+                    if (previousData.patientCensus) {
+                        patientCensusTotal = calculatePatientCensus(previousData.patientCensus);
+                        sourceMessage = 'ข้อมูลจากกะเช้าของวันที่ผ่านมา';
+                    }
+                    
+                    // สร้างข้อมูลใหม่โดยใช้ข้อมูลจากวันที่ผ่านมา
+                    const newData = { ...previousData };
+                    delete newData.id;
+                    delete newData.timestamp;
+                    delete newData.createdAt;
+                    delete newData.updatedAt;
+                    delete newData.approvalStatus;
+                    delete newData.approvedBy;
+                    delete newData.approvalTimestamp;
+                    
+                    // อัปเดตค่า Patient Census
+                    if (newData.patientCensus) {
+                        newData.patientCensus.total = patientCensusTotal.toString();
+                    }
+                    
+                    return {
+                        data: newData,
+                        hasData: true,
+                        patientCensusTotal,
+                        sourceMessage,
+                        isAutoFilledFromHistory: true
+                    };
+                }
+            } catch (err) {
+                console.error('Error fetching previous day data:', err);
+                // ดำเนินการต่อไปแม้จะมีข้อผิดพลาด
+            }
+        } else if (shift === 'ดึก' || shift === 'Night (19:00-07:00)') {
             // กรณีกะดึก: ดึงข้อมูลจากกะเช้าของวันเดียวกัน
             console.log('No data found for night shift, checking morning shift from same day');
-            const morningData = await fetchWardData(date, wardId, 'Morning (07:00-19:00)');
             
-            if (morningData) {
-                console.log('Found morning shift data from same day');
+            try {
+                const morningData = await fetchWardData(date, wardId, 'เช้า');
                 
-                // คำนวณ Patient Census ถ้ามีข้อมูล
-                if (morningData.patientCensus) {
-                    patientCensusTotal = calculatePatientCensus(morningData.patientCensus);
-                    sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูลกะเช้า';
+                if (morningData) {
+                    console.log('Found morning shift data from same day');
+                    
+                    // คำนวณ Patient Census ถ้ามีข้อมูล
+                    if (morningData.patientCensus) {
+                        patientCensusTotal = calculatePatientCensus(morningData.patientCensus);
+                        sourceMessage = 'ข้อมูลผู้ป่วยคำนวณจากข้อมูลกะเช้า';
+                    }
+                    
+                    // สร้างข้อมูลใหม่โดยใช้ข้อมูลจากกะเช้า
+                    const newData = { ...morningData };
+                    delete newData.id;
+                    delete newData.timestamp;
+                    delete newData.createdAt;
+                    delete newData.updatedAt;
+                    delete newData.approvalStatus;
+                    delete newData.approvedBy;
+                    delete newData.approvalTimestamp;
+                    
+                    // อัปเดตค่า Patient Census และ Overall Data (สำหรับกะดึก)
+                    if (newData.patientCensus) {
+                        newData.patientCensus.total = patientCensusTotal.toString();
+                    }
+                    newData.overallData = patientCensusTotal.toString();
+                    
+                    return {
+                        data: newData,
+                        hasData: true,
+                        patientCensusTotal,
+                        sourceMessage,
+                        isAutoFilledFromHistory: true
+                    };
                 }
-                
-                // สร้างข้อมูลใหม่โดยใช้ข้อมูลจากกะเช้า
-                const newData = { ...morningData };
-                delete newData.id;
-                delete newData.timestamp;
-                delete newData.createdAt;
-                delete newData.updatedAt;
-                delete newData.approvalStatus;
-                delete newData.approvedBy;
-                delete newData.approvalTimestamp;
-                
-                // อัปเดตค่า Patient Census และ Overall Data (สำหรับกะดึก)
-                if (newData.patientCensus) {
-                    newData.patientCensus.total = patientCensusTotal.toString();
-                }
-                newData.overallData = patientCensusTotal.toString();
-                
-                return {
-                    data: newData,
-                    hasData: true,
-                    patientCensusTotal,
-                    sourceMessage,
-                    isAutoFilledFromHistory: true
-                };
+            } catch (err) {
+                console.error('Error fetching morning shift data:', err);
+                // ดำเนินการต่อไปแม้จะมีข้อผิดพลาด
             }
         }
         
-        // ถ้าไม่มีข้อมูลใดๆ ให้สร้างข้อมูลเปล่า
+        console.log('No data found for this date/ward/shift');
+        
+        // ถ้าไม่พบข้อมูลที่เกี่ยวข้องจากฐานข้อมูล
         return {
             data: null,
             hasData: false,
-            patientCensusTotal: 0,
-            sourceMessage: 'ไม่พบข้อมูลก่อนหน้า'
+            patientCensusTotal: '',
+            sourceMessage: 'ไม่พบข้อมูลสำหรับกะนี้',
+            isAutoFilledFromHistory: false
         };
     } catch (error) {
-        console.error('Error fetching and preparing ward data:', error);
+        console.error('Error in fetchAndPrepareWardData:', error);
         return {
             data: null,
             hasData: false,
-            patientCensusTotal: 0,
-            sourceMessage: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+            patientCensusTotal: '',
+            sourceMessage: `เกิดข้อผิดพลาด: ${error.message}`,
+            isAutoFilledFromHistory: false,
             error: error.message
         };
     }
+};
+
+/**
+ * ฟังก์ชันสำหรับตรวจสอบข้อมูลกะดึกของวันก่อนหน้า
+ * @param {Date} date วันที่ต้องการตรวจสอบ
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Object>} ผลการตรวจสอบข้อมูลกะดึกของวันก่อนหน้า
+ */
+export const checkPreviousNightShiftData = async (date, wardId) => {
+  try {
+    if (!date || !wardId) {
+      return {
+        exists: false,
+        message: 'ข้อมูลไม่ครบถ้วน ไม่สามารถตรวจสอบได้',
+        error: 'Missing date or wardId parameter'
+      };
+    }
+
+    const currentDate = new Date(date);
+    const previousDate = new Date(currentDate);
+    previousDate.setDate(previousDate.getDate() - 1);
+    
+    const formattedPreviousDate = format(previousDate, 'yyyy-MM-dd');
+    
+    // ตรวจสอบกะดึกของวันก่อนหน้าในทุกรูปแบบที่เป็นไปได้ ('ดึก', 'Night', 'Night (19:00-07:00)')
+    const shifts = ['ดึก', 'Night', 'Night (19:00-07:00)'];
+    let previousNightData = null;
+    
+    for (const shift of shifts) {
+      const data = await getWardDataByDate(formattedPreviousDate, shift, wardId);
+      if (data) {
+        previousNightData = data;
+        break;
+      }
+    }
+    
+    // ตรวจสอบว่ามีข้อมูลกะดึกของวันก่อนหน้าและบันทึก Final แล้วหรือไม่
+    if (previousNightData && previousNightData.status === 'final') {
+      return {
+        exists: true,
+        message: 'มีข้อมูลกะดึกของวันก่อนหน้าและบันทึก Final แล้ว',
+        data: previousNightData
+      };
+    } else if (previousNightData) {
+      return {
+        exists: true,
+        isFinal: false,
+        message: 'มีข้อมูลกะดึกของวันก่อนหน้า แต่ยังไม่ได้บันทึก Final',
+        data: previousNightData
+      };
+    } else {
+      return {
+        exists: false,
+        message: 'ไม่พบข้อมูลกะดึกของวันก่อนหน้า',
+        data: null
+      };
+    }
+  } catch (error) {
+    console.error('Error checking previous night shift data:', error);
+    return {
+      exists: false,
+      message: 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูลกะดึกของวันก่อนหน้า',
+      error: error.message
+    };
+  }
+};
+
+/**
+ * ฟังก์ชันสำหรับตรวจสอบข้อมูล 7 วันย้อนหลัง
+ * @param {Date} date วันที่ต้องการตรวจสอบ
+ * @param {string} wardId รหัสวอร์ด
+ * @returns {Promise<Object>} ผลการตรวจสอบ
+ */
+export const checkPast7DaysData = async (date, wardId) => {
+  try {
+    if (!date || !wardId) {
+      return {
+        complete: false,
+        hasData: false,
+        message: 'ข้อมูลไม่ครบถ้วน ไม่สามารถตรวจสอบได้',
+        missingDates: []
+      };
+    }
+
+    // สร้างอาร์เรย์ของวันที่ย้อนหลัง 7 วัน
+    const checkDate = new Date(date);
+    const dates = [];
+    const missingDates = [];
+    
+    for (let i = 1; i <= 7; i++) {
+      const previousDate = new Date(checkDate);
+      previousDate.setDate(previousDate.getDate() - i);
+      const formattedDate = format(previousDate, 'yyyy-MM-dd');
+      dates.push({
+        date: formattedDate,
+        jsDate: previousDate
+      });
+    }
+
+    // ดึงข้อมูลกะเช้าจากทั้ง 7 วันย้อนหลัง
+    const promises = dates.map(d => getWardDataByDate(d.date, 'เช้า', wardId));
+    const results = await Promise.all(promises);
+
+    // ตรวจสอบว่ามีวันไหนที่ไม่มีข้อมูล
+    results.forEach((data, index) => {
+      if (!data || data.status !== 'final') {
+        missingDates.push(dates[index].date);
+      }
+    });
+
+    return {
+      complete: missingDates.length === 0,
+      hasData: results.some(data => data !== null),
+      message: missingDates.length === 0 
+        ? 'ข้อมูล 7 วันย้อนหลังครบถ้วน' 
+        : `พบ ${missingDates.length} วันที่ยังไม่ได้บันทึกข้อมูล`,
+      missingDates: missingDates
+    };
+  } catch (error) {
+    console.error('Error checking past 7 days data:', error);
+    return {
+      complete: false,
+      hasData: false,
+      message: 'เกิดข้อผิดพลาดในการตรวจสอบข้อมูลย้อนหลัง: ' + error.message,
+      missingDates: []
+    };
+  }
 };

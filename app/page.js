@@ -23,8 +23,17 @@ export default function Home() {
         console.log('Redirecting admin/approver to approval page...');
         router.push('/page/approval/');
       } else {
-        console.log('Redirecting user to ward-form page...');
-        router.push('/page/ward-form/');
+        console.log('Department check for redirection:', user.department);
+        
+        // เพิ่มการตรวจสอบ department
+        if (!user.department || user.department === '') {
+          console.error('User does not have a department assigned');
+          // ให้ redirect ไปหน้า dashboard หรือหน้าแจ้งเตือนแทนที่จะไปหน้า ward-form
+          router.push('/page/dashboard/');
+        } else {
+          console.log('Redirecting user to ward-form page...');
+          router.push('/page/ward-form/');
+        }
       }
     }
   }, [loading, isAuthenticated, router, user]);
