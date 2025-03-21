@@ -29,10 +29,18 @@ export default function WardFormPage() {
     if (!loading) {
       try {
         if (user) {
-          // User is logged in
+          // User is logged in, check if they have a department
           console.log('User department:', user?.department);
-          setWardId(user?.department || '');
-          setIsReady(true);
+          
+          if (!user.department) {
+            // User doesn't have a department assigned
+            console.error('User does not have a department assigned');
+            setError('ผู้ใช้ไม่มีแผนกที่กำหนด กรุณาติดต่อผู้ดูแลระบบ');
+          } else {
+            // User has department, proceed normally
+            setWardId(user.department);
+            setIsReady(true);
+          }
         } else {
           // User not logged in, redirect to login
           console.log('User not authenticated, redirecting to login');

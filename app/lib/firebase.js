@@ -1,7 +1,7 @@
 'use client';
 
 import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // แสดงค่า environment variables ออกมาเพื่อตรวจสอบ (ลบออกหลังจากแก้ปัญหาแล้ว)
@@ -28,17 +28,52 @@ let auth = null;
 
 try {
   // Check if Firebase app is already initialized
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+  if (!getApps().length) {
+    console.log('Initializing Firebase app...');
+    app = initializeApp(firebaseConfig);
+  } else {
+    console.log('Firebase app already initialized');
+    app = getApps()[0];
+  }
 
   // Initialize Firebase services
   db = getFirestore(app);
+  console.log('Firestore initialized:', db ? 'Success' : 'Failed');
+  
   auth = getAuth(app);
+  console.log('Auth initialized:', auth ? 'Success' : 'Failed');
+  
+  // ตรวจสอบสถานะการเชื่อมต่อ
+  if (typeof window !== 'undefined') {
+    // เพิ่ม offline persistence สำหรับ Firestore (ทำงานเฉพาะในเบราว์เซอร์)
+    enableIndexedDbPersistence(db)
+      .then(() => {
+        console.log('IndexedDb persistence enabled for Firestore');
+      })
+      .catch((err) => {
+        console.warn('Error enabling IndexedDb persistence:', err.code, err.message);
+      });
+  }
 
   console.log('Firebase initialized successfully');
 } catch (error) {
   console.error('Error initializing Firebase:', error);
   // ตัวแปร app, db และ auth จะยังคงเป็น null ถ้าเกิด error
 }
+
+// ทดลองสร้างฟังก์ชันสำหรับเช็คสถานะของ Firestore
+export const checkFirestore = () => {
+  try {
+    if (!db) {
+      console.error('Firestore not initialized');
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error checking Firestore:', error);
+    return false;
+  }
+};
 
 // Export นอก try-catch block
 export { db, auth };

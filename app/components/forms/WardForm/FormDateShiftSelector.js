@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { formatThaiDate, getCurrentDate } from '../../../utils/dateUtils';
 import Calendar from '../../ui/Calendar';
 import { handleDateSelect, handleShiftChange } from './EventHandlers';
-import Swal from 'sweetalert2';
+import AlertUtil from '../../../utils/AlertUtil';
 
 /**
  * Component สำหรับเลือกวันที่และกะการทำงาน
@@ -48,51 +48,71 @@ const FormDateShiftSelector = ({
   
   // ฟังก์ชันจัดการการเลือกวันที่
   const handleDateChange = async (date) => {
-    // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
-    if (hasUnsavedChanges) {
-        const confirmResult = await Swal.fire({
-            title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
-            text: 'คุณต้องการเปลี่ยนวันที่หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#0ab4ab',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'ใช่, เปลี่ยนวันที่',
-            cancelButtonText: 'ไม่, ยกเลิก'
-        });
-        
-        if (!confirmResult.isConfirmed) {
-            return; // ยกเลิกการเปลี่ยนวันที่
-        }
+    try {
+      // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
+      if (hasUnsavedChanges) {
+          const confirmResult = await AlertUtil.confirm(
+              'มีข้อมูลที่ยังไม่ได้บันทึก',
+              'คุณต้องการเปลี่ยนวันที่หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
+              {
+                  confirmText: 'ใช่, เปลี่ยนวันที่',
+                  cancelText: 'ไม่, ยกเลิก',
+                  type: 'warning'
+              }
+          );
+          
+          if (!confirmResult) {
+              return; // ยกเลิกการเปลี่ยนวันที่
+          }
+      }
+      
+      // ดำเนินการเปลี่ยนวันที่
+      setShowCalendar(false);
+      
+      // ใช้ฟังก์ชันจากผู้เรียกโดยตรง ไม่ผ่าน handleDateSelect เพื่อหลีกเลี่ยงปัญหา
+      if (typeof onDateSelect === 'function') {
+        onDateSelect(date);
+      }
+    } catch (error) {
+      console.error('Error handling date selection:', error);
+      AlertUtil.error(
+        'เกิดข้อผิดพลาด',
+        'ไม่สามารถเปลี่ยนวันที่ได้ กรุณาลองใหม่อีกครั้ง'
+      );
     }
-    
-    // ดำเนินการเปลี่ยนวันที่
-    setShowCalendar(false);
-    onDateSelect(date);
   };
 
   // ฟังก์ชันจัดการการเลือกกะการทำงาน
   const handleShiftSelect = async (shift) => {
-    // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
-    if (hasUnsavedChanges) {
-        const confirmResult = await Swal.fire({
-            title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
-            text: 'คุณต้องการเปลี่ยนกะการทำงานหรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#0ab4ab',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'ใช่, เปลี่ยนกะการทำงาน',
-            cancelButtonText: 'ไม่, ยกเลิก'
-        });
-        
-        if (!confirmResult.isConfirmed) {
-            return; // ยกเลิกการเปลี่ยนกะ
-        }
+    try {
+      // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
+      if (hasUnsavedChanges) {
+          const confirmResult = await AlertUtil.confirm(
+              'มีข้อมูลที่ยังไม่ได้บันทึก',
+              'คุณต้องการเปลี่ยนกะการทำงานหรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
+              {
+                  confirmText: 'ใช่, เปลี่ยนกะการทำงาน',
+                  cancelText: 'ไม่, ยกเลิก',
+                  type: 'warning'
+              }
+          );
+          
+          if (!confirmResult) {
+              return; // ยกเลิกการเปลี่ยนกะ
+          }
+      }
+      
+      // ดำเนินการเปลี่ยนกะ
+      if (typeof onShiftChange === 'function') {
+        onShiftChange(shift);
+      }
+    } catch (error) {
+      console.error('Error handling shift selection:', error);
+      AlertUtil.error(
+        'เกิดข้อผิดพลาด',
+        'ไม่สามารถเปลี่ยนกะการทำงานได้ กรุณาลองใหม่อีกครั้ง'
+      );
     }
-    
-    // ดำเนินการเปลี่ยนกะ
-    onShiftChange(shift);
   };
 
   return (

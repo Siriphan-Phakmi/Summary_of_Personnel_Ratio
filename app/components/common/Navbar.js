@@ -63,6 +63,17 @@ const Navbar = () => {
       return;
     }
 
+    // ตรวจสอบสิทธิ์การเข้าถึงหน้า Ward Form
+    if (page === PAGES.WARD && (!user?.department || user.department === '')) {
+      Swal.fire({
+        title: 'ไม่มีสิทธิ์เข้าถึง',
+        text: 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้ เนื่องจากไม่มีแผนกที่กำหนด กรุณาติดต่อผู้ดูแลระบบ',
+        icon: 'warning',
+        confirmButtonColor: '#0ab4ab'
+      });
+      return;
+    }
+
     // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
     if (window.hasUnsavedChanges) {
       const result = await Swal.fire({

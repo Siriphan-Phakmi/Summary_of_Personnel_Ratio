@@ -287,6 +287,8 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
     }
 
     const patientCensus = data.patientCensus;
+    // ตรวจสอบกะที่กำลังคำนวณ
+    const currentShift = data.shift || selectedShift;
 
     // แปลงค่าเป็นตัวเลข และรวม hospitalPatientcensus เข้าไปด้วย
     const hospitalCensus = Number(parseInt(patientCensus.hospitalPatientcensus || '0', 10));
@@ -298,10 +300,10 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
     const discharge = Number(parseInt(patientCensus.discharge || '0', 10));
     const dead = Number(parseInt(patientCensus.dead || '0', 10));
 
-    // คำนวณตามสูตรใหม่: Hospital census + การเข้า - การออก
+    // คำนวณตามสูตร: Hospital census + การเข้า - การออก
     const total = hospitalCensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
 
-    console.log(`คำนวณ Patient Census: ${hospitalCensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+    console.log(`คำนวณ Patient Census (${currentShift}): ${hospitalCensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
     
     // ตรวจสอบว่าควรแสดงเป็นช่องว่างหรือไม่
     const shouldShowEmpty = total === 0 && 
@@ -324,7 +326,16 @@ export const calculatePatientCensusTotal = (formData, setFormData, selectedShift
         
         updatedData.patientCensus.total = shouldShowEmpty ? '' : total;
         
-        if (selectedShift === 'Night (19:00-07:00)') {
+        // กำหนดอัพเดท overallData สำหรับกะดึก (ตรวจสอบทุกรูปแบบชื่อกะที่อาจใช้)
+        const isNightShift = 
+            currentShift === 'night' || 
+            currentShift === 'Night' || 
+            currentShift === 'Night (19:00-07:00)' || 
+            currentShift === '19:00-07:00' ||
+            /night/i.test(currentShift);
+            
+        if (isNightShift) {
+            console.log('อัพเดท overallData สำหรับกะดึก:', total);
             updatedData.overallData = shouldShowEmpty ? '' : total;
         }
         

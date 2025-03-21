@@ -7,6 +7,7 @@ import { parseInputValue } from './FormHandlers';
 import { formatThaiDate } from '../../../utils/dateUtils';
 import { handleFirebaseIndexError } from './index';
 import { format } from 'date-fns';
+import { validateFormBeforeSave, showAlert, showConfirm } from './DataHandlers';
 
 // เพิ่ม state สำหรับติดตามว่ากำลังดึงข้อมูลหรือไม่
 let isFetchingData = false;
@@ -99,299 +100,199 @@ export const handleShiftChange = async (shift, setSelectedShift, hasUnsavedChang
     }
 };
 
-export const handleDateSelect = async (
-    date,
-    selectedWard,
-    selectedShift,
+/**
+ * สร้างฟังก์ชันสำหรับจัดการการเลือกวันที่
+ * @param {Date} date วันที่ที่เลือก
+ * @param {function} setSelectedDate ฟังก์ชันสำหรับตั้งค่าวันที่ที่เลือก
+ * @param {function} setThaiDate ฟังก์ชันสำหรับตั้งค่าวันที่ภาษาไทย
+ * @param {string} selectedWard รหัสวอร์ดที่เลือก
+ * @param {function} setApprovalStatus ฟังก์ชันสำหรับตั้งค่าสถานะการอนุมัติ
+ * @param {function} setFormData ฟังก์ชันสำหรับตั้งค่าข้อมูลฟอร์ม
+ * @param {boolean} hasUnsavedChanges มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึกหรือไม่
+ * @returns {function} ฟังก์ชันที่ใช้จัดการการเลือกวันที่
+ */
+export const handleDateSelect = (
     setSelectedDate,
     setThaiDate,
-    setShowCalendar,
+    selectedWard,
     setApprovalStatus,
     setFormData,
-    hasUnsavedChanges = false,
-    onSaveDraft = null
+    hasUnsavedChanges,
+    shift
 ) => {
-    // ตรวจสอบว่ากำลังดึงข้อมูลอยู่หรือไม่
-    if (isFetchingData) {
-        console.log('Already fetching data, ignoring this request');
-        return;
-    }
-    
-    // ถ้ามีข้อมูลที่ยังไม่ได้บันทึก ให้ยืนยันกับผู้ใช้ก่อน
-    if (hasUnsavedChanges) {
-        const result = await Swal.fire({
-            title: 'ยืนยันการเปลี่ยนวันที่',
-            html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก หากเปลี่ยนวันที่ ข้อมูลที่คุณกำลังกรอกอยู่จะหายไปทั้งหมด',
-            icon: 'warning',
-            showCancelButton: true,
-            showDenyButton: true,
-            confirmButtonColor: '#0ab4ab',
-            cancelButtonColor: '#d33',
-            denyButtonColor: '#3085d6',
-            confirmButtonText: 'ใช่, เปลี่ยนวันที่',
-            denyButtonText: 'บันทึกแบบร่างก่อน',
-            cancelButtonText: 'ยกเลิก'
-        });
-        
-        if (result.isDismissed) {
-            return; // ผู้ใช้ยกเลิก
-        }
-        
-        if (result.isDenied && typeof onSaveDraft === 'function') {
-            // บันทึกแบบร่าง
-            const saveResult = await onSaveDraft();
-            if (!saveResult || !saveResult.success) {
-                return; // การบันทึกล้มเหลว
-            }
-        }
-        
-        // ถ้าผู้ใช้เลือก "ใช่, เปลี่ยนวันที่" หรือบันทึกแบบร่างสำเร็จแล้ว ก็ดำเนินการต่อ
-    } else {
-        // แม้ไม่มีข้อมูลที่ยังไม่ได้บันทึก แต่ยังคงต้องยืนยันการเปลี่ยนวันที่
-        const result = await Swal.fire({
-            title: 'ยืนยันการเปลี่ยนวันที่',
-            html: 'คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนวันที่?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#0ab4ab',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'ใช่, เปลี่ยนวันที่',
-            cancelButtonText: 'ยกเลิก'
-        });
-        
-        if (result.isDismissed) {
-            return; // ผู้ใช้ยกเลิก
-        }
-    }
-    
-    try {
-        isFetchingData = true;  // กำลังเริ่มดึงข้อมูล
-        
-        // ตรวจสอบ user จาก sessionStorage เพื่อใช้ department โดยตรง
-        const userStr = sessionStorage.getItem('user');
-        let department = '';
-        
-        if (userStr) {
-            try {
-                const userData = JSON.parse(userStr);
-                department = userData.department || '';
-            } catch (e) {
-                console.error('Error parsing user data from sessionStorage:', e);
-            }
-        }
-        
-        // ใช้ department จาก user ไม่ใช่ selectedWard
-        const wardId = department || selectedWard;
-        
-        if (!date || !wardId || !selectedShift) {
-            console.warn('handleDateSelect: Missing required parameters', {
-                date,
-                wardId,
-                selectedShift
-            });
-            return;
-        }
-
-        // อัพเดทวันที่และปิดปฏิทิน
-        setSelectedDate(date);
-        setThaiDate(formatThaiDate(date));
-        if (setShowCalendar) {
-            setShowCalendar(false);
-        }
-        
-        // แสดง loading indicator
-        const loadingSwal = Swal.fire({
-            title: 'กำลังโหลดข้อมูล',
-            text: `กำลังดึงข้อมูลของ ${wardId} วันที่ ${formatThaiDate(date)}`,
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-        
-        // ตรวจสอบสถานะการอนุมัติ
-        if (setApprovalStatus) {
-            try {
-                const status = await checkApprovalStatus(date, selectedShift, wardId);
-                setApprovalStatus(status);
-            } catch (error) {
-                console.error('Error checking approval status:', error);
-                // ตรวจสอบว่าเป็น index error หรือไม่
-                handleFirebaseIndexError(error);
-            }
-        }
-        
-        // ดึงข้อมูล ward
-        if (setFormData) {
-            try {
-                const wardData = await fetchWardData(date, wardId, selectedShift);
-                if (wardData) {
-                    setFormData(prevData => ({
-                        ...prevData,
-                        ...wardData
-                    }));
+    return async (date) => {
+        try {
+            // ตรวจสอบการเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+            if (hasUnsavedChanges) {
+                const confirmLeave = window.confirm('คุณมีข้อมูลที่ยังไม่ได้บันทึก คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนวันที่?');
+                if (!confirmLeave) {
+                    return;
                 }
-            } catch (error) {
-                console.error('Error fetching ward data:', error);
-                // ตรวจสอบว่าเป็น index error หรือไม่
-                if (!handleFirebaseIndexError(error)) {
-                    Swal.fire({
-                        title: 'เกิดข้อผิดพลาด',
-                        text: 'ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
-                        icon: 'error',
+            }
+            
+            // ตรวจสอบความถูกต้องของวันที่
+            if (!date || !isValid(date)) {
+                console.error('Invalid date selected:', date);
+                return;
+            }
+            
+            // แปลงวันที่เป็นรูปแบบที่ต้องการ
+            const formattedDate = format(date, 'yyyy-MM-dd');
+            setSelectedDate(formattedDate);
+            setThaiDate(formatThaiDate(date));
+            
+            // ตรวจสอบกะดึกวันก่อนหน้า
+            try {
+                const previousNightResult = await checkPreviousNightShiftData(formattedDate, selectedWard);
+                if (!previousNightResult.exists) {
+                    // แสดงการแจ้งเตือน
+                    await Swal.fire({
+                        title: 'พบปัญหาข้อมูลกะดึกของวันก่อนหน้า',
+                        html: previousNightResult.message || 'ไม่พบข้อมูลกะดึกของวันก่อนหน้า หรือข้อมูลยังไม่ได้บันทึกเป็น Final<br>กรุณาตรวจสอบข้อมูลกะดึกของวันก่อนหน้า',
+                        icon: 'warning',
+                        confirmButtonColor: '#0ab4ab'
+                    });
+                } else if (previousNightResult.exists && !previousNightResult.isFinal) {
+                    // แสดงการแจ้งเตือนว่ามีข้อมูลแต่ยังไม่เป็น Final
+                    await Swal.fire({
+                        title: 'ข้อมูลกะดึกของวันก่อนหน้ายังไม่สมบูรณ์',
+                        html: 'ข้อมูลกะดึกของวันก่อนหน้ายังไม่ได้บันทึกเป็น Final<br>กรุณาตรวจสอบและบันทึก Final ข้อมูลกะดึกของวันก่อนหน้า',
+                        icon: 'info',
                         confirmButtonColor: '#0ab4ab'
                     });
                 }
+            } catch (error) {
+                console.error('Error checking previous night shift data:', error);
             }
+            
+            // ตรวจสอบข้อมูล 7 วันย้อนหลัง
+            try {
+                const past7DaysResult = await checkPast7DaysData(formattedDate, selectedWard);
+                if (!past7DaysResult.complete) {
+                    // แสดงการแจ้งเตือน
+                    await Swal.fire({
+                        title: 'ข้อมูล 7 วันย้อนหลังไม่ครบถ้วน',
+                        html: `พบวันที่ยังไม่ได้บันทึกข้อมูลในช่วง 7 วันย้อนหลัง:<br><ul class="mt-2 text-left list-disc pl-5">${past7DaysResult.missingDates.map(d => `<li>${formatThaiDate(d)}</li>`).join('')}</ul>`,
+                        icon: 'warning',
+                        confirmButtonColor: '#0ab4ab'
+                    });
+                }
+            } catch (error) {
+                console.error('Error checking past 7 days data:', error);
+            }
+            
+            // ตรวจสอบสถานะการอนุมัติ
+            try {
+                if (setApprovalStatus && selectedWard) {
+                    const status = await checkApprovalStatus(formattedDate, shift, selectedWard);
+                    setApprovalStatus(status);
+                }
+            } catch (error) {
+                console.error('Error checking approval status:', error);
+            }
+            
+            // โหลดข้อมูลอัตโนมัติ
+            try {
+                const { data, hasData, sourceMessage } = await fetchAndPrepareWardData(formattedDate, selectedWard, shift);
+                if (hasData && data) {
+                    setFormData(data);
+                    
+                    // แจ้งเตือนว่าโหลดข้อมูลอัตโนมัติ
+                    if (sourceMessage) {
+                        await Swal.fire({
+                            title: 'โหลดข้อมูลอัตโนมัติ',
+                            text: sourceMessage,
+                            icon: 'info',
+                            confirmButtonColor: '#0ab4ab'
+                        });
+                    }
+                } else {
+                    // รีเซ็ตฟอร์มเป็นค่าว่าง
+                    setFormData({
+                        patientCensus: {
+                            hospitalPatientcensus: '',
+                            newAdmit: '',
+                            transferIn: '',
+                            referIn: '',
+                            transferOut: '',
+                            referOut: '',
+                            discharge: '',
+                            dead: '',
+                            total: ''
+                        },
+                        staffing: {
+                            nurseManager: '',
+                            RN: '',
+                            PN: '',
+                            WC: '',
+                            NA: ''
+                        },
+                        notes: {
+                            comment: ''
+                        },
+                        bedManagement: {
+                            available: '',
+                            unavailable: '',
+                            plannedDischarge: ''
+                        },
+                        overallData: ''
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading data for the selected date:', error);
+                // แจ้งเตือนข้อผิดพลาด
+                await Swal.fire({
+                    title: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+                    text: error.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
+                    icon: 'error',
+                    confirmButtonColor: '#0ab4ab'
+                });
+            }
+        } catch (error) {
+            console.error('Error in handleDateSelect:', error);
         }
-        
-        // ปิด loading indicator
-        Swal.close();
-        
-    } catch (error) {
-        console.error('Error in handleDateSelect:', error);
-        Swal.fire({
-            title: 'เกิดข้อผิดพลาด',
-            text: 'ไม่สามารถดึงข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
-            icon: 'error',
-            confirmButtonColor: '#0ab4ab'
-        });
-    } finally {
-        isFetchingData = false;  // ดึงข้อมูลเสร็จแล้ว
-    }
+    };
 };
 
-export const createHandleDateChange = (
-    hasUnsavedChanges, 
-    setAlertConfig, 
-    proceedDateChange, 
-    onSaveDraft
-) => {
-    return async (e) => {
-        // ใช้ SweetAlert แทน setAlertConfig
-        if (hasUnsavedChanges) {
-            const result = await Swal.fire({
-                title: 'ข้อมูลยังไม่ได้บันทึก',
-                html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก หากเปลี่ยนวันที่ ข้อมูลที่คุณกำลังกรอกอยู่จะหายไปทั้งหมด',
-                icon: 'warning',
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonColor: '#0ab4ab',
-                cancelButtonColor: '#d33',
-                denyButtonColor: '#3085d6',
-                confirmButtonText: 'ใช่, เปลี่ยนวันที่',
-                denyButtonText: 'บันทึกแบบร่างก่อน',
-                cancelButtonText: 'ยกเลิก'
-            });
-            
-            if (result.isConfirmed) {
-                // ดำเนินการเปลี่ยนวันที่
-                await proceedDateChange(e);
-            } else if (result.isDenied) {
-                // บันทึกแบบร่างก่อนเปลี่ยนวันที่
-                const saveResult = await onSaveDraft();
-                if (saveResult && saveResult.success) {
-                    await proceedDateChange(e);
-                }
+/**
+ * createHandleDateChange - สร้างฟังก์ชันสำหรับการเปลี่ยนวันที่
+ */
+export const createHandleDateChange = (setSelectedDate, setThaiDate, formatThaiDate, setHasUnsavedChanges) => {
+    return (date) => {
+        if (date) {
+            setSelectedDate(date);
+            if (setThaiDate && formatThaiDate) {
+                setThaiDate(formatThaiDate(date));
             }
-        } else {
-            // ถามยืนยันการเปลี่ยนวันที่ แม้ไม่มีข้อมูลที่ยังไม่ได้บันทึก
-            const result = await Swal.fire({
-                title: 'ยืนยันการเปลี่ยนวันที่',
-                text: 'คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนวันที่?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#0ab4ab',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'ใช่, เปลี่ยนวันที่',
-                cancelButtonText: 'ยกเลิก'
-            });
-            
-            if (result.isConfirmed) {
-                await proceedDateChange(e);
+            if (setHasUnsavedChanges) {
+                setHasUnsavedChanges(true);
             }
         }
     };
 };
 
-export const createProceedDateChange = (
-    setSelectedDate, 
-    selectedShift, 
-    selectedWard, 
-    setFormData, 
-    setIsLoading, 
-    setInitError
-) => {
-    // ... existing code ...
-};
-
-export const createHandleShiftChange = (
-    hasUnsavedChanges, 
-    setAlertConfig, 
-    proceedShiftChange, 
-    onSaveDraft
-) => {
-    return async (shift) => {
-        // ใช้ SweetAlert แทน setAlertConfig
-        if (hasUnsavedChanges) {
-            const result = await Swal.fire({
-                title: 'ข้อมูลยังไม่ได้บันทึก',
-                html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก หากเปลี่ยนกะการทำงาน ข้อมูลที่คุณกำลังกรอกอยู่จะหายไปทั้งหมด',
-                icon: 'warning',
-                showCancelButton: true,
-                showDenyButton: true,
-                confirmButtonColor: '#0ab4ab',
-                cancelButtonColor: '#d33',
-                denyButtonColor: '#3085d6',
-                confirmButtonText: 'ใช่, เปลี่ยนกะ',
-                denyButtonText: 'บันทึกแบบร่างก่อน',
-                cancelButtonText: 'ยกเลิก'
-            });
-            
-            if (result.isConfirmed) {
-                // ดำเนินการเปลี่ยนกะ
-                await proceedShiftChange(shift);
-            } else if (result.isDenied) {
-                // บันทึกแบบร่างก่อนเปลี่ยนกะ
-                const saveResult = await onSaveDraft();
-                if (saveResult && saveResult.success) {
-                    await proceedShiftChange(shift);
-                }
-            }
-        } else {
-            // ถามยืนยันการเปลี่ยนกะ แม้ไม่มีข้อมูลที่ยังไม่ได้บันทึก
-            const result = await Swal.fire({
-                title: 'ยืนยันการเปลี่ยนกะการทำงาน',
-                text: 'คุณแน่ใจหรือไม่ว่าต้องการเปลี่ยนกะการทำงาน?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#0ab4ab',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'ใช่, เปลี่ยนกะ',
-                cancelButtonText: 'ยกเลิก'
-            });
-            
-            if (result.isConfirmed) {
-                await proceedShiftChange(shift);
-            }
+/**
+ * createHandleShiftChange - สร้างฟังก์ชันสำหรับการเปลี่ยนกะ
+ */
+export const createHandleShiftChange = (setSelectedShift, setHasUnsavedChanges) => {
+    return (shift) => {
+        setSelectedShift(shift);
+        if (setHasUnsavedChanges) {
+            setHasUnsavedChanges(true);
         }
     };
 };
 
-export const createProceedShiftChange = (
-    setSelectedShift, 
-    selectedDate, 
-    selectedWard, 
-    setFormData, 
-    setIsLoading, 
-    setInitError
-) => {
-    // ... existing code ...
-};
-
+/**
+ * createHandleBeforeUnload - สร้างฟังก์ชันสำหรับการเตือนเมื่อผู้ใช้พยายามปิดหน้าที่มีการแก้ไขแล้วไม่ได้บันทึก
+ */
 export const createHandleBeforeUnload = (hasUnsavedChanges) => {
     return (e) => {
-        return handleBeforeUnload(hasUnsavedChanges, e);
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = ''; // Chrome requires returnValue to be set
+            return 'คุณมีข้อมูลที่ยังไม่ได้บันทึก ต้องการออกจากหน้านี้หรือไม่?';
+        }
     };
 };
 
