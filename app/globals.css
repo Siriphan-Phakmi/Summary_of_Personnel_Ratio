@@ -369,3 +369,24 @@ button,
 .fadeOutUp {
   animation-name: fadeOutUp;
 }
+
+/* เพิ่ม style เพื่อให้ SweetAlert2 popup มองเห็นได้ชัดเจนและสวยงาม */
+.swal-popup {
+  padding: 20px !important;
+  border-radius: 15px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.swal-confirm-button {
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}
+
+.swal-cancel-button {
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+}
+
+.swal-container {
+  z-index: 9999 !important;
+}

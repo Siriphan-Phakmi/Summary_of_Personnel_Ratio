@@ -103,16 +103,39 @@ export const fetchWardData = async (date, wardId, shift) => {
 };
 
 /**
- * ฟังก์ชันสำหรับตรวจสอบว่ามีข้อมูลกะเช้าหรือไม่
- * @param {Date} date วันที่ต้องการตรวจสอบ
- * @param {string} wardId รหัสวอร์ด
- * @returns {Promise<boolean>} true ถ้ามีข้อมูลกะเช้า, false ถ้าไม่มี
+ * ฟังก์ชันตรวจสอบว่ามีข้อมูลกะเช้าของวันที่กำหนดหรือไม่ และได้รับการอนุมัติแล้ว
+ * @param {string} date วันที่ที่ต้องการตรวจสอบ
+ * @param {string} wardId รหัส ward
+ * @returns {Promise<boolean>} true ถ้ามีข้อมูลกะเช้าที่ถูกอนุมัติแล้ว, false ถ้าไม่มีหรือยังไม่ถูกอนุมัติ
  */
 export const checkMorningShiftDataExists = async (date, wardId) => {
   try {
-    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
-    const morningData = await getWardDataByDate(formattedDate, 'เช้า', wardId);
-    return morningData ? true : false;
+    const formattedDate = date instanceof Date ? format(date, 'yyyy-MM-dd') : date;
+    
+    // ตรวจสอบกะเช้าในรูปแบบต่างๆ
+    const formats = ['เช้า', 'Morning (07:00-19:00)', '07:00-19:00'];
+    
+    // ตรวจสอบทุกรูปแบบ
+    for (const shiftFormat of formats) {
+      console.log(`ตรวจสอบข้อมูลกะเช้ารูปแบบ: ${shiftFormat}`);
+      const data = await getWardDataByDate(formattedDate, shiftFormat, wardId);
+      
+      // ถ้าพบข้อมูลและเป็นข้อมูลฉบับสมบูรณ์ (final) ไม่ใช่ฉบับร่าง
+      if (data && data.status === 'final') {
+        console.log(`พบข้อมูลกะเช้ารูปแบบ: ${shiftFormat} สถานะ: ${data.status}`);
+        
+        // ตรวจสอบว่ามีค่า approvedBy หรือไม่
+        if (data.approvedBy) {
+          console.log(`ข้อมูลกะเช้ารูปแบบ: ${shiftFormat} ได้รับการอนุมัติแล้วโดย: ${data.approvedBy}`);
+          return true;
+        } else {
+          console.log(`ข้อมูลกะเช้ารูปแบบ: ${shiftFormat} ยังไม่ได้รับการอนุมัติ`);
+        }
+      }
+    }
+    
+    console.log('ไม่พบข้อมูลกะเช้าที่สมบูรณ์และได้รับการอนุมัติ');
+    return false;
   } catch (error) {
     console.error('Error checking morning shift data:', error);
     return false;

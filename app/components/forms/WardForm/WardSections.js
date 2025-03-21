@@ -149,9 +149,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
       if (valuesChanged) {
         // อัพเดทค่า total ในฟอร์ม
         if (typeof handleInputChange === 'function') {
-          handleInputChange('patientCensusData', 'total', calculatedCensusStr);
-          
-          // ถ้าเป็นกะดึก ให้อัพเดทค่า overallData ด้วย
+          // ถ้าเป็นกะดึก ให้อัพเดทเฉพาะค่า overallData
           const isNightShift = 
             formData.shift === 'night' || 
             formData.shift === 'Night' || 
@@ -160,7 +158,12 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             /night/i.test(formData.shift);
             
           if (isNightShift) {
-            handleInputChange('patientCensusData', 'overallData', calculatedCensusStr);
+            console.log('กะดึก: อัปเดต overallData เป็น', calculatedCensusStr);
+            // อัปเดตโดยตรงที่ root level ของ formData แทนที่จะเป็น patientCensusData
+            handleInputChange(null, 'overallData', calculatedCensusStr);
+          } else {
+            console.log('กะเช้า: อัปเดต patientCensusData.total เป็น', calculatedCensusStr);
+            handleInputChange('patientCensusData', 'total', calculatedCensusStr);
           }
         }
         
@@ -228,7 +231,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="total"
-              value={patientCensusData.total || ''}
+              value={!isNightShift ? (patientCensusData.total || '') : ''}
               disabled={true}
               className="w-full px-3 py-2 border rounded-md text-center bg-blue-50 border-blue-200 text-2xl font-bold text-center text-blue-800"
             />
@@ -242,7 +245,7 @@ export const PatientCensusSection = ({ formData, handleInputChange, isReadOnly, 
             <input
               type="text"
               name="overallData"
-              value={isNightShift ? (patientCensusData.overallData || patientCensusData.total || '') : ''}
+              value={isNightShift ? (formData.overallData || '') : ''}
               disabled={true}
               className="w-full px-3 py-2 border rounded-md text-center bg-blue-50 border-blue-200 text-2xl font-bold text-center text-blue-800"
             />

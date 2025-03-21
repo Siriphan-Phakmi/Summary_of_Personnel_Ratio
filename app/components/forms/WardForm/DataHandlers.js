@@ -13,7 +13,7 @@ import AlertUtil from '../../../utils/AlertUtil';
 /**
  * loadData - ฟังก์ชันโหลดข้อมูลจาก Firestore
  */
-export const loadData = async (selectedDate, selectedWard, selectedShift, setFormData, setIsLoading, setInitError, resetForm, setIsReadOnly, setApprovalStatus) => {
+export const loadData = async (selectedDate, selectedWard, selectedShift, setFormData, setIsLoading, setInitError, resetForm, setIsReadOnly, setApprovalStatus, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting) => {
     // ฟังก์ชันนี้จะใช้เวลาในการทำงาน จึงต้องมีการตั้งค่า timeout
     let timeoutId = null;
     
@@ -26,7 +26,19 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
         timeoutId = setTimeout(() => {
             setIsLoading(false);
             setInitError('การโหลดข้อมูลใช้เวลานานเกินไป โปรดลองใหม่อีกครั้ง');
-            resetForm();
+            if (typeof resetForm === 'function') {
+                // ใช้ optional chaining (?.) เพื่อป้องกันการเรียกใช้ฟังก์ชันที่อาจเป็น undefined
+                resetForm(
+                    setFormData, 
+                    null, 
+                    setHasUnsavedChanges, 
+                    setIsDraftMode, 
+                    setIsSubmitting, 
+                    selectedShift
+                );
+            }
+            // ใช้ optional chaining (?.) เพื่อให้โค้ดไม่เกิด error หากฟังก์ชันเป็น undefined
+            setHasUnsavedChanges?.(false);
         }, 15000); // 15 seconds timeout
         
         // ตรวจสอบว่าพารามิเตอร์ที่จำเป็นมีอยู่หรือไม่
@@ -34,7 +46,10 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
             console.error('Missing required parameters for loadData:', { selectedDate, selectedWard, selectedShift });
             setIsLoading(false);
             setInitError('ไม่สามารถโหลดข้อมูลได้: ข้อมูลไม่ครบถ้วน');
-            resetForm();
+            if (typeof resetForm === 'function') {
+                resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
+            }
+            setHasUnsavedChanges?.(false);
             clearTimeout(timeoutId);
             return;
         }
@@ -61,11 +76,41 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
             const docId = querySnapshot.docs[0].id;
             console.log("Document found:", { id: docId, ...docData });
             
-            setFormData(prevState => ({
-                ...prevState,
+            // ตรวจสอบว่าเป็นกะอะไรและกำหนดค่าให้ถูกต้อง
+            const isNightShift = 
+                selectedShift === 'night' || 
+                selectedShift === 'Night' || 
+                selectedShift === 'Night (19:00-07:00)' || 
+                selectedShift === '19:00-07:00' ||
+                /night/i.test(selectedShift);
+            
+            // สร้างข้อมูลที่ถูกต้องตามกะที่เลือก
+            const formattedData = {
                 ...docData,
-                id: docId
-            }));
+                id: docId,
+                shift: selectedShift
+            };
+            
+            // กำหนดค่า total และ overallData ตามกะ
+            if (isNightShift) {
+                console.log('กะดึก: กำหนดค่า overallData และเคลียร์ patientCensus.total');
+                if (formattedData.patientCensus) {
+                    // คำนวณค่าโดยใช้ข้อมูลปัจจุบัน
+                    const total = calculatePatientCensusTotal(formattedData);
+                    formattedData.overallData = total ? total.toString() : '';
+                    formattedData.patientCensus.total = ''; // เคลียร์ค่า total เพื่อไม่ให้แสดงซ้ำ
+                }
+            } else {
+                console.log('กะเช้า: เคลียร์ค่า overallData และกำหนด patientCensus.total');
+                if (formattedData.patientCensus) {
+                    // คำนวณค่าโดยใช้ข้อมูลปัจจุบัน
+                    const total = calculatePatientCensusTotal(formattedData);
+                    formattedData.patientCensus.total = total ? total.toString() : '';
+                }
+                formattedData.overallData = ''; // เคลียร์ค่า overallData
+            }
+            
+            setFormData(formattedData);
             
             // ตรวจสอบสถานะการอนุมัติ
             if (docData.approvalStatus) {
@@ -83,8 +128,42 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
             }
         } else {
             // กรณีที่ไม่พบข้อมูล
-            console.log("No documents found, resetting form");
-            resetForm();
+            console.log("No documents found, resetting form with shift:", selectedShift);
+            if (typeof resetForm === 'function') {
+                resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
+            }
+            
+            // กำหนดค่าเริ่มต้นตามกะ
+            const isNightShift = 
+                selectedShift === 'night' || 
+                selectedShift === 'Night' || 
+                selectedShift === 'Night (19:00-07:00)' || 
+                selectedShift === '19:00-07:00' ||
+                /night/i.test(selectedShift);
+                
+            // อัปเดตฟอร์มตามกะที่เลือก
+            setFormData(prevState => {
+                const newState = { ...prevState, shift: selectedShift };
+                
+                // เคลียร์ค่า total และ overallData
+                if (!newState.patientCensus) {
+                    newState.patientCensus = {};
+                }
+                
+                // กำหนดค่าตามกะ
+                if (isNightShift) {
+                    // กะดึก เคลียร์ค่า total และกำหนด overallData เป็นค่าว่าง
+                    newState.patientCensus.total = '';
+                    newState.overallData = '';
+                    console.log('รีเซ็ตค่าสำหรับกะดึก:', newState);
+                } else {
+                    // กะเช้า เคลียร์ค่า overallData
+                    newState.overallData = '';
+                    console.log('รีเซ็ตค่าสำหรับกะเช้า:', newState);
+                }
+                
+                return newState;
+            });
         }
         
         // เสร็จสิ้นการโหลดข้อมูล
@@ -93,7 +172,10 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
         console.error('Error loading data:', error);
         setIsLoading(false);
         setInitError(`เกิดข้อผิดพลาด: ${error.message}`);
-        resetForm();
+        if (typeof resetForm === 'function') {
+            resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
+        }
+        setHasUnsavedChanges?.(false);
     } finally {
         clearTimeout(timeoutId);
     }
@@ -102,14 +184,51 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
 /**
  * resetForm - ฟังก์ชันรีเซ็ตฟอร์ม
  */
-export const resetForm = (setFormData, initialFormData, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting) => {
-    // รีเซ็ตข้อมูลฟอร์มกลับไปเป็นค่าเริ่มต้น
-    setFormData(initialFormData);
+export const resetForm = (setFormData, initialFormData, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift) => {
+    console.log('resetForm called with shift:', selectedShift);
+    // ตั้งค่าข้อมูลฟอร์มเป็นค่าเริ่มต้น
+    setFormData(prevData => {
+        // สร้างสำเนาของข้อมูลเริ่มต้น
+        const resetData = { ...initialFormData || prevData };
+        
+        // เช็คว่าเป็นกะดึกหรือไม่
+        const isNightShift = 
+            selectedShift === 'night' || 
+            selectedShift === 'Night' || 
+            selectedShift === 'Night (19:00-07:00)' || 
+            selectedShift === '19:00-07:00' ||
+            /night/i.test(selectedShift);
+        
+        // ตรวจสอบว่ามีการตั้งค่า patientCensus หรือไม่
+        if (!resetData.patientCensus) {
+            resetData.patientCensus = {};
+        }
+        
+        // รีเซ็ตค่าตามกะที่เลือก
+        if (isNightShift) {
+            // สำหรับกะดึก ให้เคลียร์ค่า total และรีเซ็ต overallData เป็นค่าว่าง
+            resetData.patientCensus.total = '';
+            resetData.overallData = '';
+            console.log('รีเซ็ตค่า patientCensus.total และ overallData สำหรับกะดึก');
+        } else {
+            // สำหรับกะเช้า เคลียร์เฉพาะ overallData
+            resetData.overallData = '';
+            console.log('รีเซ็ตค่า overallData สำหรับกะเช้า');
+        }
+        
+        return resetData;
+    });
     
     // รีเซ็ตสถานะอื่นๆ
-    if (setHasUnsavedChanges) setHasUnsavedChanges(false);
-    if (setIsDraftMode) setIsDraftMode(false);
-    if (setIsSubmitting) setIsSubmitting(false);
+    if (setHasUnsavedChanges) {
+        setHasUnsavedChanges(false);
+    }
+    if (setIsDraftMode) {
+        setIsDraftMode(false);
+    }
+    if (setIsSubmitting) {
+        setIsSubmitting(false);
+    }
 };
 
 /**
@@ -220,9 +339,9 @@ export const focusOnField = (fieldId) => {
     // ตรวจสอบว่าอยู่ในสภาพแวดล้อม browser หรือไม่
     if (typeof window === 'undefined' || !document) {
       console.log('Not in browser environment, cannot focus');
-      return;
-    }
-    
+    return;
+  }
+  
     // หาอิลิเมนต์ด้วย ID
     const element = document.getElementById(fieldId);
     if (element) {
@@ -237,12 +356,12 @@ export const focusOnField = (fieldId) => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(element.tagName)) {
         element.select();
       }
-    } else {
+      } else {
       console.log(`Element with ID ${fieldId} not found`);
-    }
-  } catch (error) {
+      }
+    } catch (error) {
     console.error('Error focusing on field:', error);
-  }
+    }
 };
 
 /**
@@ -272,22 +391,99 @@ export function showAlert(title, text, icon = 'info', confirmButtonText = 'ต�
 
 /**
  * showConfirm - แสดงกล่องข้อความยืนยัน
+ * @param {string} title หัวข้อ
+ * @param {string} message ข้อความ
+ * @param {object} options ตัวเลือกเพิ่มเติม
+ * @returns {Promise} ผลลัพธ์การยืนยัน
  */
-export function showConfirm(title, text, confirmText = 'ตกลง', cancelText = 'ยกเลิก') {
-    if (typeof document === 'undefined') {
-        return Promise.resolve(false); // server-side
-    }
+export const showConfirm = async (title, message, options = {}) => {
     try {
-        return AlertUtil.confirm(title, text, {
-            confirmText,
-            cancelText
+        const {
+            confirmText = 'ตกลง',
+            cancelText = 'ยกเลิก',
+            showDenyButton = false,
+            denyText = 'บันทึกแบบร่างก่อน'
+        } = options;
+
+        return new Promise((resolve) => {
+            // ฟังก์ชันสำหรับปิด modal และส่งผลลัพธ์
+            const handleCancel = (e) => {
+                if (e) e.stopPropagation();
+                console.log("Cancel button clicked");
+                resolve({ isConfirmed: false, isDismissed: true });
+            };
+
+            const handleDeny = (e) => {
+                if (e) e.stopPropagation();
+                console.log("Deny button clicked");
+                resolve({ isDenied: true });
+            };
+
+            const handleConfirm = (e) => {
+                if (e) e.stopPropagation();
+                console.log("Confirm button clicked");
+                resolve({ isConfirmed: true });
+            };
+
+            AlertUtil.custom({
+                component: ({ onClose }) => {
+                    // เมื่อปุ่มถูกคลิก จะต้องเรียก onClose และ resolve promise
+                    const onCancelClick = (e) => {
+                        handleCancel(e);
+                        onClose();
+                    };
+
+                    const onDenyClick = (e) => {
+                        handleDeny(e);
+                        onClose();
+                    };
+
+                    const onConfirmClick = (e) => {
+                        handleConfirm(e);
+                        onClose();
+                    };
+
+                    return (
+                        <div className="dialog-content">
+                            <h2 className="text-xl font-medium mb-4">{title}</h2>
+                            <p className="mb-6 text-gray-600">{message}</p>
+                            <div className="flex justify-end gap-4">
+                                <button
+                                    onClick={onCancelClick}
+                                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 cursor-pointer"
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    {cancelText}
+                                </button>
+                                {showDenyButton && (
+                                    <button
+                                        onClick={onDenyClick}
+                                        className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 cursor-pointer"
+                                        style={{ cursor: 'pointer' }}
+                                    >
+                                        {denyText}
+                                    </button>
+                                )}
+                                <button
+                                    onClick={onConfirmClick}
+                                    className="px-4 py-2 text-white bg-[#0ab4ab] rounded-lg hover:bg-[#099b93] cursor-pointer"
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    {confirmText}
+                                </button>
+                            </div>
+                        </div>
+                    );
+                },
+                closeOnOutsideClick: true,
+                containerClassName: "pointer-events-auto"
+            });
         });
     } catch (error) {
-        console.error('Error showing confirm dialog:', error);
-        const result = window.confirm(`${title}: ${text}`);
-        return Promise.resolve(result);
+        console.error('Error in showConfirm:', error);
+        return { isConfirmed: false, error };
     }
-}
+};
 
 export default {
     loadData,

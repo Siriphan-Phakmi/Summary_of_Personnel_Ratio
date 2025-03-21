@@ -6,6 +6,7 @@ import { Swal } from '../../utils/alertService';
 import { PAGES, PAGE_LABELS } from '../../config/constants';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '../ui/ThemeToggle';
+import AlertUtil from '../../utils/AlertUtil';
 
 const Navbar = () => {
   const router = useRouter();
@@ -231,4 +232,4 @@ const Navbar = () => {
   );
 };
 
-export default Navbar; 
+export default Navbar;

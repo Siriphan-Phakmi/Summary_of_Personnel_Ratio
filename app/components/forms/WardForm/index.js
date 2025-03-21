@@ -54,10 +54,15 @@ import {
 } from './DataHandlers';
 
 import {
+  saveFormData,
+  showAlert as formActionsShowAlert,
+  showConfirm as formActionsShowConfirm,
   createOnSaveDraft as formActionsCreateOnSaveDraft,
   createOnSubmit as formActionsCreateOnSubmit,
   handleWardFormSubmit,
-  createHandleCancel as formActionsCreateHandleCancel
+  createHandleCancel as formActionsCreateHandleCancel,
+  preserveExistingData,
+  showDataComparisonModal
 } from './FormActions';
 
 // Export ทุกอย่างที่จำเป็นต้องใช้
@@ -84,7 +89,9 @@ export {
   // New Modules Exports
   loadData, resetForm, calculatePatientCensusTotal, validateFormBeforeSave, showAlert, showConfirm,
   formActionsCreateOnSaveDraft, formActionsCreateOnSubmit, 
-  handleWardFormSubmit, formActionsCreateHandleCancel
+  handleWardFormSubmit, formActionsCreateHandleCancel,
+  preserveExistingData, formActionsShowAlert, formActionsShowConfirm,
+  showDataComparisonModal
 };
 
 // Utility functions

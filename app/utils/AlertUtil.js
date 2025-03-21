@@ -4,143 +4,158 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import Popup from '../components/Popup';
 
-// Helper ที่จะให้สามารถเรียกใช้ Popup แบบ imperative (ไม่ต้องสร้าง state)
-const createPopup = () => {
-  // สร้าง div element สำหรับ render popup
-  const popupContainer = document.createElement('div');
-  document.body.appendChild(popupContainer);
-
-  // สร้าง root
-  const root = createRoot(popupContainer);
-
-  // ฟังก์ชันสำหรับลบ popup ออกจาก DOM
-  const removePopup = () => {
-    root.unmount();
-    if (popupContainer.parentNode) {
-      document.body.removeChild(popupContainer);
-    }
-  };
-
-  // คืนค่าฟังก์ชันที่ใช้แสดง popup
-  return {
-    show: (props) => {
-      const handleClose = () => {
-        // เรียก onClose callback ถ้ามี
-        if (props.onClose) {
-          props.onClose();
+// Show confirmation dialog
+export const confirm = (title, text, options = {}) => {
+  return new Promise((resolve) => {
+    const popupContainer = document.createElement('div');
+    popupContainer.id = 'alert-popup-container-' + Date.now();
+    document.body.appendChild(popupContainer);
+    
+    const cleanup = () => {
+      if (popupContainer && popupContainer.parentNode) {
+        popupContainer.parentNode.removeChild(popupContainer);
+      }
+    };
+    
+    const buttons = [
+      {
+        text: options.cancelText || 'ยกเลิก',
+        color: 'bg-gray-200 hover:bg-gray-300 text-gray-800',
+        onClick: () => {
+          cleanup();
+          resolve({ isConfirmed: false, isDenied: false });
         }
-        // ลบ popup ออกจาก DOM
-        removePopup();
-      };
-
-      // Render popup component
-      root.render(
-        <Popup
-          {...props}
-          isOpen={true}
-          onClose={handleClose}
-        />
-      );
-
-      // คืนค่าฟังก์ชันสำหรับปิด popup
-      return {
-        close: handleClose
-      };
-    }
-  };
-};
-
-// สร้างฟังก์ชันสำหรับแสดง Alert ประเภทต่างๆ
-export const AlertUtil = {
-  // แสดง alert ทั่วไป
-  alert: (title, message, options = {}) => {
-    const popup = createPopup();
-    return popup.show({
-      type: 'info',
-      title,
-      message,
-      ...options,
-    });
-  },
-
-  // แสดง alert สำเร็จ
-  success: (title, message, options = {}) => {
-    const popup = createPopup();
-    return popup.show({
-      type: 'success',
-      title,
-      message,
-      ...options,
-    });
-  },
-
-  // แสดง alert ข้อผิดพลาด
-  error: (title, message, options = {}) => {
-    const popup = createPopup();
-    return popup.show({
-      type: 'error',
-      title,
-      message,
-      ...options,
-    });
-  },
-
-  // แสดง alert เตือน
-  warning: (title, message, options = {}) => {
-    const popup = createPopup();
-    return popup.show({
-      type: 'warning',
-      title,
-      message,
-      ...options,
-    });
-  },
-
-  // แสดง confirm dialog
-  confirm: (title, message, options = {}) => {
-    return new Promise((resolve) => {
-      const popup = createPopup();
-      
-      const handleConfirm = () => {
-        resolve(true);
-      };
-      
-      const handleCancel = () => {
-        resolve(false);
-      };
-      
-      popup.show({
-        type: 'warning',
-        title,
-        message,
-        autoClose: 0, // ไม่ปิดอัตโนมัติ
-        buttons: [
-          {
-            text: options.cancelText || 'ยกเลิก',
-            onClick: handleCancel,
-            variant: 'secondary'
-          },
-          {
-            text: options.confirmText || 'ตกลง',
-            onClick: handleConfirm,
-            variant: 'primary'
-          }
-        ],
-        ...options,
+      }
+    ];
+    
+    // Add deny button if needed
+    if (options.showDenyButton) {
+      buttons.push({
+        text: options.denyText || 'ไม่',
+        color: 'bg-yellow-500 hover:bg-yellow-600 text-white',
+        onClick: () => {
+          cleanup();
+          resolve({ isConfirmed: false, isDenied: true });
+        }
       });
+    }
+    
+    // Add confirm button
+    buttons.push({
+      text: options.confirmText || 'ยืนยัน',
+      color: 'bg-blue-500 hover:bg-blue-600 text-white',
+      onClick: () => {
+        cleanup();
+        resolve({ isConfirmed: true, isDenied: false });
+      }
     });
-  },
 
-  // แสดง toast notification
-  toast: (message, options = {}) => {
-    const popup = createPopup();
-    return popup.show({
-      type: options.type || 'info',
-      message,
-      autoClose: options.autoClose || 3000,
-      ...options,
-    });
-  }
+    const root = createRoot(popupContainer);
+    root.render(
+      <Popup
+        type="confirm"
+        title={title}
+        message={text}
+        isOpen={true}
+        onClose={() => {
+          cleanup();
+          resolve({ isConfirmed: false, isDenied: false });
+        }}
+        buttons={buttons}
+        autoClose={0} // Don't auto close confirmation dialogs
+      />
+    );
+    
+    // Add emergency close function to window for debugging
+    window.__closeCurrentPopup = () => {
+      cleanup();
+      resolve({ isConfirmed: false, isDenied: false, isClosed: true });
+    };
+  });
 };
 
-export default AlertUtil; 
+// Show alert
+export const showAlert = (title, text, type = 'info') => {
+  const popupContainer = document.createElement('div');
+  popupContainer.id = 'alert-popup-container-' + Date.now();
+  document.body.appendChild(popupContainer);
+  
+  const cleanup = () => {
+    setTimeout(() => {
+      if (popupContainer && popupContainer.parentNode) {
+        popupContainer.parentNode.removeChild(popupContainer);
+      }
+    }, 500); // Delay to allow animation
+  };
+  
+  const root = createRoot(popupContainer);
+  root.render(
+    <Popup
+      type={type}
+      title={title}
+      message={text}
+      isOpen={true}
+      onClose={cleanup}
+      autoClose={3000} // Auto close alerts after 3 seconds
+    />
+  );
+};
+
+// Show success message
+export const success = (title, message) => showAlert(title, message, 'success');
+
+// Show error message
+export const error = (title, message) => showAlert(title, message, 'error');
+
+// Show warning message
+export const warning = (title, message) => showAlert(title, message, 'warning');
+
+// Show info message
+export const info = (title, message) => showAlert(title, message, 'info');
+
+// Add custom method to show custom popup
+export const custom = (options) => {
+  return new Promise((resolve) => {
+    const popupContainer = document.createElement('div');
+    popupContainer.id = 'alert-popup-container-' + Date.now();
+    document.body.appendChild(popupContainer);
+    
+    const cleanup = () => {
+      if (popupContainer && popupContainer.parentNode) {
+        popupContainer.parentNode.removeChild(popupContainer);
+      }
+    };
+
+    const root = createRoot(popupContainer);
+    root.render(
+      <Popup
+        type="custom"
+        isOpen={true}
+        onClose={() => {
+          cleanup();
+          resolve({ isConfirmed: false, isDenied: false });
+        }}
+        {...options}
+      />
+    );
+    
+    // Add emergency close function to window for debugging
+    window.__closeCurrentPopup = () => {
+      cleanup();
+      resolve({ isConfirmed: false, isDenied: false, isClosed: true });
+    };
+  });
+};
+
+// Default export
+const AlertUtil = {
+  showAlert,
+  confirm,
+  success,
+  error,
+  warning,
+  info,
+  custom, // Add custom to AlertUtil
+};
+
+export default AlertUtil;
