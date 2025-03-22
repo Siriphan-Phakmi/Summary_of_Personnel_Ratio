@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { useRouter } from 'next/navigation';
 import { PAGES, PAGE_LABELS, THEME_COLORS } from '../../config/constants';
 import { useAuth } from '../../context/AuthContext';
-import { Swal } from '../../utils/alertService';
+import { SwalAlert } from '../../utils/alertService';
 
 const Navigation = ({ currentPage, setCurrentPage }) => {
   const router = useRouter();
@@ -19,7 +19,7 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
     switch (page) {
       case PAGES.USER_MANAGEMENT:
         if (!isAdmin) {
-          Swal.fire({
+          SwalAlert.fire({
             title: 'ไม่ได้เข้า',
             text: 'ไม่ได้เข้าหน้าที่ใช้งาน',
             icon: 'warning',
@@ -43,7 +43,7 @@ const Navigation = ({ currentPage, setCurrentPage }) => {
         if (isUser) {
           // ถ้าเป็น user ให้เปลี่ยนหน้าแต่แสดงข้อความแจ้ง
           setCurrentPage(page);
-          Swal.fire({
+          SwalAlert.fire({
             title: 'โหมดดูข้อมูลเท่านั้น',
             text: 'ข้อมูลได้แต่ไม่สามารถแก้ไขได้',
             icon: 'info',

@@ -20,7 +20,9 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { format, subDays, parseISO } from 'date-fns';
+import format from 'date-fns/format';
+import subDays from 'date-fns/subDays';
+import parseISO from 'date-fns/parseISO';
 
 // ฟังก์ชันบันทึกข้อมูลเวร (ฉบับร่าง)
 export const saveWardDataDraft = async (data) => {

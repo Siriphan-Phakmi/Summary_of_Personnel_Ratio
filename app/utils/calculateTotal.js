@@ -27,7 +27,14 @@ export const parseInputValue = (value) => {
  * @param {object} formData - The form data object
  */
 export const calculateTotal = (category, formData) => {
-    if (!formData || !formData[category]) return;
+
+    // Helper function to parse input values safely
+    const parseInputValue = (value) => {
+        if (value === '' || value === null || value === undefined) return 0;
+        
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? 0 : parsed;
+    };
 
     switch (category) {
         case 'staffing':
@@ -41,9 +48,7 @@ export const calculateTotal = (category, formData) => {
             break;
             
         case 'patientCensus':
-            // Calculate current patients
-            // ยอดปัจจุบัน = ยอดยกมา + Admit + Refer IN - D/C - Transfer - Refer OUT - Dead
-            const previous = parseInputValue(formData.patientCensus.previous);
+            const previous = parseInputValue(formData.patientCensus.previous || 0);
             const admit = parseInputValue(formData.patientCensus.admit);
             const discharge = parseInputValue(formData.patientCensus.discharge);
             const transfer = parseInputValue(formData.patientCensus.transfer);
@@ -61,4 +66,4 @@ export const calculateTotal = (category, formData) => {
     }
     
     return formData;
-}; 
+};

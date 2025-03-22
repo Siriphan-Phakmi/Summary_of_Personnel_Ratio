@@ -40,7 +40,6 @@ import {
 // Import UI components - Import each component separately to avoid circular dependencies
 import WardForm from './WardForm';
 import MainFormContent from './MainFormContent';
-import { PatientCensusSection, StaffingSection, NotesSection } from './WardSections';
 import WardFormSections from './WardSections';
 
 // Import handlers ที่แยกใหม่
@@ -84,7 +83,7 @@ export {
   createHandleSaveDraft, createHandleSubmit,
   
   // UI Components
-  PatientCensusSection, StaffingSection, NotesSection, MainFormContent,
+  MainFormContent,
   
   // New Modules Exports
   loadData, resetForm, calculatePatientCensusTotal, validateFormBeforeSave, showAlert, showConfirm,

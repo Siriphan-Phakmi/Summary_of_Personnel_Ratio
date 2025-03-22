@@ -7,7 +7,7 @@ import { logEvent } from '../../utils/clientLogging';
 import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit, getDoc } from 'firebase/firestore';
 import { formatThaiDate, getUTCDateString } from '../../utils/dateUtils';
-import { Swal } from '../../utils/alertService';
+import { SwalAlert } from '../../utils/alertService';
 
 /**
  * Component สำหรับหน้าอนุมัติข้อมูล
@@ -86,7 +86,7 @@ export default function Approval() {
     } catch (error) {
       console.error('Error fetching approval data:', error);
     setLoading(false);
-      Swal.fire({
+      SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
         icon: 'error',
@@ -111,7 +111,7 @@ export default function Approval() {
       });
       
       // แสดงการแจ้งเตือนสำเร็จ
-      Swal.fire({
+      SwalAlert.fire({
         title: 'อนุมัติสำเร็จ',
         text: `อนุมัติข้อมูลวันที่ ${formatThaiDate(selectedDate)} แผนก ${wardId} กะ ${shift === 'morning' ? 'เช้า' : 'ดึก'} เรียบร้อยแล้ว`,
         icon: 'success',
@@ -122,7 +122,7 @@ export default function Approval() {
       fetchApprovalData();
     } catch (error) {
       console.error('Error approving data:', error);
-      Swal.fire({
+      SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถอนุมัติข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
         icon: 'error',

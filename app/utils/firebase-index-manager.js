@@ -2,7 +2,7 @@
 
 import { db } from '../lib/firebase';
 import { query, collection, getDocs, where, limit } from 'firebase/firestore';
-import { Swal } from './alertService';
+import { SwalAlert } from './alertService';
 
 /**
  * ฟังก์ชันสำหรับตรวจสอบและจัดการ Firebase Index Error
@@ -102,34 +102,38 @@ const extractIndexUrl = (errorMessage) => {
 
 // ฟังก์ชันช่วยแสดง dialog เมื่อพบ index error
 export const handleIndexError = async (error, autoOpen = false) => {
-  // ตรวจสอบว่าเป็น index error หรือไม่
   if (error.message && error.message.includes('requires an index')) {
-    const indexUrl = extractIndexUrl(error.message);
+    
+    // Extract the index URL from the error message
+    const urlMatch = error.message.match(/(https:\/\/console\.firebase\.google\.com\S+)/);
+    const indexUrl = urlMatch && urlMatch[1] ? urlMatch[1] : null;
     
     if (indexUrl) {
-      // แสดง dialog พร้อมลิงก์ไปยังหน้าสร้าง index
-      const result = await Swal.fire({
-        title: 'ต้องสร้าง Index ใน Firebase',
+      
+      // เปิด URL ในแท็บใหม่โดยอัตโนมัติถ้าต้องการ
+      if (autoOpen) {
+        window.open(indexUrl, '_blank');
+      }
+      
+      // สร้าง alert ให้ผู้ใช้เลือกดำเนินการ
+      const result = await SwalAlert.fire({
+        title: 'ต้องสร้าง Index ก่อน',
         html: `
-          <p>การค้นหาข้อมูลนี้ต้องการ index เพิ่มเติม</p>
-          <p>คลิกปุ่ม "สร้าง Index" เพื่อสร้าง index ใน Firebase Console</p>
-          <p>หลังจากสร้างแล้ว ให้กลับมารีเฟรชหน้านี้</p>
-          <div class="mt-4">
-            <a href="${indexUrl}" target="_blank" rel="noopener noreferrer" 
-               class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-              สร้าง Index
-            </a>
+          <div class="text-left">
+            <p class="mb-3">การค้นหานี้ต้องการให้สร้าง index ก่อนจึงจะใช้งานได้</p>
+            <p class="text-sm text-gray-600 mb-2">คุณต้องการดำเนินการอย่างไร?</p>
           </div>
         `,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'รีเฟรชหน้านี้',
-        cancelButtonText: 'ยกเลิก',
-        confirmButtonColor: '#0ab4ab'
+        cancelButtonText: 'สร้าง Index ใน Firebase',
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#2563eb'
       });
       
-      // เปิด URL ในแท็บใหม่โดยอัตโนมัติถ้าต้องการ
-      if (autoOpen) {
+      // ถ้าผู้ใช้คลิก "สร้าง Index ใน Firebase"
+      if (result.isDismissed) {
         window.open(indexUrl, '_blank');
       }
       
@@ -221,7 +225,6 @@ export const validateRequiredIndexes = async () => {
         { field: 'date', operator: '<=', value: '2023-02-01' }
       ]
     }
-    // เพิ่ม query ที่ต้องการ index อื่นๆ ตามต้องการ
   ];
   
   const results = [];
@@ -229,20 +232,32 @@ export const validateRequiredIndexes = async () => {
   // ทดสอบแต่ละ query
   for (const test of indexTests) {
     try {
-      const result = await validateFirestoreIndex(
-        test.collection, 
-        test.conditions, 
+      // ตรวจสอบว่า index มีอยู่แล้วหรือไม่
+      const validationResult = await validateFirestoreIndex(
+        test.collection,
+        test.conditions,
         test.orderBy || []
       );
       
       results.push({
         collection: test.collection,
-        success: result.success,
-        ...result
+        conditions: test.conditions,
+        orderBy: test.orderBy || [],
+        success: validationResult.success,
+        indexUrl: validationResult.indexUrl || null,
+        message: validationResult.message || 'Index validated successfully'
       });
+      
+      // ถ้าต้องสร้าง index แสดง dialog
+      if (!validationResult.success && validationResult.isIndexError) {
+        await handleIndexError({ message: validationResult.message }, false);
+      }
     } catch (error) {
+      console.error('Error validating index:', error);
       results.push({
         collection: test.collection,
+        conditions: test.conditions,
+        orderBy: test.orderBy || [],
         success: false,
         error: error.message
       });
@@ -250,4 +265,4 @@ export const validateRequiredIndexes = async () => {
   }
   
   return results;
-}; 
+};

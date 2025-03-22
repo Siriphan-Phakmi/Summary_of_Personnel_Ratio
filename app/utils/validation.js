@@ -13,7 +13,7 @@ export const validateWardData = (wardData) => {
     throw new Error('Invalid ward data structure');
   }
 
-  return {
+  const validated = {
     numberOfPatients: validateNumber(wardData.numberOfPatients || 0, 'numberOfPatients'),
     RN: validateNumber(wardData.RN || 0, 'RN'),
     PN: validateNumber(wardData.PN || 0, 'PN'),
@@ -21,6 +21,18 @@ export const validateWardData = (wardData) => {
     newAdmissions: validateNumber(wardData.newAdmissions || 0, 'newAdmissions'),
     discharge: validateNumber(wardData.discharge || 0, 'discharge')
   };
+  
+  // Validate staff ratio - RN:Patient should be at least 1:8 for general wards
+  const patientCount = validated.numberOfPatients;
+  const rnCount = validated.RN;
+  
+  if (patientCount > 0 && rnCount > 0) {
+    const ratio = patientCount / rnCount;
+    validated.staffRatioValid = ratio <= 8; // Standard ratio is 1:8
+    validated.staffRatio = ratio.toFixed(2);
+  }
+  
+  return validated;
 };
 
 export const validateSummaryData = (summaryData) => {
@@ -64,6 +76,33 @@ export const validateRecord = (record) => {
     wards: validatedWards,
     summaryData: validateSummaryData(record.summaryData || {}),
     timestamp: validateDate(record.timestamp) || new Date(),
-    recorder: record.recorder || ''
+    recorder: record.recorder || '',
+    recorderFirstName: record.recorderFirstName || '',
+    recorderLastName: record.recorderLastName || ''
+  };
+};
+
+// Calculate expected staff based on patient count
+export const calculateExpectedStaff = (patientCount, careLevel = 'standard') => {
+  // Standard care level ratios
+  const ratios = {
+    'intensive': 1/2,  // 1 RN per 2 patients
+    'intermediate': 1/4, // 1 RN per 4 patients
+    'standard': 1/8,   // 1 RN per 8 patients
+    'minimal': 1/12    // 1 RN per 12 patients
+  };
+  
+  const ratio = ratios[careLevel] || ratios.standard;
+  const expectedRN = Math.ceil(patientCount * ratio);
+  const expectedPN = Math.ceil(patientCount * ratio * 0.5); // Half the number of RNs
+  
+  return { 
+    expectedRN, 
+    expectedPN,
+    total: expectedRN + expectedPN,
+    isAdequate: (record) => {
+      if (!record) return false;
+      return (record.RN >= expectedRN && record.PN >= expectedPN);
+    }
   };
 };

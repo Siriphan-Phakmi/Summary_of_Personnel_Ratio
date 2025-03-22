@@ -5,27 +5,32 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { APP_VERSION } from '../../config/version';
+import { loginUser } from '../../services/authService';
+import { useForm } from 'react-hook-form';
+import { logEvent } from '../../utils/sessionRecording';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { user, loading: authLoading, isAuthenticated, login } = useAuth();
   
-  // Debug the auth context to see what's available
-  const auth = useAuth();
-  console.log('Auth context:', auth);
-  
-  const { user, loading: authLoading, isAuthenticated, login } = auth;
-  
-  // Debug login function specifically
-  console.log('Login function type:', typeof login);
+  // Using React Hook Form for better form management
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: {
+      username: localStorage.getItem('rememberedUsername') || '',
+      password: ''
+    }
+  });
 
   useEffect(() => {
-    console.log('Login page - Auth state:', { authLoading, isAuthenticated, user });
+    // Check for remembered username and set rememberMe if exists
+    if (localStorage.getItem('rememberedUsername')) {
+      setRememberMe(true);
+    }
     
     // Check if user is already logged in
     if (!authLoading && isAuthenticated) {
@@ -37,106 +42,60 @@ export default function Login() {
     }
   }, [authLoading, isAuthenticated, router, user]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (data) => {
     setLoading(true);
     setError('');
 
-    console.log(`[DEBUG-LOGIN-PAGE] ==========`);
-    console.log(`[DEBUG-LOGIN-PAGE] Login attempt started for username: ${username}`);
-    console.log(`[DEBUG-LOGIN-PAGE] Password length: ${password?.length || 0}`);
-
     try {
-      // ตรวจสอบว่ามีการกรอกข้อมูลครบถ้วนหรือไม่
-      if (!username.trim() || !password.trim()) {
-        console.error('[DEBUG-LOGIN-PAGE] Username or password is empty');
-        setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
-        setLoading(false);
-        return;
+      // Save or remove remembered username based on checkbox
+      if (rememberMe) {
+        localStorage.setItem('rememberedUsername', data.username);
+      } else {
+        localStorage.removeItem('rememberedUsername');
       }
 
-      // ตรวจสอบ login function
-      if (typeof login !== 'function') {
-        console.error('[DEBUG-LOGIN-PAGE] Login function is not available!', login);
-        setError('ขออภัย เกิดข้อผิดพลาดในระบบ โปรดลองใหม่หรือติดต่อผู้ดูแลระบบ');
-        setLoading(false);
-        return;
-      }
-
-      // เรียกใช้งานฟังก์ชันเข้าสู่ระบบจาก context
-      console.log('[DEBUG-LOGIN-PAGE] Calling login function...');
-      const result = await login(username, password);
-      console.log('[DEBUG-LOGIN-PAGE] Login result:', result);
+      // Call loginUser from authService instead of direct Firebase calls
+      const result = await login(data.username, data.password);
       
-      // แสดงข้อความ error ถ้ามี
       if (!result || !result.success) {
         const errorMsg = result?.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
-        console.debug('[DEBUG-LOGIN-PAGE] Login failed:', errorMsg);
         setError(errorMsg);
         setLoading(false);
+        
+        // Log failed login attempt
+        logEvent('login_failed', {
+          username: data.username,
+          error: errorMsg,
+          timestamp: new Date().toISOString()
+        });
+        
         return;
       }
 
-      // ตรวจสอบว่าได้รับข้อมูลผู้ใช้หรือไม่
-      if (!result.user) {
-        console.debug('[DEBUG-LOGIN-PAGE] Login successful but user data is missing');
-        setError('ไม่พบข้อมูลผู้ใช้ โปรดติดต่อผู้ดูแลระบบ');
-        setLoading(false);
-        return;
-      }
-      
-      console.log('[DEBUG-LOGIN-PAGE] Login successful with user data:', {
-        uid: result.user.uid,
+      // Log successful login
+      logEvent('login_success', {
+        userId: result.user.uid,
         username: result.user.username,
-        role: result.user.role
+        role: result.user.role,
+        timestamp: new Date().toISOString()
       });
-      
-      // บันทึกข้อมูลผู้ใช้ลงใน sessionStorage ด้วยตัวเอง
-      try {
-        const userData = JSON.stringify(result.user);
-        sessionStorage.setItem('user', userData);
-        console.log('[DEBUG-LOGIN-PAGE] User data saved to sessionStorage, length:', userData.length);
-      } catch (storageError) {
-        console.debug('[DEBUG-LOGIN-PAGE] Error saving to sessionStorage:', storageError);
-      }
 
-      // ตรวจสอบว่าข้อมูลถูกบันทึกจริงๆ
-      const savedUser = sessionStorage.getItem('user');
-      if (!savedUser) {
-        console.error('[DEBUG-LOGIN-PAGE] Failed to save user data to sessionStorage');
-      } else {
-        console.log('[DEBUG-LOGIN-PAGE] Verified: user data is in sessionStorage');
-      }
-
-      console.log('[DEBUG-LOGIN-PAGE] Preparing navigation based on role');
-      
       // นำทางตาม role ของผู้ใช้
       if (result.user && result.user.role) {
         const userRole = result.user.role.toLowerCase();
-        console.log('[DEBUG-LOGIN-PAGE] User role:', userRole);
         
-        try {
-          setTimeout(() => {
-            console.log('[DEBUG-LOGIN-PAGE] Executing navigation...');
-            if (userRole === 'admin' || userRole === 'approver') {
-              console.log('[DEBUG-LOGIN-PAGE] Redirecting to approval page');
-              window.location.href = '/page/approval/';
-            } else {
-              console.log('[DEBUG-LOGIN-PAGE] Redirecting to ward-form');
-              window.location.href = '/page/ward-form/';
-            }
-          }, 300);
-        } catch (navError) {
-          console.error('[DEBUG-LOGIN-PAGE] Navigation error:', navError);
-          // ใช้วิธีสุดท้ายในการนำทาง
-          setTimeout(() => window.location.href = '/', 300);
-        }
+        setTimeout(() => {
+          if (userRole === 'admin' || userRole === 'approver') {
+            window.location.href = '/page/approval/';
+          } else {
+            window.location.href = '/page/ward-form/';
+          }
+        }, 300);
       } else {
-        console.log('[DEBUG-LOGIN-PAGE] No role found, redirecting to ward-form as default');
         setTimeout(() => window.location.href = '/page/ward-form/', 300);
       }
     } catch (error) {
-      console.error('[DEBUG-LOGIN-PAGE] Login process error:', error);
+      console.error('Login error:', error);
       setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ: ' + (error.message || 'กรุณาลองใหม่อีกครั้ง'));
       setLoading(false);
     }
@@ -191,7 +150,7 @@ export default function Login() {
         </div>
         
         <div className={`mt-6 ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-[#f8f9ff] border-[#e6eaff]'} p-8 rounded-xl shadow-xl border transition-colors duration-300`}>
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-4">
               <div>
                 <label htmlFor="username" className={`block text-sm font-medium ${theme === 'dark' ? 'text-gray-300' : 'text-[#5b6987]'} mb-1`}>
@@ -205,20 +164,25 @@ export default function Login() {
                   </div>
                   <input
                     id="username"
-                    name="username"
+                    {...register("username", { 
+                      required: "กรุณากรอกชื่อผู้ใช้", 
+                      minLength: { value: 3, message: "ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร" } 
+                    })}
                     type="text"
                     autoComplete="username"
-                    required
                     className={`appearance-none block w-full pl-10 px-3 py-3 border ${
                       theme === 'dark' 
                         ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500' 
                         : 'border-[#c9d4f6] bg-[#f0f4ff] text-[#3a4f7a] placeholder-[#859bd0] focus:ring-[#99b6ff] focus:border-[#99b6ff]'
-                    } rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 sm:text-sm`}
+                    } ${errors.username ? 'border-red-500' : ''} rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 sm:text-sm`}
                     placeholder="หอผู้ป่วย (เช่น Ward6, ICU, CCU)"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
                   />
                 </div>
+                {errors.username && (
+                  <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
+                    {errors.username.message}
+                  </p>
+                )}
               </div>
               
               <div>
@@ -233,18 +197,18 @@ export default function Login() {
                   </div>
                   <input
                     id="password"
-                    name="password"
+                    {...register("password", { 
+                      required: "กรุณากรอกรหัสผ่าน", 
+                      minLength: { value: 6, message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" } 
+                    })}
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    required
                     className={`appearance-none block w-full pl-10 pr-10 px-3 py-3 border ${
                       theme === 'dark' 
                         ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500' 
                         : 'border-[#c9d4f6] bg-[#f0f4ff] text-[#3a4f7a] placeholder-[#859bd0] focus:ring-[#99b6ff] focus:border-[#99b6ff]'
-                    } rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 sm:text-sm`}
+                    } ${errors.password ? 'border-red-500' : ''} rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 sm:text-sm`}
                     placeholder="รหัสผ่าน"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                     <button
@@ -266,6 +230,30 @@ export default function Login() {
                     </button>
                   </div>
                 </div>
+                {errors.password && (
+                  <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`}>
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+              
+              {/* Remember me checkbox */}
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={() => setRememberMe(!rememberMe)}
+                  className={`h-4 w-4 rounded ${
+                    theme === 'dark'
+                      ? 'text-blue-500 bg-gray-700 border-gray-600 focus:ring-blue-600 focus:ring-offset-gray-800'
+                      : 'text-[#99b6ff] focus:ring-[#99b6ff] border-[#c9d4f6]'
+                  }`}
+                />
+                <label htmlFor="remember-me" className={`ml-2 block text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-[#5b6987]'}`}>
+                  จดจำชื่อผู้ใช้
+                </label>
               </div>
             </div>
 
@@ -301,8 +289,22 @@ export default function Login() {
                       : 'bg-gradient-to-r from-[#b3c6ff] to-[#d5b3ff] hover:from-[#a3bbff] hover:to-[#c8a3ff]'
                 } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#d5b3ff] transition-all duration-200 transform hover:scale-[1.02] shadow-md`}
               >
-                {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ (Sign in)'}
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    กำลังเข้าสู่ระบบ...
+                  </span>
+                ) : 'เข้าสู่ระบบ (Sign in)'}
               </button>
+            </div>
+            
+            <div className="flex justify-end">
+              <a href="#" className={`text-sm ${theme === 'dark' ? 'text-blue-400 hover:text-blue-300' : 'text-[#7b9cff] hover:text-[#5a85ff]'} transition-colors`}>
+                ลืมรหัสผ่าน?
+              </a>
             </div>
           </form>
         </div>

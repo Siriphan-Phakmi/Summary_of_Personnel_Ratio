@@ -12,7 +12,7 @@ import { getCurrentShift, isCurrentDate, isPastDate, isFutureDateMoreThanOneDay 
 import SignatureSection from '../SignatureSection';
 import SummarySection from '../SummarySection';
 import CalendarSection from '../../../components/common/CalendarSection';
-import { Swal } from '../../../utils/alertService';
+import { SwalAlert } from '../../../utils/alertService';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { HeaderSection } from './HeaderSection';
@@ -152,31 +152,49 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             setIsReadOnly(true); // Set form to read-only in approval mode
         }
         
-        if (typeof window !== 'undefined') {
-            const today = new Date();
-            setSelectedDate(today);
-            const isoDate = today.toISOString().split('T')[0];
-            
-            const currentShift = getCurrentShift();
-            
-            setFormData(prev => ({
-                ...prev,
-                date: isoDate,
-                shift: currentShift
-            }));
-            
-            setThaiDate(formatThaiDate(today));
-            
-            // เรียกฟังก์ชันโหลดข้อมูลแค่บางฟังก์ชัน ไม่รวม fetchLatestData
-            checkMorningShiftExists(isoDate);
-            checkPreviousNightShift(isoDate);
-            fetchDatesWithData();
-            fetchApprovalStatuses(isoDate);
-            
-            // TODO: ปิดฟังก์ชัน fetchLatestData ไว้ก่อนเพื่อแก้ปัญหา Alert ซ้ำซ้อน
-            // ถ้าต้องการเปิดใช้งานอีกครั้ง ให้แก้ไขฟังก์ชันให้จัดการการแสดง Alert อย่างเหมาะสม
-            // fetchLatestData();
-        }
+        let mounted = true;
+        
+        const initializeData = async () => {
+            if (typeof window !== 'undefined' && mounted) {
+                const today = new Date();
+                setSelectedDate(today);
+                const isoDate = today.toISOString().split('T')[0];
+                
+                const currentShift = getCurrentShift();
+                
+                setFormData(prev => ({
+                    ...prev,
+                    date: isoDate,
+                    shift: currentShift
+                }));
+                
+                setThaiDate(formatThaiDate(today));
+                
+                try {
+                    // เรียกฟังก์ชันโหลดข้อมูล
+                    await Promise.all([
+                        checkMorningShiftExists(isoDate),
+                        checkPreviousNightShift(isoDate),
+                        fetchDatesWithData(),
+                        fetchApprovalStatuses(isoDate)
+                    ]);
+                } catch (error) {
+                    console.error('Error initializing data:', error);
+                } finally {
+                    // หลังจากทำงานเสร็จ ให้ปิดสถานะ loading
+                    if (mounted) {
+                        setIsInitialLoading(false);
+                    }
+                }
+            }
+        };
+        
+        initializeData();
+        
+        // Cleanup function
+        return () => {
+            mounted = false;
+        };
     }, [isApprovalMode]);
 
     const [hasExistingMorningShift, setHasExistingMorningShift] = useState(false);
@@ -268,7 +286,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             
             if (selectedDate < thirtyDaysAgo) {
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'ไม่สามารถเลือกวันที่ย้อนหลังเกิน 30 วันได้',
                     text: 'กรุณาเลือกวันที่ภายใน 30 วันที่ผ่านมา',
                     icon: 'warning',
@@ -283,7 +301,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             tomorrow.setHours(0, 0, 0, 0);
             
             if (selectedDate > tomorrow) {
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'ไม่สามารถเลือกวันที่ล่วงหน้าเกิน 1 วันได้',
                     text: 'กรุณาเลือกวันที่ปัจจุบันหรือวันพรุ่งนี้เท่านั้น',
                     icon: 'warning',
@@ -295,7 +313,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             // ตรวจสอบสถานะการอนุมัติของวันที่เลือก
             const hasPendingApproval = await checkDateHasPendingApproval(selectedDateValue);
             if (hasPendingApproval) {
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'มีข้อมูลรออนุมัติ',
                     html: `
                         <div class="text-left">
@@ -331,7 +349,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             
             // แสดง message เตือนหากมีการบันทึกกะทั้งสองแล้ว
             if (morningShiftExists && nightShiftExists) {
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'มีข้อมูลครบทั้งสองกะแล้ว',
                     html: `
                         <div class="text-left">
@@ -343,7 +361,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
                     confirmButtonColor: '#0ab4ab'
                 });
             } else if (morningShiftExists) {
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'พบข้อมูลกะเช้า',
                     html: `
                         <div class="text-left">
@@ -381,7 +399,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             const hasDuplicateData = await checkExistingData(formattedDate, defaultShift);
             if (hasDuplicateData) {
                 // แสดง popup ถามว่าต้องการโหลดข้อมูลเดิมหรือบันทึกทับ
-                const result = await Swal.fire({
+                const result = await SwalAlert.fire({
                     title: 'พบข้อมูลในระบบ',
                     html: `
                         <div class="text-left">
@@ -418,7 +436,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
             }
         } catch (error) {
             console.error('Error handling date change:', error);
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'เกิดข้อผิดพลาด',
                 text: 'ไม่สามารถตรวจสอบข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
                 icon: 'error',
@@ -572,7 +590,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
         
         // ถ้าเป็นโหมดอ่านอย่างเดียว ไม่ให้บันทึกข้อมูล
         if (isReadOnly) {
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'โหมดดูข้อมูลเท่านั้น',
                 text: 'ข้อมูลอยู่ในโหมดดูอย่างเดียว ไม่สามารถบันทึกได้',
                 icon: 'info',
@@ -583,7 +601,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
         
         // ถ้าเป็น user ปกติ ไม่ให้บันทึกข้อมูล
         if (user?.role?.toLowerCase() === 'user') {
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'โหมดดูข้อมูลเท่านั้น',
                 text: 'คุณไม่มีสิทธิ์บันทึกข้อมูล กรุณาติดต่อผู้ดูแลระบบ',
                 icon: 'info',
@@ -696,7 +714,7 @@ const ShiftForm = ({ isApprovalMode = false, showBothShifts = false }) => {
     useEffect(() => {
         const handleRouteChange = async () => {
             if (hasFormChanges()) {  // ใช้ฟังก์ชันแทนการอ้างอิง state เพื่อตรวจสอบการเปลี่ยนแปลงแบบ real-time
-                const result = await Swal.fire({
+                const result = await SwalAlert.fire({
                     title: 'แจ้งเตือนการออกจากหน้าบันทึกข้อมูล',
                     html: `
                         <div class="text-left">

@@ -1,11 +1,11 @@
 'use client';
 import React from 'react';
-import { Swal } from '../../../utils/alertService';
+import { SwalAlert } from '../../../utils/alertService';
 import { formatThaiDate } from '../../../utils/dateUtils';
 
 export const ApprovalDataButton = ({ approvalStatus, latestRecordDate }) => {
     const handleClick = () => {
-        Swal.fire({
+        SwalAlert.fire({
             title: 'สถานะการอนุมัติ',
             icon: approvalStatus === 'approved' ? 'success' : 'info',
             html: `<div class="text-left p-4">
@@ -31,7 +31,7 @@ export const LatestRecordButton = ({ latestRecordDate }) => {
     const handleClick = () => {
         if (!latestRecordDate) return;
 
-        Swal.fire({
+        SwalAlert.fire({
             title: 'ข้อมูลล่าสุด',
             icon: 'info',
             html: `<div class="text-left p-4">

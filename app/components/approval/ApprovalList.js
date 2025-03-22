@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, getDocs, orderBy, doc, updateDoc, limit } from 'firebase/firestore';
 import { formatThaiDate } from '../../utils/dateUtils';
 import { useAuth } from '../../context/AuthContext';
-import { Swal } from '../../utils/alertService';
+import { SwalAlert } from '../../utils/alertService';
 import LoadingScreen from '../ui/LoadingScreen';
 import { wardMapping } from '../../utils/wardConstants';
 
@@ -64,7 +64,7 @@ const ApprovalList = () => {
         setPendingItems(items);
       } catch (error) {
         console.error('Error fetching pending approvals:', error);
-        Swal.fire({
+        SwalAlert.fire({
           title: 'เกิดข้อผิดพลาด',
           text: 'ไม่สามารถดึงข้อมูลรายการที่รออนุมัติได้',
           icon: 'error'
@@ -83,7 +83,7 @@ const ApprovalList = () => {
       const wardId = item.wardId;
       const date = item.date;
       
-      const confirmResult = await Swal.fire({
+      const confirmResult = await SwalAlert.fire({
         title: 'ยืนยันการอนุมัติ',
         html: `คุณต้องการอนุมัติข้อมูล Ward ใช่หรือไม่?<br>
                วันที่: ${formatThaiDate(date)}<br>
@@ -109,7 +109,7 @@ const ApprovalList = () => {
         approvedAt: new Date()
       });
       
-      Swal.fire({
+      SwalAlert.fire({
         title: 'อนุมัติสำเร็จ',
         text: `ข้อมูล Ward ${wardMapping[wardId] || wardId} ได้รับการอนุมัติแล้ว`,
         icon: 'success',
@@ -120,7 +120,7 @@ const ApprovalList = () => {
       setFilter(prev => prev); // ทำให้ useEffect ทำงานอีกครั้ง
     } catch (error) {
       console.error('Error approving item:', error);
-      Swal.fire({
+      SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถอนุมัติข้อมูลได้ กรุณาลองอีกครั้ง',
         icon: 'error',
@@ -136,7 +136,7 @@ const ApprovalList = () => {
       const date = item.date;
       
       // Get rejection reason
-      const reasonResult = await Swal.fire({
+      const reasonResult = await SwalAlert.fire({
         title: 'ปฏิเสธข้อมูล',
         html: `
           <div class="text-left">
@@ -154,7 +154,7 @@ const ApprovalList = () => {
         preConfirm: () => {
           const reason = document.getElementById('rejection-reason').value;
           if (!reason.trim()) {
-            Swal.showValidationMessage('กรุณาระบุเหตุผลในการปฏิเสธ');
+            SwalAlert.showValidationMessage('กรุณาระบุเหตุผลในการปฏิเสธ');
           }
           return reason;
         }
@@ -177,7 +177,7 @@ const ApprovalList = () => {
         rejectionReason: rejectionReason
       });
       
-      Swal.fire({
+      SwalAlert.fire({
         title: 'ปฏิเสธข้อมูลสำเร็จ',
         text: `ข้อมูล Ward ${wardMapping[wardId] || wardId} ถูกปฏิเสธเรียบร้อยแล้ว`,
         icon: 'success',
@@ -188,7 +188,7 @@ const ApprovalList = () => {
       setFilter(prev => prev); // ทำให้ useEffect ทำงานอีกครั้ง
     } catch (error) {
       console.error('Error rejecting item:', error);
-      Swal.fire({
+      SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถปฏิเสธข้อมูลได้ กรุณาลองอีกครั้ง',
         icon: 'error',
@@ -282,7 +282,7 @@ const ApprovalList = () => {
       </div>
     `;
     
-    await Swal.fire({
+    await SwalAlert.fire({
       title: 'รายละเอียดข้อมูล',
       html: detailsHtml,
       confirmButtonText: 'ปิด',
@@ -295,7 +295,7 @@ const ApprovalList = () => {
   const updateApprovalData = async (item) => {
     // ฟังก์ชันนี้สำหรับ admin หรือ supervisor ที่ต้องการแก้ไขข้อมูลก่อนอนุมัติ
     if (!(user.role === 'admin' || user.role === 'supervisor')) {
-      Swal.fire({
+      SwalAlert.fire({
         title: 'ไม่มีสิทธิ์ในการแก้ไข',
         text: 'คุณไม่มีสิทธิ์ในการแก้ไขข้อมูล',
         icon: 'warning',
@@ -305,7 +305,7 @@ const ApprovalList = () => {
     }
     
     // ในอนาคตจะเพิ่มฟอร์มแก้ไขข้อมูลที่นี่
-    Swal.fire({
+    SwalAlert.fire({
       title: 'แก้ไขข้อมูล',
       text: 'ฟังก์ชันนี้อยู่ระหว่างการพัฒนา',
       icon: 'info',

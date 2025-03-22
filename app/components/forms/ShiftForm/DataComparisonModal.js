@@ -27,13 +27,95 @@ const DataComparisonModal = ({
                                 <div className="font-medium">New</div>
                             </div>
                             <div className="space-y-1">
-                                {/* โครงสร้างข้อมูลที่ต้องการเปรียบเทียบ */}
                                 <ComparisonRow 
                                     label="Patient Census"
                                     oldValue={existingData?.wards?.[wardName]?.numberOfPatients}
                                     newValue={formData?.wards?.[wardName]?.numberOfPatients}
                                 />
-                                {/* เพิ่ม ComparisonRow อื่นๆ ตามต้องการ */}
+                                <ComparisonRow 
+                                    label="Nurse Manager"
+                                    oldValue={existingData?.wards?.[wardName]?.nurseManager}
+                                    newValue={formData?.wards?.[wardName]?.nurseManager}
+                                />
+                                <ComparisonRow 
+                                    label="RN"
+                                    oldValue={existingData?.wards?.[wardName]?.RN}
+                                    newValue={formData?.wards?.[wardName]?.RN}
+                                />
+                                <ComparisonRow 
+                                    label="PN"
+                                    oldValue={existingData?.wards?.[wardName]?.PN}
+                                    newValue={formData?.wards?.[wardName]?.PN}
+                                />
+                                <ComparisonRow 
+                                    label="WC"
+                                    oldValue={existingData?.wards?.[wardName]?.WC}
+                                    newValue={formData?.wards?.[wardName]?.WC}
+                                />
+                                <ComparisonRow 
+                                    label="New Admit"
+                                    oldValue={existingData?.wards?.[wardName]?.newAdmit}
+                                    newValue={formData?.wards?.[wardName]?.newAdmit}
+                                />
+                                <ComparisonRow 
+                                    label="Transfer In"
+                                    oldValue={existingData?.wards?.[wardName]?.transferIn}
+                                    newValue={formData?.wards?.[wardName]?.transferIn}
+                                />
+                                <ComparisonRow 
+                                    label="Refer In"
+                                    oldValue={existingData?.wards?.[wardName]?.referIn}
+                                    newValue={formData?.wards?.[wardName]?.referIn}
+                                />
+                                <ComparisonRow 
+                                    label="Transfer Out"
+                                    oldValue={existingData?.wards?.[wardName]?.transferOut}
+                                    newValue={formData?.wards?.[wardName]?.transferOut}
+                                />
+                                <ComparisonRow 
+                                    label="Refer Out"
+                                    oldValue={existingData?.wards?.[wardName]?.referOut}
+                                    newValue={formData?.wards?.[wardName]?.referOut}
+                                />
+                                <ComparisonRow 
+                                    label="Discharge"
+                                    oldValue={existingData?.wards?.[wardName]?.discharge}
+                                    newValue={formData?.wards?.[wardName]?.discharge}
+                                />
+                                <ComparisonRow 
+                                    label="Dead"
+                                    oldValue={existingData?.wards?.[wardName]?.dead}
+                                    newValue={formData?.wards?.[wardName]?.dead}
+                                />
+                                <ComparisonRow 
+                                    label="Overall Data"
+                                    oldValue={existingData?.wards?.[wardName]?.overallData}
+                                    newValue={formData?.wards?.[wardName]?.overallData}
+                                />
+                                <ComparisonRow 
+                                    label="Available Beds"
+                                    oldValue={existingData?.wards?.[wardName]?.availableBeds}
+                                    newValue={formData?.wards?.[wardName]?.availableBeds}
+                                />
+                                <ComparisonRow 
+                                    label="Unavailable Beds"
+                                    oldValue={existingData?.wards?.[wardName]?.unavailable}
+                                    newValue={formData?.wards?.[wardName]?.unavailable}
+                                />
+                                <ComparisonRow 
+                                    label="Planned Discharge"
+                                    oldValue={existingData?.wards?.[wardName]?.plannedDischarge}
+                                    newValue={formData?.wards?.[wardName]?.plannedDischarge}
+                                />
+                                {(existingData?.wards?.[wardName]?.comment || formData?.wards?.[wardName]?.comment) && (
+                                    <div className="mt-2 pt-2 border-t">
+                                        <div className="text-sm font-medium text-gray-600 mb-1">Comment:</div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="text-sm text-purple-600">{existingData?.wards?.[wardName]?.comment || '-'}</div>
+                                            <div className="text-sm text-pink-600">{formData?.wards?.[wardName]?.comment || '-'}</div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -46,10 +128,16 @@ const DataComparisonModal = ({
                         Cancel
                     </button>
                     <button
-                        onClick={saveData}
+                        onClick={() => saveData('preserve')}
+                        className="px-4 py-2 text-white bg-green-500 rounded-lg hover:bg-green-600"
+                    >
+                        Preserve Existing Data
+                    </button>
+                    <button
+                        onClick={() => saveData('overwrite')}
                         className="px-4 py-2 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
                     >
-                        Save Changes
+                        Save New Data
                     </button>
                 </div>
             </div>

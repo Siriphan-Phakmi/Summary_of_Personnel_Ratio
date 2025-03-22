@@ -6,10 +6,8 @@ export const Analytics = {
       // ส่งข้อมูลไปยัง analytics service
       if (process.env.NODE_ENV === 'production') {
         // Example implementation
-        window.gtag?.('event', 'page_view', {
-          page_title: pageName,
-          page_location: window.location.href,
-          page_path: window.location.pathname
+        window.gtag?.('config', process.env.NEXT_PUBLIC_GA_ID, {
+          page_path: pageName
         });
       }
       
@@ -23,16 +21,15 @@ export const Analytics = {
   trackFormSubmission: (formName, success, data = {}) => {
     try {
       if (process.env.NODE_ENV === 'production') {
-        window.gtag?.('event', 'form_submission', {
+        window.gtag?.('event', success ? 'form_submit_success' : 'form_submit_failure', {
           form_name: formName,
-          success,
           ...data
         });
       }
 
       console.log('[Analytics] Form Submission:', { formName, success, data });
     } catch (error) {
-      console.error('Analytics Error:', error);
+      console.error('Analytics Form Submission Error:', error);
     }
   },
 
@@ -45,7 +42,7 @@ export const Analytics = {
 
       console.log('[Analytics] Action:', { actionName, data });
     } catch (error) {
-      console.error('Analytics Error:', error);
+      console.error('Analytics Action Error:', error);
     }
   },
 
@@ -64,5 +61,55 @@ export const Analytics = {
     } catch (error) {
       console.error('Analytics Error:', error);
     }
+  },
+  
+  // Track data validation issues
+  trackValidationIssue: (formName, fieldName, errorType) => {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        window.gtag?.('event', 'validation_error', {
+          form_name: formName,
+          field_name: fieldName,
+          error_type: errorType
+        });
+      }
+      console.log('[Analytics] Validation Issue:', { formName, fieldName, errorType });
+    } catch (error) {
+      console.error('Analytics Error:', error);
+    }
+  },
+  
+  // Track staff ratio warnings
+  trackStaffRatioWarning: (wardId, ratio, patients, staffCount) => {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        window.gtag?.('event', 'staff_ratio_warning', {
+          ward_id: wardId,
+          ratio: ratio,
+          patient_count: patients,
+          staff_count: staffCount
+        });
+      }
+      console.log('[Analytics] Staff Ratio Warning:', { wardId, ratio, patients, staffCount });
+    } catch (error) {
+      console.error('Analytics Error:', error);
+    }
+  },
+  
+  // Track form approval events
+  trackApprovalEvent: (formId, action, role, reason = null) => {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        window.gtag?.('event', 'form_approval', {
+          form_id: formId,
+          action: action, // approve, reject, request_changes
+          role: role,
+          reason: reason
+        });
+      }
+      console.log('[Analytics] Approval Event:', { formId, action, role, reason });
+    } catch (error) {
+      console.error('Analytics Error:', error);
+    }
   }
-}; 
+};

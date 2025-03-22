@@ -57,4 +57,4 @@ const SummarySection = ({ summaryData, setSummaryData }) => {
     );
 };
 
-export default SummarySection; 
+export default SummarySection;

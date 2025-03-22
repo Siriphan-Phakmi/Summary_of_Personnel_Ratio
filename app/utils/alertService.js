@@ -89,11 +89,34 @@ export const alertAPI = {
       return window.__alertService.closeAll();
     }
     console.log('Closing alerts');
+    // Enhanced close functionality from the second SwalAlert declaration
+    if (typeof loadingActive !== 'undefined') {
+      loadingActive = false;
+    }
+    if (typeof loadingTimer !== 'undefined' && loadingTimer) {
+      clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
+  },
+  // Add showValidationMessage for compatibility
+  showValidationMessage: (message) => {
+    console.warn('Validation: ' + message);
+    if (window.__alertService) {
+      return window.__alertService.showValidationMessage(message);
+    }
+    alert('Validation: ' + message);
+  },
+  // Add isLoading check if available
+  isLoading: () => {
+    if (typeof loadingActive !== 'undefined') {
+      return loadingActive;
+    }
+    return false;
   }
 };
 
-// Backward compatibility for code that uses Swal
-export const Swal = alertAPI;
+// Note: We are not using SweetAlert2, using custom Tailwind implementation instead
+export const SwalAlert = alertAPI;
 
 // Alert component based on TailwindAlert
 const Alert = ({
@@ -372,3 +395,214 @@ export const AlertProvider = ({ children }) => {
     </AlertContext.Provider>
   );
 };
+
+// Define theme colors
+const themeColors = {
+  confirmButtonColor: '#0ab4ab',
+  cancelButtonColor: '#d33'
+};
+
+// Custom alert API implementation using our Tailwind components
+const customAlertAPI = {
+  fire: async (options) => {
+    return alertAPI.fire(options);
+  },
+  
+  success: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'success'
+    });
+  },
+  
+  error: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'error'
+    });
+  },
+  
+  info: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'info'
+    });
+  },
+  
+  warning: async (title, text) => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'warning'
+    });
+  },
+  
+  confirm: async (title, text, confirmButtonText = 'ตกลง', cancelButtonText = 'ยกเลิก') => {
+    return alertAPI.fire({
+      title,
+      text,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText,
+      cancelButtonText
+    });
+  },
+  
+  showLoading: (title = 'กำลังโหลด...') => {
+    return alertAPI.showLoading(title);
+  },
+  
+  // Close any open alert
+  close: () => {
+    alertAPI.close();
+  }
+};
+
+// Export the custom alert API
+export default customAlertAPI;
+
+// เพิ่มตัวแปรเพื่อติดตามสถานะ loading
+let loadingActive = false;
+let loadingTimer = null;
+
+// ปรับปรุงฟังก์ชัน loading
+export const AlertService = {
+    // ...existing code...
+    
+    loading: (message = 'กำลังโหลดข้อมูล...', options = {}) => {
+        loadingActive = true;
+        
+        // ตั้งเวลาเพื่อป้องกัน loading ค้าง (auto timeout after 30 seconds)
+        if (loadingTimer) clearTimeout(loadingTimer);
+        loadingTimer = setTimeout(() => {
+            if (loadingActive) {
+                AlertService.close();
+                console.warn('Loading alert automatically closed after timeout');
+            }
+        }, options.timeout || 30000); // default 30 seconds timeout
+        
+        // ...existing loading implementation...
+        return {
+            close: () => AlertService.close()
+        };
+    },
+    
+    close: () => {
+        loadingActive = false;
+        if (loadingTimer) {
+            clearTimeout(loadingTimer);
+            loadingTimer = null;
+        }
+        
+        // ...existing close implementation...
+    },
+    
+    // เพิ่มฟังก์ชันบังคับปิดทุก alert
+    forceCloseAll: () => {
+        // รีเซ็ตตัวแปรสถานะภายใน
+        loadingActive = false;
+        if (loadingTimer) {
+            clearTimeout(loadingTimer);
+            loadingTimer = null;
+        }
+        
+        // บังคับลบ DOM elements โดยตรง (client-side only)
+        if (typeof window !== 'undefined') {
+            try {
+                // 1. ลบทุก SweetAlert container ออกจาก DOM
+                const containers = document.querySelectorAll('.swal2-container');
+                if (containers.length > 0) {
+                    containers.forEach(container => container.remove());
+                }
+                
+                // 2. ลบทุก backdrop
+                const backdrops = document.querySelectorAll('.swal2-backdrop-show');
+                if (backdrops.length > 0) {
+                    backdrops.forEach(backdrop => backdrop.remove());
+                }
+                
+                // 3. ลบ class และ style ที่ SweetAlert เพิ่มเข้ามาใน body
+                document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                // 4. ลบ modal containers อื่นๆ ที่อาจค้าง
+                const modalContainers = document.querySelectorAll('[role="dialog"]');
+                modalContainers.forEach(modal => {
+                    // ตรวจสอบว่าเป็น loading modal หรือไม่
+                    if (modal.textContent.includes('กำลังโหลดข้อมูล') || 
+                        modal.textContent.includes('Loading') || 
+                        modal.innerHTML.includes('spinner')) {
+                        modal.remove();
+                    }
+                });
+                
+                // 5. เพิ่ม global emergency reset function
+                if (!window.emergencyResetAlert) {
+                    window.emergencyResetAlert = AlertService.forceCloseAll;
+                }
+                
+                console.log('AlertService: Force closed all alerts successfully');
+                return true;
+            } catch (error) {
+                console.error('Error in forceCloseAll:', error);
+                
+                // ถ้าเกิด error ให้พยายามแก้ไขด้วยวิธีพื้นฐานที่สุด
+                try {
+                    const elements = document.querySelectorAll('.swal2-container, .swal2-backdrop-show, [role="dialog"]');
+                    elements.forEach(el => el.remove());
+                    document.body.style.overflow = '';
+                } catch (e) {
+                    console.error('Critical error in emergency reset:', e);
+                }
+            }
+        }
+        
+        return true;
+    },
+    
+    // เพิ่มฟังก์ชัน isLoading เพื่อตรวจสอบสถานะ
+    isLoading: () => loadingActive
+};
+
+// ...existing code...
+
+// Add the forceCloseAll functionality to the global space if needed
+const forceCloseAll = () => {
+  if (typeof AlertService !== 'undefined' && AlertService.forceCloseAll) {
+    return AlertService.forceCloseAll();
+  }
+};
+
+// ...existing code...
+
+// สร้าง global emergency function ที่สามารถเรียกใช้ได้จากทุกที่
+if (typeof window !== 'undefined') {
+    window.emergencyResetAlert = () => {
+        try {
+            // ลบทุก SweetAlert container
+            const containers = document.querySelectorAll('.swal2-container');
+            containers.forEach(el => el.remove());
+            
+            // ลบ backdrop
+            const backdrops = document.querySelectorAll('.swal2-backdrop-show');
+            backdrops.forEach(el => el.remove());
+            
+            // รีเซ็ต body
+            document.body.classList.remove('swal2-shown', 'swal2-height-auto');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            
+            console.log('Emergency reset alert completed');
+            return true;
+        } catch (error) {
+            console.error('Error in emergency reset alert:', error);
+            return false;
+        }
+    };
+}
+
+// ...existing code...

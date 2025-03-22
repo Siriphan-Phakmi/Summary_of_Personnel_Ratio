@@ -3,7 +3,7 @@ import React from 'react';
 import { useState } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import { Swal } from '../../../utils/alertService';
+import { SwalAlert } from '../../../utils/alertService';
 import { logEvent } from '../../../utils/clientLogging';
 import { useAuth } from '../../../context/AuthContext';
 
@@ -31,7 +31,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       setIsApproving(true);
       
       // รับชื่อผู้อนุมัติก่อนการอนุมัติ
-      const signatureResult = await Swal.fire({
+      const signatureResult = await SwalAlert.fire({
         title: 'ลงชื่อผู้อนุมัติ',
         html: `
           <div class="text-left">
@@ -57,12 +57,12 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
           const lastName = document.getElementById('lastName').value;
           
           if (!firstName.trim()) {
-            Swal.showValidationMessage('กรุณากรอกชื่อ');
+            SwalAlert.showValidationMessage('กรุณากรอกชื่อ');
             return false;
           }
           
           if (!lastName.trim()) {
-            Swal.showValidationMessage('กรุณากรอกนามสกุล');
+            SwalAlert.showValidationMessage('กรุณากรอกนามสกุล');
             return false;
           }
           
@@ -78,7 +78,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       const { firstName, lastName } = signatureResult.value;
       
       // Confirm before approving
-      const confirmResult = await Swal.fire({
+      const confirmResult = await SwalAlert.fire({
         title: 'อนุมัติข้อมูล Ward',
         html: `
           <div class="text-left">
@@ -137,7 +137,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       });
 
       // Show success message
-      await Swal.fire({
+      await SwalAlert.fire({
         title: 'อนุมัติสำเร็จ',
         text: `ข้อมูลของ ${wardId} ได้รับการอนุมัติแล้ว`,
         icon: 'success',
@@ -149,7 +149,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
     } catch (error) {
       console.error('Error approving ward data:', error);
       
-      await Swal.fire({
+      await SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถอนุมัติข้อมูลได้ กรุณาลองอีกครั้ง',
         icon: 'error',
@@ -165,7 +165,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       setIsApproving(true);
       
       // ขอลายเซ็นผู้ปฏิเสธก่อน
-      const signatureResult = await Swal.fire({
+      const signatureResult = await SwalAlert.fire({
         title: 'ลงชื่อผู้ปฏิเสธ',
         html: `
           <div class="text-left">
@@ -191,12 +191,12 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
           const lastName = document.getElementById('lastName').value;
           
           if (!firstName.trim()) {
-            Swal.showValidationMessage('กรุณากรอกชื่อ');
+            SwalAlert.showValidationMessage('กรุณากรอกชื่อ');
             return false;
           }
           
           if (!lastName.trim()) {
-            Swal.showValidationMessage('กรุณากรอกนามสกุล');
+            SwalAlert.showValidationMessage('กรุณากรอกนามสกุล');
             return false;
           }
           
@@ -212,7 +212,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       const { firstName, lastName } = signatureResult.value;
       
       // Get reason for rejection
-      const reasonResult = await Swal.fire({
+      const reasonResult = await SwalAlert.fire({
         title: 'ปฏิเสธข้อมูล Ward',
         html: `
           <div class="text-left">
@@ -230,7 +230,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
         preConfirm: () => {
           const reason = document.getElementById('rejection-reason').value;
           if (!reason.trim()) {
-            Swal.showValidationMessage('กรุณาระบุเหตุผลในการปฏิเสธ');
+            SwalAlert.showValidationMessage('กรุณาระบุเหตุผลในการปฏิเสธ');
           }
           return reason;
         }
@@ -281,7 +281,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
       });
 
       // Show success message
-      await Swal.fire({
+      await SwalAlert.fire({
         title: 'ปฏิเสธข้อมูลสำเร็จ',
         text: `ข้อมูลของ ${wardId} ถูกปฏิเสธแล้ว`,
         icon: 'success',
@@ -293,7 +293,7 @@ const ApproveButton = ({ wardId, date, status = 'pending' }) => {
     } catch (error) {
       console.error('Error rejecting ward data:', error);
       
-      await Swal.fire({
+      await SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถปฏิเสธข้อมูลได้ กรุณาลองอีกครั้ง',
         icon: 'error',

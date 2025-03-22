@@ -13,21 +13,29 @@ export default function WardFormPage() {
   const [error, setError] = useState(null);
   const router = useRouter();
 
-  // Add timeout to prevent indefinite loading
+  // Add improved timeout to prevent indefinite loading
   useEffect(() => {
+    let isComponentMounted = true;
+    
     const loadingTimeout = setTimeout(() => {
-      if (!isReady && loading) {
+      if (isComponentMounted && !isReady && loading) {
+        console.log("Loading timeout triggered for ward form page");
         setError('การโหลดข้อมูลใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง');
       }
-    }, 10000); // 10 seconds timeout
+    }, 8000); // 8 seconds timeout - faster than before
 
-    return () => clearTimeout(loadingTimeout);
+    return () => {
+      isComponentMounted = false;
+      clearTimeout(loadingTimeout);
+    };
   }, [isReady, loading]);
 
   useEffect(() => {
     // Only process when loading is complete
     if (!loading) {
       try {
+        console.log("Auth loading complete, user:", user ? "logged in" : "not logged in");
+        
         if (user) {
           // User is logged in, check if they have a department
           console.log('User department:', user?.department);
@@ -48,7 +56,7 @@ export default function WardFormPage() {
         }
       } catch (err) {
         console.error('Error in ward form page:', err);
-        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + err.message);
+        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || 'กรุณาลองใหม่อีกครั้ง'));
       }
     }
   }, [user, loading, router]);

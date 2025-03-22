@@ -1,10 +1,10 @@
 'use client';
-import { collection, addDoc, updateDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, serverTimestamp, doc, getDoc, query, where, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { getUTCDateString } from '../../../utils/dateUtils';
 import { calculatePatientCensus, checkMorningShiftDataExists } from './DataFetchers';
 import { format } from 'date-fns';
-import { Swal } from '../../../utils/alertService';
+import { SwalAlert } from '../../../utils/alertService';
 import AlertUtil from '../../../utils/AlertUtil';
 
 export const parseInputValue = (value) => {
@@ -409,7 +409,7 @@ export const validateFormBeforeSave = async (formData, saveMode = 'draft') => {
     
     // ถ้ามี errors ให้แสดง
     if (errors.length > 0) {
-        Swal.fire({
+        SwalAlert.fire({
             title: 'กรุณาตรวจสอบข้อมูล',
             html: errors.map(err => `- ${err}`).join('<br>'),
             icon: 'warning',
@@ -436,7 +436,7 @@ export const createOnSaveDraft = (
         }
         
         // ยืนยันการบันทึกแบบร่าง
-        const result = await Swal.fire({
+        const result = await SwalAlert.fire({
             title: 'ยืนยันการบันทึกแบบร่าง',
             text: 'คุณต้องการบันทึกข้อมูลแบบร่างหรือไม่?',
             icon: 'question',
@@ -461,7 +461,7 @@ export const createOnSaveDraft = (
             setHasUnsavedChanges(false);
             
             // แสดงการแจ้งเตือนสำเร็จ
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'บันทึกสำเร็จ',
                 text: 'บันทึกข้อมูลแบบร่างเรียบร้อยแล้ว',
                 icon: 'success',
@@ -473,7 +473,7 @@ export const createOnSaveDraft = (
             console.error('Error saving draft:', error);
             
             // แสดงข้อผิดพลาด
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'เกิดข้อผิดพลาด',
                 text: `ไม่สามารถบันทึกร่างได้: ${error.message}`,
                 icon: 'error',
@@ -502,7 +502,7 @@ export const createOnSubmit = (
         }
         
         // ยืนยันการบันทึกข้อมูลแบบทางการ
-        const result = await Swal.fire({
+        const result = await SwalAlert.fire({
             title: 'ยืนยันการบันทึกข้อมูล',
             html: 'คุณแน่ใจหรือไม่ว่าต้องการบันทึกข้อมูลนี้?<br>การบันทึกข้อมูลจะถือว่าข้อมูลนี้เป็นข้อมูลทางการ',
             icon: 'question',
@@ -527,7 +527,7 @@ export const createOnSubmit = (
             setHasUnsavedChanges(false);
             
             // แสดงการแจ้งเตือนสำเร็จ
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'บันทึกสำเร็จ',
                 text: 'บันทึกข้อมูลเรียบร้อยแล้ว',
                 icon: 'success',
@@ -539,7 +539,7 @@ export const createOnSubmit = (
             console.error('Error submitting data:', error);
             
             // แสดงข้อผิดพลาด
-            Swal.fire({
+            SwalAlert.fire({
                 title: 'เกิดข้อผิดพลาด',
                 text: `ไม่สามารถบันทึกข้อมูลได้: ${error.message}`,
                 icon: 'error',
@@ -557,7 +557,7 @@ export const createOnSubmit = (
 export const createHandleCancel = (hasUnsavedChanges, onCancel) => {
     return async () => {
         if (hasUnsavedChanges) {
-            const result = await Swal.fire({
+            const result = await SwalAlert.fire({
                 title: 'ยืนยันการยกเลิก',
                 html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก<br>คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการกรอกข้อมูล?',
                 icon: 'warning',
@@ -696,4 +696,295 @@ export const createCalculatePatientCensusTotal = (formData, setFormData, selecte
         
         return total;
     };
+};
+
+/**
+ * ฟังก์ชันบันทึกข้อมูลเป็น Draft
+ * @param {Object} params พารามิเตอร์สำหรับการบันทึก Draft
+ * @returns {Promise<{success: boolean, message: string, data?: Object}>}
+ */
+export const saveDraft = async ({
+  formData,
+  userId,
+  userName,
+  setLoading,
+  setError,
+  showToast
+}) => {
+  try {
+    // ตั้งค่าสถานะการโหลด
+    setLoading(true);
+    setError(null);
+    
+    console.log('FormHandlers.js - บันทึก Draft...');
+    
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData || !formData.date || !formData.wardId || !formData.shift) {
+      setError('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูลอีกครั้ง');
+      console.error('ข้อมูลไม่ครบถ้วน:', { date: formData?.date, wardId: formData?.wardId, shift: formData?.shift });
+      return { success: false, message: 'ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูลอีกครั้ง' };
+    }
+    
+    // คำนวณค่า Patient Census ใหม่
+    if (formData.patientCensusSection) {
+      const patientCensusTotal = calculatePatientCensus(formData.patientCensusSection);
+      
+      // ตรวจสอบกะและกำหนดค่าที่เหมาะสม
+      if (formData.shift.toLowerCase().includes('night')) {
+        // กะดึก: กำหนดค่า overallData
+        formData.overallData = patientCensusTotal.toString();
+      } else {
+        // กะเช้า: กำหนดค่า patientCensusSection.total
+        if (!formData.patientCensusSection) formData.patientCensusSection = {};
+        formData.patientCensusSection.total = patientCensusTotal.toString();
+      }
+    }
+    
+    // เพิ่มข้อมูลเกี่ยวกับการบันทึก
+    const draftData = {
+      ...formData,
+      timestamp: serverTimestamp(),
+      lastUpdatedBy: {
+        userId,
+        userName,
+        timestamp: new Date().toISOString()
+      },
+      isDraft: true,
+      isFinal: false,
+      version: (formData.version || 0) + 1
+    };
+    
+    // บันทึกข้อมูลใน collection wardDataDrafts
+    await addDoc(collection(db, 'wardDataDrafts'), draftData);
+    
+    console.log('บันทึก Draft สำเร็จ');
+    showToast({ message: 'บันทึกแบบร่างสำเร็จ', type: 'success' });
+    
+    return {
+      success: true,
+      message: 'บันทึกแบบร่างสำเร็จ',
+      data: draftData
+    };
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการบันทึก Draft:', error);
+    setError(`เกิดข้อผิดพลาดในการบันทึก: ${error.message}`);
+    return {
+      success: false,
+      message: `เกิดข้อผิดพลาดในการบันทึก: ${error.message}`
+    };
+  } finally {
+    setLoading(false);
+  }
+};
+
+/**
+ * ฟังก์ชันบันทึกข้อมูลเป็น Final
+ * @param {Object} params พารามิเตอร์สำหรับการบันทึก Final
+ * @returns {Promise<{success: boolean, message: string, data?: Object}>}
+ */
+export const saveFinal = async ({
+  formData,
+  userId,
+  userName,
+  setLoading,
+  setError,
+  showToast,
+  validateRequiredFields
+}) => {
+  try {
+    // ตั้งค่าสถานะการโหลด
+    setLoading(true);
+    setError(null);
+    
+    console.log('FormHandlers.js - บันทึก Final...');
+    
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData || !formData.date || !formData.wardId || !formData.shift) {
+      setError('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูลอีกครั้ง');
+      console.error('ข้อมูลไม่ครบถ้วน:', { date: formData?.date, wardId: formData?.wardId, shift: formData?.shift });
+      return { success: false, message: 'ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูลอีกครั้ง' };
+    }
+    
+    // ตรวจสอบข้อมูลที่จำเป็นโดยละเอียด
+    const validationResult = validateRequiredFields(formData);
+    if (!validationResult.valid) {
+      setError(validationResult.message);
+      return { success: false, message: validationResult.message };
+    }
+    
+    // คำนวณค่า Patient Census ใหม่
+    if (formData.patientCensusSection) {
+      const patientCensusTotal = calculatePatientCensus(formData.patientCensusSection);
+      
+      // ตรวจสอบกะและกำหนดค่าที่เหมาะสม
+      if (formData.shift.toLowerCase().includes('night')) {
+        // กะดึก: กำหนดค่า overallData
+        formData.overallData = patientCensusTotal.toString();
+      } else {
+        // กะเช้า: กำหนดค่า patientCensusSection.total
+        if (!formData.patientCensusSection) formData.patientCensusSection = {};
+        formData.patientCensusSection.total = patientCensusTotal.toString();
+      }
+    }
+    
+    // ตรวจสอบว่ามีข้อมูล Final อยู่แล้วหรือไม่
+    const docId = `${formData.date}_${formData.wardId}_${formData.shift}`;
+    const docRef = doc(db, 'wardDataFinal', docId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      // ตรวจสอบสถานะการอนุมัติ
+      const existingData = docSnap.data();
+      if (existingData.approvalStatus && existingData.approvalStatus.isApproved) {
+        setError('ข้อมูลนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขได้');
+        return { success: false, message: 'ข้อมูลนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขได้' };
+      }
+    }
+    
+    // เพิ่มข้อมูลเกี่ยวกับการบันทึก
+    const finalData = {
+      ...formData,
+      timestamp: serverTimestamp(),
+      submittedAt: new Date().toISOString(),
+      submittedBy: {
+        userId,
+        userName
+      },
+      approvalStatus: {
+        isApproved: false,
+        isPending: true,
+        approvedBy: null,
+        approvalDate: null,
+        comments: null
+      },
+      isDraft: false,
+      isFinal: true,
+      version: (formData.version || 0) + 1
+    };
+    
+    // บันทึกข้อมูลใน collection wardDataFinal
+    await setDoc(docRef, finalData);
+    
+    // บันทึกประวัติการแก้ไขใน wardDataHistory
+    await addDoc(collection(db, 'wardDataHistory'), {
+      docId,
+      wardId: formData.wardId,
+      date: formData.date,
+      shift: formData.shift,
+      action: 'submit_final',
+      userId,
+      userName,
+      timestamp: new Date().toISOString(),
+      changes: {
+        from: 'draft',
+        to: 'final'
+      }
+    });
+    
+    console.log('บันทึก Final สำเร็จ');
+    showToast({ message: 'บันทึกข้อมูลสำเร็จ รอการอนุมัติจากผู้ดูแลระบบ', type: 'success' });
+    
+    return {
+      success: true,
+      message: 'บันทึกข้อมูลสำเร็จ รอการอนุมัติจากผู้ดูแลระบบ',
+      data: finalData
+    };
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการบันทึก Final:', error);
+    setError(`เกิดข้อผิดพลาดในการบันทึก: ${error.message}`);
+    return {
+      success: false,
+      message: `เกิดข้อผิดพลาดในการบันทึก: ${error.message}`
+    };
+  } finally {
+    setLoading(false);
+  }
+};
+
+/**
+ * ฟังก์ชันตรวจสอบสถานะการอนุมัติ
+ * @param {string} docId ID ของเอกสาร
+ * @returns {Promise<Object|null>} ข้อมูลสถานะการอนุมัติ หรือ null ถ้าไม่พบหรือเกิดข้อผิดพลาด
+ */
+export const checkApprovalStatus = async (docId) => {
+  try {
+    if (!docId) return null;
+    
+    console.log('FormHandlers.js - ตรวจสอบสถานะการอนุมัติ:', docId);
+    
+    // ดึงข้อมูลจาก collection wardDataFinal
+    const docRef = doc(db, 'wardDataFinal', docId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      
+      // ตรวจสอบว่ามีข้อมูล approvalStatus หรือไม่
+      if (data.approvalStatus) {
+        console.log('พบข้อมูลสถานะการอนุมัติ:', data.approvalStatus);
+        return data.approvalStatus;
+      } else {
+        console.log('ไม่พบข้อมูลสถานะการอนุมัติ');
+        return {
+          isApproved: false,
+          isPending: true,
+          approvedBy: null,
+          approvalDate: null,
+          comments: null
+        };
+      }
+    }
+    
+    console.log('ไม่พบข้อมูลเอกสาร');
+    return null;
+  } catch (error) {
+    console.error('เกิดข้อผิดพลาดในการตรวจสอบสถานะการอนุมัติ:', error);
+    return null;
+  }
+};
+
+/**
+ * ฟังก์ชันตรวจสอบข้อมูลที่จำเป็นสำหรับการบันทึก Final
+ * @param {Object} formData ข้อมูลฟอร์ม
+ * @returns {{valid: boolean, message: string}} ผลการตรวจสอบ
+ */
+export const validateRequiredFields = (formData) => {
+  if (!formData) {
+    return { valid: false, message: 'ไม่พบข้อมูลฟอร์ม' };
+  }
+  
+  const requiredFields = [
+    { field: 'date', label: 'วันที่' },
+    { field: 'wardId', label: 'รหัสวอร์ด' },
+    { field: 'wardName', label: 'ชื่อวอร์ด' },
+    { field: 'shift', label: 'กะ' },
+    { field: 'patientCensusSection.hospitalPatientCensus', label: 'Hospital Patient Census' }
+  ];
+  
+  for (const { field, label } of requiredFields) {
+    // ตรวจสอบ nested fields
+    if (field.includes('.')) {
+      const parts = field.split('.');
+      let value = formData;
+      
+      for (const part of parts) {
+        value = value?.[part];
+        if (value === undefined || value === null || value === '') {
+          return { valid: false, message: `กรุณากรอก ${label}` };
+        }
+      }
+    } else {
+      // ตรวจสอบ top-level fields
+      if (!formData[field]) {
+        return { valid: false, message: `กรุณากรอก ${label}` };
+      }
+    }
+  }
+  
+  // ตรวจสอบว่ามีข้อมูลการลงนามหรือไม่
+  if (!formData.signature || !formData.signature.name) {
+    return { valid: false, message: 'กรุณาลงนามผู้บันทึกข้อมูล' };
+  }
+  
+  return { valid: true, message: 'ข้อมูลครบถ้วน' };
 };

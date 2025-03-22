@@ -79,15 +79,27 @@ export const processInChunks = async (items, processItem, chunkSize = 100) => {
   return results;
 };
 
-// Cache management
+// Cache management with improved recovery
 const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const BACKUP_CACHE = new Map(); // Secondary cache for recovery
 
 export const getCachedData = (key) => {
   const cached = cache.get(key);
-  if (!cached) return null;
+  if (!cached) {
+    // Attempt to recover from backup cache
+    const backupCached = BACKUP_CACHE.get(key);
+    if (backupCached) {
+      console.log('Recovered data from backup cache for key:', key);
+      cache.set(key, backupCached);
+      return backupCached.data;
+    }
+    return null;
+  }
   
   if (Date.now() - cached.timestamp > CACHE_DURATION) {
+    // Store in backup before deleting from main cache
+    BACKUP_CACHE.set(key, {...cached, isExpired: true});
     cache.delete(key);
     return null;
   }
@@ -96,10 +108,21 @@ export const getCachedData = (key) => {
 };
 
 export const setCachedData = (key, data) => {
-  cache.set(key, {
+  const cacheEntry = {
     data,
     timestamp: Date.now()
-  });
+  };
+  cache.set(key, cacheEntry);
+  
+  // Also update backup cache
+  BACKUP_CACHE.set(key, {...cacheEntry});
+  
+  // Schedule auto cleanup
+  setTimeout(() => {
+    if (cache.has(key) && (Date.now() - cache.get(key).timestamp > CACHE_DURATION)) {
+      cache.delete(key);
+    }
+  }, CACHE_DURATION + 1000);
 };
 
 // Web Vitals
@@ -177,18 +200,76 @@ class PerformanceMonitor {
     }
   }
 
-  // Monitor memory usage
+  // Monitor memory usage - fixed implementation
   monitorMemoryUsage() {
-    if (performance.memory) {
+    if (typeof performance !== 'undefined' && performance.memory) {
       setInterval(() => {
         this.reportMetric({
           name: 'memory_usage',
           value: performance.memory.usedJSHeapSize / (1024 * 1024),
           category: 'Memory'
         });
-      }, 60000); // Check every minute
+      }, 60000);
     }
   }
 }
 
 export const performanceMonitor = new PerformanceMonitor();
+
+// Auto-recovery system
+export class DataRecoverySystem {
+  constructor(storageKey = 'form_data_recovery') {
+    this.storageKey = storageKey;
+    this.autoSaveInterval = null;
+  }
+  
+  startAutoSave(getData, interval = 30000) {
+    // Clear any existing interval
+    this.stopAutoSave();
+    
+    // Set up new interval
+    this.autoSaveInterval = setInterval(() => {
+      try {
+        const data = getData();
+        if (data) {
+          localStorage.setItem(this.storageKey, JSON.stringify({
+            data,
+            timestamp: Date.now()
+          }));
+        }
+      } catch (e) {
+        console.error('Auto-save failed:', e);
+      }
+    }, interval);
+    
+    return this;
+  }
+  
+  stopAutoSave() {
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+      this.autoSaveInterval = null;
+    }
+    return this;
+  }
+  
+  getRecoveryData() {
+    try {
+      const saved = localStorage.getItem(this.storageKey);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Recovery data retrieval failed:', e);
+    }
+    return null;
+  }
+  
+  clearRecoveryData() {
+    try {
+      localStorage.removeItem(this.storageKey);
+    } catch (e) {
+      console.error('Failed to clear recovery data:', e);
+    }
+  }
+}

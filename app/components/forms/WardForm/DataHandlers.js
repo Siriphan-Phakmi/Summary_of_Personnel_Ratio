@@ -6,178 +6,214 @@
  * แยกฟังก์ชันที่เกี่ยวข้องกับการจัดการข้อมูลภายในฟอร์ม
  */
 
-import { collection, query, getDocs, where } from 'firebase/firestore';
+import { collection, query, getDocs, where, addDoc, doc, getDoc, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import AlertUtil from '../../../utils/AlertUtil';
+import { format, isAfter, parseISO } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { fetchMorningShiftData, fetchLast7DaysDataByShift } from './DataFetchers';
 
 /**
  * loadData - ฟังก์ชันโหลดข้อมูลจาก Firestore
  */
-export const loadData = async (selectedDate, selectedWard, selectedShift, setFormData, setIsLoading, setInitError, resetForm, setIsReadOnly, setApprovalStatus, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting) => {
-    // ฟังก์ชันนี้จะใช้เวลาในการทำงาน จึงต้องมีการตั้งค่า timeout
-    let timeoutId = null;
-    
-    try {
-        // ตั้งค่าสถานะ loading
-        setIsLoading(true);
-        setInitError(null);
+export const loadData = async ({
+  selectedDate,
+  selectedWard,
+  selectedShift,
+  setLoading,
+  setError,
+  setFormData,
+  setActiveTab,
+  setIsFormFinal,
+  setApprovalStatus,
+  showToast,
+  checkApprovalStatus,
+  resetForm,
+  isDarkMode,
+  setIsUserPatient,
+  departmentList,
+}) => {
+  setLoading(true);
+  setError(null);
+
+  console.log('DataHandlers.js - โหลดข้อมูล...');
+  console.log('วันที่:', selectedDate);
+  console.log('วอร์ด:', selectedWard);
+  console.log('กะ:', selectedShift);
+
+  try {
+    // รูปแบบวันที่
+    const formattedDate = format(new Date(selectedDate), 'yyyy-MM-dd');
+    console.log('วันที่ที่จัดรูปแบบ:', formattedDate);
+
+    // สร้าง docId เพื่อค้นหาข้อมูลที่ Final แล้ว
+    const docId = `${formattedDate}_${selectedWard}_${selectedShift}`;
+    console.log('Doc ID:', docId);
+
+    // ตรวจสอบหาข้อมูลที่ Final แล้ว
+    const docRef = doc(db, 'wardDataFinal', docId);
+    const docSnap = await getDoc(docRef);
+
+    // ตัวแปรสำหรับเก็บข้อมูลที่จะแสดงในฟอร์ม
+    let dataToShow = null;
+    let isFromFinal = false;
+    let autoFilledFrom = null;
+
+    // ตรวจสอบว่ามีข้อมูล Final หรือไม่
+    if (docSnap.exists()) {
+      console.log('พบข้อมูล Final:', docSnap.data());
+      dataToShow = docSnap.data();
+      isFromFinal = true;
+      
+      // ตรวจสอบสถานะการอนุมัติ
+      const approvalResult = await checkApprovalStatus(docId);
+      setApprovalStatus(approvalResult);
+      
+    } else {
+      console.log('ไม่พบข้อมูล Final, ค้นหาข้อมูล Draft...');
+      
+      // ค้นหาข้อมูล Draft ล่าสุด
+      const draftsRef = collection(db, 'wardDataDrafts');
+      const q = query(
+        draftsRef,
+        where('date', '==', formattedDate),
+        where('wardId', '==', selectedWard),
+        where('shift', '==', selectedShift),
+        orderBy('timestamp', 'desc'),
+        limit(1)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      // ตรวจสอบว่ามีข้อมูล Draft หรือไม่
+      if (!querySnapshot.empty) {
+        console.log('พบข้อมูล Draft:', querySnapshot.docs[0].data());
+        dataToShow = querySnapshot.docs[0].data();
+      } else {
+        console.log('ไม่พบข้อมูล Draft');
         
-        // ตั้งค่า timeout สำหรับการโหลดข้อมูล
-        timeoutId = setTimeout(() => {
-            setIsLoading(false);
-            setInitError('การโหลดข้อมูลใช้เวลานานเกินไป โปรดลองใหม่อีกครั้ง');
-            if (typeof resetForm === 'function') {
-                // ใช้ optional chaining (?.) เพื่อป้องกันการเรียกใช้ฟังก์ชันที่อาจเป็น undefined
-                resetForm(
-                    setFormData, 
-                    null, 
-                    setHasUnsavedChanges, 
-                    setIsDraftMode, 
-                    setIsSubmitting, 
-                    selectedShift
-                );
-            }
-            // ใช้ optional chaining (?.) เพื่อให้โค้ดไม่เกิด error หากฟังก์ชันเป็น undefined
-            setHasUnsavedChanges?.(false);
-        }, 15000); // 15 seconds timeout
-        
-        // ตรวจสอบว่าพารามิเตอร์ที่จำเป็นมีอยู่หรือไม่
-        if (!selectedDate || !selectedWard || !selectedShift) {
-            console.error('Missing required parameters for loadData:', { selectedDate, selectedWard, selectedShift });
-            setIsLoading(false);
-            setInitError('ไม่สามารถโหลดข้อมูลได้: ข้อมูลไม่ครบถ้วน');
-            if (typeof resetForm === 'function') {
-                resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
-            }
-            setHasUnsavedChanges?.(false);
-            clearTimeout(timeoutId);
-            return;
+        // ถ้าเป็นกะดึก ลองดึงข้อมูลจากกะเช้าของวันเดียวกัน
+        if (selectedShift.toLowerCase().includes('night')) {
+          console.log('กำลังค้นหาข้อมูลกะเช้าของวันเดียวกัน...');
+          const morningData = await fetchMorningShiftData(selectedDate, selectedWard);
+          
+          if (morningData) {
+            console.log('พบข้อมูลกะเช้า, ใช้เป็นข้อมูลเริ่มต้น');
+            dataToShow = { ...morningData };
+            autoFilledFrom = `กะเช้าของวันที่ ${format(new Date(selectedDate), 'dd/MM/yyyy', { locale: th })}`;
+          }
         }
         
-        // สร้าง query เพื่อเรียกข้อมูล
-        const dateString = selectedDate instanceof Date ? selectedDate.toISOString().split('T')[0] : selectedDate;
-        console.log(`Loading data for date: ${dateString}, ward: ${selectedWard}, shift: ${selectedShift}`);
-        
-        const q = query(
-            collection(db, 'wardData'),
-            where('date', '==', dateString),
-            where('wardId', '==', selectedWard),
-            where('shift', '==', selectedShift)
-        );
-        
-        // ดึงข้อมูลจาก Firestore
-        console.log("Executing query to Firestore...");
-        const querySnapshot = await getDocs(q);
-        console.log(`Query returned ${querySnapshot.size} documents`);
-        
-        // ประมวลผลข้อมูลที่ได้รับ
-        if (!querySnapshot.empty) {
-            const docData = querySnapshot.docs[0].data();
-            const docId = querySnapshot.docs[0].id;
-            console.log("Document found:", { id: docId, ...docData });
+        // ถ้ายังไม่มีข้อมูล ลองดึงข้อมูลจาก 7 วันย้อนหลัง
+        if (!dataToShow) {
+          console.log('ไม่พบข้อมูลกะเช้าหรือกะดึกในวันที่ต้องการ ลองดึงข้อมูลย้อนหลัง 7 วัน');
+          
+          try {
+            const historicalData = await fetchLast7DaysDataByShift(
+              selectedDate,
+              selectedWard,
+              selectedShift
+            );
             
-            // ตรวจสอบว่าเป็นกะอะไรและกำหนดค่าให้ถูกต้อง
-            const isNightShift = 
-                selectedShift === 'night' || 
-                selectedShift === 'Night' || 
-                selectedShift === 'Night (19:00-07:00)' || 
-                selectedShift === '19:00-07:00' ||
-                /night/i.test(selectedShift);
-            
-            // สร้างข้อมูลที่ถูกต้องตามกะที่เลือก
-            const formattedData = {
-                ...docData,
-                id: docId,
-                shift: selectedShift
-            };
-            
-            // กำหนดค่า total และ overallData ตามกะ
-            if (isNightShift) {
-                console.log('กะดึก: กำหนดค่า overallData และเคลียร์ patientCensus.total');
-                if (formattedData.patientCensus) {
-                    // คำนวณค่าโดยใช้ข้อมูลปัจจุบัน
-                    const total = calculatePatientCensusTotal(formattedData);
-                    formattedData.overallData = total ? total.toString() : '';
-                    formattedData.patientCensus.total = ''; // เคลียร์ค่า total เพื่อไม่ให้แสดงซ้ำ
-                }
-            } else {
-                console.log('กะเช้า: เคลียร์ค่า overallData และกำหนด patientCensus.total');
-                if (formattedData.patientCensus) {
-                    // คำนวณค่าโดยใช้ข้อมูลปัจจุบัน
-                    const total = calculatePatientCensusTotal(formattedData);
-                    formattedData.patientCensus.total = total ? total.toString() : '';
-                }
-                formattedData.overallData = ''; // เคลียร์ค่า overallData
+            if (historicalData) {
+              console.log('ดึงข้อมูลย้อนหลัง 7 วันสำเร็จ:', historicalData);
+              
+              // ปรับรูปแบบข้อมูลให้เหมาะสมกับฟอร์ม
+              const adjustedData = {
+                ...historicalData,
+                date: formattedDate, // ใช้วันที่ปัจจุบัน
+                formattedDate, // ใช้วันที่ปัจจุบัน
+                autoFilledFrom: `ข้อมูลประวัติย้อนหลังวันที่ ${format(new Date(historicalData.date), 'dd/MM/yyyy')} กะ ${historicalData.shift}`
+              };
+              
+              setFormData(adjustedData);
+              
+              // แสดงข้อความแจ้งเตือนถึงการนำเข้าข้อมูลอัตโนมัติ
+              showToast({
+                message: `นำเข้าข้อมูลจากประวัติย้อนหลัง (${format(new Date(historicalData.date), 'dd/MM/yyyy')} กะ ${historicalData.shift})`,
+                type: 'info'
+              });
+              
+              setLoading(false);
+              return;
             }
             
-            setFormData(formattedData);
-            
-            // ตรวจสอบสถานะการอนุมัติ
-            if (docData.approvalStatus) {
-                setApprovalStatus(docData.approvalStatus);
-                
-                // ถ้าข้อมูลเป็น final และได้รับการอนุมัติแล้ว ให้ตั้งค่าเป็น read-only
-                if (docData.status === 'final' && docData.approvalStatus.isApproved) {
-                    setIsReadOnly(true);
-                } else {
-                    setIsReadOnly(false);
-                }
-            } else {
-                setApprovalStatus(null);
-                setIsReadOnly(false);
-            }
-        } else {
-            // กรณีที่ไม่พบข้อมูล
-            console.log("No documents found, resetting form with shift:", selectedShift);
-            if (typeof resetForm === 'function') {
-                resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
-            }
-            
-            // กำหนดค่าเริ่มต้นตามกะ
-            const isNightShift = 
-                selectedShift === 'night' || 
-                selectedShift === 'Night' || 
-                selectedShift === 'Night (19:00-07:00)' || 
-                selectedShift === '19:00-07:00' ||
-                /night/i.test(selectedShift);
-                
-            // อัปเดตฟอร์มตามกะที่เลือก
-            setFormData(prevState => {
-                const newState = { ...prevState, shift: selectedShift };
-                
-                // เคลียร์ค่า total และ overallData
-                if (!newState.patientCensus) {
-                    newState.patientCensus = {};
-                }
-                
-                // กำหนดค่าตามกะ
-                if (isNightShift) {
-                    // กะดึก เคลียร์ค่า total และกำหนด overallData เป็นค่าว่าง
-                    newState.patientCensus.total = '';
-                    newState.overallData = '';
-                    console.log('รีเซ็ตค่าสำหรับกะดึก:', newState);
-                } else {
-                    // กะเช้า เคลียร์ค่า overallData
-                    newState.overallData = '';
-                    console.log('รีเซ็ตค่าสำหรับกะเช้า:', newState);
-                }
-                
-                return newState;
-            });
+            console.log('ไม่พบข้อมูลย้อนหลังเพื่อนำเข้าอัตโนมัติ');
+          } catch (error) {
+            console.error('เกิดข้อผิดพลาดในการนำเข้าข้อมูลอัตโนมัติ:', error);
+          }
         }
+      }
+    }
+
+    // จัดการข้อมูลที่จะแสดงในฟอร์ม
+    if (dataToShow) {
+      console.log('กำลังเตรียมข้อมูลสำหรับแสดงในฟอร์ม');
+      
+      // ตรวจสอบว่าเป็นข้อมูลที่ Auto-filled หรือไม่
+      if (autoFilledFrom) {
+        // กรณีใช้ข้อมูลอัตโนมัติ ให้ clear ข้อมูลที่ไม่ควรคัดลอก
+        const { 
+          wardId, hospitalName, wardName, departmentId, wardType, 
+          patientCensusSection, hospitalPatientCensus, patientCensusMetrics,
+          nurseShiftCheck, staffTotalMetrics
+        } = dataToShow;
         
-        // เสร็จสิ้นการโหลดข้อมูล
-        setIsLoading(false);
+        // สร้างข้อมูลใหม่โดยใช้เฉพาะข้อมูลที่ต้องการ
+        dataToShow = {
+          wardId,
+          hospitalName,
+          wardName,
+          departmentId,
+          wardType,
+          patientCensusSection,
+          hospitalPatientCensus,
+          patientCensusMetrics,
+          nurseShiftCheck,
+          staffTotalMetrics,
+          // ข้อมูลที่ต้องระบุใหม่
+          date: formattedDate,
+          shift: selectedShift,
+          // ข้อมูลสำหรับแสดงว่าโหลดจากที่ใด
+          autoFilledFrom
+        };
+        
+        // แสดงข้อความแจ้งเตือน
+        showToast({
+          message: `โหลดข้อมูลอัตโนมัติจาก${autoFilledFrom}`,
+          type: 'info',
+          duration: 5000
+        });
+      }
+      
+      // เก็บสถานะว่าเป็นฟอร์มที่ Final แล้วหรือไม่
+      setIsFormFinal(isFromFinal);
+      
+      // กำหนดข้อมูลสำหรับฟอร์ม
+      setFormData(dataToShow);
+      
+      // ตั้งค่า active tab ตามสถานะของฟอร์ม
+      setActiveTab(0);
+      
+      console.log('โหลดข้อมูลสำเร็จ');
+      
+    } else {
+      console.log('ไม่พบข้อมูล, รีเซ็ตฟอร์ม');
+      // กรณีไม่พบข้อมูลใดๆ ให้รีเซ็ตฟอร์ม
+      resetForm({ selectedDate, selectedShift, selectedWard, departmentList, isDarkMode });
+      setIsFormFinal(false);
+      setApprovalStatus(null);
+    }
     } catch (error) {
-        console.error('Error loading data:', error);
-        setIsLoading(false);
-        setInitError(`เกิดข้อผิดพลาด: ${error.message}`);
-        if (typeof resetForm === 'function') {
-            resetForm(setFormData, null, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift);
-        }
-        setHasUnsavedChanges?.(false);
+    console.error('เกิดข้อผิดพลาดในการโหลดข้อมูล:', error);
+    setError('เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่อีกครั้ง');
+    
+    // รีเซ็ตฟอร์มในกรณีเกิดข้อผิดพลาด
+    resetForm({ selectedDate, selectedShift, selectedWard, departmentList, isDarkMode });
+    setIsFormFinal(false);
+    setApprovalStatus(null);
     } finally {
-        clearTimeout(timeoutId);
+    setLoading(false);
     }
 };
 
@@ -186,10 +222,24 @@ export const loadData = async (selectedDate, selectedWard, selectedShift, setFor
  */
 export const resetForm = (setFormData, initialFormData, setHasUnsavedChanges, setIsDraftMode, setIsSubmitting, selectedShift) => {
     console.log('resetForm called with shift:', selectedShift);
+    
+    // สร้างข้อมูลเริ่มต้นหากไม่มี
+    const defaultInitialData = {
+        patientCensusData: {},
+        personnelData: {},
+        notes: {},
+        patientCensusTotal: 0,
+        patientCensus: {},
+        overallData: '',
+        date: '',
+        shift: selectedShift || '',
+        status: ''
+    };
+    
     // ตั้งค่าข้อมูลฟอร์มเป็นค่าเริ่มต้น
     setFormData(prevData => {
-        // สร้างสำเนาของข้อมูลเริ่มต้น
-        const resetData = { ...initialFormData || prevData };
+        // สร้างสำเนาของข้อมูลเริ่มต้น โดยดูว่า initialFormData ถูกส่งมาหรือไม่
+        const resetData = { ...defaultInitialData, ...(initialFormData || {}) };
         
         // เช็คว่าเป็นกะดึกหรือไม่
         const isNightShift = 
@@ -220,15 +270,11 @@ export const resetForm = (setFormData, initialFormData, setHasUnsavedChanges, se
     });
     
     // รีเซ็ตสถานะอื่นๆ
-    if (setHasUnsavedChanges) {
-        setHasUnsavedChanges(false);
-    }
-    if (setIsDraftMode) {
-        setIsDraftMode(false);
-    }
-    if (setIsSubmitting) {
-        setIsSubmitting(false);
-    }
+    if (setHasUnsavedChanges) setHasUnsavedChanges(false);
+    if (setIsDraftMode) setIsDraftMode(false);
+    if (setIsSubmitting) setIsSubmitting(false);
+    
+    console.log('resetForm complete');
 };
 
 /**
@@ -405,80 +451,24 @@ export const showConfirm = async (title, message, options = {}) => {
             denyText = 'บันทึกแบบร่างก่อน'
         } = options;
 
-        return new Promise((resolve) => {
-            // ฟังก์ชันสำหรับปิด modal และส่งผลลัพธ์
-            const handleCancel = (e) => {
-                if (e) e.stopPropagation();
-                console.log("Cancel button clicked");
-                resolve({ isConfirmed: false, isDismissed: true });
-            };
-
-            const handleDeny = (e) => {
-                if (e) e.stopPropagation();
-                console.log("Deny button clicked");
-                resolve({ isDenied: true });
-            };
-
-            const handleConfirm = (e) => {
-                if (e) e.stopPropagation();
-                console.log("Confirm button clicked");
-                resolve({ isConfirmed: true });
-            };
-
-            AlertUtil.custom({
-                component: ({ onClose }) => {
-                    // เมื่อปุ่มถูกคลิก จะต้องเรียก onClose และ resolve promise
-                    const onCancelClick = (e) => {
-                        handleCancel(e);
-                        onClose();
-                    };
-
-                    const onDenyClick = (e) => {
-                        handleDeny(e);
-                        onClose();
-                    };
-
-                    const onConfirmClick = (e) => {
-                        handleConfirm(e);
-                        onClose();
-                    };
-
-                    return (
-                        <div className="dialog-content">
-                            <h2 className="text-xl font-medium mb-4">{title}</h2>
-                            <p className="mb-6 text-gray-600">{message}</p>
-                            <div className="flex justify-end gap-4">
-                                <button
-                                    onClick={onCancelClick}
-                                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 cursor-pointer"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    {cancelText}
-                                </button>
-                                {showDenyButton && (
-                                    <button
-                                        onClick={onDenyClick}
-                                        className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 cursor-pointer"
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        {denyText}
-                                    </button>
-                                )}
-                                <button
-                                    onClick={onConfirmClick}
-                                    className="px-4 py-2 text-white bg-[#0ab4ab] rounded-lg hover:bg-[#099b93] cursor-pointer"
-                                    style={{ cursor: 'pointer' }}
-                                >
-                                    {confirmText}
-                                </button>
-                            </div>
-                        </div>
-                    );
-                },
-                closeOnOutsideClick: true,
-                containerClassName: "pointer-events-auto"
-            });
+        // ใช้ SweetAlert2 แทน AlertUtil ที่อาจมีปัญหา
+        const result = await Swal.fire({
+            title,
+            text: message,
+            icon: 'question',
+            showCancelButton: true,
+            showDenyButton: showDenyButton,
+            confirmButtonText: confirmText,
+            cancelButtonText: cancelText,
+            denyButtonText: denyText,
+            reverseButtons: true
         });
+
+        return {
+            isConfirmed: result.isConfirmed,
+            isDenied: result.isDenied,
+            isDismissed: result.isDismissed
+        };
     } catch (error) {
         console.error('Error in showConfirm:', error);
         return { isConfirmed: false, error };

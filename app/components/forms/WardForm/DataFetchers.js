@@ -182,55 +182,29 @@ export const fetchLast7DaysData = async (currentDate, wardId) => {
 };
 
 /**
- * ฟังก์ชันสำหรับคำนวณค่า Patient Census
- * @param {Object} formData ข้อมูลฟอร์ม
- * @returns {string|number} ค่า Patient Census ที่คำนวณได้ หรือ empty string ถ้าไม่มีข้อมูล
+ * ฟังก์ชันคำนวณ Patient Census โดยอัตโนมัติ
+ * @param {Object} patientData ข้อมูลผู้ป่วยที่ใช้ในการคำนวณ
+ * @returns {number} ตัวเลข Patient Census ที่คำนวณได้
  */
 export const calculatePatientCensus = (patientData) => {
-  if (!patientData) {
-    console.warn('ไม่สามารถคำนวณได้: ข้อมูล patientData ไม่มี');
-    return '';
-  }
-
-  // แปลงค่าเป็นตัวเลข และใช้ parseInt ด้วย radix เพื่อป้องกันการแปลงค่าที่ผิดพลาด
-  const hospitalPatientcensus = parseInt(patientData.hospitalPatientcensus || '0', 10) || 0;
-  const newAdmit = parseInt(patientData.newAdmit || '0', 10) || 0;
-  const transferIn = parseInt(patientData.transferIn || '0', 10) || 0;
-  const referIn = parseInt(patientData.referIn || '0', 10) || 0;
-  const transferOut = parseInt(patientData.transferOut || '0', 10) || 0;
-  const referOut = parseInt(patientData.referOut || '0', 10) || 0;
-  const discharge = parseInt(patientData.discharge || '0', 10) || 0;
-  const dead = parseInt(patientData.dead || '0', 10) || 0;
-
-  // Debug: แสดงค่าที่นำมาคำนวณ
-  console.log('DataFetchers - Patient Census Values:', {
-    hospitalPatientcensus,
-    newAdmit,
-    transferIn,
-    referIn,
-    transferOut,
-    referOut,
-    discharge,
-    dead
-  });
-
-  // คำนวณตามสูตร: Hospital Patient Census + New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead
-  const total = hospitalPatientcensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
-  
-  console.log(`DataFetchers คำนวณ Patient Census: ${hospitalPatientcensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
-  
-  // Display empty string if total is 0 and all input fields are empty
-  const shouldShowEmpty = total === 0 && 
-      !patientData.hospitalPatientcensus &&
-      !patientData.newAdmit && 
-      !patientData.transferIn && 
-      !patientData.referIn && 
-      !patientData.transferOut && 
-      !patientData.referOut && 
-      !patientData.discharge && 
-      !patientData.dead;
-  
-  return shouldShowEmpty ? '' : total.toString();
+    if (!patientData) return 0;
+    
+    // แปลงค่าเป็นตัวเลข
+    const hospitalPatientCensus = parseInt(patientData.hospitalPatientCensus || 0, 10) || 0;
+    const newAdmit = parseInt(patientData.newAdmit || 0, 10) || 0;
+    const transferIn = parseInt(patientData.transferIn || 0, 10) || 0;
+    const referIn = parseInt(patientData.referIn || 0, 10) || 0;
+    const transferOut = parseInt(patientData.transferOut || 0, 10) || 0;
+    const referOut = parseInt(patientData.referOut || 0, 10) || 0;
+    const discharge = parseInt(patientData.discharge || 0, 10) || 0;
+    const dead = parseInt(patientData.dead || 0, 10) || 0;
+    
+    // คำนวณตามสูตร: Hospital Patient Census + New Admit + Transfer In + Refer In - Transfer Out - Refer Out - Discharge - Dead
+    const total = hospitalPatientCensus + newAdmit + transferIn + referIn - transferOut - referOut - discharge - dead;
+    
+    console.log(`คำนวณ Patient Census: ${hospitalPatientCensus} + ${newAdmit} + ${transferIn} + ${referIn} - ${transferOut} - ${referOut} - ${discharge} - ${dead} = ${total}`);
+    
+    return total;
 };
 
 /**
@@ -762,4 +736,174 @@ export const checkPast7DaysData = async (date, wardId) => {
       missingDates: []
     };
   }
+};
+
+/**
+ * ฟังก์ชันดึงข้อมูลกะเช้าของวันที่เดียวกัน
+ * @param {Date|string} date วันที่ต้องการดึงข้อมูล
+ * @param {string} wardId รหัสวอร์ด 
+ * @returns {Promise<Object|null>} ข้อมูลกะเช้าหรือ null ถ้าไม่พบ
+ */
+export const fetchMorningShiftData = async (date, wardId) => {
+    try {
+        const formattedDate = date instanceof Date ? format(date, 'yyyy-MM-dd') : date;
+        console.log(`กำลังดึงข้อมูลกะเช้าของวันที่ ${formattedDate} สำหรับวอร์ด ${wardId}`);
+        
+        // ตรวจสอบกะเช้าในรูปแบบต่างๆ
+        const morningShiftFormats = ['เช้า', 'Morning (07:00-19:00)', '07:00-19:00', 'morning'];
+        
+        let morningShiftData = null;
+        
+        // ค้นหาข้อมูลในคอลเลกชัน wardDataFinal ก่อน
+        for (const shiftFormat of morningShiftFormats) {
+            const docId = `${formattedDate}_${wardId}_${shiftFormat}`;
+            const docRef = doc(db, 'wardDataFinal', docId);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                console.log(`พบข้อมูลกะเช้าแบบ Final ในรูปแบบ ${shiftFormat}`);
+                morningShiftData = docSnap.data();
+                break;
+            }
+        }
+        
+        // ถ้ายังไม่พบข้อมูล ให้ค้นหาในคอลเลกชัน wardDataDrafts
+        if (!morningShiftData) {
+            for (const shiftFormat of morningShiftFormats) {
+                const draftsRef = collection(db, 'wardDataDrafts');
+                const q = query(
+                    draftsRef,
+                    where('date', '==', formattedDate),
+                    where('wardId', '==', wardId),
+                    where('shift', '==', shiftFormat),
+                    orderBy('timestamp', 'desc'),
+                    limit(1)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                
+                if (!querySnapshot.empty) {
+                    console.log(`พบข้อมูลกะเช้าแบบ Draft ในรูปแบบ ${shiftFormat}`);
+                    morningShiftData = querySnapshot.docs[0].data();
+                    break;
+                }
+            }
+        }
+        
+        // ตรวจสอบอีกครั้งว่าพบข้อมูลหรือไม่
+        if (morningShiftData) {
+            console.log('การดึงข้อมูลกะเช้าสำเร็จ:', morningShiftData);
+            return morningShiftData;
+        }
+        
+        console.log('ไม่พบข้อมูลกะเช้าสำหรับวันที่นี้');
+        return null;
+    } catch (error) {
+        console.error('เกิดข้อผิดพลาดในการดึงข้อมูลกะเช้า:', error);
+        return null;
+    }
+};
+
+/**
+ * ฟังก์ชันดึงข้อมูลย้อนหลัง 7 วัน
+ * @param {Date|string} currentDate วันที่ปัจจุบัน
+ * @param {string} wardId รหัสวอร์ด
+ * @param {string} shift กะที่ต้องการ (เช้า/ดึก)
+ * @returns {Promise<Object|null>} ข้อมูลล่าสุดภายใน 7 วันย้อนหลัง หรือ null ถ้าไม่พบข้อมูล
+ */
+export const fetchLast7DaysDataByShift = async (currentDate, wardId, shift) => {
+    try {
+        console.log(`กำลังดึงข้อมูลย้อนหลัง 7 วันสำหรับวอร์ด ${wardId} กะ ${shift}`);
+        
+        // แปลงรูปแบบวันที่
+        const today = currentDate instanceof Date ? currentDate : new Date(currentDate);
+        
+        // สร้างวันที่ย้อนหลัง 7 วัน
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
+        
+        // รูปแบบกะที่เป็นไปได้
+        const morningShiftFormats = ['เช้า', 'Morning (07:00-19:00)', '07:00-19:00', 'morning'];
+        const nightShiftFormats = ['ดึก', 'Night (19:00-07:00)', '19:00-07:00', 'night'];
+        
+        // เลือก array ของรูปแบบกะตามพารามิเตอร์ shift
+        const shiftFormats = shift && shift.toLowerCase().includes('night') ? nightShiftFormats : morningShiftFormats;
+        
+        // สร้าง query เพื่อดึงข้อมูล
+        let historicalData = null;
+        
+        // ลองหาข้อมูลใน wardDataFinal ก่อน
+        const finalRef = collection(db, 'wardDataFinal');
+        const finalQuery = query(
+            finalRef,
+            where('wardId', '==', wardId),
+            where('date', '>=', format(sevenDaysAgo, 'yyyy-MM-dd')),
+            where('date', '<', format(today, 'yyyy-MM-dd')),
+            orderBy('date', 'desc')
+        );
+        
+        const finalSnapshot = await getDocs(finalQuery);
+        
+        if (!finalSnapshot.empty) {
+            const allDocs = [];
+            finalSnapshot.forEach(doc => {
+                const data = doc.data();
+                // ตรวจสอบว่ากะตรงกับที่ต้องการหรือไม่
+                if (shiftFormats.some(format => data.shift && data.shift.includes(format))) {
+                    allDocs.push(data);
+                }
+            });
+            
+            // เรียงลำดับตามวันที่ล่าสุด
+            allDocs.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            if (allDocs.length > 0) {
+                historicalData = allDocs[0];
+            }
+        }
+        
+        // ถ้าไม่พบข้อมูลใน wardDataFinal ให้ลองดูใน wardDataDrafts
+        if (!historicalData) {
+            const draftsRef = collection(db, 'wardDataDrafts');
+            const draftsQuery = query(
+                draftsRef,
+                where('wardId', '==', wardId),
+                where('date', '>=', format(sevenDaysAgo, 'yyyy-MM-dd')),
+                where('date', '<', format(today, 'yyyy-MM-dd')),
+                orderBy('date', 'desc')
+            );
+            
+            const draftsSnapshot = await getDocs(draftsQuery);
+            
+            if (!draftsSnapshot.empty) {
+                const allDocs = [];
+                draftsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // ตรวจสอบว่ากะตรงกับที่ต้องการหรือไม่
+                    if (shiftFormats.some(format => data.shift && data.shift.includes(format))) {
+                        allDocs.push(data);
+                    }
+                });
+                
+                // เรียงลำดับตามวันที่ล่าสุด
+                allDocs.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                if (allDocs.length > 0) {
+                    historicalData = allDocs[0];
+                }
+            }
+        }
+        
+        // ตรวจสอบอีกครั้งว่าพบข้อมูลหรือไม่
+        if (historicalData) {
+            console.log(`พบข้อมูลย้อนหลังจากวันที่ ${historicalData.date} กะ ${historicalData.shift}`);
+            return historicalData;
+        }
+        
+        console.log('ไม่พบข้อมูลย้อนหลัง 7 วัน');
+        return null;
+    } catch (error) {
+        console.error('เกิดข้อผิดพลาดในการดึงข้อมูลย้อนหลัง 7 วัน:', error);
+        return null;
+    }
 };

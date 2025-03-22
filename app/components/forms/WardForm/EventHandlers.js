@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { useState } from 'react';
-import { Swal } from '../../../utils/alertService';
+import { SwalAlert } from '../../../utils/alertService';
 import { checkApprovalStatus, fetchWardData, fetchPreviousWardData } from './DataFetchers';
 import { parseInputValue } from './FormHandlers';
 import { formatThaiDate } from '../../../utils/dateUtils';
@@ -204,7 +204,7 @@ export const handleDateSelect = (
                 const previousNightResult = await checkPreviousNightShiftData(formattedDate, selectedWard);
                 if (!previousNightResult.exists) {
                     // แสดงการแจ้งเตือน
-                    await Swal.fire({
+                    await SwalAlert.fire({
                         title: 'พบปัญหาข้อมูลกะดึกของวันก่อนหน้า',
                         html: previousNightResult.message || 'ไม่พบข้อมูลกะดึกของวันก่อนหน้า หรือข้อมูลยังไม่ได้บันทึกเป็น Final<br>กรุณาตรวจสอบข้อมูลกะดึกของวันก่อนหน้า',
                         icon: 'warning',
@@ -212,7 +212,7 @@ export const handleDateSelect = (
                     });
                 } else if (previousNightResult.exists && !previousNightResult.isFinal) {
                     // แสดงการแจ้งเตือนว่ามีข้อมูลแต่ยังไม่เป็น Final
-                    await Swal.fire({
+                    await SwalAlert.fire({
                         title: 'ข้อมูลกะดึกของวันก่อนหน้ายังไม่สมบูรณ์',
                         html: 'ข้อมูลกะดึกของวันก่อนหน้ายังไม่ได้บันทึกเป็น Final<br>กรุณาตรวจสอบและบันทึก Final ข้อมูลกะดึกของวันก่อนหน้า',
                         icon: 'info',
@@ -228,7 +228,7 @@ export const handleDateSelect = (
                 const past7DaysResult = await checkPast7DaysData(formattedDate, selectedWard);
                 if (!past7DaysResult.complete) {
                     // แสดงการแจ้งเตือน
-                    await Swal.fire({
+                    await SwalAlert.fire({
                         title: 'ข้อมูล 7 วันย้อนหลังไม่ครบถ้วน',
                         html: `พบวันที่ยังไม่ได้บันทึกข้อมูลในช่วง 7 วันย้อนหลัง:<br><ul class="mt-2 text-left list-disc pl-5">${past7DaysResult.missingDates.map(d => `<li>${formatThaiDate(d)}</li>`).join('')}</ul>`,
                         icon: 'warning',
@@ -257,7 +257,7 @@ export const handleDateSelect = (
                     
                     // แจ้งเตือนว่าโหลดข้อมูลอัตโนมัติ
                     if (sourceMessage) {
-                        await Swal.fire({
+                        await SwalAlert.fire({
                             title: 'โหลดข้อมูลอัตโนมัติ',
                             text: sourceMessage,
                             icon: 'info',
@@ -299,7 +299,7 @@ export const handleDateSelect = (
             } catch (error) {
                 console.error('Error loading data for the selected date:', error);
                 // แจ้งเตือนข้อผิดพลาด
-                await Swal.fire({
+                await SwalAlert.fire({
                     title: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
                     text: error.message || 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง',
                     icon: 'error',
@@ -357,7 +357,7 @@ export const createHandleBeforeUnload = (hasUnsavedChanges) => {
 // เพิ่มฟังก์ชันสำหรับยืนยันการบันทึกร่าง
 export const createHandleSaveDraft = (onSaveDraft) => {
     return async () => {
-        const result = await Swal.fire({
+        const result = await SwalAlert.fire({
             title: 'ยืนยันการบันทึกแบบร่าง',
             text: 'คุณต้องการบันทึกข้อมูลแบบร่างหรือไม่?',
             icon: 'question',
@@ -387,7 +387,7 @@ export const createHandleSubmit = (onSubmit, validateForm = null) => {
             }
         }
         
-        const result = await Swal.fire({
+        const result = await SwalAlert.fire({
             title: 'ยืนยันการบันทึกข้อมูล',
             html: 'คุณแน่ใจหรือไม่ว่าต้องการบันทึกข้อมูลนี้?<br>การบันทึกข้อมูลจะถือว่าข้อมูลนี้เป็นข้อมูลทางการ',
             icon: 'question',
@@ -410,7 +410,7 @@ export const createHandleSubmit = (onSubmit, validateForm = null) => {
 export const createHandleCancel = (hasUnsavedChanges, onCancel) => {
     return async () => {
         if (hasUnsavedChanges) {
-            const result = await Swal.fire({
+            const result = await SwalAlert.fire({
                 title: 'ยืนยันการยกเลิก',
                 html: 'คุณมีข้อมูลที่ยังไม่ได้บันทึก<br>คุณแน่ใจหรือไม่ว่าต้องการยกเลิกการกรอกข้อมูล?',
                 icon: 'warning',

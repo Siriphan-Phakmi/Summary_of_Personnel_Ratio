@@ -184,13 +184,24 @@ const Dashboard = () => {
         fetchData();
     }, [fetchData]);
 
-    // เล่น Initial Loading Effect
+    // Set up loading state management with proper cleanup
     useEffect(() => {
-        const timer = setTimeout(() => {
+        let timer;
+        setIsLoading(true);
+        
+        // Create promise to simulate minimum loading time for visual consistency
+        Promise.all([
+            new Promise(resolve => { timer = setTimeout(resolve, 1000); }),
+            fetchData()
+        ])
+        .finally(() => {
             setIsLoading(false);
-        }, 1000);
-
-        return () => clearTimeout(timer);
+        });
+        
+        // Cleanup function
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, []);
 
     const handleDateSelect = async (date, shift) => {

@@ -1,24 +1,28 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 const LoadingScreen = ({ timeout = 15000, onTimeout, showRetry = false }) => {
     const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
 
     useEffect(() => {
-        const timeoutTimer = setTimeout(() => {
-            setShowTimeoutMessage(true);
-            if (onTimeout && typeof onTimeout === 'function') {
-                onTimeout();
-            }
-        }, timeout);
-
-        return () => clearTimeout(timeoutTimer);
+        let timer;
+        if (timeout > 0) {
+            timer = setTimeout(() => {
+                setShowTimeoutMessage(true);
+                if (onTimeout) onTimeout();
+            }, timeout);
+        }
+        return () => {
+            if (timer) clearTimeout(timer);
+        };
     }, [timeout, onTimeout]);
 
-    const handleRetry = useCallback(() => {
-        window.location.reload();
-    }, []);
+    const handleRetry = () => {
+        setShowTimeoutMessage(false);
+        if (onTimeout) onTimeout('retry');
+        else window.location.reload();
+    };
 
     return (
         <div className="fixed inset-0 bg-gradient-to-br from-white via-blue-50 to-[#0ab4ab]/10 flex items-center justify-center z-50">

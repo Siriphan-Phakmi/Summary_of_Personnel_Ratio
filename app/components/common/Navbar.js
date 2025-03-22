@@ -2,7 +2,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import { Swal } from '../../utils/alertService';
+import { SwalAlert } from '../../utils/alertService';
 import { PAGES, PAGE_LABELS } from '../../config/constants';
 import { useEffect, useState } from 'react';
 import ThemeToggle from '../ui/ThemeToggle';
@@ -55,7 +55,7 @@ const Navbar = () => {
   const navigateTo = async (page) => {
     // ตรวจสอบสิทธิ์การเข้าถึง
     if (page === PAGES.USER_MANAGEMENT && user?.role?.toLowerCase() !== 'admin') {
-      Swal.fire({
+      SwalAlert.fire({
         title: 'ไม่มีสิทธิ์เข้าถึง',
         text: 'คุณไม่มีสิทธิ์เข้าถึงหน้าจัดการผู้ใช้',
         icon: 'warning',
@@ -66,7 +66,7 @@ const Navbar = () => {
 
     // ตรวจสอบสิทธิ์การเข้าถึงหน้า Ward Form
     if (page === PAGES.WARD && (!user?.department || user.department === '')) {
-      Swal.fire({
+      SwalAlert.fire({
         title: 'ไม่มีสิทธิ์เข้าถึง',
         text: 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้ เนื่องจากไม่มีแผนกที่กำหนด กรุณาติดต่อผู้ดูแลระบบ',
         icon: 'warning',
@@ -77,7 +77,7 @@ const Navbar = () => {
 
     // ตรวจสอบว่ามีข้อมูลที่ยังไม่ได้บันทึกหรือไม่
     if (window.hasUnsavedChanges) {
-      const result = await Swal.fire({
+      const result = await SwalAlert.fire({
         title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
         text: 'คุณต้องการออกจากหน้านี้หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะหายไป',
         icon: 'warning',
@@ -120,7 +120,7 @@ const Navbar = () => {
   // ฟังก์ชันออกจากระบบ
   const handleLogout = async () => {
     try {
-      const result = await Swal.fire({
+      const result = await SwalAlert.fire({
         title: 'ต้องการออกจากระบบ?',
         text: 'คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ',
         icon: 'question',
@@ -137,7 +137,7 @@ const Navbar = () => {
       }
     } catch (error) {
       console.error('Logout failed:', error);
-      Swal.fire({
+      SwalAlert.fire({
         title: 'เกิดข้อผิดพลาด',
         text: 'ไม่สามารถออกจากระบบได้ กรุณาลองใหม่อีกครั้ง',
         icon: 'error',

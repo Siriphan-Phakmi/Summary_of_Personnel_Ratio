@@ -100,23 +100,85 @@ export const validateFormData = (formData, summaryData) => {
             message: 'กรุณากรอกชื่อและนามสกุลผู้ตรวจการ'
         }
     ];
-
+    
+    // Check each validation condition
     for (const check of validationChecks) {
         if (check.condition) {
-            console.log('Validation failed:', check.message);
-            if (check.message) alert(check.message);
+            alert(check.message);
+            return false;
+        }
+    }
+    
+    // Validate staff ratio requirements for each ward
+    let staffRatioValid = true;
+    let ratioWarningMessage = '';
+    
+    Object.entries(formData.wards).forEach(([ward, data]) => {
+        const patientCount = parseInt(data.numberOfPatients || 0);
+        const rnCount = parseInt(data.RN || 0);
+        
+        // Skip wards with no patients
+        if (patientCount === 0) return;
+        
+        // Calculate ratio - 1:8 is standard (1 RN per 8 patients)
+        if (rnCount > 0) {
+            const ratio = patientCount / rnCount;
+            
+            if (ratio > 8) {
+                staffRatioValid = false;
+                ratioWarningMessage += `\n- ${ward}: อัตราส่วนพยาบาลต่อผู้ป่วย 1:${ratio.toFixed(1)} (มาตรฐาน 1:8)`;
+            }
+        } else if (patientCount > 0) {
+            staffRatioValid = false;
+            ratioWarningMessage += `\n- ${ward}: ไม่มีพยาบาล RN ในขณะที่มีผู้ป่วย ${patientCount} คน`;
+        }
+    });
+    
+    // Show warning for staff ratio issues
+    if (!staffRatioValid) {
+        const continueWithWarning = window.confirm(
+            'พบอัตราส่วนพยาบาลต่อผู้ป่วยที่ต่ำกว่ามาตรฐาน:' + 
+            ratioWarningMessage + 
+            '\n\nต้องการดำเนินการต่อหรือไม่?'
+        );
+        
+        if (!continueWithWarning) {
             return false;
         }
     }
 
-    // Validate ward data
-    for (const [wardName, wardData] of Object.entries(formData.wards)) {
-        const wardErrors = validateWardData(wardData);
-        if (wardErrors.length > 0) {
-            alert(`Errors in ${wardName}:\n${wardErrors.join('\n')}`);
-            return false;
-        }
-    }
-
+    // If all checks pass
     return true;
+};
+
+// Add additional validation for patient census calculation
+export const validatePatientCensusCalculation = (wardData) => {
+    // Parse all movement values
+    const previousCensus = parseInt(wardData.previousCensus || 0);
+    const newAdmit = parseInt(wardData.newAdmit || 0); 
+    const transferIn = parseInt(wardData.transferIn || 0);
+    const referIn = parseInt(wardData.referIn || 0);
+    const transferOut = parseInt(wardData.transferOut || 0);
+    const referOut = parseInt(wardData.referOut || 0);
+    const discharge = parseInt(wardData.discharge || 0);
+    const dead = parseInt(wardData.dead || 0);
+    
+    // Calculate the expected current census
+    const calculatedCensus = previousCensus + newAdmit + transferIn + referIn 
+                           - transferOut - referOut - discharge - dead;
+    
+    // Get the current census from the data
+    const currentCensus = parseInt(wardData.numberOfPatients || 0);
+    
+    // Check if there's a discrepancy
+    if (calculatedCensus !== currentCensus) {
+        return {
+            valid: false,
+            calculatedValue: calculatedCensus,
+            currentValue: currentCensus,
+            difference: Math.abs(calculatedCensus - currentCensus)
+        };
+    }
+    
+    return { valid: true };
 };
