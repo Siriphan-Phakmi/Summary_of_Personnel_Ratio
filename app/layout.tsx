@@ -1,3 +1,4 @@
+import './globals.css';
 import './styles/fonts.css';
 import { Suspense } from 'react';
 import { Toaster } from 'react-hot-toast';

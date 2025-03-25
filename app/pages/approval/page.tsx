@@ -452,132 +452,207 @@ export default function ApprovalPage() {
         )}
       </div>
       
-      {isLoading ? (
-        <div className="flex justify-center py-10">
-          <Loading />
-        </div>
-      ) : filteredWardForms.length === 0 ? (
-        <div className="text-center py-10 bg-white dark:bg-gray-800 shadow rounded-lg">
-          <p className="text-gray-500 dark:text-gray-400">
-            No ward forms found for the selected date.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([wardId, forms]) => {
-            const wardName = forms[0]?.wardName || 'Unknown Ward';
-            
-            // Sort forms by shift: morning first, then night
-            const sortedForms = [...forms].sort((a, b) => {
-              if (a.shift === 'morning' && b.shift === 'night') return -1;
-              if (a.shift === 'night' && b.shift === 'morning') return 1;
-              return 0;
-            });
-            
-            return (
-              <div key={wardId} className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                    {wardName}
-                  </h3>
-                </div>
+      <div className="flex flex-col-reverse lg:flex-row gap-8">
+        {/* Ward form data display */}
+        <div className="w-full lg:w-2/3">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
+              <Loading />
+            </div>
+          ) : filteredWardForms.length === 0 ? (
+            <div className="text-center py-10 bg-white dark:bg-gray-800 shadow rounded-lg">
+              <p className="text-gray-500 dark:text-gray-400">
+                No ward forms found for the selected date.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(grouped).map(([wardId, forms]) => {
+                const wardName = forms[0]?.wardName || 'Unknown Ward';
                 
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {sortedForms.map((form) => (
-                    <div key={form.id} className="px-4 py-5 sm:p-6">
-                      <div className="flex flex-col md:flex-row md:items-start md:justify-between">
-                        <div className="mb-4 md:mb-0">
-                          <div className="flex items-center mb-2">
-                            {getShiftBadge(form.shift)}
-                            <span className="ml-2">{getApprovalStatusBadge(form.approvalStatus)}</span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                            <div>
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Patient Census</p>
-                              <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.patientCensus}</p>
+                // Sort forms by shift: morning first, then night
+                const sortedForms = [...forms].sort((a, b) => {
+                  if (a.shift === 'morning' && b.shift === 'night') return -1;
+                  if (a.shift === 'night' && b.shift === 'morning') return 1;
+                  return 0;
+                });
+                
+                return (
+                  <div key={wardId} className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+                    <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                        {wardName}
+                      </h3>
+                    </div>
+                    
+                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {sortedForms.map((form) => (
+                        <div key={form.id} className="px-4 py-5 sm:p-6">
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between">
+                            <div className="mb-4 md:mb-0">
+                              <div className="flex items-center mb-2">
+                                {getShiftBadge(form.shift)}
+                                <span className="ml-2">{getApprovalStatusBadge(form.approvalStatus)}</span>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Patient Census</p>
+                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.patientCensus}</p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nurse Manager</p>
+                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.nurseManager}</p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">RN</p>
+                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.rn}</p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PN</p>
+                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.pn}</p>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">WC</p>
+                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.wc}</p>
+                                </div>
+                              </div>
+                              
+                              {form.comment && (
+                                <div className="mt-4">
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Comment</p>
+                                  <p className="mt-1 text-sm text-gray-900 dark:text-white">{form.comment}</p>
+                                </div>
+                              )}
+                              
+                              <div className="mt-4">
+                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recorded By</p>
+                                <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                                  {form.createdBy?.firstName} {form.createdBy?.lastName}
+                                </p>
+                              </div>
+                              
+                              {form.approvalStatus === 'approved' && form.approvedBy && (
+                                <div className="mt-4">
+                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved By</p>
+                                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
+                                    {form.approvedBy.firstName} {form.approvedBy.lastName}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {form.approvedBy?.timestamp && format(new Date(form.approvedBy.timestamp), 'PPpp')}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                             
-                            <div>
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nurse Manager</p>
-                              <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.nurseManager}</p>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">RN</p>
-                              <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.rn}</p>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PN</p>
-                              <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.pn}</p>
-                            </div>
-                            
-                            <div>
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">WC</p>
-                              <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.wc}</p>
-                            </div>
-                          </div>
-                          
-                          {form.comment && (
-                            <div className="mt-4">
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Comment</p>
-                              <p className="mt-1 text-sm text-gray-900 dark:text-white">{form.comment}</p>
-                            </div>
-                          )}
-                          
-                          <div className="mt-4">
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recorded By</p>
-                            <p className="mt-1 text-sm text-gray-900 dark:text-white">
-                              {form.createdBy?.firstName} {form.createdBy?.lastName}
-                            </p>
-                          </div>
-                          
-                          {form.approvalStatus === 'approved' && form.approvedBy && (
-                            <div className="mt-4">
-                              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved By</p>
-                              <p className="mt-1 text-sm text-gray-900 dark:text-white">
-                                {form.approvedBy.firstName} {form.approvedBy.lastName}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {form.approvedBy?.timestamp && format(new Date(form.approvedBy.timestamp), 'PPpp')}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {user.role === 'admin' && (
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              icon={FiEdit2}
-                              onClick={() => handleEditClick(form)}
-                              disabled={isSubmitting}
-                            >
-                              Edit
-                            </Button>
-                            
-                            {form.approvalStatus === 'pending' && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                icon={FiCheck}
-                                onClick={() => handleApprovalClick(form)}
-                                disabled={isSubmitting}
-                              >
-                                Approve
-                              </Button>
+                            {user.role === 'admin' && (
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  icon={FiEdit2}
+                                  onClick={() => handleEditClick(form)}
+                                  disabled={isSubmitting}
+                                >
+                                  Edit
+                                </Button>
+                                
+                                {form.approvalStatus === 'pending' && (
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    icon={FiCheck}
+                                    onClick={() => handleApprovalClick(form)}
+                                    disabled={isSubmitting}
+                                  >
+                                    Approve
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        
+        {/* Summary section */}
+        <div className="w-full lg:w-1/3">
+          {/* Existing code for summary... */}
+        </div>
+      </div>
+      
+      {/* แสดงฟอร์มข้อมูลสรุป 24 ชั่วโมง เมื่อมีการอนุมัติครบทั้ง 2 กะ */}
+      {showDailySummaryModal && (
+        <div className="mt-8 bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+            Daily Summary Information (24 Hours)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <NumberInput
+              label="OPD 24hr"
+              value={dailySummaryData.opd24hr || 0}
+              onChange={(value) => handleDailySummaryChange('opd24hr', value)}
+              placeholder="0"
+            />
+            <NumberInput
+              label="Old Patient"
+              value={dailySummaryData.oldPatient || 0}
+              onChange={(value) => handleDailySummaryChange('oldPatient', value)}
+              placeholder="0"
+            />
+            <NumberInput
+              label="New Patient"
+              value={dailySummaryData.newPatient || 0}
+              onChange={(value) => handleDailySummaryChange('newPatient', value)}
+              placeholder="0"
+            />
+            <NumberInput
+              label="Admit 24hr"
+              value={dailySummaryData.admit24hr || 0}
+              onChange={(value) => handleDailySummaryChange('admit24hr', value)}
+              placeholder="0"
+            />
+          </div>
+          
+          <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Supervisor Signature
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <Input
+              label="First Name"
+              value={supervisorFirstName}
+              onChange={(e) => setSupervisorFirstName(e.target.value)}
+              required
+              placeholder="Enter supervisor first name"
+            />
+            <Input
+              label="Last Name"
+              value={supervisorLastName}
+              onChange={(e) => setSupervisorLastName(e.target.value)}
+              required
+              placeholder="Enter supervisor last name"
+            />
+          </div>
+          
+          <div className="flex justify-end">
+            <Button
+              onClick={handleDailySummarySubmit}
+              loading={isSubmitting}
+              disabled={!user || isSubmitting}
+            >
+              Submit Daily Summary
+            </Button>
+          </div>
         </div>
       )}
       
@@ -844,127 +919,6 @@ export default function ApprovalPage() {
               onChange={(e) => setSupervisorLastName(e.target.value)}
               placeholder="Enter your last name"
             />
-          </div>
-        </div>
-      </Modal>
-      
-      {/* Daily summary modal */}
-      <Modal
-        isOpen={showDailySummaryModal}
-        onClose={() => {
-          if (!dailySummaryId) {
-            setShowDailySummaryModal(false);
-          }
-        }}
-        title="24-Hour Summary"
-        size="md"
-        footer={
-          <>
-            {!dailySummaryId && (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowDailySummaryModal(false)}
-                  className="mr-2"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleDailySummarySubmit}
-                  loading={isSubmitting}
-                  disabled={
-                    !supervisorFirstName.trim() || 
-                    !supervisorLastName.trim()
-                  }
-                >
-                  Save Summary
-                </Button>
-              </>
-            )}
-            
-            {dailySummaryId && (
-              <Button
-                variant="primary"
-                onClick={() => setShowDailySummaryModal(false)}
-              >
-                Close
-              </Button>
-            )}
-          </>
-        }
-      >
-        <div className="py-2">
-          {!dailySummaryId && (
-            <p className="text-gray-700 dark:text-gray-300 mb-4">
-              All ward forms for today have been approved. Please enter the 24-hour summary data.
-            </p>
-          )}
-          
-          <div className="space-y-4">
-            <NumberInput
-              id="opd24hr"
-              label="OPD 24hr"
-              value={dailySummaryData.opd24hr || 0}
-              onChange={(value) => handleDailySummaryChange('opd24hr', value)}
-              disabled={!!dailySummaryId}
-            />
-            
-            <NumberInput
-              id="oldPatient"
-              label="Old Patient"
-              value={dailySummaryData.oldPatient || 0}
-              onChange={(value) => handleDailySummaryChange('oldPatient', value)}
-              disabled={!!dailySummaryId}
-            />
-            
-            <NumberInput
-              id="newPatient"
-              label="New Patient"
-              value={dailySummaryData.newPatient || 0}
-              onChange={(value) => handleDailySummaryChange('newPatient', value)}
-              disabled={!!dailySummaryId}
-            />
-            
-            <NumberInput
-              id="admit24hr"
-              label="Admit 24hr"
-              value={dailySummaryData.admit24hr || 0}
-              onChange={(value) => handleDailySummaryChange('admit24hr', value)}
-              disabled={!!dailySummaryId}
-            />
-            
-            {!dailySummaryId && (
-              <>
-                <Input
-                  id="supervisorFirstName"
-                  label="Supervisor First Name"
-                  value={supervisorFirstName}
-                  onChange={(e) => setSupervisorFirstName(e.target.value)}
-                  placeholder="Enter first name"
-                  disabled={!!dailySummaryId}
-                />
-                
-                <Input
-                  id="supervisorLastName"
-                  label="Supervisor Last Name"
-                  value={supervisorLastName}
-                  onChange={(e) => setSupervisorLastName(e.target.value)}
-                  placeholder="Enter last name"
-                  disabled={!!dailySummaryId}
-                />
-              </>
-            )}
-            
-            {dailySummaryId && (
-              <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-md">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Supervisor Signature</p>
-                <p className="mt-1 text-gray-900 dark:text-white">
-                  {supervisorFirstName} {supervisorLastName}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </Modal>

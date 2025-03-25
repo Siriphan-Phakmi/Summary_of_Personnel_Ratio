@@ -57,13 +57,9 @@ export default function Navbar() {
           {/* Logo */}
           <div className="flex justify-start lg:w-0 lg:flex-1">
             <Link href="/" className="flex items-center">
-              <Image
-                src="/images/logo-BPK-9.jpg"
-                alt="BPK Logo"
-                width={40}
-                height={40}
-                className="h-10 w-auto rounded-full"
-              />
+              <div className="h-10 w-10 flex items-center justify-center bg-blue-600 text-white rounded-full font-bold text-sm">
+                BPK-9
+              </div>
               <span className="ml-2 text-lg font-bold text-gray-800 dark:text-white">BPK Personnel Ratio</span>
             </Link>
           </div>

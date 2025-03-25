@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "A comprehensive application for managing ward personnel ratios and patient census data for BPK Hospital.",
   "main": "next.config.js",
+  "private": true,
   "dependencies": {
-    "@headlessui/react": "^2.2.0",
+    "@headlessui/react": "^2.0.0",
     "@tailwindcss/postcss": "^4.0.15",
     "acorn": "^8.14.1",
     "acorn-jsx": "^5.3.2",
@@ -205,6 +206,7 @@
     "lightningcss-win32-x64-msvc": "^1.29.2",
     "loader-runner": "^4.3.0",
     "locate-path": "^6.0.0",
+    "lodash": "^4.17.21",
     "lodash.camelcase": "^4.3.0",
     "lodash.debounce": "^4.0.8",
     "lodash.merge": "^4.6.2",
@@ -367,13 +369,24 @@
     "yocto-queue": "^0.1.0"
   },
   "devDependencies": {
-    "@types/react": "19.0.12"
+    "@types/lodash": "^4.14.200",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/uuid": "^9.0.7",
+    "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.3.0",
+    "typescript": "^5"
   },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "next lint"
   },
   "repository": {
     "type": "git",

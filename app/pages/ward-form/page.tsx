@@ -73,12 +73,23 @@ export default function WardFormPage() {
   
   // Modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showDraftExistsModal, setShowDraftExistsModal] = useState(false);
   const [showPreviousDataModal, setShowPreviousDataModal] = useState(false);
   const [modalAction, setModalAction] = useState<'draft' | 'final'>('draft');
   
   // Refs for focusing invalid fields
   const invalidFieldRef = useRef<HTMLInputElement>(null);
+  
+  // New states
+  const [existingForm, setExistingForm] = useState<WardFormData | null>(null);
+  const [draftExists, setDraftExists] = useState(false);
+  const [existingDraft, setExistingDraft] = useState<WardFormData | null>(null);
+  const [showDraftExistsModal, setShowDraftExistsModal] = useState(false);
+  const [formFieldsDisabled, setFormFieldsDisabled] = useState<{
+    patientCensus: boolean;
+    [key: string]: boolean;
+  }>({
+    patientCensus: false
+  });
   
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -480,6 +491,57 @@ export default function WardFormPage() {
     setShowDraftExistsModal(false);
   };
   
+  // ตรวจสอบข้อมูลกะดึกของวันก่อนหน้า
+  const checkPreviousDayNightShift = async (selectedDate: Date, wardId: string) => {
+    try {
+      setIsFormLoading(true);
+      // คำนวณวันก่อนหน้า
+      const prevDate = new Date(selectedDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      
+      // แปลงเป็นรูปแบบ YYYY-MM-DD
+      const prevDateString = format(prevDate, 'yyyy-MM-dd');
+      
+      // ดึงข้อมูลกะดึกของวันก่อนหน้า
+      const prevNightShiftData = await getPreviousNightShiftData(wardId, prevDateString);
+      
+      if (prevNightShiftData && prevNightShiftData.approvalStatus === 'approved') {
+        // ถ้ามีข้อมูลกะดึกของวันก่อนหน้าที่อนุมัติแล้ว ให้ดึงค่า patientCensus มาใช้
+        setFormData(prev => ({
+          ...prev,
+          patientCensus: prevNightShiftData.patientCensus,
+        }));
+        
+        // แจ้งเตือนผู้ใช้ว่าดึงข้อมูลมาแล้ว
+        toast.success('Patient census data imported from previous night shift');
+        
+        // ทำให้ช่อง Patient Census ไม่สามารถแก้ไขได้
+        setFormFieldsDisabled({
+          ...formFieldsDisabled,
+          patientCensus: true
+        });
+      } else {
+        // ถ้าไม่มีข้อมูลกะดึกที่อนุมัติแล้ว ให้สามารถกรอกข้อมูลได้
+        setFormFieldsDisabled({
+          ...formFieldsDisabled,
+          patientCensus: false
+        });
+      }
+    } catch (error) {
+      console.error('Error checking previous day night shift:', error);
+      toast.error('Failed to check previous night shift data');
+    } finally {
+      setIsFormLoading(false);
+    }
+  };
+
+  // เพิ่ม effect hook เพื่อเรียกใช้ฟังก์ชัน checkPreviousDayNightShift เมื่อมีการเปลี่ยนวันที่หรือ ward
+  useEffect(() => {
+    if (wardId && selectedDate) {
+      checkPreviousDayNightShift(selectedDate, wardId);
+    }
+  }, [wardId, selectedDate]);
+  
   // If still loading auth, show loading spinner
   if (authLoading) {
     return <Loading fullScreen />;
@@ -567,7 +629,8 @@ export default function WardFormPage() {
                 disabled={
                   formStatus === 'final' || 
                   (hasPreviousData && shift === 'morning') ||
-                  (shift === 'night' && morningShiftFinalized)
+                  (shift === 'night' && morningShiftFinalized) ||
+                  formFieldsDisabled.patientCensus
                 }
               />
               

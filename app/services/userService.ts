@@ -90,6 +90,7 @@ export const getUsersByWard = async (wardId: string): Promise<WardUser[]> => {
 
 // Create new user
 export const createUser = async (
+  username: string, // เพิ่ม parameter username
   email: string,
   password: string,
   firstName: string,
@@ -106,6 +107,7 @@ export const createUser = async (
     // Add user to Firestore with additional info
     await setDoc(doc(db, USERS_COLLECTION, user.uid), {
       uid: user.uid,
+      username: username, // เพิ่มฟิลด์ username
       email: email,
       firstName: firstName,
       lastName: lastName,
@@ -203,4 +205,4 @@ export const hasWardAccess = async (
     console.error(`Error checking ward access for user ${uid}:`, error);
     throw error;
   }
-}; 
+};

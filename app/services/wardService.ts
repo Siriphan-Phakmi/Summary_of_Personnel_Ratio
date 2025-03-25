@@ -470,7 +470,7 @@ export const getWardForms = async (filters: {
     
     const forms: WardFormData[] = [];
     querySnapshot.forEach((doc) => {
-      const data = doc.data();
+      const data = doc.data() as Record<string, any>;
       forms.push({
         id: doc.id,
         ...data,
