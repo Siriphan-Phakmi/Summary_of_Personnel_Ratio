@@ -1,77 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  poweredByHeader: false,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  distDir: '.next-build', // Change the build directory name
-  
-  images: {
-    unoptimized: true,
-  },
-
-  webpack: (config, { dev, isServer }) => {
-    // ปรับแต่ง optimization ให้ใช้ single runtime chunk แทน
-    if (!isServer) {
-      config.optimization.runtimeChunk = 'single';
-      // ปรับขนาด chunk ให้เหมาะสม
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        maxInitialRequests: 25,
-        minSize: 20000
-      };
-    }
+  basePath: '',
+  // Add other supported configuration options here if needed
+  webpack: (config) => {
+    // ขยายขีดจำกัดขนาดของไฟล์ CSS
+    const oneKb = 1024;
+    config.performance = {
+      ...config.performance,
+      maxAssetSize: 300 * oneKb,
+      maxEntrypointSize: 300 * oneKb,
+    };
     return config;
-  },
-
-  experimental: {
-    optimizeCss: false,
-    forceSwcTransforms: true,
-    largePageDataBytes: 128 * 100000,
-  },
-  
-  // เพิ่ม redirects สำหรับเส้นทางเก่าไปยังเส้นทางใหม่
-  async redirects() {
-    return [
-      {
-        source: '/ward-form',
-        destination: '/page/ward-form',
-        permanent: true,
-      },
-      {
-        source: '/login',
-        destination: '/page/login',
-        permanent: true,
-      },
-      {
-        source: '/dashboard',
-        destination: '/page/dashboard',
-        permanent: true,
-      },
-      {
-        source: '/approval',
-        destination: '/page/approval',
-        permanent: true,
-      },
-      {
-        source: '/admin/user-management',
-        destination: '/page/user-management',
-        permanent: true,
-      },
-      // เพิ่ม redirect สำหรับ shift-form
-      {
-        source: '/shift-form',
-        destination: '/page/shift-form',
-        permanent: true,
-      },
-      // แก้ไข path ที่ไม่ถูกต้อง
-      {
-        source: '/user-management',
-        destination: '/page/user-management',
-        permanent: true,
-      }
-    ]
   },
 };
 
