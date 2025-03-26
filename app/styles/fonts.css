@@ -33,10 +33,34 @@
 /* Base font styles */
 html {
   font-family: 'THSarabunNew', sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  font-size: 1.125rem; /* Increased from 1rem */
+  font-size: 1.35rem; /* Increased from 1.25rem */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.015em;
+}
+
+/* Login page specific styles */
+.login-page {
+  font-size: 1.5rem;
+}
+
+/* Additional size helpers */
+.text-bigger {
+  font-size: 1.5rem;
+}
+
+.text-largest {
+  font-size: 1.75rem;
+}
+
+/* Font rendering enhancement for clearer text */
+.text-clear {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 500;
 }

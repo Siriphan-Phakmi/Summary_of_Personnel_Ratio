@@ -79,10 +79,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isButtonLoading && (
           <svg
-            className={`animate-spin -ml-1 mr-2 h-4 w-4 text-current ${
-              iconPosition === 'right' ? 'order-last -mr-1 ml-2' : ''
-            }`}
-            xmlns="http://www.w3.org/2000/svg"
+            className={`w-5 h-5 ${className.includes('text-white') ? 'text-white' : 'text-current'} animate-spin`}
             fill="none"
             viewBox="0 0 24 24"
           >
