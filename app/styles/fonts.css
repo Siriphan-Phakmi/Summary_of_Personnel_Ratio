@@ -1,46 +1,46 @@
-@font-face {
-  font-family: 'THSarabunNew';
-  src: url('/fonts/THSarabunNew/THSarabunNew.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
+/* Thai font - Sarabun */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+/* Font variables */
+:root {
+  --font-sarabun: 'Sarabun', system-ui, -apple-system, sans-serif;
 }
 
-@font-face {
-  font-family: 'THSarabunNew';
-  src: url('/fonts/THSarabunNew/THSarabunNew Bold.ttf') format('truetype');
-  font-weight: bold;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'THSarabunNew';
-  src: url('/fonts/THSarabunNew/THSarabunNew Italic.ttf') format('truetype');
-  font-weight: normal;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'THSarabunNew';
-  src: url('/fonts/THSarabunNew/THSarabunNew BoldItalic.ttf') format('truetype');
-  font-weight: bold;
-  font-style: italic;
-  font-display: swap;
-}
-
-/* Base font styles */
-html {
-  font-family: 'THSarabunNew', sans-serif;
-  text-rendering: optimizeLegibility;
-}
-
+/* Base font settings */
 body {
-  font-size: 1.35rem; /* Increased from 1.25rem */
+  font-family: var(--font-sarabun);
+  font-feature-settings: 'kern';
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-size: 1.35rem;
   letter-spacing: 0.015em;
+}
+
+/* Font styles for Thai text */
+.thai-font {
+  font-family: var(--font-sarabun);
+}
+
+/* Font weights */
+.font-light {
+  font-weight: 300;
+}
+
+.font-regular {
+  font-weight: 400;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
 }
 
 /* Login page specific styles */

@@ -7,14 +7,15 @@ import { toast } from 'react-hot-toast';
 import { FiSave, FiCheck, FiAlertTriangle, FiInfo } from 'react-icons/fi';
 
 import { useAuth } from '@/app/contexts/AuthContext';
-import WardSelector from '@/app/components/wardForm/WardSelector';
-import DatePicker from '@/app/components/wardForm/DatePicker';
-import ShiftSelector from '@/app/components/wardForm/ShiftSelector';
-import NumberInput from '@/app/components/wardForm/NumberInput';
-import Input from '@/app/components/ui/Input';
-import Button from '@/app/components/ui/Button';
 import Modal from '@/app/components/ui/Modal';
 import Loading from '@/app/components/ui/Loading';
+import Button from '@/app/components/ui/Button';
+
+// Import the separated components
+import WardFormHeader from './components/WardFormHeader';
+import WardFormFields from './components/WardFormFields';
+import WardFormActions from './components/WardFormActions';
+import ValidationModals from './components/ValidationModals';
 
 import { 
   WardFormData, 
@@ -563,27 +564,20 @@ export default function WardFormPage() {
           <Loading />
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <WardSelector 
-              selectedWardId={wardId} 
-              onWardChange={handleWardChange}
-              disabled={formStatus === 'final'} 
-            />
-            
-            <DatePicker 
-              selectedDate={selectedDate} 
-              onDateChange={handleDateChange} 
-              disabled={formStatus === 'final'}
-            />
-            
-            <ShiftSelector 
-              selectedShift={shift} 
-              onShiftChange={handleShiftChange}
-              morningDisabled={formStatus === 'final' && shift === 'morning'}
-              nightDisabled={!morningShiftApproved && shift === 'night'}
-            />
-          </div>
+        <div className="space-y-6">
+          {/* Ward Form Header Component */}
+          <WardFormHeader 
+            wardId={wardId}
+            wardName={wardName}
+            selectedDate={selectedDate}
+            shift={shift}
+            firstName={firstName}
+            lastName={lastName}
+            formStatus={formStatus}
+            onWardChange={handleWardChange}
+            onDateChange={handleDateChange}
+            onShiftChange={handleShiftChange}
+          />
           
           {shift === 'night' && !morningShiftFinalized && (
             <div className="mb-6 p-4 border-l-4 border-amber-500 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-400 text-amber-700 dark:text-amber-300">
@@ -614,189 +608,15 @@ export default function WardFormPage() {
             </div>
           )}
           
-          <div className="space-y-6">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white border-b pb-2">
-              Patient Data
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <NumberInput
-                id="patientCensus"
-                label="Patient Census"
-                value={formData.patientCensus || 0}
-                onChange={(value) => handleInputChange('patientCensus', value)}
-                error={validationErrors.patientCensus}
-                disabled={
-                  formStatus === 'final' || 
-                  (hasPreviousData && shift === 'morning') ||
-                  (shift === 'night' && morningShiftFinalized) ||
-                  formFieldsDisabled.patientCensus
-                }
-              />
-              
-              <NumberInput
-                id="nurseManager"
-                label="Nurse Manager"
-                value={formData.nurseManager || 0}
-                onChange={(value) => handleInputChange('nurseManager', value)}
-                error={validationErrors.nurseManager}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="rn"
-                label="RN"
-                value={formData.rn || 0}
-                onChange={(value) => handleInputChange('rn', value)}
-                error={validationErrors.rn}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="pn"
-                label="PN"
-                value={formData.pn || 0}
-                onChange={(value) => handleInputChange('pn', value)}
-                error={validationErrors.pn}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="wc"
-                label="WC"
-                value={formData.wc || 0}
-                onChange={(value) => handleInputChange('wc', value)}
-                error={validationErrors.wc}
-                disabled={formStatus === 'final'}
-              />
-            </div>
-            
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white border-b pb-2 pt-4">
-              Patient Movement
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <NumberInput
-                id="newAdmit"
-                label="New Admit"
-                value={formData.newAdmit || 0}
-                onChange={(value) => handleInputChange('newAdmit', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="transferIn"
-                label="Transfer In"
-                value={formData.transferIn || 0}
-                onChange={(value) => handleInputChange('transferIn', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="referIn"
-                label="Refer In"
-                value={formData.referIn || 0}
-                onChange={(value) => handleInputChange('referIn', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="transferOut"
-                label="Transfer Out"
-                value={formData.transferOut || 0}
-                onChange={(value) => handleInputChange('transferOut', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="referOut"
-                label="Refer Out"
-                value={formData.referOut || 0}
-                onChange={(value) => handleInputChange('referOut', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="discharge"
-                label="Discharge"
-                value={formData.discharge || 0}
-                onChange={(value) => handleInputChange('discharge', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="dead"
-                label="Dead"
-                value={formData.dead || 0}
-                onChange={(value) => handleInputChange('dead', value)}
-                disabled={formStatus === 'final'}
-              />
-            </div>
-            
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white border-b pb-2 pt-4">
-              Bed Status
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <NumberInput
-                id="available"
-                label="Available"
-                value={formData.available || 0}
-                onChange={(value) => handleInputChange('available', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="unavailable"
-                label="Unavailable"
-                value={formData.unavailable || 0}
-                onChange={(value) => handleInputChange('unavailable', value)}
-                disabled={formStatus === 'final'}
-              />
-              
-              <NumberInput
-                id="plannedDischarge"
-                label="Planned Discharge"
-                value={formData.plannedDischarge || 0}
-                onChange={(value) => handleInputChange('plannedDischarge', value)}
-                disabled={formStatus === 'final'}
-              />
-            </div>
-            
-            <div className="pt-4">
-              <Input
-                id="comment"
-                label="Comment"
-                value={formData.comment || ''}
-                onChange={(e) => handleInputChange('comment', e.target.value)}
-                disabled={formStatus === 'final'}
-                className="w-full"
-              />
-            </div>
-            
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white border-b pb-2 pt-4">
-              Recorder Information
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input
-                id="firstName"
-                label="First Name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                error={validationErrors.firstName}
-                disabled={formStatus === 'final'}
-              />
-              
-              <Input
-                id="lastName"
-                label="Last Name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                error={validationErrors.lastName}
-                disabled={formStatus === 'final'}
-              />
-            </div>
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            {/* Ward Form Fields Component */}
+            <WardFormFields
+              formData={formData}
+              formFieldsDisabled={formFieldsDisabled}
+              validationErrors={validationErrors}
+              handleInputChange={handleInputChange}
+              calculatePatientCensus={calculateCurrentPatientCensus}
+            />
             
             {formStatus === 'final' ? (
               <div className="mt-6 p-4 border-l-4 border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-400 text-green-700 dark:text-green-300">
@@ -811,69 +631,56 @@ export default function WardFormPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-4 mt-6">
-                <Button
-                  variant="secondary"
-                  icon={FiSave}
-                  onClick={() => handleSave('draft')}
-                  isLoading={isSaving && modalAction === 'draft'}
-                  disabled={
-                    isSaving || 
-                    (shift === 'night' && !morningShiftApproved)
-                  }
-                >
-                  Save Draft
-                </Button>
-                
-                <Button
-                  variant="primary"
-                  icon={FiCheck}
-                  onClick={() => handleSave('final')}
-                  isLoading={isSaving && modalAction === 'final'}
-                  disabled={
-                    isSaving || 
-                    (shift === 'night' && !morningShiftApproved)
-                  }
-                >
-                  Save Final
-                </Button>
-              </div>
+              <WardFormActions
+                isSubmitting={isSaving && modalAction === 'final'} 
+                isSavingDraft={isSaving && modalAction === 'draft'}
+                isFormValid={Object.keys(validationErrors).length === 0}
+                formStatus={formStatus}
+                handleSaveDraft={() => handleSave('draft')}
+                handleSubmit={() => handleSave('final')}
+                handleReset={resetFormData}
+              />
             )}
           </div>
         </div>
       )}
       
-      {/* Confirmation Modal for Final Save */}
+      {/* Validation Modals */}
+      <ValidationModals
+        showSuccessModal={false} // Add state for this if needed
+        showConfirmModal={showConfirmModal}
+        showErrorModal={false} // Add state for this if needed
+        showWarningModal={false} // Add state for this if needed
+        setShowSuccessModal={() => {}} // Add handler for this if needed
+        setShowConfirmModal={setShowConfirmModal}
+        setShowErrorModal={() => {}} // Add handler for this if needed
+        setShowWarningModal={() => {}} // Add handler for this if needed
+        handleConfirmSubmit={() => {
+          setShowConfirmModal(false);
+          saveFormData('final');
+        }}
+        validationErrors={Object.values(validationErrors)}
+        validationWarnings={[]} // Add state for this if needed
+      />
+      
+      {/* Previous Data Modal */}
       <Modal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        title="Confirm Finalize Form"
+        isOpen={showPreviousDataModal}
+        onClose={() => setShowPreviousDataModal(false)}
+        title="Previous Data Available"
         size="md"
         footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setShowConfirmModal(false)}
-              className="mr-2"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setShowConfirmModal(false);
-                saveFormData('final');
-              }}
-              isLoading={isSaving && modalAction === 'final'}
-            >
-              Confirm
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            onClick={() => setShowPreviousDataModal(false)}
+          >
+            Understood
+          </Button>
         }
       >
         <div className="py-2">
           <p className="text-gray-700 dark:text-gray-300">
-            Are you sure you want to finalize this form? Once finalized, you will not be able to edit it without supervisor assistance.
+            Patient census data has been automatically imported from the previous night shift. This value cannot be changed.
           </p>
         </div>
       </Modal>
@@ -908,28 +715,6 @@ export default function WardFormPage() {
         <div className="py-2">
           <p className="text-gray-700 dark:text-gray-300">
             A draft already exists for this ward, date, and shift. Would you like to use the existing draft or save a new one?
-          </p>
-        </div>
-      </Modal>
-      
-      {/* Previous Data Modal */}
-      <Modal
-        isOpen={showPreviousDataModal}
-        onClose={() => setShowPreviousDataModal(false)}
-        title="Previous Data Available"
-        size="md"
-        footer={
-          <Button
-            variant="primary"
-            onClick={() => setShowPreviousDataModal(false)}
-          >
-            Understood
-          </Button>
-        }
-      >
-        <div className="py-2">
-          <p className="text-gray-700 dark:text-gray-300">
-            Patient census data has been automatically imported from the previous night shift. This value cannot be changed.
           </p>
         </div>
       </Modal>

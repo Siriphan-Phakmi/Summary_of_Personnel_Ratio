@@ -1,205 +1,80 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/app/contexts/AuthContext';
-import { useLanguage } from '@/app/contexts/LanguageContext';
-import { FiUser, FiLock, FiAlertCircle, FiEye, FiEyeOff, FiCheckCircle, FiGlobe, FiX } from 'react-icons/fi';
+import { FiUser, FiLock, FiAlertCircle, FiEye, FiEyeOff, FiCheckCircle, FiX } from 'react-icons/fi';
 import { toast } from 'react-hot-toast';
 import { useTheme } from 'next-themes';
+import Button from '@/app/components/ui/Button';
+import Input from '@/app/components/ui/Input';
+import { getUserLockedStatus, resetLoginAttempts } from '@/app/utils/userUtils';
 
-// Custom toast components
+// Success toast component
 const SuccessToast = ({ message }: { message: string }) => (
-  <div className="flex items-center w-full p-4">
+  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-emerald-900/30 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg">
     <div className="flex-shrink-0 mr-3">
-      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30">
-        <FiCheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
+      <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50">
+        <FiCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
       </div>
     </div>
-    <div className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{message}</div>
+    <div className="flex-1 text-sm md:text-base font-medium text-green-800 dark:text-green-200">{message}</div>
     <div className="ml-auto">
-      <button className="-mx-1.5 -my-1.5 rounded-md p-1.5 inline-flex text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 focus:outline-none">
+      <button className="-mx-1.5 -my-1.5 rounded-md p-1.5 inline-flex text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 focus:outline-none">
         <span className="sr-only">Dismiss</span>
-        <FiX className="h-4 w-4" />
+        <FiX className="h-5 w-5" />
       </button>
     </div>
   </div>
 );
 
+// Error toast component
 const ErrorToast = ({ message }: { message: string }) => (
-  <div className="flex items-center w-full p-4">
+  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg">
     <div className="flex-shrink-0 mr-3">
-      <div className="flex items-center justify-center h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/30">
-        <FiAlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
+      <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50">
+        <FiAlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
       </div>
     </div>
-    <div className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{message}</div>
+    <div className="flex-1 text-sm md:text-base font-medium text-red-800 dark:text-red-200">{message}</div>
     <div className="ml-auto">
-      <button className="-mx-1.5 -my-1.5 rounded-md p-1.5 inline-flex text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 focus:outline-none">
+      <button className="-mx-1.5 -my-1.5 rounded-md p-1.5 inline-flex text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 focus:outline-none">
         <span className="sr-only">Dismiss</span>
-        <FiX className="h-4 w-4" />
+        <FiX className="h-5 w-5" />
       </button>
     </div>
   </div>
 );
 
-// Simple throttle function implementation
-function throttle(func: Function, limit: number) {
-  let inThrottle: boolean;
-  let lastResult: any;
-  
-  return function(this: any, ...args: any[]) {
-    if (!inThrottle) {
-      lastResult = func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-    return lastResult;
-  };
-}
+// Max failed login attempts before locking
+const MAX_FAILED_ATTEMPTS = 5;
+// Lock duration in milliseconds (15 minutes)
+const LOCK_DURATION = 15 * 60 * 1000;
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimeRemaining, setLockTimeRemaining] = useState(0);
-  const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isAccountLocked, setIsAccountLocked] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const { login, user, isLoading, error } = useAuth();
-  const { language } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const sessionExpired = searchParams.get('msg') === 'session_expired';
   const { theme } = useTheme();
   
-  // Text translations
-  const translations = {
-    th: {
-      title: 'BPK Personnel Ratio',
-      welcome: 'ยินดีต้อนรับ! กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ',
-      username: 'ชื่อผู้ใช้',
-      password: 'รหัสผ่าน',
-      rememberMe: 'จดจำฉัน',
-      signIn: 'เข้าสู่ระบบ',
-      signingIn: 'กำลังเข้าสู่ระบบ...',
-      capsLockOn: 'Caps Lock เปิดอยู่',
-      sessionExpired: 'เซสชันของคุณหมดอายุแล้ว กรุณาเข้าสู่ระบบอีกครั้ง',
-      usernamePlaceholder: 'กรอกชื่อผู้ใช้ของคุณ',
-      passwordPlaceholder: 'กรอกรหัสผ่านของคุณ',
-      emptyFields: 'กรุณากรอกทั้งชื่อผู้ใช้และรหัสผ่าน',
-      acceptPolicy: 'การเข้าสู่ระบบถือว่าคุณยอมรับนโยบายภายในของโรงพยาบาล',
-      copyright: 'สงวนลิขสิทธิ์',
-      accountLocked: 'บัญชีถูกล็อคชั่วคราว กรุณาลองอีกครั้งใน',
-      weakPassword: 'รหัสผ่านอ่อนแอ: ควรมีตัวอักษรพิมพ์ใหญ่ ตัวเลข และอักขระพิเศษ',
-      mediumPassword: 'รหัสผ่านระดับปานกลาง',
-      strongPassword: 'รหัสผ่านระดับแข็งแกร่ง',
-      minutes: 'นาที',
-      seconds: 'วินาที',
-      tooManyAttempts: 'การพยายามเข้าสู่ระบบล้มเหลวหลายครั้ง',
-    },
-    en: {
-      title: 'BPK Personnel Ratio',
-      welcome: 'Welcome back! Please sign in to continue',
-      username: 'Username',
-      password: 'Password',
-      rememberMe: 'Remember me',
-      signIn: 'Sign in',
-      signingIn: 'Signing in...',
-      capsLockOn: 'Caps Lock is on',
-      sessionExpired: 'Your session has expired. Please log in again.',
-      usernamePlaceholder: 'Enter your username',
-      passwordPlaceholder: 'Enter your password',
-      emptyFields: 'Please enter both username and password',
-      acceptPolicy: 'By signing in, you acknowledge and accept the hospital\'s internal policies.',
-      copyright: 'All rights reserved',
-      accountLocked: 'Account temporarily locked. Please try again in',
-      weakPassword: 'Weak password: Should include uppercase, numbers, and special characters',
-      mediumPassword: 'Medium strength password',
-      strongPassword: 'Strong password',
-      minutes: 'minutes',
-      seconds: 'seconds',
-      tooManyAttempts: 'Too many failed login attempts',
-    }
-  };
+  // Check for special login messages from URL params
+  const sessionExpired = searchParams.get('reason') === 'session_expired';
+  const accountLocked = searchParams.get('reason') === 'account_locked';
+  const forcedLogout = searchParams.get('reason') === 'forced_logout';
+  const duplicateLogin = searchParams.get('reason') === 'duplicate_login';
   
-  const text = translations[language];
-  
-  // Throttle login function to prevent brute force attacks
-  const throttledLogin = useCallback(
-    throttle(async (username: string, password: string) => {
-      try {
-        // If account is locked, prevent login attempt
-        if (isLocked) return;
-        
-        console.log('Attempting login with:', { username, passwordLength: password.length });
-        const result = await login(username, password);
-        console.log('Login successful, user:', user);
-        
-        // Show success toast
-        toast.custom(
-          (t) => (
-            <div className={`${
-              t.visible ? 'animate-enter' : 'animate-leave'
-            } max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-              <SuccessToast message={language === 'th' ? 'เข้าสู่ระบบสำเร็จ!' : 'Successfully logged in!'} />
-            </div>
-          ),
-          { 
-            duration: 3000, 
-            position: 'top-center',
-          }
-        );
-        
-        // Reset failed attempts on successful login
-        setFailedAttempts(0);
-        localStorage.removeItem('failedLoginAttempts');
-        localStorage.removeItem('loginLockUntil');
-        
-        // Check for abnormal login (different device/location)
-        const lastLoginDevice = localStorage.getItem('lastLoginDevice');
-        const currentDevice = window.navigator.userAgent;
-        
-        if (lastLoginDevice && lastLoginDevice !== currentDevice) {
-          // In a real app, you'd want to show a more prominent warning
-          console.warn('Login detected from a new device');
-        }
-        
-        // Save current device for future logins
-        localStorage.setItem('lastLoginDevice', currentDevice);
-        
-        return result;
-      } catch (err) {
-        console.error('Login error in throttledLogin:', err);
-        
-        // Show error toast 
-        toast.custom(
-          (t) => (
-            <div className={`${
-              t.visible ? 'animate-enter' : 'animate-leave'
-            } max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-              <ErrorToast message={error || (language === 'th' ? 'เข้าสู่ระบบไม่สำเร็จ' : 'Login failed')} />
-            </div>
-          ),
-          { 
-            duration: 4000, 
-            position: 'top-center',
-          }
-        );
-        
-        // Ensure loading state is reset in the component
-        
-        // Re-throw the error so it can be caught by the calling function
-        throw err;
-      }
-    }, 1000), // 1 second throttle
-    [login, failedAttempts, isLocked, user, language, error]
-  );
-
   // Start countdown timer for account lock
   const startLockCountdown = (lockUntil: number) => {
     const intervalId = setInterval(() => {
@@ -214,6 +89,8 @@ export default function LoginPage() {
         clearInterval(intervalId);
       }
     }, 1000);
+    
+    return intervalId;
   };
 
   // Format lock time remaining
@@ -221,30 +98,40 @@ export default function LoginPage() {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
     
-    return `${minutes} ${text.minutes} ${seconds} ${text.seconds}`;
+    return `${minutes} minutes ${seconds} seconds`;
   };
 
+  // Check if user is already logged in and redirect accordingly
   useEffect(() => {
-    // If user is already logged in, redirect to appropriate page
     if (user && !isLoading) {
-      console.log('User role:', user.role); // Debug log
       if (user.role === 'admin') {
         router.push('/approval');
-      } else if (user.role === 'user') {
-        router.push('/wardform');
       } else {
-        console.error('Unknown user role:', user.role);
-        router.push('/'); // Fallback to home if role is unknown
+        router.push('/wardform');
       }
     }
   }, [user, isLoading, router]);
 
+  // Show special message based on URL params
   useEffect(() => {
-    // Set error from auth context
-    if (error) {
-      setLoginError(error);
+    if (sessionExpired) {
+      toast.custom((t) => (
+        <ErrorToast message="Your session has expired or was logged in from another device. Please log in again." />
+      ));
+    } else if (accountLocked) {
+      toast.custom((t) => (
+        <ErrorToast message="Your account has been locked. Please contact an administrator." />
+      ));
+    } else if (forcedLogout) {
+      toast.custom((t) => (
+        <ErrorToast message="You were logged out because someone logged in with your account on another device." />
+      ));
+    } else if (duplicateLogin) {
+      toast.custom((t) => (
+        <ErrorToast message="You have logged in from another device or browser. Please try again on this device." />
+      ));
     }
-  }, [error]);
+  }, [sessionExpired, accountLocked, forcedLogout, duplicateLogin]);
 
   // Load previously failed login attempts and lock status
   useEffect(() => {
@@ -258,7 +145,8 @@ export default function LoginPage() {
       const lockTime = parseInt(lockUntil);
       if (lockTime > Date.now()) {
         setIsLocked(true);
-        startLockCountdown(lockTime);
+        const intervalId = startLockCountdown(lockTime);
+        return () => clearInterval(intervalId);
       } else {
         // Lock expired
         localStorage.removeItem('loginLockUntil');
@@ -290,7 +178,7 @@ export default function LoginPage() {
     };
   }, []);
   
-  // Save last used username in localStorage
+  // Load saved username if remember me was checked
   useEffect(() => {
     const savedUsername = localStorage.getItem('lastUsername');
     if (savedUsername) {
@@ -298,46 +186,64 @@ export default function LoginPage() {
       setRememberMe(true);
     }
   }, []);
-  
-  // Check password strength
-  const checkPasswordStrength = (password: string) => {
-    if (!password) {
-      setPasswordStrength(null);
-      return;
-    }
-    
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-    
-    const strength = 
-      (hasUpperCase ? 1 : 0) + 
-      (hasLowerCase ? 1 : 0) + 
-      (hasNumbers ? 1 : 0) + 
-      (hasSpecialChars ? 1 : 0);
-    
-    if (password.length < 8 || strength <= 2) {
-      setPasswordStrength('weak');
-    } else if (strength === 3) {
-      setPasswordStrength('medium');
-    } else {
-      setPasswordStrength('strong');
-    }
-  };
 
+  // Check account lock status
+  useEffect(() => {
+    const checkLockStatus = async () => {
+      if (username) {
+        const { isLocked, remainingTime } = await getUserLockedStatus(username);
+        setIsAccountLocked(isLocked);
+        setLockoutRemaining(remainingTime);
+
+        // Set a timer to update the remaining time if account is locked
+        if (isLocked && remainingTime > 0) {
+          const timer = setInterval(() => {
+            setLockoutRemaining(prev => {
+              if (prev <= 1) {
+                clearInterval(timer);
+                setIsAccountLocked(false);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+
+          return () => clearInterval(timer);
+        }
+      }
+    };
+
+    if (username) {
+      checkLockStatus();
+    }
+  }, [username, error]);
+
+  // Handle login form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoginError(null);
+    setLocalError(null);
     
+    if (isLoading || isLocked) return;
+    
+    // Validate inputs
     if (!username.trim() || !password.trim()) {
-      setLoginError(text.emptyFields);
+      toast.custom((t) => (
+        <ErrorToast message="Please enter username and password" />
+      ));
       return;
     }
     
-    // Validate username length
-    if (username.trim().length < 3) {
-      setLoginError('Username must be at least 3 characters long');
+    // Check if account is locked due to too many failed attempts
+    if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+      const lockUntil = Date.now() + LOCK_DURATION;
+      localStorage.setItem('loginLockUntil', lockUntil.toString());
+      setIsLocked(true);
+      const intervalId = startLockCountdown(lockUntil);
+      setTimeout(() => clearInterval(intervalId), LOCK_DURATION);
+      
+      toast.custom((t) => (
+        <ErrorToast message={`Account temporarily locked due to too many failed attempts. Please try again in ${formatLockTime(LOCK_DURATION)}`} />
+      ));
       return;
     }
     
@@ -348,22 +254,60 @@ export default function LoginPage() {
       localStorage.removeItem('lastUsername');
     }
     
-    // Use throttled login
     try {
-      await throttledLogin(username, password);
-    } catch (error) {
-      console.error('Login error:', error);
-      setLoginError('An unexpected error occurred. Please try again.');
+      // Call login function from AuthContext
+      await login(username, password);
+      
+      // Reset failed attempts on successful login
+      setFailedAttempts(0);
+      localStorage.removeItem('failedLoginAttempts');
+      
+      // Show success message
+      toast.custom((t) => (
+        <SuccessToast message="Successfully logged in" />
+      ));
+    } catch (err) {
+      // Increment failed attempts
+      const newFailedAttempts = failedAttempts + 1;
+      setFailedAttempts(newFailedAttempts);
+      localStorage.setItem('failedLoginAttempts', newFailedAttempts.toString());
+      
+      // Show warning if approaching max attempts
+      if (newFailedAttempts >= MAX_FAILED_ATTEMPTS - 1) {
+        toast.custom((t) => (
+          <ErrorToast message={`Warning: You have ${MAX_FAILED_ATTEMPTS - newFailedAttempts} login attempts remaining before your account is locked`} />
+        ));
+      } else {
+        toast.custom((t) => (
+          <ErrorToast message="Invalid username or password" />
+        ));
+      }
     }
   };
 
+  // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
-  
+
+  const handleResetLockout = async () => {
+    if (username) {
+      const success = await resetLoginAttempts(username);
+      if (success) {
+        setIsAccountLocked(false);
+        setLockoutRemaining(0);
+        setLocalError('Account unlocked. You may now log in.');
+      } else {
+        setLocalError('Failed to unlock account. Please contact an administrator.');
+      }
+    } else {
+      setLocalError('Please enter your username first');
+    }
+  };
+
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gradient-to-b from-gray-900 to-gray-800 px-4">
-      <div className="w-full max-w-lg md:max-w-xl bg-gray-800 dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden p-8 md:p-10 login-page">
+    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4">
+      <div className="w-full max-w-lg md:max-w-xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden p-8 md:p-10 login-page">
         <div className="flex flex-col items-center">
           <div className="h-24 w-24 md:h-32 md:w-32 flex items-center justify-center bg-white rounded-full overflow-hidden mb-6 md:mb-8">
             <Image
@@ -374,124 +318,125 @@ export default function LoginPage() {
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-center text-blue-400 mb-3">
-            BPK Personnel Ratio
+          <h1 className="text-3xl md:text-4xl font-bold text-center text-blue-600 dark:text-blue-400 mb-3">
+          Daily Patient Census and Staffing
           </h1>
-          <p className="text-xl md:text-2xl text-gray-400 text-center mb-8">
-            {language === 'th' ? 'ยินดีต้อนรับ! กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ' : 'Welcome back! Please sign in to continue'}
+          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center mb-8">
+            Welcome back! Please sign in to continue
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-xl font-medium text-gray-300 mb-2">
-              {translations[language].username}
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={language === 'th' ? 'กรอกชื่อผู้ใช้' : 'Enter your username'}
-              disabled={isLoading}
-              className="w-full px-5 py-4 text-xl bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
-              required
-            />
+        {isLocked ? (
+          <div className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 p-6 rounded-lg text-lg text-center mb-6">
+            <FiAlertCircle className="mx-auto mb-3 h-10 w-10" />
+            <p className="font-bold mb-2">
+              Account temporarily locked
+            </p>
+            <p>
+              Too many login attempts. Please try again in {formatLockTime(lockTimeRemaining)}
+            </p>
           </div>
-
-          <div>
-            <label htmlFor="password" className="block text-xl font-medium text-gray-300 mb-2">
-              {translations[language].password}
-            </label>
-            <div className="relative">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={language === 'th' ? 'กรอกรหัสผ่าน' : 'Enter your password'}
-                disabled={isLoading}
-                className="w-full px-5 py-4 text-xl bg-gray-700 text-white pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
-                required
-              />
-              <button
-                type="button"
-                onClick={togglePasswordVisibility}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200"
-                disabled={isLoading}
-              >
-                {showPassword ? <FiEyeOff size={24} /> : <FiEye size={24} />}
-              </button>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="username" className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Username
+              </label>
+              <div className="relative">
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  disabled={isLoading}
+                  className="w-full px-5 py-4 pl-14 text-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                  required
+                />
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                  <FiUser className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center">
-            <input
-              id="remember-me"
-              name="remember-me"
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isLoading}
-              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-600 rounded"
-            />
-            <label htmlFor="remember-me" className="ml-3 block text-lg text-gray-300">
-              {translations[language].rememberMe}
-            </label>
-          </div>
-
-          {error && (
-            <div className="bg-red-900/40 text-red-300 p-4 rounded-lg text-lg">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-75 text-xl"
-            >
-              {isLoading ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-6 w-6 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  {translations[language].signingIn}
-                </>
-              ) : (
-                <>
-                  <FiCheckCircle className="mr-2 h-6 w-6" />
-                  {translations[language].signIn}
-                </>
+            <div>
+              <label htmlFor="password" className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  disabled={isLoading}
+                  className="w-full px-5 py-4 pl-14 text-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                  required
+                />
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                  <FiLock className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+                </div>
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  disabled={isLoading}
+                >
+                  {showPassword ? <FiEyeOff size={24} /> : <FiEye size={24} />}
+                </button>
+              </div>
+              {capsLockOn && (
+                <p className="mt-2 text-amber-600 dark:text-amber-500 text-lg">
+                  <FiAlertCircle className="inline mr-2" />
+                  Caps Lock is on
+                </p>
               )}
-            </button>
-          </div>
-        </form>
+            </div>
 
-        <div className="mt-8 text-center text-lg text-gray-400">
-          <p>{language === 'th' ? 'เมื่อคุณเข้าสู่ระบบ หมายถึงคุณยอมรับนโยบายการใช้งานของโรงพยาบาล' : 'By signing in, you acknowledge and accept the hospital\'s internal policies.'}</p>
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={isLoading}
+                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+              />
+              <label htmlFor="remember-me" className="ml-3 block text-lg text-gray-700 dark:text-gray-300">
+                Remember me
+              </label>
+            </div>
+
+            {localError && (
+              <div className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 p-4 rounded-lg text-lg">
+                {localError}
+              </div>
+            )}
+
+            <div>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={isLoading}
+                isLoading={isLoading}
+                className="text-xl py-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl"
+              >
+                Sign In
+              </Button>
+            </div>
+          </form>
+        )}
+
+        <div className="mt-8 text-center text-lg text-gray-600 dark:text-gray-400">
+          <p>By signing in, you acknowledge and accept the hospital's internal policies.</p>
         </div>
 
         <div className="mt-8 text-center text-lg text-gray-500">
-          © {new Date().getFullYear()} BPK-9 International Hospital. All rights reserved
+          © {new Date().getFullYear()} BPK9 International Hospital. All rights reserved
         </div>
       </div>
     </div>

@@ -7,6 +7,16 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { FiSun, FiMoon, FiMenu, FiX, FiLogOut } from 'react-icons/fi';
 import { useAuth } from '@/app/contexts/AuthContext';
+import ThemeToggle from '@/app/components/ui/ThemeToggle';
+
+// เพิ่มฟังก์ชันเพื่อตรวจสอบ role
+function isAdminUser(role: string | undefined) {
+  return role === 'admin' || role === 'Administrator';
+}
+
+function isRegularUser(role: string | undefined) {
+  return role === 'user' || role === 'users';
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -94,13 +104,9 @@ export default function Navbar() {
 
             {/* Theme toggle button */}
             {mounted && (
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                aria-label="Toggle dark mode"
-              >
-                {theme === 'dark' ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
-              </button>
+              <div className="relative">
+                <ThemeToggle />
+              </div>
             )}
 
             {/* User info and logout */}
@@ -186,22 +192,17 @@ export default function Navbar() {
               
               {/* Mobile theme toggle */}
               {mounted && (
-                <button
-                  onClick={toggleTheme}
-                  className="p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  aria-label="Toggle dark mode"
-                >
-                  {theme === 'dark' ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
-                </button>
+                <div className="flex items-center space-x-3">
+                  <ThemeToggle />
+                </div>
               )}
             </div>
             
-            {/* Logout button */}
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
             >
-              <FiLogOut className="mr-2 h-5 w-5" />
+              <FiLogOut className="h-5 w-5 mr-2" />
               Logout
             </button>
           </div>

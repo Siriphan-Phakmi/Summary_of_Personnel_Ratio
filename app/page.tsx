@@ -6,6 +6,11 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import Link from 'next/link';
 import { FiClipboard, FiCheckSquare, FiBarChart2, FiUsers, FiLoader } from 'react-icons/fi';
 
+// Check if user is admin
+function isAdminUser(role: string) {
+  return role === 'admin' || role === 'Administrator';
+}
+
 export default function Home() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -94,7 +99,7 @@ export default function Home() {
           </p>
         </Link>
 
-        {user.role === 'admin' && (
+        {isAdminUser(user.role) && (
           <Link href="/user-management" className="group relative bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
             <div className="absolute top-6 right-6 h-10 w-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-600 dark:text-yellow-400 group-hover:bg-yellow-600 group-hover:text-white transition-colors duration-300">
               <FiUsers className="h-5 w-5" />

@@ -1,58 +1,42 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   signInWithEmailAndPassword, 
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  fetchSignInMethodsForEmail,
+  signOut, 
+  onAuthStateChanged 
 } from 'firebase/auth';
 import { 
+  getDoc, 
   doc, 
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-  increment,
-  collection,
-  query,
-  where,
-  getDocs,
-  Timestamp,
-  limit,
-  orderBy,
+  collection, 
+  query, 
+  where, 
+  getDocs 
 } from 'firebase/firestore';
 import { auth, db } from '@/app/lib/firebase';
-import app from '@/app/lib/firebase';
-import { useRouter } from 'next/navigation';
 import { 
   createUserSession, 
   monitorUserSession, 
   cleanupUserSession, 
-  setupBeforeUnloadHandler
+  setupBeforeUnloadHandler,
+  terminateOtherSessions
 } from '@/app/utils/sessionUtils';
-import { ref, onValue, getDatabase, update } from 'firebase/database';
-import { toast } from 'react-hot-toast';
+import { logLogin, logLogout, logLoginFailed } from '@/app/utils/logUtils';
 
-// Initialize Realtime Database
-const rtdb = getDatabase(app);
-
-// Constants for session management
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-
-// User type with role
+// Define user type
 interface User {
   uid: string;
   email: string | null;
-  role: 'user' | 'admin';
+  role: string;
   wards?: string[];
   firstName?: string;
   lastName?: string;
+  username?: string;
 }
 
-// Auth context type
+// Define authentication context type
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
@@ -61,164 +45,296 @@ interface AuthContextType {
   error: string | null;
 }
 
-// Create the context with default values
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isLoading: true,
-  login: async () => {},
-  logout: async () => {},
-  error: null,
-});
+// Create auth context with default values
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Provider component
+// Session timeout in milliseconds (30 minutes)
+const SESSION_TIMEOUT = 30 * 60 * 1000;
+
+// AuthProvider component to wrap around app
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [inactivityTimer, setInactivityTimer] = useState<NodeJS.Timeout | null>(null);
+  const [cleanupFn, setCleanupFn] = useState<(() => void) | null>(null);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [inactivityInterval, setInactivityInterval] = useState<NodeJS.Timeout | null>(null);
   const router = useRouter();
 
-  // Reset inactivity timer
+  // Reset inactivity timer when user interacts with the app
   const resetInactivityTimer = () => {
-    if (inactivityTimer) {
-      clearTimeout(inactivityTimer);
-    }
-    
-    // Set new timer for auto logout after inactivity
-    const timer = setTimeout(() => {
-      if (user) {
-        toast.error('Session expired due to inactivity');
-        logout();
-      }
-    }, SESSION_TIMEOUT_MS);
-    
-    setInactivityTimer(timer);
+    setLastActivity(Date.now());
   };
 
-  // Login function using direct database authentication instead of Firebase Email Auth
+  // Set up activity monitoring
+  useEffect(() => {
+    // Track user activity events
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    
+    events.forEach(event => {
+      window.addEventListener(event, resetInactivityTimer);
+    });
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, resetInactivityTimer);
+      });
+    };
+  }, []);
+
+  // Check for user inactivity
+  useEffect(() => {
+    if (user) {
+      // Clear previous interval if exists
+      if (inactivityInterval) {
+        clearInterval(inactivityInterval);
+      }
+
+      // Set new interval
+      const interval = setInterval(() => {
+        const now = Date.now();
+        if (now - lastActivity > SESSION_TIMEOUT) {
+          // Auto logout after inactivity
+          logout();
+        }
+      }, 60000); // Check every minute
+
+      setInactivityInterval(interval);
+
+      return () => {
+        if (interval) clearInterval(interval);
+      };
+    }
+    return undefined;
+  }, [user, lastActivity]);
+
+  // Handle Firebase authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // Get user data from Firestore
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Create user object
+            const userObj: User = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              role: userData.role || 'user',
+              wards: userData.wards || [],
+              firstName: userData.firstName,
+              lastName: userData.lastName,
+              username: userData.username
+            };
+            
+            setUser(userObj);
+            
+            // Set up session monitoring
+            if (userData.active !== false) {
+              const sessionId = await createUserSession(firebaseUser.uid, firebaseUser.email || '');
+              
+              // Set up before unload handler
+              const unbindBeforeUnload = setupBeforeUnloadHandler(firebaseUser.uid, sessionId);
+              
+              // Monitor for concurrent sessions
+              const cleanupSession = monitorUserSession(
+                firebaseUser.uid,
+                sessionId,
+                () => {
+                  logout();
+                  router.push('/login?reason=session_expired');
+                }
+              );
+              
+              setCleanupFn(() => {
+                return () => {
+                  unbindBeforeUnload();
+                  cleanupSession();
+                };
+              });
+              
+              // Terminate other sessions
+              await terminateOtherSessions(firebaseUser.uid, sessionId);
+            } else {
+              // User account is inactive
+              await signOut(auth);
+              setUser(null);
+              setError('Your account is inactive. Please contact an administrator.');
+            }
+          } else {
+            // User document not found
+            await signOut(auth);
+            setUser(null);
+            setError('User account not found.');
+          }
+        } catch (err) {
+          console.error('Error fetching user data:', err);
+          setError('Error loading user profile. Please try again.');
+        }
+      } else {
+        // No user signed in
+        setUser(null);
+      }
+      
+      setIsLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [router]);
+
+  // Login function
   const login = async (username: string, password: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // ลบการตรวจสอบพิเศษสำหรับผู้ใช้ "test" ที่ถูก hard code ไว้
-      
-      // ค้นหาผู้ใช้จาก Firestore
+      // Find user by username in Firestore
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('username', '==', username), where('active', '==', true));
+      const q = query(usersRef, where('username', '==', username));
       const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-        setIsLoading(false);
-        return;
-      }
-
-      const userDoc = querySnapshot.docs[0];
-      const userData = userDoc.data();
-
-      // ตรวจสอบรหัสผ่าน
-      if (userData.password !== password) {
-        setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-        setIsLoading(false);
-        return;
-      }
-
-      // ตรวจสอบว่าผู้ใช้ active หรือไม่
-      if (!userData.active) {
-        setError('บัญชีผู้ใช้นี้ถูกปิดการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
-        setIsLoading(false);
-        return;
-      }
-
-      // สร้าง session ใหม่
-      const sessionId = await createUserSession(userDoc.id, userData.username);
-
-      // สร้างข้อมูลผู้ใช้
-      const user: User = {
-        uid: userDoc.id,
-        email: userData.email || null,
-        role: userData.role as 'user' | 'admin',
-        wards: userData.wards || [],
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-      };
-
-      setUser(user);
       
-      // บันทึกข้อมูล session
-      setSessionId(sessionId);
-      localStorage.setItem('userId', userDoc.id);
-      localStorage.setItem('sessionId', sessionId);
-
-      // ตั้งค่า timer สำหรับตรวจสอบการหมดอายุของ session
-      const cleanup = monitorUserSession(userDoc.id, sessionId, () => {
-        logout();
-      });
-      setSessionCleanup(() => cleanup);
-
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Login error:', error);
-      setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+      if (querySnapshot.empty) {
+        setError('Invalid username or password');
+        setIsLoading(false);
+        // Log failed login attempt
+        await logLoginFailed(username, 'user_not_found');
+        return;
+      }
+      
+      const userDoc = querySnapshot.docs[0].data();
+      const userId = querySnapshot.docs[0].id;
+      
+      // Check if user is active
+      if (userDoc.active === false) {
+        setError('Your account is inactive. Please contact an administrator.');
+        setIsLoading(false);
+        // Log failed login attempt
+        await logLoginFailed(username, 'account_inactive');
+        return;
+      }
+      
+      // User exists, now try to sign in with Firebase Auth
+      // We use the email from Firestore to authenticate
+      const email = userDoc.email;
+      
+      if (!email) {
+        setError('User account is missing email. Please contact an administrator.');
+        setIsLoading(false);
+        // Log failed login attempt
+        await logLoginFailed(username, 'missing_email');
+        return;
+      }
+      
+      // Sign in with Firebase Authentication
+      await signInWithEmailAndPassword(auth, email, password);
+      
+      // Log successful login
+      await logLogin(
+        userId, 
+        username, 
+        email, 
+        navigator.userAgent
+      );
+      
+      // Auth state change listener will handle the rest
+      // Redirect will happen after user state is set
+      
+      // Redirect based on user role
+      if (userDoc.role === 'admin') {
+        router.push('/approval');
+      } else {
+        router.push('/wardform');
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      
+      // Handle specific Firebase auth errors
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+        setError('Invalid username or password');
+        await logLoginFailed(username, 'invalid_credentials');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Too many failed login attempts. Please try again later.');
+        await logLoginFailed(username, 'too_many_attempts');
+      } else {
+        setError('Login failed. Please try again.');
+        await logLoginFailed(username, `firebase_error: ${err.code}`);
+      }
+      
       setIsLoading(false);
     }
   };
 
   // Logout function
   const logout = async () => {
-    setIsLoading(true);
-    
     try {
-      if (user && sessionId) {
-        // Log the logout with enhanced information
-        await setDoc(doc(db, 'userLogs', `${user.uid}_${Date.now()}`), {
-          type: 'logout',
-          userId: user.uid,
-          email: user.email,
-          timestamp: serverTimestamp(),
-          sessionId: sessionId,
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          logoutReason: 'user_initiated'
-        });
-        
-        // Clean up session
-        await cleanupUserSession(user.uid, sessionId);
+      setIsLoading(true);
+      
+      // Log the logout
+      if (user) {
+        await logLogout(
+          user.uid, 
+          user.username || user.email || 'unknown'
+        );
       }
       
-      // Clear the inactivity timer
-      if (inactivityTimer) {
-        clearTimeout(inactivityTimer);
-        setInactivityTimer(null);
+      // Clean up session if cleanup function exists
+      if (cleanupFn) {
+        cleanupFn();
+        setCleanupFn(null);
       }
       
-      await firebaseSignOut(auth);
+      // Clean up user session in Firebase
+      if (user) {
+        try {
+          // Get current session ID from localStorage if exists
+          const sessionData = localStorage.getItem(`session_${user.uid}`);
+          if (sessionData) {
+            const { sessionId } = JSON.parse(sessionData);
+            await cleanupUserSession(user.uid, sessionId);
+          }
+        } catch (err) {
+          console.error('Error cleaning up session:', err);
+        }
+      }
+      
+      // Sign out from Firebase
+      await signOut(auth);
+      
+      // Clear local storage
+      localStorage.removeItem('lastActive');
+      if (user) {
+        localStorage.removeItem(`session_${user.uid}`);
+      }
+      
+      // Reset state
+      setUser(null);
+      setError(null);
+      
+      // Redirect to login page
       router.push('/login');
     } catch (err) {
       console.error('Logout error:', err);
-      setError('An error occurred during logout. Please try again.');
+      setError('Logout failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Context value
-  const value = {
-    user,
-    isLoading,
-    login,
-    logout,
-    error,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, error }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// Custom hook to use the auth context
-export const useAuth = () => useContext(AuthContext);
+// Custom hook to use auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

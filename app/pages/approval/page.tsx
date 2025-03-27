@@ -8,10 +8,15 @@ import { FiEdit2, FiCheck, FiCheckCircle, FiClock, FiAlertCircle, FiLock } from 
 
 import { useAuth } from '@/app/contexts/AuthContext';
 import Button from '@/app/components/ui/Button';
-import Modal from '@/app/components/ui/Modal';
-import Input from '@/app/components/ui/Input';
-import NumberInput from '@/app/components/wardForm/NumberInput';
 import Loading from '@/app/components/ui/Loading';
+
+// Import our components
+import ApprovalStatusBadge from './components/ApprovalStatusBadge';
+import ShiftBadge from './components/ShiftBadge';
+import ApprovalFormEditor from './components/ApprovalFormEditor';
+import ApprovalForm from './components/ApprovalForm';
+import DailySummaryForm from './components/DailySummaryForm';
+import PasswordVerificationModal from './components/PasswordVerificationModal';
 
 import { 
   WardFormData, 
@@ -370,48 +375,6 @@ export default function ApprovalPage() {
     }));
   };
   
-  // Get approval status badge
-  const getApprovalStatusBadge = (status: ApprovalStatus) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
-            <FiCheckCircle className="mr-1" />
-            Approved
-          </span>
-        );
-      case 'pending':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100">
-            <FiClock className="mr-1" />
-            Pending
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100">
-            <FiAlertCircle className="mr-1" />
-            Rejected
-          </span>
-        );
-      default:
-        return null;
-    }
-  };
-  
-  // Get shift badge
-  const getShiftBadge = (shift: Shift) => {
-    return shift === 'morning' ? (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
-        Morning
-      </span>
-    ) : (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-100">
-        Night
-      </span>
-    );
-  };
-  
   // If still loading auth, show loading spinner
   if (authLoading) {
     return <Loading fullScreen />;
@@ -422,506 +385,220 @@ export default function ApprovalPage() {
     return null;
   }
   
+  // If user doesn't have admin role, show restricted access message
+  if (user.role !== 'admin') {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4">
+        <div className="bg-red-100 dark:bg-red-900/30 p-6 rounded-lg text-center">
+          <h1 className="text-2xl font-bold text-red-800 dark:text-red-200 mb-4">Restricted Access</h1>
+          <p className="text-red-700 dark:text-red-300">
+            You do not have permission to access this page. Please contact an administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="max-w-7xl mx-auto pb-10 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-4xl mx-auto pb-10 px-4">
       <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
-        Ward Form Approval
+        Form Approval
       </h1>
       
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div className="mb-4 sm:mb-0">
-          <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Select Date
-          </label>
-          <input
-            type="date"
-            id="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md"
-          />
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Approval Dashboard
+          </h2>
+          
+          <div className="w-full md:w-auto">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
         </div>
         
-        {user.role === 'admin' && dailySummaryId && (
-          <Button
-            variant="primary"
-            onClick={() => setShowDailySummaryModal(true)}
-          >
-            View Daily Summary
-          </Button>
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <Loading />
+          </div>
+        ) : filteredWardForms.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-500 dark:text-gray-400">
+              No forms available for this date.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(grouped).map(([wardId, forms]) => (
+              <div key={wardId} className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                <div className="bg-gray-100 dark:bg-gray-700 px-4 py-3 font-medium">
+                  {forms[0]?.wardName || 'Unknown Ward'}
+                </div>
+                
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {forms.map((form) => (
+                    <div key={form.id} className="p-4">
+                      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <ShiftBadge shift={form.shift} />
+                            <ApprovalStatusBadge status={form.approvalStatus} />
+                          </div>
+                          
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            Submitted by: {form.firstName} {form.lastName}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {form.approvalStatus === 'pending' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() => handleApprovalClick(form)}
+                                icon={FiCheck}
+                              >
+                                Approve
+                              </Button>
+                              
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleEditClick(form)}
+                                icon={FiEdit2}
+                              >
+                                Edit
+                              </Button>
+                            </>
+                          )}
+                          
+                          {form.approvalStatus === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleEditClick(form)}
+                              icon={FiEdit2}
+                            >
+                              Edit
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">Patient Census:</span>
+                          <span className="ml-1 font-medium">{form.patientCensus}</span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">RN:</span>
+                          <span className="ml-1 font-medium">{form.rn}</span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">PN:</span>
+                          <span className="ml-1 font-medium">{form.pn}</span>
+                        </div>
+                        
+                        <div>
+                          <span className="text-gray-500 dark:text-gray-400">WC:</span>
+                          <span className="ml-1 font-medium">{form.wc}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       
-      <div className="flex flex-col-reverse lg:flex-row gap-8">
-        {/* Ward form data display */}
-        <div className="w-full lg:w-2/3">
-          {isLoading ? (
-            <div className="flex justify-center py-10">
-              <Loading />
+      {/* Daily summary section */}
+      {user.role === 'admin' && dailySummaryId && (
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Daily Summary
+          </h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">OPD 24hr</div>
+              <div className="font-semibold text-xl">{dailySummaryData.opd24hr || 0}</div>
             </div>
-          ) : filteredWardForms.length === 0 ? (
-            <div className="text-center py-10 bg-white dark:bg-gray-800 shadow rounded-lg">
-              <p className="text-gray-500 dark:text-gray-400">
-                No ward forms found for the selected date.
-              </p>
+            
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Old Patients</div>
+              <div className="font-semibold text-xl">{dailySummaryData.oldPatient || 0}</div>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(grouped).map(([wardId, forms]) => {
-                const wardName = forms[0]?.wardName || 'Unknown Ward';
-                
-                // Sort forms by shift: morning first, then night
-                const sortedForms = [...forms].sort((a, b) => {
-                  if (a.shift === 'morning' && b.shift === 'night') return -1;
-                  if (a.shift === 'night' && b.shift === 'morning') return 1;
-                  return 0;
-                });
-                
-                return (
-                  <div key={wardId} className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                    <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                        {wardName}
-                      </h3>
-                    </div>
-                    
-                    <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {sortedForms.map((form) => (
-                        <div key={form.id} className="px-4 py-5 sm:p-6">
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between">
-                            <div className="mb-4 md:mb-0">
-                              <div className="flex items-center mb-2">
-                                {getShiftBadge(form.shift)}
-                                <span className="ml-2">{getApprovalStatusBadge(form.approvalStatus)}</span>
-                              </div>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Patient Census</p>
-                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.patientCensus}</p>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nurse Manager</p>
-                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.nurseManager}</p>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">RN</p>
-                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.rn}</p>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">PN</p>
-                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.pn}</p>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">WC</p>
-                                  <p className="mt-1 text-lg text-gray-900 dark:text-white">{form.wc}</p>
-                                </div>
-                              </div>
-                              
-                              {form.comment && (
-                                <div className="mt-4">
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Comment</p>
-                                  <p className="mt-1 text-sm text-gray-900 dark:text-white">{form.comment}</p>
-                                </div>
-                              )}
-                              
-                              <div className="mt-4">
-                                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recorded By</p>
-                                <p className="mt-1 text-sm text-gray-900 dark:text-white">
-                                  {form.createdBy?.firstName} {form.createdBy?.lastName}
-                                </p>
-                              </div>
-                              
-                              {form.approvalStatus === 'approved' && form.approvedBy && (
-                                <div className="mt-4">
-                                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Approved By</p>
-                                  <p className="mt-1 text-sm text-gray-900 dark:text-white">
-                                    {form.approvedBy.firstName} {form.approvedBy.lastName}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {form.approvedBy?.timestamp && format(new Date(form.approvedBy.timestamp), 'PPpp')}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {user.role === 'admin' && (
-                              <div className="flex space-x-2">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  icon={FiEdit2}
-                                  onClick={() => handleEditClick(form)}
-                                  disabled={isSubmitting}
-                                >
-                                  Edit
-                                </Button>
-                                
-                                {form.approvalStatus === 'pending' && (
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    icon={FiCheck}
-                                    onClick={() => handleApprovalClick(form)}
-                                    disabled={isSubmitting}
-                                  >
-                                    Approve
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+            
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">New Patients</div>
+              <div className="font-semibold text-xl">{dailySummaryData.newPatient || 0}</div>
             </div>
-          )}
-        </div>
-        
-        {/* Summary section */}
-        <div className="w-full lg:w-1/3">
-          {/* Existing code for summary... */}
-        </div>
-      </div>
-      
-      {/* แสดงฟอร์มข้อมูลสรุป 24 ชั่วโมง เมื่อมีการอนุมัติครบทั้ง 2 กะ */}
-      {showDailySummaryModal && (
-        <div className="mt-8 bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-            Daily Summary Information (24 Hours)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <NumberInput
-              label="OPD 24hr"
-              value={dailySummaryData.opd24hr || 0}
-              onChange={(value) => handleDailySummaryChange('opd24hr', value)}
-              placeholder="0"
-            />
-            <NumberInput
-              label="Old Patient"
-              value={dailySummaryData.oldPatient || 0}
-              onChange={(value) => handleDailySummaryChange('oldPatient', value)}
-              placeholder="0"
-            />
-            <NumberInput
-              label="New Patient"
-              value={dailySummaryData.newPatient || 0}
-              onChange={(value) => handleDailySummaryChange('newPatient', value)}
-              placeholder="0"
-            />
-            <NumberInput
-              label="Admit 24hr"
-              value={dailySummaryData.admit24hr || 0}
-              onChange={(value) => handleDailySummaryChange('admit24hr', value)}
-              placeholder="0"
-            />
+            
+            <div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Admit 24hr</div>
+              <div className="font-semibold text-xl">{dailySummaryData.admit24hr || 0}</div>
+            </div>
           </div>
           
-          <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Supervisor Signature
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <Input
-              label="First Name"
-              value={supervisorFirstName}
-              onChange={(e) => setSupervisorFirstName(e.target.value)}
-              required
-              placeholder="Enter supervisor first name"
-            />
-            <Input
-              label="Last Name"
-              value={supervisorLastName}
-              onChange={(e) => setSupervisorLastName(e.target.value)}
-              required
-              placeholder="Enter supervisor last name"
-            />
-          </div>
-          
-          <div className="flex justify-end">
-            <Button
-              onClick={handleDailySummarySubmit}
-              loading={isSubmitting}
-              disabled={!user || isSubmitting}
-            >
-              Submit Daily Summary
-            </Button>
+          <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            Approved by: {supervisorFirstName} {supervisorLastName}
           </div>
         </div>
       )}
       
-      {/* Password verification modal */}
-      <Modal
-        isOpen={showPasswordModal}
-        onClose={() => {
-          setShowPasswordModal(false);
-          setAdminPassword('');
-          setAdminPasswordError('');
-        }}
-        title="Admin Authentication"
-        size="sm"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowPasswordModal(false);
-                setAdminPassword('');
-                setAdminPasswordError('');
-              }}
-              className="mr-2"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={verifyAdminPassword}
-              disabled={!adminPassword.trim()}
-            >
-              Verify
-            </Button>
-          </>
-        }
-      >
-        <div className="py-2">
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Please enter your admin password to continue with the edit.
-          </p>
-          <Input
-            id="adminPassword"
-            type="password"
-            label="Admin Password"
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            error={adminPasswordError}
-            placeholder="Enter your admin password"
-          />
-        </div>
-      </Modal>
+      {/* Use our component-based modals */}
+      <PasswordVerificationModal
+        showPasswordModal={showPasswordModal}
+        setShowPasswordModal={setShowPasswordModal}
+        adminPassword={adminPassword}
+        setAdminPassword={setAdminPassword}
+        adminPasswordError={adminPasswordError}
+        verifyAdminPassword={verifyAdminPassword}
+      />
       
-      {/* Edit form modal */}
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setSelectedForm(null);
-          setEditFormData({});
-        }}
-        title={`Edit Ward Form - ${selectedForm?.wardName || ''}`}
-        size="lg"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowEditModal(false);
-                setSelectedForm(null);
-                setEditFormData({});
-              }}
-              className="mr-2"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleEditSubmit}
-              loading={isSubmitting}
-            >
-              Save Changes
-            </Button>
-          </>
-        }
-      >
-        {selectedForm && (
-          <div className="py-2 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <NumberInput
-                id="patientCensus"
-                label="Patient Census"
-                value={editFormData.patientCensus || 0}
-                onChange={(value) => handleEditFormChange('patientCensus', value)}
-              />
-              
-              <NumberInput
-                id="nurseManager"
-                label="Nurse Manager"
-                value={editFormData.nurseManager || 0}
-                onChange={(value) => handleEditFormChange('nurseManager', value)}
-              />
-              
-              <NumberInput
-                id="rn"
-                label="RN"
-                value={editFormData.rn || 0}
-                onChange={(value) => handleEditFormChange('rn', value)}
-              />
-              
-              <NumberInput
-                id="pn"
-                label="PN"
-                value={editFormData.pn || 0}
-                onChange={(value) => handleEditFormChange('pn', value)}
-              />
-              
-              <NumberInput
-                id="wc"
-                label="WC"
-                value={editFormData.wc || 0}
-                onChange={(value) => handleEditFormChange('wc', value)}
-              />
-              
-              <NumberInput
-                id="newAdmit"
-                label="New Admit"
-                value={editFormData.newAdmit || 0}
-                onChange={(value) => handleEditFormChange('newAdmit', value)}
-              />
-              
-              <NumberInput
-                id="transferIn"
-                label="Transfer In"
-                value={editFormData.transferIn || 0}
-                onChange={(value) => handleEditFormChange('transferIn', value)}
-              />
-              
-              <NumberInput
-                id="referIn"
-                label="Refer In"
-                value={editFormData.referIn || 0}
-                onChange={(value) => handleEditFormChange('referIn', value)}
-              />
-              
-              <NumberInput
-                id="transferOut"
-                label="Transfer Out"
-                value={editFormData.transferOut || 0}
-                onChange={(value) => handleEditFormChange('transferOut', value)}
-              />
-              
-              <NumberInput
-                id="referOut"
-                label="Refer Out"
-                value={editFormData.referOut || 0}
-                onChange={(value) => handleEditFormChange('referOut', value)}
-              />
-              
-              <NumberInput
-                id="discharge"
-                label="Discharge"
-                value={editFormData.discharge || 0}
-                onChange={(value) => handleEditFormChange('discharge', value)}
-              />
-              
-              <NumberInput
-                id="dead"
-                label="Dead"
-                value={editFormData.dead || 0}
-                onChange={(value) => handleEditFormChange('dead', value)}
-              />
-              
-              <NumberInput
-                id="available"
-                label="Available"
-                value={editFormData.available || 0}
-                onChange={(value) => handleEditFormChange('available', value)}
-              />
-              
-              <NumberInput
-                id="unavailable"
-                label="Unavailable"
-                value={editFormData.unavailable || 0}
-                onChange={(value) => handleEditFormChange('unavailable', value)}
-              />
-              
-              <NumberInput
-                id="plannedDischarge"
-                label="Planned Discharge"
-                value={editFormData.plannedDischarge || 0}
-                onChange={(value) => handleEditFormChange('plannedDischarge', value)}
-              />
-            </div>
-            
-            <div>
-              <Input
-                id="comment"
-                label="Comment"
-                value={editFormData.comment || ''}
-                onChange={(e) => handleEditFormChange('comment', e.target.value)}
-                className="w-full"
-              />
-            </div>
-          </div>
-        )}
-      </Modal>
+      <ApprovalFormEditor
+        showEditModal={showEditModal}
+        setShowEditModal={setShowEditModal}
+        selectedForm={selectedForm}
+        editFormData={editFormData}
+        handleEditFormChange={handleEditFormChange}
+        handleEditSubmit={handleEditSubmit}
+        isSubmitting={isSubmitting}
+      />
       
-      {/* Approval modal */}
-      <Modal
-        isOpen={showApprovalModal}
-        onClose={() => {
-          setShowApprovalModal(false);
-          setSelectedForm(null);
-          setSupervisorFirstName('');
-          setSupervisorLastName('');
-        }}
-        title="Approve Ward Form"
-        size="md"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowApprovalModal(false);
-                setSelectedForm(null);
-                setSupervisorFirstName('');
-                setSupervisorLastName('');
-              }}
-              className="mr-2"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleApprovalSubmit}
-              loading={isSubmitting}
-              disabled={!supervisorFirstName.trim() || !supervisorLastName.trim()}
-            >
-              Approve
-            </Button>
-          </>
-        }
-      >
-        <div className="py-2">
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You are about to approve the ward form for {selectedForm?.wardName} ({selectedForm?.shift} shift). Please enter your signature to continue.
-          </p>
-          
-          <div className="space-y-4">
-            <Input
-              id="supervisorFirstName"
-              label="First Name"
-              value={supervisorFirstName}
-              onChange={(e) => setSupervisorFirstName(e.target.value)}
-              placeholder="Enter your first name"
-            />
-            
-            <Input
-              id="supervisorLastName"
-              label="Last Name"
-              value={supervisorLastName}
-              onChange={(e) => setSupervisorLastName(e.target.value)}
-              placeholder="Enter your last name"
-            />
-          </div>
-        </div>
-      </Modal>
+      <ApprovalForm
+        showApprovalModal={showApprovalModal}
+        setShowApprovalModal={setShowApprovalModal}
+        selectedForm={selectedForm}
+        supervisorFirstName={supervisorFirstName}
+        setSupervisorFirstName={setSupervisorFirstName}
+        supervisorLastName={supervisorLastName}
+        setSupervisorLastName={setSupervisorLastName}
+        handleApprovalSubmit={handleApprovalSubmit}
+        isSubmitting={isSubmitting}
+      />
+      
+      <DailySummaryForm
+        showDailySummaryModal={showDailySummaryModal}
+        setShowDailySummaryModal={setShowDailySummaryModal}
+        dailySummaryData={dailySummaryData}
+        handleDailySummaryChange={handleDailySummaryChange}
+        supervisorFirstName={supervisorFirstName}
+        setSupervisorFirstName={setSupervisorFirstName}
+        supervisorLastName={supervisorLastName}
+        setSupervisorLastName={setSupervisorLastName}
+        handleDailySummarySubmit={handleDailySummarySubmit}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 } 

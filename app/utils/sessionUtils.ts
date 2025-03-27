@@ -1,220 +1,284 @@
-import { ref, onValue, onDisconnect, update, set, serverTimestamp } from 'firebase/database';
-import { v4 as uuidv4 } from 'uuid';
-import { getDatabase } from 'firebase/database';
-import app from '@/app/lib/firebase';
+import { 
+  getDatabase, 
+  ref, 
+  set, 
+  remove, 
+  update, 
+  onDisconnect, 
+  get, 
+  query, 
+  orderByChild, 
+  equalTo, 
+  DatabaseReference, 
+  onValue, 
+  off
+} from 'firebase/database';
+import { 
+  getAuth,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { app as firebaseApp } from '@/app/lib/firebase';
+import { isBrowser, uuid } from './commonUtils';
+import Cookies from 'js-cookie';
+import { logSessionCreated } from './logUtils';
+import { User } from '@/app/types/user';
 
-// Initialize Realtime Database
-const rtdb = getDatabase(app);
+// Initialize Firebase RTDB
+const rtdb = getDatabase(firebaseApp);
 
-// Session timeout in milliseconds (30 minutes)
-const SESSION_TIMEOUT = 30 * 60 * 1000;
+/** 
+ * Session duration in minutes
+ * Default is 30 minutes of inactivity
+ */
+export const SESSION_DURATION = 30;
 
 /**
- * Create a new session for the user
- * @param userId The user's ID
- * @param userEmail The user's email
- * @returns The session ID
+ * Session info stored in localStorage
  */
-export const createUserSession = async (userId: string, userEmail: string): Promise<string> => {
+interface SessionInfo {
+  sessionId: string;
+  userId: string;
+  expiresAt: number;
+}
+
+/**
+ * User session as stored in Firebase RTDB
+ */
+export interface UserSession {
+  sessionId: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  role: string;
+  browser: string;
+  deviceName: string;
+  createdAt: number;
+  lastActivity: number;
+  expiresAt: number;
+  active: boolean;
+}
+
+/**
+ * Safely get the browser name in SSR-compatible way
+ */
+export const getBrowserName = (): string => {
+  if (!isBrowser()) return 'unknown';
+  
+  const userAgent = navigator.userAgent;
+  let browserName = 'unknown';
+
+  if (userAgent.match(/chrome|chromium|crios/i)) {
+    browserName = 'Chrome';
+  } else if (userAgent.match(/firefox|fxios/i)) {
+    browserName = 'Firefox';
+  } else if (userAgent.match(/safari/i)) {
+    browserName = 'Safari';
+  } else if (userAgent.match(/opr\//i)) {
+    browserName = 'Opera';
+  } else if (userAgent.match(/edg/i)) {
+    browserName = 'Edge';
+  } else if (userAgent.match(/android/i)) {
+    browserName = 'Android';
+  } else if (userAgent.match(/iphone/i)) {
+    browserName = 'iPhone';
+  }
+
+  return browserName;
+};
+
+/**
+ * Safely get the device name in SSR-compatible way
+ */
+export const getDeviceName = (): string => {
+  if (!isBrowser()) return 'unknown';
+  
+  const userAgent = navigator.userAgent;
+  let deviceName = 'Desktop';
+
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(userAgent)) {
+    deviceName = 'Tablet';
+  } else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(userAgent)) {
+    deviceName = 'Mobile';
+  }
+
+  return deviceName;
+};
+
+/**
+ * Generate a unique session ID
+ */
+export const generateSessionId = (): string => {
+  return uuid();
+};
+
+/**
+ * Get the current session from localStorage
+ */
+export const getLocalSession = (): SessionInfo | null => {
+  if (!isBrowser()) return null;
+  
+  const sessionData = localStorage.getItem('userSession');
+  if (!sessionData) return null;
+  
   try {
-    // Generate a new session ID
-    const sessionId = uuidv4();
+    return JSON.parse(sessionData) as SessionInfo;
+  } catch (error) {
+    console.error('Failed to parse session data:', error);
+    return null;
+  }
+};
+
+/**
+ * Save session info to localStorage
+ */
+export const saveLocalSession = (sessionInfo: SessionInfo): void => {
+  if (!isBrowser()) return;
+  localStorage.setItem('userSession', JSON.stringify(sessionInfo));
+};
+
+/**
+ * Remove session info from localStorage
+ */
+export const removeLocalSession = (): void => {
+  if (!isBrowser()) return;
+  localStorage.removeItem('userSession');
+};
+
+/**
+ * Create a new session in Firebase RTDB
+ */
+export const createSession = async (
+  user: User | FirebaseUser,
+  displayName?: string
+): Promise<string> => {
+  if (!isBrowser()) {
+    console.warn('createSession called in non-browser environment');
+    return '';
+  }
+
+  try {
+    const userId = user.uid;
+    const username = 'email' in user ? user.email || 'unknown' : user.email || 'unknown';
+    const sessionId = generateSessionId();
+    const browser = getBrowserName();
+    const deviceName = getDeviceName();
+    const now = Date.now();
+    const expiresAt = now + SESSION_DURATION * 60 * 1000;
     
-    // Create the session object with enhanced information
-    const sessionData = {
-      createdAt: Date.now(),
-      lastActive: Date.now(),
-      device: window.navigator.userAgent,
-      isActive: true,
-      userEmail,
-      platform: navigator.platform,
-      language: navigator.language,
-      screenResolution: `${window.screen.width}x${window.screen.height}`,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      browserName: getBrowserName(),
-      expiresAt: Date.now() + SESSION_TIMEOUT
-    };
-    
-    // Set the current session
-    await set(ref(rtdb, `userSessions/${userId}/currentSession`), {
+    // User session object for Firebase RTDB
+    const userSession: UserSession = {
       sessionId,
-      lastActive: Date.now(),
-      expiresAt: Date.now() + SESSION_TIMEOUT
+      userId,
+      username,
+      displayName: displayName || username,
+      role: 'role' in user ? user.role : 'unknown',
+      browser,
+      deviceName,
+      createdAt: now,
+      lastActivity: now,
+      expiresAt,
+      active: true
+    };
+
+    // Save to Firebase RTDB
+    await set(ref(rtdb, `sessions/${sessionId}`), userSession);
+
+    // Link this session to the user for easy querying
+    await set(ref(rtdb, `users/${userId}/sessions/${sessionId}`), true);
+
+    // Setup disconnection cleanup
+    const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+    onDisconnect(sessionRef).update({ active: false });
+
+    // Save to localStorage for persistence
+    saveLocalSession({
+      sessionId,
+      userId,
+      expiresAt
     });
-    
-    // Set the session data
-    await set(ref(rtdb, `userSessions/${userId}/sessions/${sessionId}`), sessionData);
-    
-    // Set up disconnect handler to mark session as inactive on disconnect
-    const sessionRef = ref(rtdb, `userSessions/${userId}/sessions/${sessionId}`);
-    onDisconnect(sessionRef).update({ 
-      isActive: false, 
-      disconnectedAt: serverTimestamp()
+
+    // Set session cookie for cross-tab synchronization
+    Cookies.set('sessionId', sessionId, { 
+      expires: new Date(expiresAt),
+      sameSite: 'strict'
     });
-    
+
+    // Log session created
+    await logSessionCreated(userId, username, {
+      sessionId,
+      browser,
+      deviceName
+    });
+
     return sessionId;
   } catch (error) {
-    console.error('Error creating user session:', error);
-    throw error;
+    console.error('Failed to create session:', error);
+    return '';
   }
 };
 
 /**
- * Get browser name from user agent
+ * Create a user session with Firebase
  */
-function getBrowserName(): string {
-  const userAgent = navigator.userAgent;
-  let browserName = "Unknown";
-  
-  if (userAgent.match(/chrome|chromium|crios/i)) {
-    browserName = "Chrome";
-  } else if (userAgent.match(/firefox|fxios/i)) {
-    browserName = "Firefox";
-  } else if (userAgent.match(/safari/i)) {
-    browserName = "Safari";
-  } else if (userAgent.match(/opr\//i)) {
-    browserName = "Opera";
-  } else if (userAgent.match(/edg/i)) {
-    browserName = "Edge";
-  } else if (userAgent.match(/msie|trident/i)) {
-    browserName = "Internet Explorer";
-  }
-  
-  return browserName;
-}
-
-/**
- * Set up session monitoring to detect and handle simultaneous logins
- * @param userId The user's ID
- * @param sessionId The current session ID
- * @param onSessionExpired Callback function to call when the session is expired
- * @returns A cleanup function to remove the listener
- */
-export const monitorUserSession = (
-  userId: string, 
-  sessionId: string,
-  onSessionExpired: () => void
-): () => void => {
-  // Listen for changes to the current session
-  const currentSessionRef = ref(rtdb, `userSessions/${userId}/currentSession`);
-  
-  // Enhanced monitoring with additional checks
-  const unsubscribe = onValue(currentSessionRef, (snapshot) => {
-    const currentSessionValue = snapshot.val();
-    
-    if (!currentSessionValue) {
-      // If current session is null or undefined, session might have been manually terminated
-      onSessionExpired();
-      return;
-    }
-    
-    // Check if the current session is different from our session ID
-    if (currentSessionValue.sessionId !== sessionId) {
-      console.log('Session changed - another login detected');
-      onSessionExpired();
-      return;
-    }
-    
-    // Check if session has expired based on timestamp
-    if (currentSessionValue.expiresAt && currentSessionValue.expiresAt < Date.now()) {
-      console.log('Session expired based on timeout');
-      onSessionExpired();
-      return;
-    }
-  });
-  
-  // Set up a timer to periodically update the lastActive and expiresAt timestamps
-  const interval = setInterval(() => {
-    if (userId && sessionId) {
-      const now = Date.now();
-      
-      // Update current session timestamp
-      update(ref(rtdb, `userSessions/${userId}/currentSession`), {
-        lastActive: now,
-        expiresAt: now + SESSION_TIMEOUT,
-      }).catch(console.error);
-      
-      // Update session information
-      update(ref(rtdb, `userSessions/${userId}/sessions/${sessionId}`), {
-        lastActive: now,
-        expiresAt: now + SESSION_TIMEOUT,
-      }).catch(console.error);
-    }
-  }, 5 * 60 * 1000); // Update every 5 minutes
-
-  // Return a cleanup function
-  return () => {
-    unsubscribe();
-    clearInterval(interval);
-  };
-};
-
-/**
- * Clean up session on logout
- * @param userId The user's ID
- * @param sessionId The session ID to clean up
- */
-export const cleanupUserSession = async (userId: string, sessionId: string): Promise<void> => {
+export const createUserSession = async (userId: string, email: string): Promise<string> => {
   try {
-    // Update session status with enhanced information
-    await update(ref(rtdb, `userSessions/${userId}/sessions/${sessionId}`), {
-      isActive: false,
-      loggedOutAt: Date.now(),
-      logoutMethod: 'explicit',
-      sessionDuration: Date.now() - (await getSessionStartTime(userId, sessionId))
-    });
+    const sessionId = generateSessionId();
+    const browser = getBrowserName();
+    const deviceName = getDeviceName();
+    const now = Date.now();
+    const expiresAt = now + SESSION_DURATION * 60 * 1000;
     
-    // Clear current session
-    await set(ref(rtdb, `userSessions/${userId}/currentSession`), null);
+    // User session object for Firebase RTDB
+    const userSession: UserSession = {
+      sessionId,
+      userId,
+      username: email || userId,
+      displayName: email || userId,
+      role: 'user', // Default role
+      browser,
+      deviceName,
+      createdAt: now,
+      lastActivity: now,
+      expiresAt,
+      active: true
+    };
+
+    // Save to Firebase RTDB
+    await set(ref(rtdb, `sessions/${sessionId}`), userSession);
+
+    // Link this session to the user for easy querying
+    await set(ref(rtdb, `users/${userId}/sessions/${sessionId}`), true);
+
+    // Setup disconnection cleanup
+    const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+    onDisconnect(sessionRef).update({ active: false });
+
+    // Save to localStorage for persistence
+    saveLocalSession({
+      sessionId,
+      userId,
+      expiresAt
+    });
+
+    return sessionId;
   } catch (error) {
-    console.error('Error cleaning up user session:', error);
-    throw error;
+    console.error('Failed to create user session:', error);
+    return '';
   }
 };
 
 /**
- * Get session start time
- * @param userId The user's ID
- * @param sessionId The session ID
- * @returns The session start time in milliseconds
+ * Setup handler for beforeunload event
  */
-async function getSessionStartTime(userId: string, sessionId: string): Promise<number> {
-  return new Promise((resolve) => {
-    const sessionRef = ref(rtdb, `userSessions/${userId}/sessions/${sessionId}/createdAt`);
-    
-    onValue(sessionRef, (snapshot) => {
-      const createdAt = snapshot.val() || Date.now();
-      resolve(createdAt);
-    }, { onlyOnce: true });
-  });
-}
+export const setupBeforeUnloadHandler = (userId: string, sessionId: string): (() => void) => {
+  if (!isBrowser()) return () => {};
 
-/**
- * Set up beforeunload handler for the window
- * @param userId The user's ID
- * @param sessionId The session ID
- * @returns A cleanup function to remove the event listener
- */
-export const setupBeforeUnloadHandler = (userId: string, sessionId: string): () => void => {
   const handleBeforeUnload = () => {
-    if (userId && sessionId) {
-      // Try to perform a synchronous logout notification
-      navigator.sendBeacon(
-        `/api/logout?userId=${userId}&sessionId=${sessionId}`
-      );
-      
-      // Update session info directly as a fallback
-      try {
-        const sessionRef = ref(rtdb, `userSessions/${userId}/sessions/${sessionId}`);
-        update(sessionRef, {
-          isActive: false,
-          disconnectedAt: Date.now(),
-          disconnectReason: 'browser_closed'
-        });
-      } catch {
-        // Cannot do much in beforeunload event, silent error
-      }
-    }
+    // Mark session as inactive
+    update(ref(rtdb, `sessions/${sessionId}`), {
+      active: false,
+      lastActivity: Date.now()
+    }).catch(console.error);
   };
 
   window.addEventListener('beforeunload', handleBeforeUnload);
@@ -224,67 +288,346 @@ export const setupBeforeUnloadHandler = (userId: string, sessionId: string): () 
   };
 };
 
-// Additional session utility functions
+/**
+ * Monitor user session for changes (e.g., force logout from another device)
+ */
+export const monitorUserSession = (
+  userId: string, 
+  sessionId: string, 
+  onForceLogout: () => void
+): (() => void) => {
+  if (!isBrowser()) return () => {};
+
+  // Monitor this specific session
+  const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+  
+  // Listen for changes to the active status
+  onValue(sessionRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      // Session was deleted
+      onForceLogout();
+      return;
+    }
+    
+    const sessionData = snapshot.val();
+    if (!sessionData.active) {
+      // Session was deactivated from another source
+      onForceLogout();
+    }
+  });
+
+  return () => {
+    // Clean up listener
+    off(sessionRef);
+  };
+};
 
 /**
- * Terminate all other sessions for a user except the current one
- * @param userId The user's ID
- * @param currentSessionId The current session ID
+ * Terminate all other sessions for this user
  */
 export const terminateOtherSessions = async (userId: string, currentSessionId: string): Promise<void> => {
   try {
-    const sessionsRef = ref(rtdb, `userSessions/${userId}/sessions`);
+    // Get all sessions for this user
+    const userSessionsRef = ref(rtdb, `users/${userId}/sessions`);
+    const snapshot = await get(userSessionsRef);
     
-    const cleanup = onValue(sessionsRef, async (snapshot) => {
-      const sessions = snapshot.val();
-      if (!sessions) return;
-      
-      // Find all other active sessions
-      Object.entries(sessions).forEach(([id, data]: [string, any]) => {
-        if (id !== currentSessionId && data.isActive) {
-          // Terminate the session
-          update(ref(rtdb, `userSessions/${userId}/sessions/${id}`), {
-            isActive: false,
-            terminatedAt: Date.now(),
-            terminatedBy: currentSessionId,
-            terminationReason: 'user_requested'
-          }).catch(console.error);
-        }
-      });
-      
-      cleanup();
-    }, { onlyOnce: true });
+    if (!snapshot.exists()) return;
+    
+    const sessions = snapshot.val();
+    
+    // Terminate all sessions except the current one
+    for (const sessionId in sessions) {
+      if (sessionId !== currentSessionId) {
+        const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+        await update(sessionRef, {
+          active: false,
+          lastActivity: Date.now()
+        });
+      }
+    }
   } catch (error) {
-    console.error('Error terminating other sessions:', error);
-    throw error;
+    console.error('Failed to terminate other sessions:', error);
   }
 };
 
 /**
- * Get all active sessions for a user
- * @param userId The user's ID
- * @returns Array of active session data
+ * Clean up user session
  */
-export const getActiveSessions = async (userId: string): Promise<any[]> => {
-  return new Promise((resolve) => {
-    const sessionsRef = ref(rtdb, `userSessions/${userId}/sessions`);
+export const cleanupUserSession = async (userId: string, sessionId: string): Promise<void> => {
+  try {
+    if (!sessionId) return;
     
-    onValue(sessionsRef, (snapshot) => {
+    // Mark session as inactive
+    const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+    await update(sessionRef, {
+      active: false,
+      lastActivity: Date.now()
+    });
+    
+    // Remove from user's active sessions
+    const userSessionRef = ref(rtdb, `users/${userId}/sessions/${sessionId}`);
+    await remove(userSessionRef);
+    
+    // Remove from localStorage
+    removeLocalSession();
+    
+    // Remove session cookie
+    Cookies.remove('sessionId');
+  } catch (error) {
+    console.error('Failed to clean up session:', error);
+  }
+};
+
+/**
+ * Check for duplicate sessions for the same user
+ */
+export const checkForDuplicateSessions = async (userId: string): Promise<UserSession[]> => {
+  try {
+    const sessionQuery = query(
+      ref(rtdb, 'sessions'),
+      orderByChild('userId'),
+      equalTo(userId)
+    );
+
+    const snapshot = await get(sessionQuery);
+    const activeSessions: UserSession[] = [];
+
+    if (snapshot.exists()) {
       const sessions = snapshot.val();
-      if (!sessions) {
-        resolve([]);
-        return;
-      }
+      const now = Date.now();
+
+      // Filter for active sessions that haven't expired
+      Object.values(sessions).forEach((session: any) => {
+        if (session.active && session.expiresAt > now) {
+          activeSessions.push(session);
+        }
+      });
+    }
+
+    return activeSessions;
+  } catch (error) {
+    console.error('Failed to check for duplicate sessions:', error);
+    return [];
+  }
+};
+
+/**
+ * Update session activity to keep it alive
+ */
+export const updateSessionActivity = async (sessionId: string): Promise<void> => {
+  if (!sessionId) return;
+  
+  try {
+    const now = Date.now();
+    const expiresAt = now + SESSION_DURATION * 60 * 1000;
+    
+    await update(ref(rtdb, `sessions/${sessionId}`), {
+      lastActivity: now,
+      expiresAt,
+      active: true
+    });
+
+    // Update local storage
+    const session = getLocalSession();
+    if (session) {
+      saveLocalSession({
+        ...session,
+        expiresAt
+      });
+    }
+
+    // Refresh session cookie
+    Cookies.set('sessionId', sessionId, { 
+      expires: new Date(expiresAt),
+      sameSite: 'strict'
+    });
+  } catch (error) {
+    console.error('Failed to update session activity:', error);
+  }
+};
+
+/**
+ * End a user session
+ */
+export const endSession = async (sessionId: string): Promise<void> => {
+  if (!sessionId) return;
+  
+  try {
+    // Get session data for logging
+    const sessionRef = ref(rtdb, `sessions/${sessionId}`);
+    const sessionSnap = await get(sessionRef);
+    
+    if (sessionSnap.exists()) {
+      const sessionData = sessionSnap.val() as UserSession;
       
-      // Filter active sessions and format them
-      const activeSessions = Object.entries(sessions)
-        .filter(([_, data]: [string, any]) => data.isActive)
-        .map(([id, data]: [string, any]) => ({
-          id,
-          ...data
-        }));
-      
-      resolve(activeSessions);
-    }, { onlyOnce: true });
+      // Mark session as inactive in Firebase
+      await update(sessionRef, {
+        active: false,
+        lastActivity: Date.now()
+      });
+
+      // Remove the session from the user's active sessions
+      await remove(ref(rtdb, `users/${sessionData.userId}/sessions/${sessionId}`));
+
+      // Log the session end
+      await logSessionCreated(sessionData.userId, sessionData.username, {
+        sessionId,
+        browser: sessionData.browser,
+        deviceName: sessionData.deviceName,
+        type: 'session_ended'
+      });
+    }
+
+    // Clear from localStorage
+    removeLocalSession();
+    
+    // Clear session cookie
+    Cookies.remove('sessionId');
+  } catch (error) {
+    console.error('Failed to end session:', error);
+  }
+};
+
+/**
+ * Clean up session on page unload
+ */
+export const setupSessionCleanup = (): (() => void) => {
+  if (!isBrowser()) return () => {};
+
+  const handleUnload = async () => {
+    const session = getLocalSession();
+    if (session?.sessionId) {
+      await endSession(session.sessionId);
+    }
+  };
+
+  window.addEventListener('beforeunload', handleUnload);
+  
+  return () => {
+    window.removeEventListener('beforeunload', handleUnload);
+  };
+};
+
+/**
+ * Listen for session expiration events
+ */
+export const listenForSessionExpiration = (callback: () => void): (() => void) => {
+  if (!isBrowser()) return () => {};
+
+  const session = getLocalSession();
+  if (!session?.sessionId) return () => {};
+
+  const sessionRef = ref(rtdb, `sessions/${session.sessionId}`);
+  
+  // Listen for changes to the session
+  onValue(sessionRef, (snapshot) => {
+    if (!snapshot.exists() || !snapshot.val().active) {
+      // Session has been terminated from another device/tab
+      removeLocalSession();
+      Cookies.remove('sessionId');
+      callback();
+    }
   });
+
+  return () => {
+    off(sessionRef);
+  };
+};
+
+/**
+ * Get user's active sessions
+ */
+export const getUserSessions = async (userId: string): Promise<UserSession[]> => {
+  try {
+    const sessionQuery = query(
+      ref(rtdb, 'sessions'),
+      orderByChild('userId'),
+      equalTo(userId)
+    );
+
+    const snapshot = await get(sessionQuery);
+    const sessions: UserSession[] = [];
+
+    if (snapshot.exists()) {
+      const sessionsData = snapshot.val();
+      
+      // Convert object to array and filter active sessions
+      Object.values(sessionsData).forEach((session: any) => {
+        sessions.push(session as UserSession);
+      });
+
+      // Sort by creation time (newest first)
+      sessions.sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    return sessions;
+  } catch (error) {
+    console.error('Failed to get user sessions:', error);
+    return [];
+  }
+};
+
+/**
+ * End all active sessions for a user except the current one
+ */
+export const endAllOtherSessions = async (userId: string, currentSessionId: string): Promise<void> => {
+  try {
+    const sessions = await getUserSessions(userId);
+    
+    const endPromises = sessions
+      .filter(session => session.sessionId !== currentSessionId && session.active)
+      .map(session => endSession(session.sessionId));
+    
+    await Promise.all(endPromises);
+  } catch (error) {
+    console.error('Failed to end other sessions:', error);
+  }
+};
+
+/**
+ * Ping to keep session alive periodically
+ */
+export const startSessionPing = (sessionId: string, intervalMinutes = 5): (() => void) => {
+  if (!isBrowser() || !sessionId) return () => {};
+  
+  const intervalId = setInterval(() => {
+    updateSessionActivity(sessionId).catch(console.error);
+  }, intervalMinutes * 60 * 1000);
+  
+  return () => {
+    clearInterval(intervalId);
+  };
+};
+
+/**
+ * Initialize session management
+ * Returns a cleanup function that should be called when component unmounts
+ */
+export const initializeSessionManagement = (
+  user: User | FirebaseUser | null,
+  onSessionExpired: () => void
+): (() => void) => {
+  if (!isBrowser() || !user) return () => {};
+  
+  const cleanupFunctions: Array<() => void> = [];
+  
+  // Setup cleanup on page unload
+  const cleanupUnload = setupSessionCleanup();
+  cleanupFunctions.push(cleanupUnload);
+  
+  // Start session ping
+  const session = getLocalSession();
+  if (session?.sessionId) {
+    const cleanupPing = startSessionPing(session.sessionId);
+    cleanupFunctions.push(cleanupPing);
+    
+    // Listen for session expiration
+    const cleanupListener = listenForSessionExpiration(onSessionExpired);
+    cleanupFunctions.push(cleanupListener);
+  }
+  
+  // Return a combined cleanup function
+  return () => {
+    cleanupFunctions.forEach(cleanup => cleanup());
+  };
 };

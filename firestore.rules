@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Base functions for checking authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function hasUserAccess(userId) {
+      return isAuthenticated() && 
+        (request.auth.uid == userId || isAdmin());
+    }
+    
+    function hasWardAccess(wardId) {
+      return isAuthenticated() &&
+        (
+          isAdmin() || 
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            wardId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wards
+          )
+        );
+    }
+    
+    function isValidUser() {
+      let data = request.resource.data;
+      return data.email is string &&
+        data.username is string &&
+        (data.role == 'admin' || data.role == 'user' || data.role == 'approver') &&
+        data.firstName is string &&
+        data.lastName is string &&
+        data.active is bool;
+    }
+    
+    // User profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isAdmin() && isValidUser();
+      allow update: if hasUserAccess(userId) && isValidUser();
+      allow delete: if isAdmin();
+    }
+    
+    // Ward Forms
+    match /wardForms/{formId} {
+      allow read: if isAuthenticated() &&
+        (isAdmin() || hasWardAccess(resource.data.wardId));
+      allow create: if isAuthenticated() &&
+        (hasWardAccess(request.resource.data.wardId));
+      allow update: if isAuthenticated() &&
+        (
+          (
+            resource.data.status == 'draft' && 
+            resource.data.createdBy == request.auth.uid &&
+            hasWardAccess(resource.data.wardId)
+          ) ||
+          isAdmin() ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'approver' &&
+            (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected')
+          )
+        );
+      allow delete: if isAdmin();
+    }
+    
+    // Ward Definitions
+    match /wards/{wardId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // System Logs - only admin can read, system functions can write
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+    
+    // Daily Summaries
+    match /dailySummaries/{summaryId} {
+      allow read: if isAuthenticated() && 
+        (isAdmin() || hasWardAccess(resource.data.wardId));
+      allow create, update: if isAuthenticated() &&
+        (hasWardAccess(request.resource.data.wardId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+    
+    // User Sessions (optional if stored in Firestore)
+    match /userSessions/{sessionId} {
+      allow read, write: if isAuthenticated() &&
+        (request.auth.uid == resource.data.userId || isAdmin());
+    }
+  }
+} 
