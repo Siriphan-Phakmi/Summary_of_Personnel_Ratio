@@ -8,6 +8,9 @@ module.exports = {
   darkMode: 'class',
   theme: {
     extend: {
+      colors: {
+        'dark-bg': '#1a2d27',
+      },
       fontFamily: {
         sarabun: ['THSarabunNew', 'sans-serif'],
       },

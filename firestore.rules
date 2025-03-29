@@ -38,12 +38,13 @@ service cloud.firestore {
         data.active is bool;
     }
     
-    // User profiles
+    // Users collection: Allow read/write only if UID matches or user is admin
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isAdmin() && isValidUser();
-      allow update: if hasUserAccess(userId) && isValidUser();
-      allow delete: if isAdmin();
+      allow read: if request.auth != null && (request.auth.uid == userId || getUserData(request.auth.uid).role == 'admin');
+      // Admins can potentially update any user's role/active status
+      allow write: if request.auth != null && getUserData(request.auth.uid).role == 'admin';
+      // Allow user to update their own non-critical fields (e.g., maybe lastActive - adjust as needed)
+      allow update: if request.auth != null && request.auth.uid == userId && isUpdatingAllowedFields(request.resource.data);
     }
     
     // Ward Forms
@@ -92,9 +93,36 @@ service cloud.firestore {
     }
     
     // User Sessions (optional if stored in Firestore)
-    match /userSessions/{sessionId} {
-      allow read, write: if isAuthenticated() &&
-        (request.auth.uid == resource.data.userId || isAdmin());
+    match /userSessions/{userId}/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ApprovalData collection: Allow read based on user's ward or admin, write only for admins
+    match /approvalData/{approvalId} {
+       allow read: if request.auth != null && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).wards.hasAny(resource.data.wardId));
+       allow write: if request.auth != null && getUserData(request.auth.uid).role == 'admin'; // Only admins can approve/edit
+    }
+    
+    // Logs collection: Allow read based on user's role
+    match /logs/{logId} {
+       allow create: if request.auth != null; // Allow any authenticated user to create logs
+       allow read: if request.auth != null && getUserData(request.auth.uid).role == 'admin'; // Only admins can read logs
+    }
+    
+    // Helper function to get user data (assuming 'users' collection stores roles)
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+    
+    // Placeholder for more complex logic
+    function isUpdatingAllowedFields(data) {
+      // Example: Check if only specific fields like 'lastActive' are being updated
+      return data.keys().hasOnly(['lastActive']); // Adjust field names
+    }
+    function canWriteWardForm(request, resource) {
+        // Example: Check if user belongs to the ward and maybe if the form is not yet 'finalized'
+        // This logic needs refinement based on your specific state management (e.g., 'status' field)
+        return getUserData(request.auth.uid).wards.hasAny(request.resource.data.wardId); // Add more conditions
     }
   }
 } 

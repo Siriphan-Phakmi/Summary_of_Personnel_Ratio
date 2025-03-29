@@ -1,9 +1,39 @@
-/* Thai font - Sarabun */
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+/* Define THSarabunNew font using @font-face */
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
-/* Font variables */
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew BoldItalic.ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Font variables - Use THSarabunNew */
 :root {
-  --font-sarabun: 'Sarabun', system-ui, -apple-system, sans-serif;
+  --font-sarabun: 'THSarabunNew', system-ui, -apple-system, sans-serif;
 }
 
 /* Base font settings */
@@ -22,45 +52,24 @@ body {
   font-family: var(--font-sarabun);
 }
 
-/* Font weights */
-.font-light {
-  font-weight: 300;
-}
-
-.font-regular {
-  font-weight: 400;
-}
-
-.font-medium {
-  font-weight: 500;
-}
-
-.font-semibold {
-  font-weight: 600;
-}
-
-.font-bold {
-  font-weight: 700;
-}
+/* Font weights (can be kept or removed, as @font-face defines weights) */
+.font-light { font-weight: 300; /* Note: THSarabunNew might not have a distinct light weight */ }
+.font-regular { font-weight: 400; }
+.font-medium { font-weight: 500; /* Note: THSarabunNew might not have a distinct medium weight */ }
+.font-semibold { font-weight: 600; /* Note: THSarabunNew might not have a distinct semibold weight */ }
+.font-bold { font-weight: 700; }
 
 /* Login page specific styles */
-.login-page {
-  font-size: 1.5rem;
-}
+.login-page { font-size: 1.5rem; }
 
 /* Additional size helpers */
-.text-bigger {
-  font-size: 1.5rem;
-}
-
-.text-largest {
-  font-size: 1.75rem;
-}
+.text-bigger { font-size: 1.5rem; }
+.text-largest { font-size: 1.75rem; }
 
 /* Font rendering enhancement for clearer text */
 .text-clear {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-weight: 500;
+  font-weight: 500; /* Adjust if needed based on available weights */
 }
