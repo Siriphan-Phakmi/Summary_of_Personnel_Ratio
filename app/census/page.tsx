@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 
-// This page acts as a redirect handler for the /home route
-export default function HomeRedirectPage() {
+// This page acts as a redirect handler for the /census route
+export default function CensusRedirectPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 

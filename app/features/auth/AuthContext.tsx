@@ -20,7 +20,7 @@ import { User } from '@/app/core/types/user'; // Updated import path
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   error: string | null;
 }
@@ -54,10 +54,39 @@ const throttle = (func: (...args: any[]) => void, limit: number): (...args: any[
   return throttled;
 }
 
+// ฟังก์ชันสำหรับตรวจสอบข้อมูล user ที่ cache ไว้ก่อนหน้านี้
+const getCachedUser = (): User | null => {
+  try {
+    // เช็คว่าอยู่ใน browser environment หรือไม่
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+    
+    // ตรวจสอบทุก key ใน localStorage ที่ขึ้นต้นด้วย session_
+    const allKeys = Object.keys(localStorage);
+    const sessionKey = allKeys.find(key => key.startsWith('session_'));
+    
+    if (sessionKey) {
+      const userId = sessionKey.replace('session_', '');
+      const cachedUserData = localStorage.getItem(`user_data_${userId}`);
+      
+      if (cachedUserData) {
+        return JSON.parse(cachedUserData) as User;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error reading cached user data:', error);
+    return null;
+  }
+}
+
 // AuthProvider component to wrap around app
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // ตอนเริ่มต้น ลองดึงข้อมูล cached user มาใช้ก่อน
+  const initialCachedUser = getCachedUser();
+  const [user, setUser] = useState<User | null>(initialCachedUser);
+  const [isLoading, setIsLoading] = useState(initialCachedUser ? false : true);
   const [error, setError] = useState<string | null>(null);
   const [cleanupFn, setCleanupFn] = useState<(() => void) | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
@@ -67,54 +96,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout function must be defined *before* useEffect that uses it
   const logout = useCallback(async () => {
     try {
-      setIsLoading(true);
-      
-      // Log the logout
-      if (user) {
-        await logLogout(
-          user.uid, 
-          user.username || 'unknown'
-        );
-      }
-      
-      // Clean up session if cleanup function exists
-      if (cleanupFn) {
-        cleanupFn();
-        setCleanupFn(null);
-      }
-      
-      // Clean up user session in Firebase
-      if (user) {
-        try {
-          // Get current session ID from localStorage if exists
-          const sessionData = localStorage.getItem(`session_${user.uid}`);
-          if (sessionData) {
-            const { sessionId } = JSON.parse(sessionData);
-          }
-        } catch (err) {
-          console.error('Error cleaning up session:', err);
-        }
-      }
-      
-      // Clear local storage
-      localStorage.removeItem('lastActive');
-      if (user) {
-        localStorage.removeItem(`session_${user.uid}`);
-      }
-      
-      // Reset state
+      // สำคัญ: รีเซ็ต state ก่อน
       setUser(null);
-      setError(null);
       
-      // Redirect to login page
+      // เคลียร์ข้อมูลใน localStorage ทันที
+      if (typeof window !== 'undefined') {
+        if (user?.uid) {
+          localStorage.removeItem(`session_${user.uid}`);
+          localStorage.removeItem(`user_data_${user.uid}`);
+        }
+        localStorage.removeItem('lastActive');
+      }
+      
+      // ใช้ router.push แทน window.location.href เพื่อให้ทำงานกับ Fast Refresh ได้
       router.push('/login');
-    } catch (err) {
-      console.error('Logout error:', err);
-      setError('Logout failed. Please try again.');
-    } finally {
-      setIsLoading(false);
+    } 
+    catch (err) {
+      console.error('Error during logout:', err);
+      router.push('/login');
     }
-  }, [user, cleanupFn, router]); // Add dependencies for useCallback
+  }, [user, router]);
 
   // Reset inactivity timer when user interacts with the app
   const resetInactivityTimer = useCallback(() => { 
@@ -125,6 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const throttledReset = useMemo(() => throttle(resetInactivityTimer, 500), [resetInactivityTimer]);
 
   useEffect(() => {
+    // ถ้ามี initialCachedUser แล้ว ให้ข้ามการเซ็ต isLoading = true
+    // เพื่อป้องกันการกระพริบของหน้าจอ
+    if (!initialCachedUser) {
+      setIsLoading(true);
+    }
+    
     const checkSavedSession = async () => {
       try {
         // This is just to check if there's any persistent login state
@@ -133,7 +140,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sessionKey = allKeys.find(key => key.startsWith('session_'));
         
         if (sessionKey) {
+          // ตรวจสอบว่ามีการเซ็ต user จาก initialCachedUser ไปแล้วหรือไม่
+          // ถ้าไม่มี ค่อยดึงจาก localStorage
+          if (!user) {
+            try {
+              const cachedUserData = localStorage.getItem(`user_data_${sessionKey.replace('session_', '')}`);
+              if (cachedUserData) {
+                const parsedData = JSON.parse(cachedUserData);
+                setUser(parsedData);
+                // ตั้งค่า isLoading เป็น false ทันทีที่ได้ข้อมูล user จาก cache
+                setIsLoading(false);
+              }
+            } catch (cacheErr) {
+              console.error('Error reading cached user data:', cacheErr);
+            }
+          }
+
           const userId = sessionKey.replace('session_', '');
+          // เรียกข้อมูล user จาก Firestore เพื่อตรวจสอบความถูกต้อง
           const userDoc = await getDoc(doc(db, 'users', userId));
           
           if (userDoc.exists()) {
@@ -151,6 +175,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (userData.active !== false) {
               setUser(userObj);
+              
+              // อัพเดทข้อมูลใน cache
+              try {
+                localStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
+              } catch (cacheErr) {
+                console.error('Error caching user data:', cacheErr);
+              }
               
               // Restore session
               const sessionData = JSON.parse(localStorage.getItem(sessionKey) || '{}');
@@ -173,21 +204,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else {
               // User is inactive
               localStorage.removeItem(sessionKey);
+              localStorage.removeItem(`user_data_${userId}`);
               setUser(null);
               setError('Your account is inactive. Please contact an administrator.');
             }
           } else {
             // User document not found
             localStorage.removeItem(sessionKey);
+            localStorage.removeItem(`user_data_${userId}`);
             setUser(null);
           }
         }
       } catch (err) {
         console.error('Error checking saved session:', err);
         setUser(null);
+      } finally {
+        // ตั้งค่า isLoading เป็น false เมื่อเสร็จสิ้นกระบวนการตรวจสอบทั้งหมด
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
     // On component mount, check if there's a saved session
@@ -218,9 +252,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       clearInterval(intervalId);
     };
-  }, [logout, lastActivity, router, throttledReset, user]);
+  }, [logout, lastActivity, router, throttledReset, user, initialCachedUser]);
 
-  const login = async (username: string, password: string): Promise<void> => {
+  const login = async (username: string, password: string): Promise<boolean> => {
     console.log(`Attempting login for username: ${username}`); // Debug log
     setIsLoading(true); // Set loading true at the start of login attempt
     setError(null); // Clear previous errors
@@ -233,9 +267,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        console.log('Firestore query returned no results for username.'); // Debug log
+        console.log('User not found');
         await logLoginFailed(username.trim(), 'user_not_found');
-        throw new Error('Invalid username or password'); // User not found in Firestore
+        setError('ไม่พบผู้ใช้นี้ในระบบ'); // เปลี่ยนข้อความเป็นภาษาไทย
+        return false;
       }
 
       const userDocSnapshot = querySnapshot.docs[0];
@@ -247,7 +282,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userDoc.active === false) {
         console.log('User account is inactive.'); // Debug log
         await logLoginFailed(username.trim(), 'account_inactive');
-        throw new Error('Your account is inactive. Please contact an administrator.');
+        setError('Your account is inactive. Please contact an administrator.');
+        return false; // Changed from throwing error to returning false
       }
 
       // 3. Directly check password from Firestore
@@ -255,20 +291,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!storedPassword) {
         console.error('Password not found in user document!'); // Debug log
         await logLoginFailed(username.trim(), 'missing_password');
-        throw new Error('User account configuration error (missing password). Please contact an administrator.');
+        setError('User account configuration error (missing password). Please contact an administrator.');
+        return false; // Changed from throwing error to returning false
       }
 
       // Debug logs for password comparison
       console.log('Input password:', password);
       console.log('Stored password:', storedPassword);
       console.log('Password types - Input:', typeof password, 'Stored:', typeof storedPassword);
-      console.log('Password comparison result:', password === storedPassword);
+      console.log('Password comparison result:', String(password).trim() === String(storedPassword).trim());
 
       // 4. Verify password
-      if (password !== storedPassword) {
-        console.log('Password mismatch'); // Debug log
+      if (String(password).trim() !== String(storedPassword).trim()) {
+        console.log('Password incorrect');
         await logLoginFailed(username.trim(), 'invalid_password');
-        throw new Error('Invalid username or password');
+        setError('รหัสผ่านไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ'); // เปลี่ยนข้อความแจ้งเตือน
+        return false;
       }
 
       console.log('Password verified successfully'); // Debug log
@@ -283,6 +321,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: userDoc.username
       };
       
+      // 6. บันทึกข้อมูล session และ user ใน localStorage ทันที
+      try {
+        localStorage.setItem(`session_${userId}`, JSON.stringify({ 
+          sessionId: Date.now().toString(),
+          timestamp: Date.now()
+        }));
+        localStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
+      } catch (cacheErr) {
+        console.error('Error caching user data:', cacheErr);
+      }
+      
+      // ตั้งค่า user หลังจากบันทึก localStorage แล้ว
       setUser(userObj);
 
       // 7. Update last login timestamp
@@ -306,6 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Don't redirect here - let the useEffect in LoginPage handle redirects
       // The state update to setUser will trigger the useEffect in LoginPage
       console.log('Login successful - navigation will be handled by LoginPage useEffect');
+      return true; // Added return true for successful login
 
     } catch (err: any) {
       console.error('Login error caught:', err); // Log the raw error
@@ -319,9 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log(`Setting error state: "${errorMessage}"`); // Debug log
       setError(errorMessage);
-
-      // Re-throw the error so the calling component knows login failed
-      throw err;
+      return false; // Return false instead of re-throwing
 
     } finally {
       // Ensure loading state is turned off regardless of success or failure

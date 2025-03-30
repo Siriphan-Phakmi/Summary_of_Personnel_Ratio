@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 
-// This page acts as a redirect handler for the /home route
-export default function HomeRedirectPage() {
+// This page acts as a redirect handler for the /admin base route
+export default function AdminRedirectPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
 
@@ -13,11 +13,13 @@ export default function HomeRedirectPage() {
     // Wait for auth state to load
     if (!isLoading) {
       if (user) {
-        // Redirect based on role
+        // Only admins should access /admin routes
         if (user.role === 'admin') {
-          router.push('/census/approval'); // Admins go to approval
+          // Redirect admin to the main admin page (e.g., user management)
+          router.push('/admin/users'); 
         } else {
-          router.push('/census/form'); // Other users go to form
+          // Non-admin logged-in users go back to home
+          router.push('/home');
         }
       } else {
         // Not logged in, redirect to login

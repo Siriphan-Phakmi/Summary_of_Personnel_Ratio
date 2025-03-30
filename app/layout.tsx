@@ -8,7 +8,7 @@ import { ThemeToggle } from '@/app/core/ui';
 
 // Configure metadata
 export const metadata: Metadata = {
-  title: 'BPK9 Personnel Ratio System',
+  title: 'BPK9 Daily Patient Census and Staffing',
   description: 'Personnel ratio management system for BPK9 International Hospital',
   authors: [{ name: 'BPK9 IT Department' }],
 };
@@ -33,19 +33,21 @@ export default function RootLayout({
       <body className="relative min-h-screen font-sarabun bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
         <ThemeProvider>
           <AuthProvider>
-            <div className="fixed top-4 right-4 z-50">
+            <div className="fixed bottom-4 right-4 z-50">
               <ThemeToggle />
             </div>
             {children}
             <Toaster 
               position="top-right"
+              gutter={16}
               toastOptions={{
-                duration: 5000,
+                duration: 3000,
                 style: {
                   background: 'var(--background, #ffffff)',
                   color: 'var(--foreground, #000000)',
                   border: '1px solid var(--border, #e5e7eb)',
-                  fontSize: '1.15rem'
+                  fontSize: '1.15rem',
+                  padding: '16px'
                 }
               }}
             />
