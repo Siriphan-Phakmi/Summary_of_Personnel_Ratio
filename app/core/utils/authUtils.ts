@@ -105,11 +105,8 @@ export const verifyToken = async (token: string): Promise<any | null> => {
  * @param token JWT token ที่ต้องการบันทึก
  */
 export const setAuthCookie = (token: string): void => {
-  // ตั้งค่า cookie หมดอายุใน 12 ชั่วโมง เหมือนกับ token
-  const expires = new Date(new Date().getTime() + 12 * 60 * 60 * 1000);
-  
+  // ไม่ระบุ expires ทำให้เป็น session cookie ที่จะหายไปเมื่อปิด browser
   Cookies.set(TOKEN_COOKIE_NAME, token, {
-    expires,
     path: '/',
     secure: process.env.NODE_ENV === 'production', // ใช้ HTTPS ในโหมด production
     sameSite: 'strict', // ป้องกัน CSRF
@@ -121,14 +118,12 @@ export const setAuthCookie = (token: string): void => {
  * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
  */
 export const setUserCookie = (userData: any): void => {
-  // ตั้งค่า cookie หมดอายุใน 12 ชั่วโมง เหมือนกับ token
-  const expires = new Date(new Date().getTime() + 12 * 60 * 60 * 1000);
+  // ไม่ระบุ expires ทำให้เป็น session cookie ที่จะหายไปเมื่อปิด browser
   
   // แปลงข้อมูลเป็น JSON string
   const userDataString = JSON.stringify(userData);
   
   Cookies.set(USER_COOKIE_NAME, userDataString, {
-    expires,
     path: '/',
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',

@@ -130,10 +130,13 @@ export default function LoginPage() {
   
   // Load saved username if remember me was checked
   useEffect(() => {
-    const savedUsername = localStorage.getItem('lastUsername');
-    if (savedUsername) {
-      setUsername(savedUsername);
-      setRememberMe(true);
+    try {
+      const savedUsername = sessionStorage.getItem('lastUsername');
+      if (savedUsername) {
+        setUsername(savedUsername);
+      }
+    } catch (err) {
+      console.error('Error retrieving saved username:', err);
     }
   }, []);
 
@@ -154,9 +157,9 @@ export default function LoginPage() {
     
     // Save username for next login if remember me is checked
     if (rememberMe) {
-      localStorage.setItem('lastUsername', username);
+      sessionStorage.setItem('lastUsername', username);
     } else {
-      localStorage.removeItem('lastUsername');
+      sessionStorage.removeItem('lastUsername');
     }
     
     try {
@@ -198,17 +201,17 @@ export default function LoginPage() {
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-2">
+          <h1 className="text-3xl md:text-5xl font-bold text-center text-blue-600 dark:text-blue-400 mb-2">
           Daily Patient Census and Staffing
           </h1>
-          <p className="text-base text-gray-600 dark:text-gray-400 text-center mb-4">
+          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center mb-4">
             Welcome back! Please sign in to continue
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="username" className="block text-xl md:text-2xl font-medium text-gray-700 dark:text-gray-300 mb-1">
               Username
             </label>
             <div className="relative">
@@ -219,7 +222,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
                 disabled={isLoading}
-                className="w-full px-4 py-2 pl-10 text-base bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                className="w-full px-4 py-2 pl-10 text-xl md:text-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
               />
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -229,7 +232,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="password" className="block text-xl md:text-2xl font-medium text-gray-700 dark:text-gray-300 mb-1">
               Password
             </label>
             <div className="relative">
@@ -240,7 +243,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 disabled={isLoading}
-                className="w-full px-4 py-2 pl-10 text-base bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                className="w-full px-4 py-2 pl-10 text-xl md:text-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
               />
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -256,7 +259,7 @@ export default function LoginPage() {
               </button>
             </div>
             {capsLockOn && (
-              <p className="mt-1 text-amber-600 dark:text-amber-500 text-xs">
+              <p className="mt-1 text-amber-600 dark:text-amber-500 text-lg">
                 <FiAlertCircle className="inline mr-1" />
                 Caps Lock is on
               </p>
@@ -273,7 +276,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
             />
-            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+            <label htmlFor="remember-me" className="ml-2 block text-lg text-gray-700 dark:text-gray-300">
               Remember me
             </label>
           </div>
@@ -292,18 +295,18 @@ export default function LoginPage() {
               fullWidth
               disabled={isLoading}
               isLoading={isLoading}
-              className="text-base py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all duration-200"
+              className="text-xl md:text-2xl py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all duration-200"
             >
               Sign In
             </Button>
           </div>
         </form>
 
-        <div className="mt-4 text-center text-xs text-gray-600 dark:text-gray-400">
+        <div className="mt-4 text-center text-base text-gray-600 dark:text-gray-400">
           <p>By signing in, you acknowledge and accept the hospital's internal policies.</p>
         </div>
 
-        <div className="mt-3 text-center text-xs text-gray-500">
+        <div className="mt-3 text-center text-base text-gray-500">
           © {new Date().getFullYear()} BPK9 International Hospital. All rights reserved
         </div>
       </div>

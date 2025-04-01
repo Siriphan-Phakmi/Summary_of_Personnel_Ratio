@@ -153,13 +153,13 @@ export const loginWithCredentials = async (
       setAuthCookie(token);
       setUserCookie(userObj);
       
-      // ยังคงเก็บใน localStorage สำหรับความเข้ากันได้กับโค้ดเดิม
+      // ยังคงเก็บใน sessionStorage สำหรับความเข้ากันได้กับโค้ดเดิม
       // จะค่อยๆ ถอดออกทีหลัง
-      localStorage.setItem(`session_${userId}`, JSON.stringify({ 
+      sessionStorage.setItem(`session_${userId}`, JSON.stringify({ 
         sessionId: Date.now().toString(),
         timestamp: Date.now()
       }));
-      localStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
+      sessionStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
     } catch (cacheErr) {
       console.error('Error caching user data:', cacheErr);
     }
@@ -175,8 +175,8 @@ export const loginWithCredentials = async (
       };
     }
     
-    // 8. บันทึก sessionId ลงใน localStorage (ชั่วคราว)
-    localStorage.setItem('currentSessionId', sessionId);
+    // 8. บันทึก sessionId ลงใน sessionStorage
+    sessionStorage.setItem('currentSessionId', sessionId);
     
     // 9. อัพเดท lastLogin ใน Firestore
     try {
@@ -219,7 +219,7 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
     // ถ้ามี currentUser อยู่แล้ว ให้ใช้ค่านั้น
     if (currentUser) {
       // ตรวจสอบเพิ่มเติมว่า session ยังถูกต้องหรือไม่
-      const sessionId = localStorage.getItem('currentSessionId');
+      const sessionId = sessionStorage.getItem('currentSessionId');
       if (sessionId && currentUser.uid) {
         const isValidSession = await verifyUserSession(currentUser.uid, sessionId);
         if (!isValidSession) {
@@ -239,7 +239,7 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
     const userData = getUserCookie();
     if (userData && userData.uid) {
       // ตรวจสอบ session
-      const sessionId = localStorage.getItem('currentSessionId');
+      const sessionId = sessionStorage.getItem('currentSessionId');
       if (sessionId) {
         const isValidSession = await verifyUserSession(userData.uid, sessionId);
         if (!isValidSession) {
@@ -249,9 +249,9 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
       return userData as User;
     }
     
-    // ถ้ายังไม่มี cookie แต่มี localStorage (เพื่อความเข้ากันได้กับระบบเดิม)
+    // ถ้ายังไม่มี cookie แต่มี sessionStorage (เพื่อความเข้ากันได้กับระบบเดิม)
     // ค่อยๆ ลบส่วนนี้ออกหลังจากที่ทุกคนใช้ระบบใหม่แล้ว
-    const allKeys = Object.keys(localStorage);
+    const allKeys = Object.keys(sessionStorage);
     const sessionKey = allKeys.find(key => key.startsWith('session_'));
     
     if (!sessionKey) {
@@ -261,7 +261,7 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
     const userId = sessionKey.replace('session_', '');
     
     // ตรวจสอบ session ในระบบใหม่
-    const sessionId = localStorage.getItem('currentSessionId');
+    const sessionId = sessionStorage.getItem('currentSessionId');
     if (sessionId) {
       const isValidSession = await verifyUserSession(userId, sessionId);
       if (!isValidSession) {
@@ -269,8 +269,8 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
       }
     }
     
-    // ลองดึงข้อมูล user จาก localStorage
-    const cachedUserData = localStorage.getItem(`user_data_${userId}`);
+    // ลองดึงข้อมูล user จาก sessionStorage
+    const cachedUserData = sessionStorage.getItem(`user_data_${userId}`);
     if (cachedUserData) {
       try {
         const user = JSON.parse(cachedUserData) as User;
@@ -286,7 +286,7 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
       }
     }
 
-    // ถ้าไม่พบข้อมูลใน localStorage หรือ parse ไม่สำเร็จ ให้ดึงจาก Firestore
+    // ถ้าไม่พบข้อมูลใน sessionStorage หรือ parse ไม่สำเร็จ ให้ดึงจาก Firestore
     const userDoc = await getDoc(doc(db, 'users', userId));
     
     if (userDoc.exists()) {
@@ -295,9 +295,9 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
       // ตรวจสอบว่าบัญชีผู้ใช้ยังเปิดใช้งานอยู่หรือไม่
       if (userData.active === false) {
         // ถ้าปิดใช้งาน ให้ลบข้อมูล session ออก
-        localStorage.removeItem(sessionKey);
-        localStorage.removeItem(`user_data_${userId}`);
-        localStorage.removeItem('currentSessionId');
+        sessionStorage.removeItem(sessionKey);
+        sessionStorage.removeItem(`user_data_${userId}`);
+        sessionStorage.removeItem('currentSessionId');
         return null;
       }
       
@@ -318,23 +318,23 @@ export const checkSavedSession = async (currentUser?: User | null): Promise<User
       setAuthCookie(token);
       setUserCookie(userObj);
       
-      // อัพเดทข้อมูลใน localStorage เพื่อความเข้ากันได้กับระบบเดิม
-      localStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
+      // อัพเดทข้อมูลใน sessionStorage เพื่อความเข้ากันได้กับระบบเดิม
+      sessionStorage.setItem(`user_data_${userId}`, JSON.stringify(userObj));
       
       // ถ้าไม่พบ sessionId แต่มีข้อมูลผู้ใช้ที่ถูกต้อง ให้สร้าง session ใหม่
       if (!sessionId && userObj.uid) {
         const newSessionId = await createUserSession(userObj);
         if (newSessionId) {
-          localStorage.setItem('currentSessionId', newSessionId);
+          sessionStorage.setItem('currentSessionId', newSessionId);
         }
       }
       
       return userObj;
     } else {
       // ถ้าไม่พบข้อมูลผู้ใช้ใน Firestore ให้ลบ session
-      localStorage.removeItem(sessionKey);
-      localStorage.removeItem(`user_data_${userId}`);
-      localStorage.removeItem('currentSessionId');
+      sessionStorage.removeItem(sessionKey);
+      sessionStorage.removeItem(`user_data_${userId}`);
+      sessionStorage.removeItem('currentSessionId');
       return null;
     }
   } catch (err) {

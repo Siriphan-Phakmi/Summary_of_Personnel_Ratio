@@ -14,17 +14,17 @@ export const logoutUser = async (
   callback?: () => void
 ): Promise<void> => {
   try {
-    // 1. เคลียร์ข้อมูลใน localStorage และ cookies
+    // 1. เคลียร์ข้อมูลใน sessionStorage และ cookies
     if (typeof window !== 'undefined') {
       // ล้าง cookies ที่ใช้ในระบบใหม่
       clearAuthCookies();
       
-      // ล้าง localStorage (สำหรับความเข้ากันได้กับระบบเดิม)
+      // ล้าง sessionStorage (สำหรับความเข้ากันได้กับระบบเดิม)
       if (user?.uid) {
-        localStorage.removeItem(`session_${user.uid}`);
-        localStorage.removeItem(`user_data_${user.uid}`);
+        sessionStorage.removeItem(`session_${user.uid}`);
+        sessionStorage.removeItem(`user_data_${user.uid}`);
       }
-      localStorage.removeItem('lastActive');
+      sessionStorage.removeItem('lastActive');
     }
     
     // 2. บันทึก log การ logout
@@ -63,18 +63,18 @@ export const clearAllSessions = (): void => {
     // ล้าง cookies ที่ใช้ในระบบใหม่
     clearAuthCookies();
     
-    // ล้าง localStorage สำหรับระบบเดิม
-    const allKeys = Object.keys(localStorage);
+    // ล้าง sessionStorage สำหรับระบบเดิม
+    const allKeys = Object.keys(sessionStorage);
     
     // ค้นหาและลบข้อมูลที่เกี่ยวข้องกับ session
     allKeys.forEach(key => {
       if (key.startsWith('session_') || key.startsWith('user_data_')) {
-        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
       }
     });
     
     // ลบข้อมูลเวลาทำกิจกรรมล่าสุด
-    localStorage.removeItem('lastActive');
+    sessionStorage.removeItem('lastActive');
   } catch (error) {
     console.error('Error clearing sessions:', error);
   }
@@ -93,10 +93,10 @@ export const logout = async (userId: string): Promise<{
   
   try {
     // 1. ลบข้อมูล session ในระบบใหม่ (Realtime Database)
-    const sessionId = localStorage.getItem('currentSessionId');
+    const sessionId = sessionStorage.getItem('currentSessionId');
     if (sessionId) {
-      // ดึงข้อมูลผู้ใช้จาก localStorage
-      const userData = localStorage.getItem(`user_data_${userId}`);
+      // ดึงข้อมูลผู้ใช้จาก sessionStorage
+      const userData = sessionStorage.getItem(`user_data_${userId}`);
       if (userData) {
         const user = JSON.parse(userData) as User;
         await endUserSession(userId, sessionId, user);
@@ -110,10 +110,10 @@ export const logout = async (userId: string): Promise<{
       }
     }
     
-    // 2. ลบข้อมูล session จาก localStorage (สำหรับ backward compatibility)
-    localStorage.removeItem(`session_${userId}`);
-    localStorage.removeItem(`user_data_${userId}`);
-    localStorage.removeItem('currentSessionId');
+    // 2. ลบข้อมูล session จาก sessionStorage (สำหรับ backward compatibility)
+    sessionStorage.removeItem(`session_${userId}`);
+    sessionStorage.removeItem(`user_data_${userId}`);
+    sessionStorage.removeItem('currentSessionId');
     
     // 3. ลบข้อมูล cookie
     clearAuthCookies();
