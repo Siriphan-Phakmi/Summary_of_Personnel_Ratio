@@ -3,10 +3,22 @@
 import React, { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
+import { logPageAccess } from '@/app/features/auth/services/logService';
+import { usePathname } from 'next/navigation';
 
 interface ProtectedPageProps {
   children: ReactNode;
   requiredRole?: string | string[]; // กำหนด role ที่ต้องการ (ถ้ามี)
+}
+
+/**
+ * แสดง log เฉพาะในโหมด development
+ * @param message ข้อความที่ต้องการแสดง
+ */
+function devLog(message: string): void {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log(message);
+  }
 }
 
 /**
@@ -18,6 +30,7 @@ interface ProtectedPageProps {
 export default function ProtectedPage({ children, requiredRole }: ProtectedPageProps) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   // เพิ่ม state เพื่อป้องกัน hydration error
   const [isMounted, setIsMounted] = useState(false);
   // เพิ่ม state เพื่อตรวจสอบสถานะการเข้าถึง
@@ -34,7 +47,7 @@ export default function ProtectedPage({ children, requiredRole }: ProtectedPageP
     if (isMounted && !isLoading) {
       // ถ้าไม่มีข้อมูลผู้ใช้ (ไม่ได้ล็อกอิน)
       if (!user) {
-        console.log('User not logged in, redirecting to login page');
+        devLog('User not logged in, redirecting to login page');
         setAccessStatus('no-user');
         router.push('/login');
         return;
@@ -45,17 +58,23 @@ export default function ProtectedPage({ children, requiredRole }: ProtectedPageP
         const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
         
         if (!roles.includes(user.role)) {
-          console.log(`User role ${user.role} does not match required roles: ${roles.join(', ')}`);
+          devLog(`User role ${user.role} does not match required roles: ${roles.join(', ')}`);
           setAccessStatus('no-permission');
           router.push('/home'); // ถ้าไม่มีสิทธิ์ ย้อนกลับไปหน้าหลัก
           return;
         }
       }
       
+      // บันทึก log การเข้าถึงหน้าเมื่อมีสิทธิ์เข้าถึง
+      if (user && pathname) {
+        devLog(`User ${user.username || user.uid} (${user.role}) accessing page: ${pathname}`);
+        logPageAccess(user, pathname);
+      }
+      
       // หากผ่านการตรวจสอบทั้งหมด
       setAccessStatus('granted');
     }
-  }, [user, isLoading, router, requiredRole, isMounted]);
+  }, [user, isLoading, router, requiredRole, isMounted, pathname]);
 
   // กรณีกำลังโหลดหรือยังไม่ mount บน client
   // สำหรับ server-side rendering ต้องแสดงเนื้อหาเหมือนหลังจาก mount บน client

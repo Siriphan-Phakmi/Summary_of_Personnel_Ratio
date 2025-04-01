@@ -56,6 +56,16 @@ const throttle = (func: (...args: any[]) => void, limit: number): (...args: any[
   return throttled;
 }
 
+/**
+ * แสดง log เฉพาะในโหมด development
+ * @param message ข้อความที่ต้องการแสดง
+ */
+function devLog(message: string): void {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log(message);
+  }
+}
+
 // AuthProvider component to wrap around app
 export function AuthProvider({ children }: { children: ReactNode }) {
   // ตอนเริ่มต้น ลองดึงข้อมูล cached user มาใช้ก่อน
@@ -69,10 +79,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Logout function must be defined *before* useEffect that uses it
   const logout = useCallback(async () => {
-    logoutUser(user, () => {
-      setUser(null);
-      router.push('/login');
-    });
+    try {
+      // บันทึก log การ logout ก่อน (เพราะต้องใช้ข้อมูล user ที่กำลังจะถูกลบ)
+      if (user) {
+        try {
+          const { logLogout } = await import('./services/logService');
+          await logLogout(user);
+          devLog(`[AUTH] Logout user: ${user.username || user.uid}`);
+        } catch (logError) {
+          console.error('Error logging logout:', logError);
+        }
+      }
+      
+      // ทำการ logout
+      logoutUser(user, () => {
+        // ล้างข้อมูล user state
+        setUser(null);
+        router.push('/login');
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   }, [user, router]);
 
   // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้
@@ -169,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logout, lastActivity, router, throttledReset, user, initialCachedUser]);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    console.log(`Attempting login for username: ${username}`);
+    devLog(`Attempting login for username: ${username}`);
     setIsLoading(true);
     setError(null);
 
@@ -181,6 +208,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!result.success) {
         setError(result.error || 'Login failed');
         return false;
+      }
+
+      // บันทึก log การ login
+      try {
+        if (result.user) {
+          const { logLogin } = await import('./services/logService');
+          await logLogin(result.user);
+          devLog(`[AUTH] Login success: ${username} role: ${result.user.role}`);
+        }
+      } catch (logError) {
+        console.error('Error logging login:', logError);
       }
 
       // Update last login timestamp

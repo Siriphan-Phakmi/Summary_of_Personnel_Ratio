@@ -1,5 +1,16 @@
 import { User } from '@/app/core/types/user';
 import { logLogin as utilsLogLogin, logLogout as utilsLogLogout } from '@/app/core/utils/logUtils';
+import { logServerAction } from './logServerAction';
+
+/**
+ * แสดง log เฉพาะในโหมด development
+ * @param message ข้อความที่ต้องการแสดง
+ */
+function devLog(message: string): void {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    console.log(message);
+  }
+}
 
 /**
  * บันทึกการเข้าสู่ระบบ
@@ -16,6 +27,16 @@ export const logLogin = async (
   }
 
   try {
+    // แสดง log เฉพาะในโหมด development
+    devLog(`[BPK-LOG] User logged in: ${user.username} (${user.uid}) with role: ${user.role}`);
+    
+    // บันทึก log ในฝั่ง server
+    await logServerAction('login', user, {
+      timestamp: new Date().toISOString(),
+      userAgent: userAgent || navigator.userAgent
+    });
+    
+    // บันทึก log ในฐานข้อมูล
     await utilsLogLogin(
       user.uid, 
       user.username, 
@@ -41,6 +62,16 @@ export const logLogout = async (
   }
 
   try {
+    // แสดง log เฉพาะในโหมด development
+    devLog(`[BPK-LOG] User logged out: ${user.username} (${user.uid}) with role: ${user.role}`);
+    
+    // บันทึก log ในฝั่ง server
+    await logServerAction('logout', user, {
+      timestamp: new Date().toISOString(),
+      userAgent: userAgent || navigator.userAgent
+    });
+    
+    // บันทึก log ในฐานข้อมูล
     await utilsLogLogout(
       user.uid, 
       user.username, 
@@ -68,6 +99,16 @@ export const logPageAccess = async (
   }
 
   try {
+    // แสดง log เฉพาะในโหมด development
+    devLog(`[BPK-LOG] User ${user.username || user.uid} (${user.role}) accessed page: ${page}`);
+    
+    // บันทึก log ในฝั่ง server
+    await logServerAction('page_access', user, {
+      page,
+      timestamp: new Date().toISOString(),
+      userAgent: userAgent || navigator.userAgent
+    });
+    
     // ใช้ addLogEntry แทนเนื่องจากไม่มีฟังก์ชัน logPageAccess ใน logUtils
     const { addLogEntry, LogType, getDeviceInfo } = await import('@/app/core/utils/logUtils');
     const deviceInfo = getDeviceInfo();
