@@ -1,5 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 
 // Firebase configuration object
 const firebaseConfig = {
@@ -24,14 +25,21 @@ if (!getApps().length) {
 // Initialize Firestore
 const db = getFirestore(app);
 
+// Initialize Realtime Database for session management
+const rtdb = getDatabase(app);
+
 // Connect to Firestore emulator in development if needed
 if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true') {
   const host = 'localhost';
   // Uncomment if you need to connect to Firestore emulator
   // import { connectFirestoreEmulator } from 'firebase/firestore';
   // connectFirestoreEmulator(db, host, 8080);
+  
+  // Uncomment if you need to connect to Realtime Database emulator
+  // import { connectDatabaseEmulator } from 'firebase/database';
+  // connectDatabaseEmulator(rtdb, host, 9000);
 }
 
-// Export Firestore database and Firebase app
-export { db, app };
+// Export Firestore database, Realtime Database and Firebase app
+export { db, rtdb, app };
 export default db; 

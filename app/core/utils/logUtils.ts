@@ -22,6 +22,12 @@ export interface LogEntry {
   userAgent?: string;
   ipAddress?: string; // Optional, if you plan to capture IP later
   environment?: string;
+  os?: string;
+  startTime?: string;
+  lastActive?: string;  
+  isActive?: boolean;
+  deviceInfo?: string;
+  browser?: string;
 }
 
 /**

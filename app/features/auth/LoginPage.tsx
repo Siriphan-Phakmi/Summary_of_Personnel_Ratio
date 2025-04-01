@@ -186,29 +186,29 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="w-full max-w-lg md:max-w-xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden p-8 md:p-10 login-page">
+    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden p-6 login-page" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
         <div className="flex flex-col items-center">
-          <div className="h-24 w-24 md:h-32 md:w-32 flex items-center justify-center bg-white rounded-full overflow-hidden mb-6 md:mb-8">
+          <div className="h-16 w-16 md:h-20 md:w-20 flex items-center justify-center bg-white rounded-full overflow-hidden mb-4">
             <Image
               src="/images/BPK.jpg"
-              width={100}
-              height={100}
+              width={80}
+              height={80}
               alt="BPK Logo"
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold text-center text-blue-600 dark:text-blue-400 mb-3">
+          <h1 className="text-xl md:text-2xl font-bold text-center text-blue-600 dark:text-blue-400 mb-2">
           Daily Patient Census and Staffing
           </h1>
-          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center mb-8">
+          <p className="text-base text-gray-600 dark:text-gray-400 text-center mb-4">
             Welcome back! Please sign in to continue
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="username" className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Username
             </label>
             <div className="relative">
@@ -219,17 +219,17 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
                 disabled={isLoading}
-                className="w-full px-5 py-4 pl-14 text-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                className="w-full px-4 py-2 pl-10 text-base bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
               />
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <FiUser className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <FiUser className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </div>
             </div>
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Password
             </label>
             <div className="relative">
@@ -240,11 +240,11 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 disabled={isLoading}
-                className="w-full px-5 py-4 pl-14 text-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
+                className="w-full px-4 py-2 pl-10 text-base bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
               />
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                <FiLock className="h-6 w-6 text-gray-500 dark:text-gray-400" />
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <FiLock className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </div>
               <button
                 type="button"
@@ -252,12 +252,12 @@ export default function LoginPage() {
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 disabled={isLoading}
               >
-                {showPassword ? <FiEyeOff size={24} /> : <FiEye size={24} />}
+                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
               </button>
             </div>
             {capsLockOn && (
-              <p className="mt-2 text-amber-600 dark:text-amber-500 text-lg">
-                <FiAlertCircle className="inline mr-2" />
+              <p className="mt-1 text-amber-600 dark:text-amber-500 text-xs">
+                <FiAlertCircle className="inline mr-1" />
                 Caps Lock is on
               </p>
             )}
@@ -271,15 +271,15 @@ export default function LoginPage() {
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
               disabled={isLoading}
-              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
             />
-            <label htmlFor="remember-me" className="ml-3 block text-lg text-gray-700 dark:text-gray-300">
+            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
               Remember me
             </label>
           </div>
 
           {localError && (
-            <div className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 p-4 rounded-lg text-lg">
+            <div className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
               {localError}
             </div>
           )}
@@ -288,22 +288,22 @@ export default function LoginPage() {
             <Button
               type="submit"
               variant="primary"
-              size="lg"
+              size="md"
               fullWidth
               disabled={isLoading}
               isLoading={isLoading}
-              className="text-xl py-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="text-base py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all duration-200"
             >
               Sign In
             </Button>
           </div>
         </form>
 
-        <div className="mt-8 text-center text-lg text-gray-600 dark:text-gray-400">
+        <div className="mt-4 text-center text-xs text-gray-600 dark:text-gray-400">
           <p>By signing in, you acknowledge and accept the hospital's internal policies.</p>
         </div>
 
-        <div className="mt-8 text-center text-lg text-gray-500">
+        <div className="mt-3 text-center text-xs text-gray-500">
           © {new Date().getFullYear()} BPK9 International Hospital. All rights reserved
         </div>
       </div>

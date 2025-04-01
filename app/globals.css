@@ -2,28 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import font styles */
-@import './styles/fonts.css';
+/* Import font definitions only, not styles */
+/* Define THSarabunNew font using @font-face */
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'THSarabunNew';
+  src: url('/fonts/THSarabunNew/THSarabunNew BoldItalic.ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+  font-display: swap;
+}
 
 @layer base {
-  body {
-    @apply bg-gray-50 dark:bg-dark-bg transition-colors duration-300;
-    /* กำหนดสีพื้นฐานสำหรับ light mode และ dark mode */
-    /* คุณได้กำหนดใน layout.tsx แล้ว ส่วนนี้อาจจะไม่จำเป็น */
-    /* หรือจะกำหนดที่นี่แทนก็ได้ */
-  }
-
-  /* กำหนด CSS Variables สำหรับ Toaster (ถ้าต้องการ) */
   :root {
-    --background: #ffffff;
-    --foreground: #000000;
-    --border: #e5e7eb;
+    --toaster-bg: #ffffff;
+    --toaster-fg: #111827;
+    --toaster-border: #e5e7eb;
+    --spinner-border: #3b82f6;
+    
+    /* Light Mode Colors - for backwards compatibility - use Tailwind classes in new code */
+    --bg-color: #f9fafb;
+    --card-bg: #ffffff;
+    --input-bg: #ffffff;
+    --border-color: #e5e7eb;
+    --text-color: #111827;
+    --text-color-secondary: #4b5563;
+    --table-header-bg: #f3f4f6;
+    --table-border: #e5e7eb; 
+    --table-row-hover: #f3f4f6;
+    --button-bg-primary: #2563eb;
+    --button-text-primary: #ffffff;
+    --button-bg-danger: #ef4444;
   }
 
   .dark {
-    --background: #1f2937; /* สีพื้นหลัง dark mode ของ Toaster */
-    --foreground: #f9fafb; /* สีตัวอักษร dark mode ของ Toaster */
-    --border: #4b5563; /* สีขอบ dark mode ของ Toaster */
+    --toaster-bg: #1e293b;
+    --toaster-fg: #f9fafb;
+    --toaster-border: #374151;
+    --spinner-border: #60a5fa;
+    
+    /* Dark Mode Colors - for backwards compatibility - use Tailwind classes in new code */
+    --bg-color: #111827;
+    --card-bg: #1e293b;
+    --input-bg: #1e293b;
+    --border-color: #374151;
+    --text-color: #f9fafb;
+    --text-color-secondary: #d1d5db;
+    --table-header-bg: #111827;
+    --table-border: #374151;
+    --table-row-hover: #2d3748;
+    --button-bg-primary: #3b82f6;
+    --button-bg-danger: #f87171;
+  }
+
+  body {
+    @apply bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text;
+    font-family: 'THSarabunNew', sans-serif;
+  }
+
+  html {
+    height: 100%;
+    font-size: 16px;
   }
 }
 
@@ -37,21 +99,127 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Base font family */
-body {
-  font-family: 'THSarabunNew', sans-serif;
-}
-
 /* Animation keyframes for alerts */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.5;
   }
 }
 
 .alert-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Loading spinner styles */
+.animate-spin {
+  border-color: var(--spinner-border);
+  border-right-color: transparent;
+}
+
+/* Toast styles */
+.dark .react-hot-toast {
+  background-color: var(--toaster-bg) !important;
+  color: var(--toaster-fg) !important;
+  border-color: var(--toaster-border) !important;
+}
+
+/* Custom Toggle Switch Styles */
+.toggle-switch {
+  @apply relative inline-block w-12 h-6;
+}
+
+.toggle-switch input {
+  @apply opacity-0 w-0 h-0;
+}
+
+.toggle-slider {
+  @apply absolute cursor-pointer inset-0 rounded-full bg-gray-300 dark:bg-gray-600 transition-colors;
+}
+
+.toggle-slider:before {
+  @apply absolute content-[''] h-5 w-5 left-0.5 bottom-0.5 bg-white dark:bg-gray-200 rounded-full transition-transform;
+}
+
+input:checked + .toggle-slider {
+  @apply bg-green-500 dark:bg-green-600;
+}
+
+input:focus + .toggle-slider {
+  @apply ring-2 ring-blue-300 dark:ring-blue-800;
+}
+
+input:checked + .toggle-slider:before {
+  @apply translate-x-6;
+}
+
+/* Status indicators */
+.status-active {
+  @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded text-center;
+}
+
+.status-inactive {
+  @apply bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400 px-2 py-1 rounded text-center;
+}
+
+/* Define common component styles with @apply */
+@layer components {
+  .btn-primary {
+    @apply bg-btn-primary hover:bg-btn-primary-hover text-white py-2 px-4 rounded transition-colors font-medium text-base;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 py-2 px-4 rounded transition-colors font-medium text-base;
+  }
+  
+  .btn-danger {
+    @apply bg-btn-danger hover:bg-btn-danger-hover text-white py-2 px-4 rounded transition-colors font-medium text-base;
+  }
+  
+  .form-input {
+    @apply w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-400
+      focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
+      dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500
+      dark:focus:border-blue-400 dark:focus:ring-blue-400;
+  }
+  
+  .form-label {
+    @apply block mb-2 text-base font-medium text-gray-900 dark:text-gray-200;
+  }
+  
+  .table-layout {
+    @apply w-full border-collapse;
+  }
+  
+  .table-header {
+    @apply px-4 py-2 text-left bg-gray-100 dark:bg-gray-700 border-b text-base font-medium;
+  }
+  
+  .table-cell {
+    @apply px-4 py-2 border-b border-gray-200 dark:border-gray-700 text-base;
+  }
+  
+  .card {
+    @apply bg-light-card dark:bg-dark-card shadow-md rounded-lg p-6 text-base;
+  }
+
+  /* Headings */
+  .h1 {
+    @apply text-2xl font-bold mb-4;
+  }
+  
+  .h2 {
+    @apply text-xl font-bold mb-3;
+  }
+  
+  .h3 {
+    @apply text-lg font-bold mb-2;
+  }
+  
+  /* Consistency for page titles */
+  .page-title {
+    @apply text-2xl font-bold mb-6;
+  }
 }

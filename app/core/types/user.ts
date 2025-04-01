@@ -4,8 +4,13 @@
 export interface User {
   uid: string;
   role: string;
-  wards?: string[];
+  location?: string[];
   firstName?: string;
-  lastName?: string;
   username?: string;
-} 
+  lastName?: string;
+  displayName?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastUpdated?: string;
+  active?: boolean;
+}

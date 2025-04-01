@@ -10,12 +10,12 @@ export default function HomePage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg">
       <NavBar />
       <div className="container mx-auto px-4 py-8">
         <div>
-          <h1 className="text-2xl font-bold mb-6">หน้าแรก</h1>
-          <p className="mb-4">ยินดีต้อนรับสู่ระบบ! เลือกเมนูที่ต้องการจากแถบนำทางด้านบน</p>
+          <h1 className="page-title text-light-text dark:text-dark-text">หน้าแรก</h1>
+          <p className="mb-4 text-base text-gray-700 dark:text-gray-300">ยินดีต้อนรับสู่ระบบ! เลือกเมนูที่ต้องการจากแถบนำทางด้านบน</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
             <NavCard
@@ -53,11 +53,11 @@ function NavCard({ title, description, link }: { title: string; description: str
   
   return (
     <div 
-      className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
+      className="bg-light-card dark:bg-dark-card shadow-md rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
       onClick={() => router.push(link)}
     >
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400">{description}</p>
+      <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-gray-100">{title}</h3>
+      <p className="text-base text-gray-600 dark:text-gray-400">{description}</p>
     </div>
   );
 }

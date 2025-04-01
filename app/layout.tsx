@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
 import './globals.css';
-import './styles/fonts.css';
 import { ThemeProvider } from '@/app/features/theme';
 import { AuthProvider } from '@/app/features/auth';
 import { Toaster } from 'react-hot-toast';
@@ -30,7 +29,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/bpk9.ico" sizes="any" />
       </head>
-      <body className="relative min-h-screen font-sarabun bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
+      <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
         <ThemeProvider>
           <AuthProvider>
             <div className="fixed bottom-4 right-4 z-50">
@@ -43,11 +42,23 @@ export default function RootLayout({
               toastOptions={{
                 duration: 3000,
                 style: {
-                  background: 'var(--background, #ffffff)',
-                  color: 'var(--foreground, #000000)',
-                  border: '1px solid var(--border, #e5e7eb)',
+                  background: 'var(--toaster-bg)',
+                  color: 'var(--toaster-fg)',
+                  border: '1px solid var(--toaster-border)',
                   fontSize: '1.15rem',
                   padding: '16px'
+                },
+                success: {
+                  style: {
+                    background: 'var(--toaster-bg)',
+                    border: '1px solid var(--button-bg-primary)',
+                  },
+                },
+                error: {
+                  style: {
+                    background: 'var(--toaster-bg)',
+                    border: '1px solid var(--button-bg-danger)',
+                  },
                 }
               }}
             />
