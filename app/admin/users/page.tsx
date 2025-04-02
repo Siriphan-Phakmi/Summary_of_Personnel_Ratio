@@ -117,7 +117,8 @@ export default function UserManagement() {
 
   // Define fetchUsers at component level
     const fetchUsers = async () => {
-      if (!user || user.role !== 'admin') return;
+      // อนุญาตให้ทั้ง admin และ developer ดูข้อมูลได้
+      if (!user || (user.role !== 'admin' && user.role !== 'developer')) return;
       
     setLoading(true);
       try {
@@ -211,6 +212,12 @@ export default function UserManagement() {
   };
 
   const handleToggleUserStatus = async (user: UserData) => {
+    // อนุญาตให้ทั้ง admin และ developer ดำเนินการได้
+    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
+      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
+      return;
+    }
+    
     try {
       const userRef = doc(db, 'users', user.uid);
       const newStatus = !user.active;
@@ -293,6 +300,12 @@ export default function UserManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // อนุญาตให้ทั้ง admin และ developer แก้ไขข้อมูลได้
+    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
+      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
+      return;
+    }
     
     if (!username || !firstName || !lastName || (!editingUser && !password)) {
       toast.error('Please fill in all required fields');
@@ -407,6 +420,12 @@ export default function UserManagement() {
   );
 
   const handleDeleteUser = async (userId: string, username: string) => {
+    // อนุญาตให้ทั้ง admin และ developer ดำเนินการได้
+    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
+      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
+      return;
+    }
+    
     try {
       // ลบผู้ใช้จาก Firestore
       const userRef = doc(db, 'users', userId);
@@ -484,9 +503,27 @@ export default function UserManagement() {
     }
   });
 
+  const getOptions = () => {
+    return (
+      <>
+        <option value="user">ผู้ใช้งานทั่วไป</option>
+        <option value="admin">ผู้ดูแลระบบ</option>
+        <option value="developer">นักพัฒนาระบบ</option>
+      </>
+    );
+  };
+
+  const getRoleText = (role: string) => {
+    switch (role) {
+      case 'admin': return 'ผู้ดูแลระบบ';
+      case 'developer': return 'นักพัฒนาระบบ';
+      default: return 'ผู้ใช้งานทั่วไป';
+    }
+  };
+
   if (loading && users.length === 0) {
     return (
-      <ProtectedPage requiredRole="admin">
+      <ProtectedPage requiredRole={['admin', 'developer']}>
         <NavBar />
         <div className="container mx-auto px-4 py-8">
         <div className="p-4">Loading user data...</div>
@@ -496,7 +533,7 @@ export default function UserManagement() {
   }
 
   return (
-    <ProtectedPage requiredRole="admin">
+    <ProtectedPage requiredRole={['admin', 'developer']}>
       <NavBar />
       <div className="container mx-auto px-4 py-8 admin-page">
         <h1 className="text-3xl font-bold mb-6">จัดการผู้ใช้</h1>
@@ -588,8 +625,7 @@ export default function UserManagement() {
                     onChange={(e) => setRole(e.target.value)}
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
                   >
-                    <option value="user">ผู้ใช้งานทั่วไป</option>
-                    <option value="admin">ผู้ดูแลระบบ</option>
+                    {getOptions()}
                   </select>
                 </div>
                 <div className="md:col-span-2 mb-4">
@@ -712,7 +748,7 @@ export default function UserManagement() {
                     </div>
                     
                     <div className="text-lg text-gray-500 dark:text-gray-300 mb-2">
-                      <span className="font-medium">บทบาท:</span> {user.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งานทั่วไป'}
+                      <span className="font-medium">บทบาท:</span> {getRoleText(user.role)}
                     </div>
                     
                     <div className="flex justify-end space-x-3" onClick={e => e.stopPropagation()}>
@@ -824,7 +860,7 @@ export default function UserManagement() {
                           {user.username}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-lg text-gray-500 dark:text-gray-300 table-data">
-                          {user.role === 'admin' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้งานทั่วไป'}
+                          {getRoleText(user.role)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap table-data">
                           {renderStatus(user)}

@@ -9,18 +9,23 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sarabun: ['THSarabunNew', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'sans-serif'],
       },
       fontSize: {
-        base: '24px',
-        lg: '24px',
-        xl: '24px',
-        '2xl': '24px',
-        nav: '24px',
-        table: '24px',
-        input: '24px',
-        button: '24px',
-        label: '24px',
+        xs: '0.75rem',     // 12px
+        sm: '0.875rem',    // 14px
+        base: '1rem',      // 16px
+        lg: '1.125rem',    // 18px
+        xl: '1.25rem',     // 20px
+        '2xl': '1.5rem',   // 24px
+        '3xl': '1.875rem', // 30px
+        '4xl': '2.25rem',  // 36px
+        '5xl': '3rem',     // 48px
+        nav: '1.125rem',   // 18px
+        table: '1rem',     // 16px
+        input: '1rem',     // 16px
+        button: '1rem',    // 16px
+        label: '1rem',     // 16px
       },
       colors: {
         'dark-bg': '#111827',

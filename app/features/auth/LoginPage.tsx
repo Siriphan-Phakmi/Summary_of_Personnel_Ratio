@@ -77,10 +77,21 @@ export default function LoginPage() {
       isLoading 
     });
     
-    // Redirect any logged-in user to a simple home page
+    // Redirect logged-in user based on role
     if (user && !isLoading) {
-      console.log("Redirecting logged-in user to /home");
-      router.push('/home');
+      console.log(`Redirecting logged-in user (${user.role}) to appropriate page`);
+      
+      switch (user.role) {
+        case 'admin':
+          router.push('/census/approval');
+          break;
+        case 'developer':
+          router.push('/admin/database');
+          break;
+        default: // user role
+          router.push('/census/form');
+          break;
+      }
     }
   }, [user, isLoading, router]);
 
@@ -189,8 +200,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden p-6 login-page" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
+    <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden p-6 login-page">
         <div className="flex flex-col items-center">
           <div className="h-16 w-16 md:h-20 md:w-20 flex items-center justify-center bg-white rounded-full overflow-hidden mb-4">
             <Image
@@ -201,10 +212,10 @@ export default function LoginPage() {
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold text-center text-blue-600 dark:text-blue-400 mb-2">
+          <h1 className="text-2xl md:text-4xl font-bold text-center text-blue-600 dark:text-blue-400 mb-2">
           Daily Patient Census and Staffing
           </h1>
-          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 text-center mb-4">
+          <p className="text-lg md:text-xl text-gray-600 dark:text-gray-400 text-center mb-4">
             Welcome back! Please sign in to continue
           </p>
         </div>

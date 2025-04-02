@@ -12,6 +12,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
+    function isDeveloper() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'developer';
+    }
+    
     function hasUserAccess(userId) {
       return isAuthenticated() && 
         (request.auth.uid == userId || isAdmin());
@@ -20,7 +26,7 @@ service cloud.firestore {
     function hasWardAccess(wardId) {
       return isAuthenticated() &&
         (
-          isAdmin() || 
+          isAdmin() || isDeveloper() || 
           (
             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
             wardId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wards
@@ -32,10 +38,21 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.email is string &&
         data.username is string &&
-        (data.role == 'admin' || data.role == 'user' || data.role == 'approver') &&
+        (data.role == 'admin' || data.role == 'user' || data.role == 'approver' || data.role == 'developer') &&
         data.firstName is string &&
         data.lastName is string &&
         data.active is bool;
+    }
+    
+    function isValidRole(data) {
+      return 
+        (data.role == 'admin' || data.role == 'user' || data.role == 'approver' || data.role == 'developer') &&
+        data.active is bool;
+    }
+    
+    // Database access for developer
+    function canManageDatabase() {
+      return isAdmin() || isDeveloper();
     }
     
     // Users collection: Allow read/write only if UID matches or user is admin
@@ -50,7 +67,7 @@ service cloud.firestore {
     // Ward Forms
     match /wardForms/{formId} {
       allow read: if isAuthenticated() &&
-        (isAdmin() || hasWardAccess(resource.data.wardId));
+        (canManageDatabase() || hasWardAccess(resource.data.wardId));
       allow create: if isAuthenticated() &&
         (hasWardAccess(request.resource.data.wardId));
       allow update: if isAuthenticated() &&
@@ -61,24 +78,25 @@ service cloud.firestore {
             hasWardAccess(resource.data.wardId)
           ) ||
           isAdmin() ||
+          isDeveloper() ||
           (
             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'approver' &&
             (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected')
           )
         );
-      allow delete: if isAdmin();
+      allow delete: if canManageDatabase();
     }
     
     // Ward Definitions
     match /wards/{wardId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if canManageDatabase();
     }
     
-    // System Logs - only admin can read, system functions can write
+    // System Logs - admin and developer can read, system functions can write
     match /systemLogs/{logId} {
-      allow read: if isAdmin();
+      allow read: if canManageDatabase();
       allow create: if isAuthenticated();
       allow update, delete: if false;
     }
@@ -86,10 +104,10 @@ service cloud.firestore {
     // Daily Summaries
     match /dailySummaries/{summaryId} {
       allow read: if isAuthenticated() && 
-        (isAdmin() || hasWardAccess(resource.data.wardId));
+        (canManageDatabase() || hasWardAccess(resource.data.wardId));
       allow create, update: if isAuthenticated() &&
-        (hasWardAccess(request.resource.data.wardId) || isAdmin());
-      allow delete: if isAdmin();
+        (hasWardAccess(request.resource.data.wardId) || canManageDatabase());
+      allow delete: if canManageDatabase();
     }
     
     // User Sessions (optional if stored in Firestore)
@@ -99,14 +117,19 @@ service cloud.firestore {
     
     // ApprovalData collection: Allow read based on user's ward or admin, write only for admins
     match /approvalData/{approvalId} {
-       allow read: if request.auth != null && (getUserData(request.auth.uid).role == 'admin' || getUserData(request.auth.uid).wards.hasAny(resource.data.wardId));
-       allow write: if request.auth != null && getUserData(request.auth.uid).role == 'admin'; // Only admins can approve/edit
+       allow read: if request.auth != null && (canManageDatabase() || getUserData(request.auth.uid).wards.hasAny(resource.data.wardId));
+       allow write: if request.auth != null && canManageDatabase(); // Admins and developers can approve/edit
     }
     
     // Logs collection: Allow read based on user's role
     match /logs/{logId} {
        allow create: if request.auth != null; // Allow any authenticated user to create logs
-       allow read: if request.auth != null && getUserData(request.auth.uid).role == 'admin'; // Only admins can read logs
+       allow read: if request.auth != null && canManageDatabase(); // Admins and developers can read logs
+    }
+    
+    // Any other collection access for developers and admins
+    match /{collection}/{document=**} {
+      allow read, write: if canManageDatabase() && collection != 'users';
     }
     
     // Helper function to get user data (assuming 'users' collection stores roles)

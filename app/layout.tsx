@@ -29,7 +29,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/bpk9.ico" sizes="any" />
       </head>
-      <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
+      <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300">
         <ThemeProvider>
           <AuthProvider>
             <div className="fixed bottom-4 right-4 z-50">

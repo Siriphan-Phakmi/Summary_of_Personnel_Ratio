@@ -233,6 +233,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Non-critical error, continue login process
       }
 
+      // นำทางไปยังหน้าต่างๆ ตาม role
+      if (result.user) {
+        switch (result.user.role) {
+          case 'admin':
+            router.push('/census/approval');
+            break;
+          case 'developer':
+            router.push('/admin/database');
+            break;
+          default: // user role
+            router.push('/census/form');
+            break;
+        }
+      }
+
       return true;
     } catch (err: any) {
       console.error('Login error caught:', err);

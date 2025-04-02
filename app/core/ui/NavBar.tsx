@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 import { Button, Input } from '@/app/core/ui';
-import { FiLogOut, FiUser, FiClipboard, FiCheckSquare, FiPieChart, FiUsers, FiMenu, FiX, FiLogIn } from 'react-icons/fi';
+import { FiLogOut, FiUser, FiClipboard, FiCheckSquare, FiPieChart, FiUsers, FiMenu, FiX, FiLogIn, FiServer } from 'react-icons/fi';
 import Image from 'next/image';
 
 // Placeholder component for loading state
@@ -28,6 +28,7 @@ const NavBar = () => {
   }, []);
   
   const isAdmin = user?.role === 'admin';
+  const isDeveloper = user?.role === 'developer';
   const isActive = (path: string) => pathname === path;
   
   const toggleMenu = () => {
@@ -44,8 +45,8 @@ const NavBar = () => {
   const showPlaceholders = isLoading || !isClient;
   
   return (
-    <nav className="sticky top-0 z-30 w-full bg-gray-900 border-b border-gray-800 shadow-xl">
-      <div className="container mx-auto px-4 py-2" style={{ fontFamily: 'THSarabunNew, sans-serif' }}>
+    <nav className="sticky top-0 z-30 w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-md dark:shadow-xl">
+      <div className="container mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           {/* Logo (แสดงเสมอ) */}
           <div className="flex-shrink-0 flex items-center">
@@ -75,12 +76,13 @@ const NavBar = () => {
                 <NavLink href="/census/form" active={isActive('/census/form')} icon={<FiClipboard />} text="Form" />
                 <NavLink href="/census/approval" active={isActive('/census/approval')} icon={<FiCheckSquare />} text="Approval" />
                 <NavLink href="/census/dashboard" active={isActive('/census/dashboard')} icon={<FiPieChart />} text="Dashboard" />
-                {/* Show User Management only for admins */}
-                {isAdmin && (
-                  <>
-                    <NavLink href="/admin/users" active={isActive('/admin/users')} icon={<FiUsers />} text="User Management" />
-                    <NavLink href="/admin/database" active={isActive('/admin/database')} icon={<FiUsers />} text="Database Management" />
-                  </>
+                {/* Show User Management for admins and developers */}
+                {(isAdmin || isDeveloper) && (
+                  <NavLink href="/admin/users" active={isActive('/admin/users')} icon={<FiUsers />} text="User Management" />
+                )}
+                {/* Show Database Management only for admins or developers */}
+                {(isAdmin || isDeveloper) && (
+                  <NavLink href="/admin/database" active={isActive('/admin/database')} icon={<FiServer />} text="Database Management" />
                 )}
               </>
             )}
@@ -95,15 +97,15 @@ const NavBar = () => {
               // When logged in: Show user info and logout button
               <>
                 <div className="flex flex-col items-end mr-4">
-                  <span className="text-xl font-medium text-gray-200">
+                  <span className="text-base font-medium text-gray-800 dark:text-gray-200">
                     {user?.firstName} {user?.lastName || ''}
                   </span>
-                  <div className="text-lg text-gray-400">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     <span>{user?.role ? `${user.role} ` : ''}</span>
                     <span>{user?.location ? (Array.isArray(user.location) ? user.location.join(', ') : String(user.location)) : ''}</span>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => logout()} leftIcon={<FiLogOut />} style={{ fontSize: '24px' }}>Logout</Button>
+                <Button variant="ghost" size="sm" onClick={() => logout()} leftIcon={<FiLogOut />}>Logout</Button>
               </>
             ) : (
               // When not logged in: Show login button
@@ -119,9 +121,9 @@ const NavBar = () => {
             >
               <span className="sr-only">Open main menu</span>
               {isMenuOpen ? (
-                <FiX className="block h-8 w-8" aria-hidden="true" />
+                <FiX className="block h-6 w-6" aria-hidden="true" />
               ) : (
-                <FiMenu className="block h-8 w-8" aria-hidden="true" />
+                <FiMenu className="block h-6 w-6" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -148,12 +150,13 @@ const NavBar = () => {
                 <MobileNavLink href="/census/form" active={isActive('/census/form')} icon={<FiClipboard />} text="Form" onClick={() => setIsMenuOpen(false)} />
                 <MobileNavLink href="/census/approval" active={isActive('/census/approval')} icon={<FiCheckSquare />} text="Approval" onClick={() => setIsMenuOpen(false)} />
                 <MobileNavLink href="/census/dashboard" active={isActive('/census/dashboard')} icon={<FiPieChart />} text="Dashboard" onClick={() => setIsMenuOpen(false)} />
-                {/* Show User Management only for admins */}
-                {isAdmin && (
-                  <>
-                    <MobileNavLink href="/admin/users" active={isActive('/admin/users')} icon={<FiUsers />} text="User Management" onClick={() => setIsMenuOpen(false)} />
-                    <MobileNavLink href="/admin/database" active={isActive('/admin/database')} icon={<FiUsers />} text="Database Management" onClick={() => setIsMenuOpen(false)} />
-                  </>
+                {/* Show User Management for admins and developers */}
+                {(isAdmin || isDeveloper) && (
+                  <MobileNavLink href="/admin/users" active={isActive('/admin/users')} icon={<FiUsers />} text="User Management" onClick={() => setIsMenuOpen(false)} />
+                )}
+                {/* Show Database Management only for admins or developers */}
+                {(isAdmin || isDeveloper) && (
+                  <MobileNavLink href="/admin/database" active={isActive('/admin/database')} icon={<FiServer />} text="Database Management" onClick={() => setIsMenuOpen(false)} />
                 )}
               </div>
               
@@ -220,15 +223,14 @@ const NavLink = ({ href, active, icon, text }: { href: string; active: boolean; 
   return (
     <Link
       href={href}
-      className={`flex items-center py-2 px-3 rounded-md transition-colors text-2xl font-medium ${
+      className={`flex items-center py-2 px-3 rounded-md transition-colors text-nav font-medium ${
         active 
-          ? 'bg-blue-600 text-white' 
-          : 'text-gray-300 hover:text-white hover:bg-gray-700'
+          ? 'bg-blue-600 dark:bg-blue-700 text-white' 
+          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-700 dark:hover:text-white'
       }`}
-      style={{ fontSize: '32px' }}
     >
       <span className="mr-2">{icon}</span>
-      <span className="text-2xl">{text}</span>
+      <span>{text}</span>
     </Link>
   );
 };
@@ -239,13 +241,13 @@ const MobileNavLink = ({ href, active, icon, text, onClick }: { href: string; ac
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center px-3 py-4 rounded-md text-base font-medium ${
+      className={`flex items-center px-3 py-3 rounded-md text-base font-medium ${
         active 
-          ? 'bg-blue-500 text-white' 
+          ? 'bg-blue-600 dark:bg-blue-700 text-white' 
           : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
       }`}
     >
-      <span className="mr-3 text-xl">{icon}</span>
+      <span className="mr-3">{icon}</span>
       <span>{text}</span>
     </Link>
   );
