@@ -32,7 +32,7 @@ export const hashPassword = async (password: string): Promise<string> => {
 /**
  * ตรวจสอบรหัสผ่านว่าตรงกับรหัสที่เข้ารหัสไว้หรือไม่
  * @param password รหัสผ่านที่ผู้ใช้ป้อน
- * @param hashedPassword รหัสผ่านที่เข้ารหัสไว้
+ * @param hashedPassword รหัสผ่านที่เข้ารหัสไว้ (หรืออาจเป็น plain text)
  * @returns ผลการตรวจสอบ
  */
 export const comparePassword = async (
@@ -40,7 +40,28 @@ export const comparePassword = async (
   hashedPassword: string
 ): Promise<boolean> => {
   try {
-    return bcrypt.compare(password, hashedPassword);
+    console.log('Debug comparePassword - Input:', { 
+      passwordInput: password,
+      hashedPasswordLength: hashedPassword?.length || 0,
+      passwordIsEmpty: !password,
+      hashedIsEmpty: !hashedPassword
+    });
+    
+    // ตรวจสอบว่า input มีค่าว่างหรือไม่
+    if (!password || !hashedPassword) {
+      console.error('Empty password or stored password provided');
+      return false;
+    }
+    
+    // ตรวจสอบว่าเป็น bcrypt hash หรือไม่ (ขึ้นต้นด้วย $ และมีความยาวมากกว่า 20 ตัวอักษร)
+    if (hashedPassword.startsWith('$') && hashedPassword.length >= 20) {
+      console.log('Comparing with bcrypt hash...');
+      return bcrypt.compare(password, hashedPassword);
+    }
+    
+    // ถ้าไม่ใช่ bcrypt hash ให้เปรียบเทียบเป็น plain text
+    console.log('Comparing with plain text password...');
+    return password === hashedPassword;
   } catch (err) {
     console.error('Error comparing passwords:', err);
     return false;
@@ -155,11 +176,44 @@ export const getUserCookie = (): any | null => {
 };
 
 /**
- * ลบ cookies ทั้งหมดที่เกี่ยวข้องกับการ authentication
+ * ล้าง cookies ทั้งหมดที่เกี่ยวข้องกับการ authentication และ cache
  */
 export const clearAuthCookies = (): void => {
+  // ล้าง cookies
   Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
   Cookies.remove(USER_COOKIE_NAME, { path: '/' });
+  
+  // ล้าง session storage
+  if (typeof window !== 'undefined') {
+    // ล้าง session ID
+    sessionStorage.removeItem('currentSessionId');
+    
+    // ล้าง CSRF token
+    sessionStorage.removeItem('csrfToken');
+    
+    // ล้าง cache อื่นๆ ที่เกี่ยวข้อง
+    const authRelatedPrefixes = ['auth_', 'user_', 'session_', 'token_'];
+    
+    // ล้าง session storage
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && authRelatedPrefixes.some(prefix => key.startsWith(prefix))) {
+        sessionStorage.removeItem(key);
+      }
+    }
+    
+    // ล้าง local storage (เฉพาะส่วนที่เกี่ยวข้องกับ auth)
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && authRelatedPrefixes.some(prefix => key.startsWith(prefix))) {
+        localStorage.removeItem(key);
+      }
+    }
+    
+    // ลบ cookie แบบ native approach เพื่อความมั่นใจ
+    document.cookie = `${TOKEN_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    document.cookie = `${USER_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+  }
 };
 
 /**
@@ -177,4 +231,49 @@ export const isTokenValid = async (): Promise<boolean> => {
     console.error('Error validating token:', err);
     return false;
   }
-}; 
+};
+
+/**
+ * สร้าง CSRF token
+ * @returns CSRF token
+ */
+export function generateCSRFToken(): string {
+  // สร้าง token แบบสุ่ม
+  const randomBytes = new Uint8Array(32);
+  if (typeof window !== 'undefined' && window.crypto) {
+    window.crypto.getRandomValues(randomBytes);
+  } else {
+    // Fallback สำหรับ server-side
+    for (let i = 0; i < randomBytes.length; i++) {
+      randomBytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  
+  // แปลง bytes เป็น base64 string
+  const base64 = btoa(String.fromCharCode.apply(null, Array.from(randomBytes)));
+  const token = base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  
+  // บันทึก token ลงใน cookie
+  document.cookie = `csrf_token=${token}; path=/; SameSite=Strict; max-age=3600;`;
+  
+  return token;
+}
+
+/**
+ * ตรวจสอบ CSRF token
+ * @param token CSRF token ที่ต้องการตรวจสอบ
+ * @returns ผลการตรวจสอบ
+ */
+export function validateCSRFToken(token: string): boolean {
+  // ดึง token จาก cookie
+  const cookieValue = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('csrf_token='))
+    ?.split('=')[1];
+  
+  // ตรวจสอบว่า token ตรงกันหรือไม่
+  return token === cookieValue;
+} 

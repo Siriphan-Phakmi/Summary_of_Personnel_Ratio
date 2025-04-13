@@ -43,6 +43,7 @@ module.exports = {
         'btn-primary-hover': '#1d4ed8',
         'btn-danger': '#ef4444',
         'btn-danger-hover': '#dc2626',
+        'gray-750': '#323945',
       },
       backgroundColor: {
         'dark-bg': 'var(--bg-color)',

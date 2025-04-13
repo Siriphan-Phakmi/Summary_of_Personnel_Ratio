@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import { collectionTemplates } from '../services/databaseService';
 import FieldManager from './FieldManager';
 import DocumentFieldView from './DocumentFieldView';
-import { deleteCollectionV2 as deleteCollection, deleteDocument } from '../services/databaseService';
+import { deleteCollectionV2 as deleteCollection, deleteDocument, createCollectionV2 } from '../services/databaseService';
 
 /**
  * คอมโพเนนต์สำหรับจัดการคอลเลกชันและเอกสารใน Firestore
@@ -24,6 +24,7 @@ const CollectionManager: React.FC = () => {
   const [newCollectionId, setNewCollectionId] = useState('');
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   
   // State สำหรับการค้นหา
@@ -33,394 +34,235 @@ const CollectionManager: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // ตัวเลือกเทมเพลตที่มี
-  const templateOptions = Object.keys(collectionTemplates);
-  
-  // ใช้ custom hook สำหรับจัดการเอกสารเมื่อเลือกคอลเลกชัน
-  const { 
-    documents,
-    selectedDocument,
-    fields,
-    loading: documentsLoading,
-    error: documentsError,
-    setSelectedDocument,
-    addDocument,
-    addOrUpdateField,
-    loadDocuments
-  } = useFirestoreDocument(selectedCollection || '');
+  const templateOptions = useMemo(() => Object.keys(collectionTemplates), []);
 
-  // กรองและเรียงลำดับคอลเลกชัน
+  // เมื่อเลือกคอลเลกชัน
+  const handleSelectCollection = (collectionId: string) => {
+    setSelectedCollection(collectionId);
+    setDocumentSearchTerm('');
+  };
+
+  // เมื่อต้องการลบคอลเลกชัน
+  const handleDeleteCollection = async (collectionId: string) => {
+    if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบคอลเลกชัน "${collectionId}"?\nการทำเช่นนี้จะลบข้อมูลทั้งหมดในคอลเลกชันนี้ และไม่สามารถกู้คืนได้`)) {
+      return;
+    }
+
+    setDeleteLoading(collectionId);
+    try {
+      const success = await deleteCollection(collectionId);
+      if (success) {
+        if (selectedCollection === collectionId) {
+          setSelectedCollection(null);
+        }
+        await loadCollections();
+      }
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  // เมื่อต้องการสร้างคอลเลกชันใหม่
+  const handleCreateCollection = async () => {
+    if (!newCollectionId.trim()) {
+      toast.error('กรุณาระบุชื่อคอลเลกชัน');
+      return;
+    }
+    
+    const collectionId = newCollectionId.trim();
+    
+    try {
+      if (showTemplateSelector && selectedTemplate) {
+        // สร้างคอลเลกชันจากเทมเพลต
+        await createCollectionV2(collectionId);
+      } else {
+        // สร้างคอลเลกชันปกติ
+        await addCollection(collectionId);
+      }
+      
+      setNewCollectionId('');
+      setSelectedTemplate('');
+      setShowTemplateSelector(false);
+      
+      // รีเฟรชข้อมูลคอลเลกชัน
+      await loadCollections();
+    } catch (error) {
+      console.error('Error creating collection:', error);
+    }
+  };
+
+  // เมื่อต้องการรีเฟรชข้อมูล
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadCollections();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // กรองคอลเลกชันตามคำค้นหา
   const filteredCollections = useMemo(() => {
-    // ป้องกัน XSS ด้วยการกรองคำค้นหา
-    const sanitizedSearchTerm = collectionSearchTerm.trim().toLowerCase().replace(/[^\w\s]/gi, '');
+    if (!collectionSearchTerm.trim()) {
+      return collections;
+    }
     
-    if (!sanitizedSearchTerm) return collections;
-    
-    return collections.filter(collection => 
-      collection.id.toLowerCase().includes(sanitizedSearchTerm)
+    return collections.filter(
+      col => col.id.toLowerCase().includes(collectionSearchTerm.toLowerCase())
     );
   }, [collections, collectionSearchTerm]);
 
-  // กรองและเรียงลำดับเอกสาร
-  const filteredDocuments = useMemo(() => {
-    // ป้องกัน XSS ด้วยการกรองคำค้นหา
-    const sanitizedSearchTerm = documentSearchTerm.trim().toLowerCase().replace(/[^\w\s]/gi, '');
-    
-    let filtered = documents;
-    
-    if (sanitizedSearchTerm) {
-      filtered = documents.filter(doc => 
-        doc.id.toLowerCase().includes(sanitizedSearchTerm)
-      );
-    }
-    
-    // เรียงลำดับตาม id
-    return [...filtered].sort((a, b) => {
+  // เรียงลำดับคอลเลกชัน
+  const sortedCollections = useMemo(() => {
+    return [...filteredCollections].sort((a, b) => {
       if (sortOrder === 'asc') {
         return a.id.localeCompare(b.id);
       } else {
         return b.id.localeCompare(a.id);
       }
     });
-  }, [documents, documentSearchTerm, sortOrder]);
-
-  // เลือกคอลเลกชันที่ใช้งาน
-  const handleSelectCollection = (collectionId: string) => {
-    setSelectedCollection(collectionId);
-    setDocumentSearchTerm('');
-  };
-
-  // ป้องกัน XSS ใน input
-  const sanitizeInput = (input: string): string => {
-    return input.replace(/[<>]/g, '');
-  };
-
-  // จัดการสร้างคอลเลกชันใหม่
-  const handleCreateCollection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // ป้องกัน XSS และตรวจสอบค่าว่างเป็น
-    const sanitizedCollectionId = sanitizeInput(newCollectionId.trim());
-    if (!sanitizedCollectionId) {
-      toast.error('กรุณากรอกไอดีของคอลเลกชัน');
-      return;
-    }
-    
-    // ตรวจสอบชื่อคอลเลกชันให้ถูกต้อง (a-z, A-Z, 0-9, _)
-    if (!/^[a-zA-Z0-9_]+$/.test(sanitizedCollectionId)) {
-      toast.error('ไอดีคอลเลกชันต้องประกอบด้วยตัวอักษรภาษาอังกฤษ ตัวเลข หรือขีดล่างเท่านั้น');
-      return;
-    }
-    
-    // ตรวจสอบว่าเป็นการสร้างจากเทมเพลตหรือไม่
-    const isTemplateCollection = templateOptions.includes(sanitizedCollectionId);
-    
-    const success = await addCollection(sanitizedCollectionId);
-    
-    if (success) {
-      if (isTemplateCollection) {
-        toast.success(`สร้างคอลเลกชันจากเทมเพลต "${sanitizedCollectionId}" สำเร็จ`);
-      } else {
-        toast.success(`สร้างคอลเลกชันใหม่ "${sanitizedCollectionId}" สำเร็จ`);
-      }
-      
-      setNewCollectionId('');
-      setShowTemplateSelector(false);
-      setSelectedCollection(sanitizedCollectionId);
-    }
-  };
-
-  // รีเฟรชข้อมูล
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    
-    try {
-      await loadCollections();
-      if (selectedCollection) {
-        await loadDocuments();
-      }
-      toast.success('รีเฟรชข้อมูลสำเร็จ');
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-      toast.error('เกิดข้อผิดพลาดในการรีเฟรชข้อมูล');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // ลบคอลเลกชัน
-  const handleDeleteCollection = async (collectionId: string) => {
-    if (!confirm(`ยืนยันการลบคอลเลกชัน "${collectionId}"? การดำเนินการนี้ไม่สามารถย้อนกลับได้และข้อมูลทั้งหมดจะถูกลบ`)) {
-      return;
-    }
-
-    try {
-      setDeleteLoading(collectionId);
-      const success = await deleteCollection(collectionId);
-      
-      if (success) {
-        toast.success(`ลบคอลเลกชัน "${collectionId}" สำเร็จ`);
-        if (selectedCollection === collectionId) {
-          setSelectedCollection(null);
-        }
-        await loadCollections();
-      } else {
-        toast.error('เกิดข้อผิดพลาดในการลบคอลเลกชัน');
-      }
-    } catch (error) {
-      console.error('Error deleting collection:', error);
-      toast.error('เกิดข้อผิดพลาดในการลบคอลเลกชัน');
-    } finally {
-      setDeleteLoading(null);
-    }
-  };
-
-  // ลบเอกสาร
-  const handleDeleteDocument = async (documentId: string) => {
-    if (!selectedCollection) return;
-    
-    if (!confirm(`ยืนยันการลบเอกสาร "${documentId}"? การดำเนินการนี้ไม่สามารถย้อนกลับได้และข้อมูลทั้งหมดจะถูกลบ`)) {
-      return;
-    }
-
-    try {
-      setDeleteLoading(documentId);
-      const success = await deleteDocument(selectedCollection, documentId);
-      
-      if (success) {
-        toast.success(`ลบเอกสาร "${documentId}" สำเร็จ`);
-        if (selectedDocument === documentId) {
-          setSelectedDocument(null);
-        }
-        await loadDocuments();
-      } else {
-        toast.error('เกิดข้อผิดพลาดในการลบเอกสาร');
-      }
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      toast.error('เกิดข้อผิดพลาดในการลบเอกสาร');
-    } finally {
-      setDeleteLoading(null);
-    }
-  };
-
-  // แสดงหรือซ่อนตัวเลือกเทมเพลต
-  const toggleTemplateSelector = () => {
-    setShowTemplateSelector(!showTemplateSelector);
-  };
-
-  // เลือกเทมเพลตสำหรับสร้างคอลเลกชัน
-  const handleSelectTemplate = (templateName: string) => {
-    setNewCollectionId(templateName);
-    setShowTemplateSelector(false);
-  };
-
-  // สลับการเรียงลำดับเอกสาร
-  const toggleSortOrder = () => {
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-  };
-
-  // สร้างเอกสารใหม่
-  const [newDocumentId, setNewDocumentId] = useState('');
-  
-  const handleCreateDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedCollection) {
-      toast.error('กรุณาเลือกคอลเลกชันก่อน');
-      return;
-    }
-    
-    // ป้องกัน XSS และตรวจสอบค่าว่างเป็น
-    const sanitizedDocumentId = sanitizeInput(newDocumentId.trim());
-    if (!sanitizedDocumentId) {
-      toast.error('กรุณากรอกไอดีของเอกสาร');
-      return;
-    }
-    
-    // ตรวจสอบชื่อเอกสารให้ถูกต้อง (ไม่ควรมีอักขระพิเศษบางตัว)
-    if (!/^[a-zA-Z0-9_\-]+$/.test(sanitizedDocumentId)) {
-      toast.error('ไอดีเอกสารต้องประกอบด้วยตัวอักษรภาษาอังกฤษ ตัวเลข ขีดล่าง หรือขีดกลางเท่านั้น');
-      return;
-    }
-    
-    const success = await addDocument(sanitizedDocumentId);
-    
-    if (success) {
-      toast.success(`สร้างเอกสารใหม่ "${sanitizedDocumentId}" สำเร็จ`);
-      setNewDocumentId('');
-    }
-  };
-
-  // แสดงข้อความ error ถ้ามี
-  if (collectionsError) {
-    return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-md mb-4">
-        <p>{collectionsError}</p>
-      </div>
-    );
-  }
+  }, [filteredCollections, sortOrder]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* ส่วนซ้าย: จัดการคอลเลกชัน */}
-      <div className="lg:col-span-1 space-y-6">
-        {/* ฟอร์มสร้างคอลเลกชันใหม่ */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">สร้างคอลเลกชันใหม่</h2>
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mt-4">
+      {/* พาเนลด้านซ้าย: จัดการคอลเลกชัน */}
+      <div className="md:col-span-2 lg:col-span-1 space-y-5">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 className="text-lg font-medium mb-4">สร้างคอลเลกชันใหม่</h2>
           
-          <form onSubmit={handleCreateCollection} className="space-y-4">
-            <div className="flex flex-col space-y-2">
-              <div className="flex gap-3">
+          <div className="mb-4">
                 <input
                   type="text"
                   placeholder="ชื่อคอลเลกชัน"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                   value={newCollectionId}
                   onChange={(e) => setNewCollectionId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-                />
-                <button
-                  type="button"
-                  onClick={toggleTemplateSelector}
-                  className="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md transition-colors"
-                >
-                  เทมเพลต
-                </button>
+            />
               </div>
+          
+          <div className="mb-4">
+            <label className="flex items-center space-x-2 mb-2">
+              <input
+                type="checkbox"
+                checked={showTemplateSelector}
+                onChange={() => setShowTemplateSelector(!showTemplateSelector)}
+                className="rounded text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-sm">เลือกเทมเพลต</span>
+            </label>
               
               {showTemplateSelector && (
-                <div className="mt-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm p-2">
-                  <div className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                    เลือกเทมเพลต:
-                  </div>
-                  <div className="grid grid-cols-1 gap-1">
-                    {templateOptions.map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() => handleSelectTemplate(template)}
-                        className="text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 rounded-md transition-colors text-gray-800 dark:text-gray-200"
-                      >
-                        {template}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+              >
+                <option value="">-- เลือกเทมเพลต --</option>
+                {templateOptions.map(template => (
+                  <option key={template} value={template}>{template}</option>
+                ))}
+              </select>
               )}
             </div>
             
             <button
-              type="submit"
-              disabled={collectionsLoading}
-              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+            onClick={handleCreateCollection}
+            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              {collectionsLoading ? 'กำลังสร้าง...' : 'สร้างคอลเลกชัน'}
+            สร้างคอลเลกชัน
             </button>
-          </form>
         </div>
 
-        {/* ค้นหาและรายการคอลเลกชัน */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                คอลเลกชันทั้งหมด
-                {collections.length > 0 && (
-                  <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                    ({filteredCollections.length}/{collections.length})
-                  </span>
-                )}
-              </h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-medium">คอลเลกชันทั้งหมด</h2>
+            
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-                title="รีเฟรชข้อมูล"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="รีเฟรช"
+            >
+              {isRefreshing ? (
+                <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
+              )}
               </button>
             </div>
             
-            <div className="relative">
+          <div className="mb-3">
               <input
                 type="text"
                 placeholder="ค้นหาคอลเลกชัน..."
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                 value={collectionSearchTerm}
                 onChange={(e) => setCollectionSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-              />
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-2.5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {collectionSearchTerm && (
-                <button
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                  onClick={() => setCollectionSearchTerm('')}
-                  title="ล้างการค้นหา"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
+            />
           </div>
           
-          {collectionsLoading && !collections.length ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              <div className="animate-pulse">กำลังโหลด...</div>
+          {collectionsLoading ? (
+            <div className="py-4 text-center text-gray-500 dark:text-gray-400">
+              <div className="flex justify-center">
+                <svg className="w-6 h-6 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+              <p className="mt-2">กำลังโหลดคอลเลกชัน...</p>
             </div>
-          ) : !collections.length ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              ไม่พบข้อมูลคอลเลกชัน
+          ) : collectionsError ? (
+            <div className="py-4 text-center text-red-500">
+              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="mt-2">เกิดข้อผิดพลาดในการโหลดคอลเลกชัน</p>
             </div>
-          ) : filteredCollections.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              ไม่พบคอลเลกชันที่ตรงกับคำค้นหา
+          ) : sortedCollections.length === 0 ? (
+            <div className="py-4 text-center text-gray-500 dark:text-gray-400">
+              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <p className="mt-2">{collectionSearchTerm ? 'ไม่พบคอลเลกชันที่ค้นหา' : 'ไม่มีคอลเลกชัน'}</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700 max-h-96 overflow-y-auto">
-              {filteredCollections.map((collection) => (
+            <ul className="space-y-1 max-h-96 overflow-y-auto">
+              {sortedCollections.map(collection => (
                 <li
                   key={collection.id}
-                  className={`px-4 py-3 transition-colors group relative cursor-pointer ${
-                    selectedCollection === collection.id
-                    ? 'bg-blue-50 dark:bg-blue-900/20'
-                    : 'hover:bg-gray-50 dark:hover:bg-red-950'
-                  }`}
+                  className={`
+                    px-3 py-2 rounded-md cursor-pointer flex items-center justify-between
+                    ${selectedCollection === collection.id ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
+                  `}
                   onClick={() => handleSelectCollection(collection.id)}
                 >
-                  <div className="flex justify-between items-center">
-                    <div
-                      className={`font-medium ${
-                        selectedCollection === collection.id
-                        ? 'border-l-4 border-blue-500 pl-3 text-blue-600 dark:text-blue-400'
-                        : 'text-gray-900 dark:text-gray-100 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
-                    >
-                      {collection.id}
-                    </div>
-                    <div className="flex space-x-1">
+                  <span className="truncate">{collection.id}</span>
+                  
                       <button
-                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteCollection(collection.id);
                         }}
                         disabled={deleteLoading === collection.id}
+                    className="ml-2 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50"
                         title="ลบคอลเลกชัน"
                       >
                         {deleteLoading === collection.id ? (
-                          <span className="text-sm">กำลังลบ...</span>
+                      <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
                         ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         )}
                       </button>
-                    </div>
-                  </div>
                 </li>
               ))}
             </ul>
@@ -428,175 +270,253 @@ const CollectionManager: React.FC = () => {
         </div>
       </div>
 
-      {/* ส่วนขวา: จัดการเอกสารและฟิลด์ */}
-      <div className="lg:col-span-2 space-y-6">
+      {/* พาเนลด้านขวา: จัดการเอกสารในคอลเลกชัน */}
+      <div className="md:col-span-3 lg:col-span-4">
         {selectedCollection ? (
-          <>
-            {/* ส่วนจัดการเอกสาร */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6">
+          <DocumentManager 
+            collectionId={selectedCollection}
+            searchTerm={documentSearchTerm}
+            onSearchChange={setDocumentSearchTerm}
+          />
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+            <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">เลือกคอลเลกชันเพื่อจัดการเอกสาร</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">เลือกคอลเลกชันจากรายการทางด้านซ้ายเพื่อดูและจัดการเอกสาร</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// คอมโพเนนต์สำหรับจัดการเอกสารในคอลเลกชัน
+interface DocumentManagerProps {
+  collectionId: string;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
+}
+
+const DocumentManager: React.FC<DocumentManagerProps> = ({ 
+  collectionId,
+  searchTerm,
+  onSearchChange
+}) => {
+  const { 
+    documents, 
+    fields, 
+    selectedDocument,
+    setSelectedDocument,
+    loading, 
+    error, 
+    addDocument,
+    loadDocuments,
+    addOrUpdateField
+  } = useFirestoreDocument(collectionId);
+  
+  const [newDocumentId, setNewDocumentId] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  
+  useEffect(() => {
+    setSelectedDocument(null);
+  }, [collectionId]);
+  
+  // รีเฟรชข้อมูลเอกสาร
+  const handleRefresh = () => {
+    loadDocuments();
+  };
+  
+  // สร้างเอกสารใหม่
+  const handleCreateDocument = async () => {
+    if (!newDocumentId.trim()) {
+      toast.error('กรุณาระบุ ID เอกสาร');
+      return;
+    }
+    
+    const documentId = newDocumentId.trim();
+    
+    try {
+      await addDocument(documentId);
+      setNewDocumentId('');
+      loadDocuments();
+    } catch (error) {
+      console.error('Error creating document:', error);
+    }
+  };
+  
+  // ลบเอกสาร
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเอกสาร "${documentId}"?\nการทำเช่นนี้จะลบข้อมูลทั้งหมดในเอกสารนี้ และไม่สามารถกู้คืนได้`)) {
+      return;
+    }
+    
+    setDeleteLoading(documentId);
+    try {
+      await deleteDocument(collectionId, documentId);
+      if (selectedDocument === documentId) {
+        setSelectedDocument(null);
+      }
+      loadDocuments();
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+  
+  // กรองเอกสารตามคำค้นหา
+  const filteredDocuments = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return documents;
+    }
+    
+    return documents.filter(
+      doc => doc.id.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [documents, searchTerm]);
+  
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="p-4 border-b dark:border-gray-700">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                  เอกสารใน {selectedCollection}
-                  {documents.length > 0 && (
-                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                      ({filteredDocuments.length}/{documents.length})
+          <h2 className="text-lg font-medium">
+            เอกสารใน {collectionId}
+            {filteredDocuments.length !== undefined && (
+              <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                ({filteredDocuments.length})
                     </span>
                   )}
                 </h2>
-                <div className="flex items-center space-x-2">
+          
                   <button
-                    onClick={toggleSortOrder}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-                    title={sortOrder === 'asc' ? 'เรียงจาก ก-ฮ' : 'เรียงจาก ฮ-ก'}
-                  >
-                    {sortOrder === 'asc' ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+            onClick={handleRefresh}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            title="รีเฟรช"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                      </svg>
-                    )}
                   </button>
                 </div>
-              </div>
-              
-              <form onSubmit={handleCreateDocument} className="flex gap-3 mb-4">
+        
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            placeholder="ค้นหาเอกสาร..."
+            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+            value={searchTerm}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+          
+          <div className="flex border border-gray-300 dark:border-gray-700 rounded-md overflow-hidden">
                 <input
                   type="text"
-                  placeholder="ไอดีเอกสาร"
+              placeholder="ID เอกสารใหม่"
+              className="px-3 py-2 text-sm border-r border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                   value={newDocumentId}
                   onChange={(e) => setNewDocumentId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateDocument()}
                 />
                 <button
-                  type="submit"
-                  disabled={documentsLoading}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+              onClick={handleCreateDocument}
+              className="px-3 py-2 bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none"
                 >
-                  {documentsLoading ? 'กำลังสร้าง...' : 'สร้างเอกสาร'}
+              สร้าง
                 </button>
-              </form>
-
-              {/* ค้นหาเอกสาร */}
-              <div className="relative mb-4">
-                <input
-                  type="text"
-                  placeholder="ค้นหาเอกสาร..."
-                  value={documentSearchTerm}
-                  onChange={(e) => setDocumentSearchTerm(e.target.value)}
-                  className="w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400"
-                />
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 absolute left-3 top-2.5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-700">
+        {/* รายการเอกสาร */}
+        <div className="md:col-span-4 lg:col-span-3 overflow-auto" style={{ maxHeight: '500px' }}>
+          {loading ? (
+            <div className="py-6 text-center text-gray-500 dark:text-gray-400">
+              <div className="flex justify-center">
+                <svg className="w-6 h-6 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                {documentSearchTerm && (
-                  <button
-                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                    onClick={() => setDocumentSearchTerm('')}
-                    title="ล้างการค้นหา"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
               </div>
-
-              {documentsLoading && !documents.length ? (
-                <div className="py-4 text-center text-gray-500 dark:text-gray-400">
-                  <div className="animate-pulse">กำลังโหลด...</div>
+              <p className="mt-2">กำลังโหลดเอกสาร...</p>
                 </div>
-              ) : !documents.length ? (
-                <div className="py-4 text-center text-gray-500 dark:text-gray-400">
-                  ไม่พบข้อมูลเอกสาร
+          ) : error ? (
+            <div className="py-6 text-center text-red-500">
+              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="mt-2">เกิดข้อผิดพลาดในการโหลดเอกสาร</p>
                 </div>
               ) : filteredDocuments.length === 0 ? (
-                <div className="py-4 text-center text-gray-500 dark:text-gray-400">
-                  ไม่พบเอกสารที่ตรงกับคำค้นหา
+            <div className="py-6 text-center text-gray-500 dark:text-gray-400">
+              <svg className="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="mt-2">{searchTerm ? 'ไม่พบเอกสารที่ค้นหา' : 'ไม่มีเอกสาร'}</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
-                  {filteredDocuments.map((doc) => (
-                    <div 
-                      key={doc.id}
-                      className={`relative group ${
-                        selectedDocument === doc.id
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750'
-                      } rounded-md border p-3 transition-colors`}
-                    >
-                      <button
-                        className="w-full h-full text-left"
-                        onClick={() => setSelectedDocument(doc.id)}
-                      >
-                        {/* Apply text color directly here */}
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{doc.id}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {Object.keys(doc.data).length} ฟิลด์
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredDocuments.map(document => (
+                <li 
+                  key={document.id}
+                  className={`
+                    px-4 py-3 flex items-center justify-between cursor-pointer
+                    ${selectedDocument === document.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-750'}
+                  `}
+                  onClick={() => setSelectedDocument(document.id)}
+                >
+                  <div className="truncate flex-1">
+                    <div className="font-medium text-sm">{document.id}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {Object.keys(document.data).length} fields
+                    </div>
                         </div>
-                      </button>
+                  
                       <button
-                        className="absolute top-2 right-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        disabled={deleteLoading === doc.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteDocument(document.id);
+                    }}
+                    disabled={deleteLoading === document.id}
+                    className="ml-2 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
                         title="ลบเอกสาร"
                       >
-                        {deleteLoading === doc.id ? (
-                          <span className="text-sm">กำลังลบ...</span>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {deleteLoading === document.id ? (
+                      <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
                         )}
                       </button>
-                    </div>
+                </li>
                   ))}
-                </div>
+            </ul>
               )}
             </div>
 
-            {/* แสดงฟิลด์และฟอร์มเพิ่มฟิลด์ */}
-            {selectedDocument && (
-              <div className="space-y-6">
-                {/* ฟอร์มเพิ่มฟิลด์ */}
+        {/* รายละเอียดเอกสาร */}
+        <div className="md:col-span-8 lg:col-span-9 p-4">
+          {selectedDocument ? (
                 <FieldManager
-                  collectionId={selectedCollection}
+              collectionId={collectionId}
                   documentId={selectedDocument}
                   addField={addOrUpdateField}
-                  loading={documentsLoading}
+                  loading={loading}
                 />
-                
-                {/* แสดงฟิลด์ของเอกสารที่เลือก */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-                  <h2 className="text-lg font-medium p-4 border-b border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
-                    ฟิลด์ใน {selectedDocument}
-                    {fields.length > 0 && (
-                      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                        ({fields.length} ฟิลด์)
-                      </span>
-                    )}
-                  </h2>
-                  
-                  <DocumentFieldView 
-                    fields={fields}
-                    loading={documentsLoading}
-                    collectionId={selectedCollection}
-                    documentId={selectedDocument}
-                    onFieldUpdate={addOrUpdateField}
-                  />
-                </div>
+          ) : (
+            <div className="text-center py-12">
+              <svg className="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">เลือกเอกสารเพื่อจัดการฟิลด์</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">เลือกเอกสารจากรายการทางด้านซ้ายเพื่อดูและจัดการฟิลด์</p>
               </div>
             )}
-          </>
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 text-center">
-            <p className="text-gray-500 dark:text-gray-400">
-              กรุณาเลือกคอลเลกชันเพื่อจัดการเอกสารและฟิลด์
-            </p>
           </div>
-        )}
       </div>
     </div>
   );

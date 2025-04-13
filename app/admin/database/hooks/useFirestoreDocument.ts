@@ -3,9 +3,13 @@ import {
   fetchDocumentsV2 as fetchDocuments, 
   createDocument, 
   fetchFields, 
-  setDocumentField 
+  setDocumentField,
+  FieldData 
 } from '../services/databaseService';
-import { DocumentData, FieldData } from '../services/databaseService';
+import { DocumentData } from '../services/databaseService';
+
+// Export type Field เพื่อใช้ใน DocumentFieldView.tsx
+export type Field = FieldData;
 
 /**
  * Hook สำหรับจัดการเอกสารและฟิลด์ใน Firestore

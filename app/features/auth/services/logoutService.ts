@@ -5,50 +5,52 @@ import toast from 'react-hot-toast';
 import { endUserSession } from './sessionService';
 
 /**
- * ทำการ logout ผู้ใช้
- * @param user ข้อมูลผู้ใช้ที่กำลังล็อกเอาท์
- * @param callback ฟังก์ชันที่จะเรียกหลังจาก logout เสร็จ (เช่น redirect)
+ * ทำการออกจากระบบ
+ * @param user ข้อมูลผู้ใช้
+ * @param onLogoutComplete ฟังก์ชันที่จะเรียกเมื่อออกจากระบบเสร็จสมบูรณ์
  */
 export const logoutUser = async (
   user: User | null, 
-  callback?: () => void
+  onLogoutComplete?: () => void
 ): Promise<void> => {
   try {
-    // 1. เคลียร์ข้อมูลใน sessionStorage และ cookies
+    // 1. ปิด session ถ้ามีข้อมูล user และ session
+    if (user?.uid) {
+      const sessionId = sessionStorage.getItem('currentSessionId');
+      if (sessionId) {
+        try {
+          await endUserSession(user.uid, sessionId, user);
+          console.log(`Session ${sessionId} closed for user ${user.uid}`);
+        } catch (error) {
+          console.error('Error ending session:', error);
+          // ไม่ return เพื่อให้ล้าง cookies ต่อไปได้
+        }
+      } 
+    }
+    
+    // 2. ล้าง cookies และ cache ทั้งหมดที่เกี่ยวข้องกับการ authentication
+    clearAuthCookies();
+    console.log('Auth cookies and cache cleared');
+    
+    // 3. ลบ session ID จาก sessionStorage (เพิ่มความมั่นใจว่าถูกลบแน่นอน)
+    sessionStorage.removeItem('currentSessionId');
+    
+    // 4. ลบข้อมูลที่เกี่ยวข้องกับการ login อื่นๆ
     if (typeof window !== 'undefined') {
-      // ล้าง cookies ที่ใช้ในระบบใหม่
-      clearAuthCookies();
-      
-      // ล้าง sessionStorage (สำหรับความเข้ากันได้กับระบบเดิม)
-      if (user?.uid) {
-        sessionStorage.removeItem(`session_${user.uid}`);
-        sessionStorage.removeItem(`user_data_${user.uid}`);
-      }
-      sessionStorage.removeItem('lastActive');
+      // ลบข้อมูล user จาก local storage (ถ้ามี)
+      localStorage.removeItem('lastLoginUser');
+      localStorage.removeItem('rememberUser');
     }
     
-    // 2. บันทึก log การ logout
-    if (user) {
-      try {
-        await logLogout(user);
-      } catch (logErr) {
-        console.error('Error logging logout:', logErr);
-      }
+    // 5. เรียก callback หลังจากออกจากระบบเสร็จสมบูรณ์
+    if (onLogoutComplete) {
+      onLogoutComplete();
     }
-    
-    // 3. แสดง notification ว่า logout สำเร็จ
-    toast.success('ออกจากระบบสำเร็จ');
-    
-    // 4. เรียกใช้ callback ถ้ามี
-    if (callback) {
-      callback();
-    }
-  } catch (err) {
-    console.error('Error during logout:', err);
-    
-    // ถ้าเกิดข้อผิดพลาด ก็ยังเรียก callback เพื่อให้การ logout เสร็จสิ้น
-    if (callback) {
-      callback();
+  } catch (error) {
+    console.error('Error during logout process:', error);
+    // ถึงแม้จะมี error ก็ยังเรียก callback เพื่อให้ UI แสดงว่า logout แล้ว
+    if (onLogoutComplete) {
+      onLogoutComplete();
     }
   }
 };
@@ -68,7 +70,7 @@ export const clearAllSessions = (): void => {
     
     // ค้นหาและลบข้อมูลที่เกี่ยวข้องกับ session
     allKeys.forEach(key => {
-      if (key.startsWith('session_') || key.startsWith('user_data_')) {
+      if (key.startsWith('session_') || key.startsWith('user_data_') || key === 'currentSessionId') {
         sessionStorage.removeItem(key);
       }
     });
@@ -92,25 +94,18 @@ export const logout = async (userId: string): Promise<{
   console.log('Logging out user:', userId);
   
   try {
-    // 1. ลบข้อมูล session ในระบบใหม่ (Realtime Database)
+    // 1. ปิด session ปัจจุบัน
     const sessionId = sessionStorage.getItem('currentSessionId');
     if (sessionId) {
-      // ดึงข้อมูลผู้ใช้จาก sessionStorage
-      const userData = sessionStorage.getItem(`user_data_${userId}`);
-      if (userData) {
-        const user = JSON.parse(userData) as User;
-        await endUserSession(userId, sessionId, user);
-      } else {
-        // กรณีไม่มีข้อมูลผู้ใช้ สร้าง minimal user object
-        const minimalUser: User = {
-          uid: userId,
-          role: 'user' // ใส่ค่าเริ่มต้นสำหรับ required field
-        };
-        await endUserSession(userId, sessionId, minimalUser);
-      }
+      // สร้าง minimal user object สำหรับ log
+      const minimalUser: User = {
+        uid: userId,
+        role: 'user' // ใส่ค่าเริ่มต้นสำหรับ required field
+      };
+      await endUserSession(userId, sessionId, minimalUser);
     }
     
-    // 2. ลบข้อมูล session จาก sessionStorage (สำหรับ backward compatibility)
+    // 2. ลบข้อมูล session จาก sessionStorage
     sessionStorage.removeItem(`session_${userId}`);
     sessionStorage.removeItem(`user_data_${userId}`);
     sessionStorage.removeItem('currentSessionId');

@@ -9,13 +9,16 @@ import { toast } from 'react-hot-toast';
 import { useTheme } from 'next-themes';
 import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
+import { generateCSRFToken, validateCSRFToken } from '@/app/core/utils/authUtils';
+import { useLoading } from '@/app/core/contexts/LoadingContext';
+import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 
 // Success toast component
 const SuccessToast = ({ message, t }: { message: string; t: any }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-emerald-900/30 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg">
+  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-emerald-900/40 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg animate-fadeIn">
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50">
-        <FiCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+        <FiCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 animate-fadeIn" />
       </div>
     </div>
     <div className="flex-1 text-sm md:text-base font-medium text-green-800 dark:text-green-200">{message}</div>
@@ -24,7 +27,7 @@ const SuccessToast = ({ message, t }: { message: string; t: any }) => (
         onClick={() => toast.dismiss(t.id)}
         className="p-3 h-10 w-10 flex items-center justify-center rounded-md text-green-500 hover:text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/50 focus:outline-none transition-colors"
       >
-        <span className="sr-only">Dismiss</span>
+        <span className="sr-only">ปิด</span>
         <FiX className="h-6 w-6" />
       </button>
     </div>
@@ -33,10 +36,10 @@ const SuccessToast = ({ message, t }: { message: string; t: any }) => (
 
 // Error toast component
 const ErrorToast = ({ message, t }: { message: string; t: any }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg">
+  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg animate-fadeIn">
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50">
-        <FiAlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+        <FiAlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 animate-pulse" />
       </div>
     </div>
     <div className="flex-1 text-sm md:text-base font-medium text-red-800 dark:text-red-200">{message}</div>
@@ -45,7 +48,7 @@ const ErrorToast = ({ message, t }: { message: string; t: any }) => (
         onClick={() => toast.dismiss(t.id)}
         className="p-3 h-10 w-10 flex items-center justify-center rounded-md text-red-500 hover:text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/50 focus:outline-none transition-colors"
       >
-        <span className="sr-only">Dismiss</span>
+        <span className="sr-only">ปิด</span>
         <FiX className="h-6 w-6" />
       </button>
     </div>
@@ -59,16 +62,46 @@ export default function LoginPage() {
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState('');
   const { login, user, isLoading, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useTheme();
+  const { showLoading, hideLoading } = useLoading();
   
   // Check for special login messages from URL params
   const sessionExpired = searchParams.get('reason') === 'session_expired';
   const accountLocked = searchParams.get('reason') === 'account_locked';
   const forcedLogout = searchParams.get('reason') === 'forced_logout';
   const duplicateLogin = searchParams.get('reason') === 'duplicate_login';
+  
+  // เพิ่ม useEffect สำหรับล้างแคชเมื่อโหลดหน้า Login
+  useEffect(() => {
+    // ล้างแคชเฉพาะกรณีไม่ได้มาจากการ logout (ซึ่งล้างไปแล้ว)
+    if (!sessionExpired && !forcedLogout && !duplicateLogin) {
+      // ล้าง cache ที่เกี่ยวข้องกับ session
+      if (typeof window !== 'undefined') {
+        console.log('Cleaning session cache on login page load');
+        
+        // ล้าง user session ID ใน session storage
+        sessionStorage.removeItem('currentSessionId');
+        
+        // ล้าง CSRF token
+        sessionStorage.removeItem('csrfToken');
+        
+        // ล้าง cache อื่นๆ ที่อาจเกี่ยวข้องกับการ login
+        const authCookiesToClear = ['authToken', 'userData'];
+        authCookiesToClear.forEach(cookieName => {
+          document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        });
+        
+        // หากมีการใช้ แคชอื่นๆ ที่เกี่ยวข้องกับ auth ลองตรวจสอบและล้างเพิ่มเติม
+        if (rememberMe === false) {
+          localStorage.removeItem('lastLoginUser');
+        }
+      }
+    }
+  }, [sessionExpired, forcedLogout, duplicateLogin, rememberMe]);
   
   // Check if user is already logged in and redirect accordingly
   useEffect(() => {
@@ -77,20 +110,30 @@ export default function LoginPage() {
       isLoading 
     });
     
-    // Redirect logged-in user based on role
+    // Redirect logged-in user based on role and username
     if (user && !isLoading) {
-      console.log(`Redirecting logged-in user (${user.role}) to appropriate page`);
+      console.log(`Redirecting logged-in user (${user.role}, ${user.username}) to appropriate page`);
       
-      switch (user.role) {
-        case 'admin':
-          router.push('/census/approval');
-          break;
-        case 'developer':
-          router.push('/admin/database');
-          break;
-        default: // user role
-          router.push('/census/form');
-          break;
+      // ตรวจสอบและเปลี่ยนเส้นทางตาม username
+      if (user.username === 'test') {
+        router.push('/census/form');
+      } else if (user.username === 'admin') {
+        router.push('/census/approval');
+      } else if (user.username === 'bbee') {
+        router.push('/admin/database');
+      } else {
+        // กรณีเป็น username อื่นๆ ให้ใช้ role ในการเปลี่ยนเส้นทาง
+        switch (user.role) {
+          case 'admin':
+            router.push('/census/approval');
+            break;
+          case 'developer':
+            router.push('/admin/database');
+            break;
+          default: // user role
+            router.push('/census/form');
+            break;
+        }
       }
     }
   }, [user, isLoading, router]);
@@ -98,21 +141,13 @@ export default function LoginPage() {
   // Show special message based on URL params
   useEffect(() => {
     if (sessionExpired) {
-      toast.custom((t) => (
-        <ErrorToast message="Your session has expired or was logged in from another device. Please log in again." t={t} />
-      ));
+      showErrorToast("Your session has expired or was logged in from another device. Please log in again.");
     } else if (accountLocked) {
-      toast.custom((t) => (
-        <ErrorToast message="Your account has been locked. Please contact an administrator." t={t} />
-      ));
+      showErrorToast("Your account has been locked. Please contact an administrator.");
     } else if (forcedLogout) {
-      toast.custom((t) => (
-        <ErrorToast message="You were logged out because someone logged in with your account on another device." t={t} />
-      ));
+      showErrorToast("You were logged out because someone logged in with your account on another device.");
     } else if (duplicateLogin) {
-      toast.custom((t) => (
-        <ErrorToast message="You have logged in from another device or browser. Please try again on this device." t={t} />
-      ));
+      showErrorToast("You have logged in from another device or browser. Please try again on this device.");
     }
   }, [sessionExpired, accountLocked, forcedLogout, duplicateLogin]);
 
@@ -151,6 +186,12 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Generate CSRF token on component load
+  useEffect(() => {
+    const token = generateCSRFToken();
+    setCsrfToken(token);
+  }, []);
+
   // Handle login form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,11 +199,18 @@ export default function LoginPage() {
     
     if (isLoading) return;
     
+    // ตรวจสอบ CSRF token
+    if (!validateCSRFToken(csrfToken)) {
+      showErrorToast("การเข้าสู่ระบบล้มเหลว: Security token ไม่ถูกต้อง");
+      // สร้าง token ใหม่
+      const newToken = generateCSRFToken();
+      setCsrfToken(newToken);
+      return;
+    }
+    
     // Validate inputs
     if (!username.trim() || !password.trim()) {
-      toast.custom((t) => (
-        <ErrorToast message="กรุณากรอกชื่อผู้ใช้และรหัสผ่าน" t={t} />
-      ));
+      showErrorToast("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
       return;
     }
     
@@ -174,23 +222,60 @@ export default function LoginPage() {
     }
     
     try {
-      // Call login function from AuthContext
-      const success = await login(username, password);
+      // แสดง loading screen
+      showLoading();
       
+      // กำหนด timeout เพื่อป้องกันการรอนานเกินไป
+      const loginTimeout = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Login timeout - taking too long'));
+        }, 30000); // เพิ่มเป็น 30 วินาที จากเดิม 8 วินาที
+      });
+      
+      // ใช้ Promise.race เพื่อแข่งกันระหว่างการ login และ timeout
+      const success = await Promise.race([
+        login(username, password),
+        loginTimeout
+      ]);
+      
+      // ถ้าไม่มี error และไม่มีการ redirect อัตโนมัติ ให้รีเฟรชหน้า
       if (success) {
-        toast.custom((t) => (
-          <SuccessToast message="ล็อกอินสำเร็จ" t={t} />
-        ));
-      } else {
-        toast.custom((t) => (
-          <ErrorToast message={error || "เกิดข้อผิดพลาดในการล็อกอิน"} t={t} />
-        ));
+        // แสดง toast แจ้งเตือนเมื่อล็อกอินสำเร็จ
+        showSuccessToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${username}`);
+        
+        setTimeout(() => {
+          if (document.location.pathname === '/login') {
+            console.log('No automatic redirect occurred. Refreshing the page.');
+            document.location.reload();
+          }
+        }, 2000);
       }
-    } catch (err) {
-      console.error("Unexpected error during login:", err);
-      toast.custom((t) => (
-        <ErrorToast message="เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาลองอีกครั้งในภายหลัง" t={t} />
-      ));
+    } catch (err: any) {
+      console.error('Login error:', err);
+      
+      if (err.message === 'Login timeout - taking too long') {
+        // กรณี timeout
+        showErrorToast("การเข้าสู่ระบบใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง");
+        setTimeout(() => {
+          // รีเฟรชหน้าเพื่อรีเซ็ตสถานะทั้งหมด
+          document.location.reload();
+        }, 500);
+      } else if (err.message?.includes('Invalid credentials') || err.message?.includes('incorrect password')) {
+        // กรณีรหัสผ่านผิด
+        setLocalError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+        showErrorToast('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+      } else if (err.message?.includes('user not found') || err.message?.includes('User not found')) {
+        // กรณีไม่พบผู้ใช้
+        setLocalError('ไม่พบชื่อผู้ใช้ในระบบ กรุณาตรวจสอบชื่อผู้ใช้');
+        showErrorToast('ไม่พบชื่อผู้ใช้ในระบบ กรุณาตรวจสอบชื่อผู้ใช้');
+      } else {
+        // กรณี error อื่นๆ
+        setLocalError(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+        showErrorToast(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองใหม่อีกครั้ง');
+      }
+    } finally {
+      // ซ่อน loading screen
+      hideLoading();
     }
   };
 
@@ -221,6 +306,9 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* CSRF Token */}
+          <input type="hidden" name="_csrf" value={csrfToken} />
+          
           <div>
             <label htmlFor="username" className="block text-xl md:text-2xl font-medium text-gray-700 dark:text-gray-300 mb-1">
               Username

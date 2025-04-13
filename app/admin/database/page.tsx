@@ -5,6 +5,7 @@ import { useAuth } from '@/app/features/auth';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import CollectionManager from './components/CollectionManager';
+import DatabaseSetup from './components/DatabaseSetup';
 import { Toaster } from 'react-hot-toast';
 
 /**
@@ -26,6 +27,9 @@ export default function DatabaseManagementPage() {
             จัดการคอลเลกชันและเอกสารสำหรับ Firestore
           </p>
         </div>
+        
+        {/* แสดงหน้าตั้งค่าฐานข้อมูล */}
+        <DatabaseSetup />
         
         {/* แสดงคอมโพเนนต์จัดการคอลเลกชันโดยตรง */}
         <CollectionManager />

@@ -13,6 +13,21 @@ function devLog(message: string): void {
 }
 
 /**
+ * สร้าง user object ที่ปลอดภัยสำหรับ server action (ไม่มี complex objects)
+ */
+function createSafeUserObject(user: User): Record<string, any> {
+  // สร้าง plain object ใหม่ที่มีเฉพาะค่าพื้นฐาน
+  return {
+    uid: user.uid,
+    username: user.username || '',
+    role: user.role,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    displayName: user.displayName
+  };
+}
+
+/**
  * บันทึกการเข้าสู่ระบบ
  * @param user ข้อมูลผู้ใช้
  * @param userAgent ข้อมูลเบราว์เซอร์ของผู้ใช้
@@ -30,8 +45,11 @@ export const logLogin = async (
     // แสดง log เฉพาะในโหมด development
     devLog(`[BPK-LOG] User logged in: ${user.username} (${user.uid}) with role: ${user.role}`);
     
+    // สร้าง safe user object สำหรับ server action
+    const safeUser = createSafeUserObject(user);
+    
     // บันทึก log ในฝั่ง server
-    await logServerAction('login', user, {
+    await logServerAction('login', safeUser, {
       timestamp: new Date().toISOString(),
       userAgent: userAgent || navigator.userAgent
     });
@@ -65,8 +83,11 @@ export const logLogout = async (
     // แสดง log เฉพาะในโหมด development
     devLog(`[BPK-LOG] User logged out: ${user.username} (${user.uid}) with role: ${user.role}`);
     
+    // สร้าง safe user object สำหรับ server action
+    const safeUser = createSafeUserObject(user);
+    
     // บันทึก log ในฝั่ง server
-    await logServerAction('logout', user, {
+    await logServerAction('logout', safeUser, {
       timestamp: new Date().toISOString(),
       userAgent: userAgent || navigator.userAgent
     });
@@ -102,8 +123,11 @@ export const logPageAccess = async (
     // แสดง log เฉพาะในโหมด development
     devLog(`[BPK-LOG] User ${user.username || user.uid} (${user.role}) accessed page: ${page}`);
     
+    // สร้าง safe user object สำหรับ server action
+    const safeUser = createSafeUserObject(user);
+    
     // บันทึก log ในฝั่ง server
-    await logServerAction('page_access', user, {
+    await logServerAction('page_access', safeUser, {
       page,
       timestamp: new Date().toISOString(),
       userAgent: userAgent || navigator.userAgent

@@ -18,6 +18,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'developer';
     }
     
+    function isApprover() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'approver';
+    }
+    
     function hasUserAccess(userId) {
       return isAuthenticated() && 
         (request.auth.uid == userId || isAdmin());
@@ -26,18 +32,20 @@ service cloud.firestore {
     function hasWardAccess(wardId) {
       return isAuthenticated() &&
         (
-          isAdmin() || isDeveloper() || 
+          isAdmin() || isDeveloper() || isApprover() || 
           (
             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-            wardId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wards
+            (
+              wardId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.location ||
+              'ALL' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.location
+            )
           )
         );
     }
     
     function isValidUser() {
       let data = request.resource.data;
-      return data.email is string &&
-        data.username is string &&
+      return data.username is string &&
         (data.role == 'admin' || data.role == 'user' || data.role == 'approver' || data.role == 'developer') &&
         data.firstName is string &&
         data.lastName is string &&
@@ -55,76 +63,94 @@ service cloud.firestore {
       return isAdmin() || isDeveloper();
     }
     
-    // Users collection: Allow read/write only if UID matches or user is admin
+    // Users collection
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || getUserData(request.auth.uid).role == 'admin');
-      // Admins can potentially update any user's role/active status
-      allow write: if request.auth != null && getUserData(request.auth.uid).role == 'admin';
-      // Allow user to update their own non-critical fields (e.g., maybe lastActive - adjust as needed)
-      allow update: if request.auth != null && request.auth.uid == userId && isUpdatingAllowedFields(request.resource.data);
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isDeveloper());
+      allow create: if canManageDatabase();
+      allow update: if isAuthenticated() && (request.auth.uid == userId || canManageDatabase());
+      allow delete: if canManageDatabase();
+    }
+    
+    // Sessions collection
+    match /sessions/{sessionId} {
+      allow read: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid || canManageDatabase()
+      );
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || canManageDatabase()
+      );
+    }
+    
+    // Current Sessions collection
+    match /currentSessions/{userId} {
+      allow read: if isAuthenticated() && (userId == request.auth.uid || canManageDatabase());
+      allow create, update: if isAuthenticated() && (userId == request.auth.uid);
+      allow delete: if isAuthenticated() && (userId == request.auth.uid || canManageDatabase());
     }
     
     // Ward Forms
     match /wardForms/{formId} {
       allow read: if isAuthenticated() &&
-        (canManageDatabase() || hasWardAccess(resource.data.wardId));
+        (canManageDatabase() || isApprover() || hasWardAccess(resource.data.wardId));
+      
       allow create: if isAuthenticated() &&
         (hasWardAccess(request.resource.data.wardId));
+      
       allow update: if isAuthenticated() &&
         (
+          // ผู้ที่สร้างแบบฟอร์มสามารถอัพเดทได้เฉพาะแบบฟอร์มฉบับร่าง
           (
-            resource.data.status == 'draft' && 
+            resource.data.isDraft == true && 
             resource.data.createdBy == request.auth.uid &&
             hasWardAccess(resource.data.wardId)
           ) ||
-          isAdmin() ||
-          isDeveloper() ||
+          // ผู้อนุมัติสามารถอัพเดทสถานะเป็น approved หรือ rejected ได้
           (
-            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'approver' &&
+            isApprover() &&
+            hasWardAccess(resource.data.wardId) &&
             (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected')
-          )
+          ) ||
+          // Admin และ Developer จัดการได้ทุกอย่าง
+          canManageDatabase()
         );
+      
       allow delete: if canManageDatabase();
     }
     
-    // Ward Definitions
-    match /wards/{wardId} {
-      allow read: if isAuthenticated();
-      allow write: if canManageDatabase();
-    }
-    
-    // System Logs - admin and developer can read, system functions can write
-    match /systemLogs/{logId} {
-      allow read: if canManageDatabase();
-      allow create: if isAuthenticated();
-      allow update, delete: if false;
+    // Approvals
+    match /approvals/{approvalId} {
+      allow read: if isAuthenticated() &&
+        (canManageDatabase() || isApprover() || hasWardAccess(resource.data.wardId));
+      
+      allow create, update: if isAuthenticated() &&
+        (isApprover() && hasWardAccess(request.resource.data.wardId) || canManageDatabase());
+      
+      allow delete: if canManageDatabase();
     }
     
     // Daily Summaries
     match /dailySummaries/{summaryId} {
       allow read: if isAuthenticated() && 
-        (canManageDatabase() || hasWardAccess(resource.data.wardId));
+        (canManageDatabase() || isApprover() || hasWardAccess(resource.data.wardId));
+      
       allow create, update: if isAuthenticated() &&
-        (hasWardAccess(request.resource.data.wardId) || canManageDatabase());
+        (isApprover() && hasWardAccess(request.resource.data.wardId) || canManageDatabase());
+      
       allow delete: if canManageDatabase();
     }
     
-    // User Sessions (optional if stored in Firestore)
-    match /userSessions/{userId}/{sessionId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // Wards
+    match /wards/{wardId} {
+      allow read: if isAuthenticated();
+      allow write: if canManageDatabase();
     }
     
-    // ApprovalData collection: Allow read based on user's ward or admin, write only for admins
-    match /approvalData/{approvalId} {
-       allow read: if request.auth != null && (canManageDatabase() || getUserData(request.auth.uid).wards.hasAny(resource.data.wardId));
-       allow write: if request.auth != null && canManageDatabase(); // Admins and developers can approve/edit
-    }
-    
-    // Logs collection: Allow read based on user's role
-    match /logs/{logId} {
-       allow create: if request.auth != null; // Allow any authenticated user to create logs
-       allow read: if request.auth != null && canManageDatabase(); // Admins and developers can read logs
+    // System Logs
+    match /systemLogs/{logId} {
+      allow read: if canManageDatabase();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // ไม่อนุญาตให้แก้ไขหรือลบบันทึกใด ๆ
     }
     
     // Any other collection access for developers and admins
@@ -137,15 +163,24 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(userId)).data;
     }
     
-    // Placeholder for more complex logic
+    // ฟังก์ชันตรวจสอบว่าฟิลด์ที่กำลังอัปเดทเป็นฟิลด์ที่อนุญาตให้ผู้ใช้อัปเดทเองได้หรือไม่
+    // เช่น lastActive, lastLogin, displayName สามารถอัปเดทได้
+    // แต่ role, isActive เป็นต้น ต้องอัปเดทโดย admin เท่านั้น
     function isUpdatingAllowedFields(data) {
-      // Example: Check if only specific fields like 'lastActive' are being updated
-      return data.keys().hasOnly(['lastActive']); // Adjust field names
+      // ตรวจสอบว่าฟิลด์ที่กำลังอัปเดทเป็นฟิลด์ที่อนุญาตให้ผู้ใช้อัปเดทเองได้หรือไม่
+      let allowedFields = ['lastActive', 'lastLogin', 'displayName', 'sessions', 'userAgent', 'browser', 'deviceInfo', 'lastUpdated'];
+      let requestKeys = request.resource.data.diff(resource.data).affectedKeys();
+      return requestKeys.hasOnly(allowedFields);
     }
+    
     function canWriteWardForm(request, resource) {
-        // Example: Check if user belongs to the ward and maybe if the form is not yet 'finalized'
-        // This logic needs refinement based on your specific state management (e.g., 'status' field)
-        return getUserData(request.auth.uid).wards.hasAny(request.resource.data.wardId); // Add more conditions
+        // ตรวจสอบว่าผู้ใช้มีสิทธิ์ในการเขียนฟอร์มของวอร์ดนั้นหรือไม่
+        // และตรวจสอบสถานะของฟอร์ม ถ้าเป็น 'finalized' แล้วจะไม่สามารถแก้ไขได้
+        // ยกเว้น admin หรือ approver
+        return getUserData(request.auth.uid).wards.hasAny(request.resource.data.wardId) && 
+               (resource == null || resource.data.status != 'finalized' || 
+               getUserData(request.auth.uid).role == 'admin' ||
+               getUserData(request.auth.uid).role == 'approver');
     }
   }
 } 

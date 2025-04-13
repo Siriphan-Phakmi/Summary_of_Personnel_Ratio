@@ -71,6 +71,21 @@ function ToggleSwitch({
   );
 }
 
+// ฟังก์ชันสำหรับแปลง timestamp เป็น string
+const formatTimestamp = (timestamp: any): string => {
+  if (!timestamp) return 'ไม่ทราบ';
+  if (typeof timestamp === 'string') return new Date(timestamp).toLocaleString();
+  if (typeof timestamp === 'object') {
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate().toLocaleString();
+    }
+    if (timestamp.seconds) {
+      return new Date(Number(timestamp.seconds) * 1000).toLocaleString();
+    }
+  }
+  return 'ไม่ทราบ';
+};
+
 export default function UserManagement() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -609,11 +624,11 @@ export default function UserManagement() {
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
                   >
                     <option value="">-- เลือกแผนก --</option>
-                    <option value="it">แผนกไอที</option>
-                    <option value="nurse">แผนกพยาบาล</option>
-                    <option value="doctor">แผนกแพทย์</option>
-                    <option value="admin">แผนกธุรการ</option>
-                    <option value="other">อื่นๆ</option>
+                    <option value="it">เทคโนโลยีสารสนเทศ</option>
+                    <option value="nurse">สายงานพยาบาล</option>
+                    <option value="doctor">เจ้าหน้าที่พยาบาล</option>
+                    <option value="admin">รองผู้อำนวยการสายงานพยาบาล</option>
+                    <option value="other">ศูนย์พัฒนาคุณภาพ</option>
                   </select>
                 </div>
                 <div className="md:col-span-2 mb-4">
@@ -793,7 +808,7 @@ export default function UserManagement() {
                           <span className="font-medium">สร้างเมื่อ:</span> {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'ไม่ทราบ'}
                         </p>
                         <p className="mb-1 text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">แก้ไขล่าสุด:</span> {user.lastUpdated ? new Date(user.lastUpdated).toLocaleString() : 'ไม่ทราบ'}
+                          <span className="font-medium">แก้ไขล่าสุด:</span> {formatTimestamp(user.lastUpdated)}
                         </p>
                       </div>
                     )}
@@ -926,7 +941,7 @@ export default function UserManagement() {
                                   สร้างเมื่อ: {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'ไม่ทราบ'}
                                 </p>
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  แก้ไขล่าสุด: {user.lastUpdated ? new Date(user.lastUpdated).toLocaleString() : 'ไม่ทราบ'}
+                                  แก้ไขล่าสุด: {formatTimestamp(user.lastUpdated)}
                                 </p>
                               </div>
                             </div>

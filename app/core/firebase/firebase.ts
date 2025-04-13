@@ -42,4 +42,10 @@ if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_USE_FIREBA
 
 // Export Firestore database, Realtime Database and Firebase app
 export { db, rtdb, app };
-export default db; 
+export default db;
+
+console.log('Firebase connection initialized');
+console.log('Firebase config:', {
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL
+}); 

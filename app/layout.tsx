@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/app/features/theme';
 import { AuthProvider } from '@/app/features/auth';
+import { LoadingProvider } from '@/app/core/contexts/LoadingContext';
 import { Toaster } from 'react-hot-toast';
 import { ThemeToggle } from '@/app/core/ui';
 
@@ -32,36 +33,44 @@ export default function RootLayout({
       <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300">
         <ThemeProvider>
           <AuthProvider>
-            <div className="fixed bottom-4 right-4 z-50">
-              <ThemeToggle />
-            </div>
-            {children}
-            <Toaster 
-              position="top-right"
-              gutter={16}
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  background: 'var(--toaster-bg)',
-                  color: 'var(--toaster-fg)',
-                  border: '1px solid var(--toaster-border)',
-                  fontSize: '1.15rem',
-                  padding: '16px'
-                },
-                success: {
+            <LoadingProvider>
+              <div className="fixed bottom-4 right-4 z-50">
+                <ThemeToggle />
+              </div>
+              {children}
+              <Toaster 
+                position="top-right"
+                gutter={16}
+                toastOptions={{
+                  duration: 4000,
                   style: {
                     background: 'var(--toaster-bg)',
-                    border: '1px solid var(--button-bg-primary)',
+                    color: 'var(--toaster-fg)',
+                    border: '1px solid var(--toaster-border)',
+                    fontSize: '1.15rem',
+                    padding: '16px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    maxWidth: '380px'
                   },
-                },
-                error: {
-                  style: {
-                    background: 'var(--toaster-bg)',
-                    border: '1px solid var(--button-bg-danger)',
+                  success: {
+                    style: {
+                      background: 'var(--toaster-bg)',
+                      border: '1px solid var(--button-bg-primary)',
+                    },
+                    icon: '✓',
                   },
-                }
-              }}
-            />
+                  error: {
+                    style: {
+                      background: 'var(--toaster-bg)',
+                      border: '1px solid var(--button-bg-danger)',
+                    },
+                    icon: '✕',
+                    duration: 5000,
+                  }
+                }}
+              />
+            </LoadingProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -100,7 +100,7 @@ service cloud.firestore {
   // แจ้งเตือนว่าเป็นเพียงตัวอย่างเท่านั้น
   const handleSaveRules = () => {
     toast.success('บันทึกกฎความปลอดภัยเรียบร้อย (จำลอง)');
-    toast.info('หมายเหตุ: การเปลี่ยนกฎจริงต้องทำผ่าน Firebase Console');
+    toast('หมายเหตุ: การเปลี่ยนกฎจริงต้องทำผ่าน Firebase Console');
   };
 
   return (

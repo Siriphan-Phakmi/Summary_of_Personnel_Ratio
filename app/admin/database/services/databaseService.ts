@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, deleteField, query, where, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, deleteField, query, where, onSnapshot, writeBatch, limit, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { toast } from 'react-hot-toast';
 
@@ -45,37 +45,127 @@ export interface CollectionTemplate {
 export const collectionTemplates: Record<string, CollectionTemplate> = {
   users: {
     fields: [
-      { name: 'email', type: 'string', defaultValue: '' },
-      { name: 'displayName', type: 'string', defaultValue: '' },
-      { name: 'photoURL', type: 'string', defaultValue: '' },
-      { name: 'role', type: 'string', defaultValue: 'user', options: ['admin', 'user', 'developer'] },
-      { name: 'createdAt', type: 'timestamp', defaultValue: new Date() },
+      { name: 'uid', type: 'string', defaultValue: '' },
+      { name: 'username', type: 'string', defaultValue: '' },
+      { name: 'firstName', type: 'string', defaultValue: '' },
+      { name: 'lastName', type: 'string', defaultValue: '' },
+      { name: 'role', type: 'string', defaultValue: 'user', options: ['admin', 'user', 'approver', 'developer'] },
+      { name: 'location', type: 'array', defaultValue: [] },
+      { name: 'active', type: 'boolean', defaultValue: true },
+      { name: 'createdAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'lastUpdated', type: 'timestamp', defaultValue: serverTimestamp() }
     ],
   },
   sessions: {
     fields: [
       { name: 'userId', type: 'string', defaultValue: '' },
-      { name: 'expires', type: 'timestamp', defaultValue: new Date() },
-      { name: 'sessionToken', type: 'string', defaultValue: '' },
+      { name: 'sessionId', type: 'string', defaultValue: '' },
+      { name: 'deviceInfo', type: 'object', defaultValue: {} },
+      { name: 'ipAddress', type: 'string', defaultValue: '' },
+      { name: 'startTime', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'lastActiveTime', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'isActive', type: 'boolean', defaultValue: true }
+    ],
+  },
+  currentSessions: {
+    fields: [
+      { name: 'sessionId', type: 'string', defaultValue: '' },
+      { name: 'startTime', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'deviceInfo', type: 'object', defaultValue: {} }
     ],
   },
   wards: {
     fields: [
+      { name: 'wardId', type: 'string', defaultValue: '' },
       { name: 'wardName', type: 'string', defaultValue: '' },
-      { name: 'wardCode', type: 'string', defaultValue: '' },
       { name: 'description', type: 'string', defaultValue: '' },
-      { name: 'createdAt', type: 'timestamp', defaultValue: new Date() },
+      { name: 'active', type: 'boolean', defaultValue: true },
+      { name: 'createdAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'updatedAt', type: 'timestamp', defaultValue: serverTimestamp() }
     ],
+  },
+  wardForms: {
+    fields: [
+      { name: 'wardId', type: 'string', defaultValue: '' },
+      { name: 'wardName', type: 'string', defaultValue: '' },
+      { name: 'date', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'dateString', type: 'string', defaultValue: '' },
+      { name: 'shift', type: 'string', defaultValue: 'morning', options: ['morning', 'night'] },
+      { name: 'patientCensus', type: 'number', defaultValue: 0 },
+      { name: 'nurseManager', type: 'number', defaultValue: 0 },
+      { name: 'rn', type: 'number', defaultValue: 0 },
+      { name: 'pn', type: 'number', defaultValue: 0 },
+      { name: 'wc', type: 'number', defaultValue: 0 },
+      { name: 'newAdmit', type: 'number', defaultValue: 0 },
+      { name: 'transferIn', type: 'number', defaultValue: 0 },
+      { name: 'referIn', type: 'number', defaultValue: 0 },
+      { name: 'transferOut', type: 'number', defaultValue: 0 },
+      { name: 'referOut', type: 'number', defaultValue: 0 },
+      { name: 'discharge', type: 'number', defaultValue: 0 },
+      { name: 'dead', type: 'number', defaultValue: 0 },
+      { name: 'available', type: 'number', defaultValue: 0 },
+      { name: 'unavailable', type: 'number', defaultValue: 0 },
+      { name: 'plannedDischarge', type: 'number', defaultValue: 0 },
+      { name: 'comment', type: 'string', defaultValue: '' },
+      { name: 'createdBy', type: 'string', defaultValue: '' },
+      { name: 'recorderFirstName', type: 'string', defaultValue: '' },
+      { name: 'recorderLastName', type: 'string', defaultValue: '' },
+      { name: 'status', type: 'string', defaultValue: 'draft', options: ['draft', 'final', 'approved', 'rejected'] },
+      { name: 'isDraft', type: 'boolean', defaultValue: true },
+      { name: 'createdAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'updatedAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'finalizedAt', type: 'timestamp', defaultValue: null }
+    ]
   },
   approvals: {
     fields: [
-      { name: 'requesterId', type: 'string', defaultValue: '' },
-      { name: 'status', type: 'string', defaultValue: 'pending' },
-      { name: 'requestedAt', type: 'timestamp', defaultValue: new Date() },
-      { name: 'approvedAt', type: 'timestamp', defaultValue: null },
-      { name: 'approverId', type: 'string', defaultValue: '' },
-    ],
+      { name: 'formId', type: 'string', defaultValue: '' },
+      { name: 'wardId', type: 'string', defaultValue: '' },
+      { name: 'wardName', type: 'string', defaultValue: '' },
+      { name: 'date', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'shift', type: 'string', defaultValue: 'morning', options: ['morning', 'night'] },
+      { name: 'approvedBy', type: 'string', defaultValue: '' },
+      { name: 'approverFirstName', type: 'string', defaultValue: '' },
+      { name: 'approverLastName', type: 'string', defaultValue: '' },
+      { name: 'approvedAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'status', type: 'string', defaultValue: 'approved', options: ['approved', 'rejected'] },
+      { name: 'editedBeforeApproval', type: 'boolean', defaultValue: false },
+      { name: 'rejectionReason', type: 'string', defaultValue: '' },
+      { name: 'modifiedData', type: 'object', defaultValue: {} }
+    ]
   },
+  dailySummaries: {
+    fields: [
+      { name: 'date', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'dateString', type: 'string', defaultValue: '' },
+      { name: 'wardId', type: 'string', defaultValue: '' },
+      { name: 'wardName', type: 'string', defaultValue: '' },
+      { name: 'morningFormId', type: 'string', defaultValue: '' },
+      { name: 'nightFormId', type: 'string', defaultValue: '' },
+      { name: 'opd24hr', type: 'number', defaultValue: 0 },
+      { name: 'oldPatient', type: 'number', defaultValue: 0 },
+      { name: 'newPatient', type: 'number', defaultValue: 0 },
+      { name: 'admit24hr', type: 'number', defaultValue: 0 },
+      { name: 'supervisorFirstName', type: 'string', defaultValue: '' },
+      { name: 'supervisorLastName', type: 'string', defaultValue: '' },
+      { name: 'supervisorId', type: 'string', defaultValue: '' },
+      { name: 'createdAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'updatedAt', type: 'timestamp', defaultValue: null },
+      { name: 'totalPatientCensus', type: 'number', defaultValue: 0 },
+      { name: 'allFormsApproved', type: 'boolean', defaultValue: false }
+    ]
+  },
+  systemLogs: {
+    fields: [
+      { name: 'type', type: 'string', defaultValue: '', options: ['login', 'logout', 'form_create', 'form_update', 'approval'] },
+      { name: 'userId', type: 'string', defaultValue: '' },
+      { name: 'username', type: 'string', defaultValue: '' },
+      { name: 'details', type: 'object', defaultValue: {} },
+      { name: 'createdAt', type: 'timestamp', defaultValue: serverTimestamp() },
+      { name: 'ipAddress', type: 'string', defaultValue: '' },
+      { name: 'deviceInfo', type: 'object', defaultValue: {} }
+    ]
+  }
 }
 
 // ====== Ward Management ======
@@ -165,13 +255,34 @@ export const deleteWard = async (id: string): Promise<void> => {
 export const fetchCollections = async (): Promise<CollectionData[]> => {
   try {
     // ในการทำงานจริง เราไม่สามารถดึงรายการ collection ทั้งหมดได้จาก client 
-    // นี่เป็นเพียงการจำลองข้อมูลเพื่อแสดง UI
-    const collectionsRef = ['users', 'wards', 'wardForms', 'systemLogs'];
+    // เราจึงต้องระบุคอลเลกชันที่ใช้ในระบบ
+    const collectionsRef = [
+      'users', 
+      'wards', 
+      'wardForms', 
+      'systemLogs', 
+      'sessions', 
+      'currentSessions', 
+      'approvals', 
+      'dailySummaries'
+    ];
     
-    const collectionsData: CollectionData[] = collectionsRef.map(colId => ({
-      id: colId,
-      path: colId
-    }));
+    const collectionsData: CollectionData[] = [];
+    
+    // ตรวจสอบว่าคอลเลกชันไหนมีอยู่จริงใน Firestore
+    for (const colId of collectionsRef) {
+      try {
+        const ref = collection(db, colId);
+        const snapshot = await getDocs(query(ref, limit(1)));
+        // ถ้าไม่มี error แสดงว่าคอลเลกชันมีอยู่จริง
+        collectionsData.push({
+          id: colId,
+          path: colId
+        });
+      } catch (error) {
+        console.log(`Collection ${colId} does not exist or cannot be accessed`);
+      }
+    }
     
     return collectionsData;
   } catch (error) {
@@ -184,10 +295,24 @@ export const fetchCollections = async (): Promise<CollectionData[]> => {
 // สร้างคอลเลกชันใหม่พร้อมเอกสารเริ่มต้น
 export const createCollectionV2 = async (collectionId: string): Promise<boolean> => {
   try {
-    // ตรวจสอบว่ามีเทมเพลตหรือไม่
+    // ตรวจสอบชื่อคอลเลกชัน
     if (!/^[a-zA-Z0-9_]+$/.test(collectionId)) {
       toast.error('ชื่อคอลเลกชันต้องประกอบด้วยตัวอักษรภาษาอังกฤษ ตัวเลข หรือขีดล่างเท่านั้น');
       return false;
+    }
+    
+    // ตรวจสอบว่าคอลเลกชันมีอยู่แล้วหรือไม่
+    try {
+      const testRef = collection(db, collectionId);
+      const snapshot = await getDocs(query(testRef, limit(1)));
+      
+      if (!snapshot.empty) {
+        toast.error(`คอลเลกชัน "${collectionId}" มีอยู่แล้ว`);
+        return false;
+      }
+    } catch (error) {
+      // ถ้ามี error แสดงว่าอาจจะยังไม่มีคอลเลกชันนี้ สามารถดำเนินการต่อได้
+      console.log(`Collection ${collectionId} does not exist, creating...`);
     }
     
     // ตรวจสอบว่ามีเทมเพลตหรือไม่
@@ -200,7 +325,7 @@ export const createCollectionV2 = async (collectionId: string): Promise<boolean>
     
     // เพิ่มข้อมูลลงใน Firestore
     await setDoc(docRef, {
-      createdAt: new Date(),
+      createdAt: serverTimestamp(),
       description: 'เอกสารเริ่มต้นสำหรับคอลเลกชันใหม่'
     });
     
@@ -356,11 +481,29 @@ export const setDocumentField = async (
       case 'null':
         processedValue = null;
         break;
+      case 'timestamp':
+        if (fieldValue === '') {
+          processedValue = serverTimestamp();
+        } else {
+          try {
+            processedValue = new Date(fieldValue);
+            if (isNaN(processedValue.getTime())) {
+              throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
+            }
+          } catch (e) {
+            processedValue = serverTimestamp();
+          }
+        }
+        break;
       case 'array':
         try {
-          processedValue = JSON.parse(fieldValue);
-          if (!Array.isArray(processedValue)) {
-            throw new Error('รูปแบบอาร์เรย์ไม่ถูกต้อง');
+          if (fieldValue.trim() === '') {
+            processedValue = [];
+          } else {
+            processedValue = JSON.parse(fieldValue);
+            if (!Array.isArray(processedValue)) {
+              throw new Error('รูปแบบอาร์เรย์ไม่ถูกต้อง');
+            }
           }
         } catch (e) {
           throw new Error('รูปแบบอาร์เรย์ไม่ถูกต้อง');
@@ -368,9 +511,13 @@ export const setDocumentField = async (
         break;
       case 'object':
         try {
-          processedValue = JSON.parse(fieldValue);
-          if (Array.isArray(processedValue) || typeof processedValue !== 'object') {
-            throw new Error('รูปแบบออบเจ็กต์ไม่ถูกต้อง');
+          if (fieldValue.trim() === '') {
+            processedValue = {};
+          } else {
+            processedValue = JSON.parse(fieldValue);
+            if (Array.isArray(processedValue) || typeof processedValue !== 'object') {
+              throw new Error('รูปแบบออบเจ็กต์ไม่ถูกต้อง');
+            }
           }
         } catch (e) {
           throw new Error('รูปแบบออบเจ็กต์ไม่ถูกต้อง');
@@ -380,11 +527,18 @@ export const setDocumentField = async (
     
     // อัปเดตฟิลด์ในเอกสาร
     const docRef = doc(db, documentPath);
+    const docSnapshot = await getDoc(docRef);
+    
+    if (!docSnapshot.exists()) {
+      throw new Error('ไม่พบเอกสารที่ระบุ');
+    }
+    
     await updateDoc(docRef, {
-      [fieldName]: processedValue
+      [fieldName]: processedValue,
+      updatedAt: serverTimestamp() // เพิ่ม timestamp ในการอัปเดต
     });
     
-    toast.success(`เพิ่มฟิลด์ ${fieldName} สำเร็จ`);
+    toast.success(`เพิ่ม/แก้ไขฟิลด์ ${fieldName} สำเร็จ`);
     return true;
   } catch (error) {
     console.error('Error setting document field:', error);
@@ -399,11 +553,23 @@ export const deleteDocumentField = async (
   fieldName: string
 ): Promise<boolean> => {
   try {
+    // ป้องกันการลบฟิลด์สำคัญ
+    const protectedFields = ['id', 'uid', 'createdAt', 'createdBy'];
+    if (protectedFields.includes(fieldName)) {
+      throw new Error(`ไม่สามารถลบฟิลด์ "${fieldName}" เนื่องจากเป็นฟิลด์สำคัญของระบบ`);
+    }
+    
     const docRef = doc(db, documentPath);
+    const docSnapshot = await getDoc(docRef);
+    
+    if (!docSnapshot.exists()) {
+      throw new Error('ไม่พบเอกสารที่ระบุ');
+    }
     
     // ใช้ deleteField() เพื่อลบฟิลด์จากเอกสาร
     await updateDoc(docRef, {
-      [fieldName]: deleteField()
+      [fieldName]: deleteField(),
+      updatedAt: serverTimestamp() // เพิ่ม timestamp ในการอัปเดต
     });
     
     toast.success(`ลบฟิลด์ "${fieldName}" สำเร็จ`);
@@ -429,14 +595,60 @@ export const createCollectionWithTemplate = async (templateName: string): Promis
       return false;
     }
 
+    // ตรวจสอบว่าคอลเลกชันมีอยู่แล้วหรือไม่
+    try {
+      const colRef = collection(db, templateName);
+      const snapshot = await getDocs(query(colRef, limit(1)));
+      
+      if (!snapshot.empty) {
+        toast.error(`คอลเลกชัน "${templateName}" มีอยู่แล้ว`);
+        return false;
+      }
+    } catch (error) {
+      // ถ้ามี error แสดงว่าอาจจะยังไม่มีคอลเลกชันนี้ สามารถดำเนินการต่อได้
+      console.log(`Collection ${templateName} does not exist, creating...`);
+    }
+
+    // เลือกชื่อเอกสารเริ่มต้นตามประเภทของคอลเลกชัน
+    let initialDocId = 'template_example';
+    
+    if (templateName === 'users') {
+      initialDocId = 'admin_example';
+    } else if (templateName === 'wards') {
+      initialDocId = 'ward_example';
+    } else if (templateName === 'wardForms') {
+      initialDocId = 'form_example';
+    } else if (templateName === 'approvals') {
+      initialDocId = 'approval_example';
+    } else if (templateName === 'dailySummaries') {
+      initialDocId = 'summary_example';
+    } else if (templateName === 'systemLogs') {
+      initialDocId = 'log_example';
+    } else if (templateName === 'sessions') {
+      initialDocId = 'session_example';
+    } else if (templateName === 'currentSessions') {
+      initialDocId = 'current_session_example';
+    }
+    
     // สร้างเอกสารแรกในคอลเลกชัน
-    const docRef = doc(db, templateName, 'template');
+    const docRef = doc(db, templateName, initialDocId);
+    
+    // สร้างข้อมูลจากเทมเพลต
+    const data: Record<string, any> = {};
     
     // แปลงฟิลด์จากเทมเพลตให้เป็นออบเจ็กต์
-    const data = template.fields.reduce((acc, field) => {
-      acc[field.name] = field.defaultValue;
-      return acc;
-    }, {} as Record<string, any>);
+    for (const field of template.fields) {
+      // จัดการค่าเริ่มต้นพิเศษสำหรับบางฟิลด์
+      if (field.name === 'dateString' && templateName === 'wardForms') {
+        data[field.name] = new Date().toISOString().split('T')[0];
+      } else if (field.name === 'wardName' && templateName === 'wards') {
+        data[field.name] = 'ตัวอย่างแผนก';
+      } else if (field.name === 'wardId' && templateName === 'wards') {
+        data[field.name] = 'WARD_EXAMPLE';
+      } else {
+        data[field.name] = field.defaultValue;
+      }
+    }
     
     // เพิ่มข้อมูลลงใน Firestore
     await setDoc(docRef, data);
@@ -445,7 +657,7 @@ export const createCollectionWithTemplate = async (templateName: string): Promis
     return true;
   } catch (error) {
     console.error('Error creating collection with template:', error);
-    toast.error('เกิดข้อผิดพลาดในการสร้างคอลเลกชัน');
+    toast.error(`เกิดข้อผิดพลาดในการสร้างคอลเลกชัน: ${error instanceof Error ? error.message : 'ข้อผิดพลาดที่ไม่ทราบสาเหตุ'}`);
     return false;
   }
 }

@@ -184,7 +184,7 @@ const DocumentFieldView: React.FC<DocumentFieldViewProps> = ({
 
     try {
       setDeleteLoading(fieldName);
-      const success = await deleteDocumentField(collectionId, documentId, fieldName);
+      const success = await deleteDocumentField(`${collectionId}/${documentId}`, fieldName);
       
       if (success) {
         toast.success(`ลบฟิลด์ "${fieldName}" สำเร็จ`);
