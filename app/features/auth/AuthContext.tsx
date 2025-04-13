@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessionWatcher, setSessionWatcher] = useState<(() => void) | null>(null);
+  const [sessionUnsubscribe, setSessionUnsubscribe] = useState<(() => void) | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -102,9 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       // ยกเลิก session watcher ถ้ามี
-      if (sessionWatcher) {
-        sessionWatcher();
-        setSessionWatcher(null);
+      if (sessionUnsubscribe) {
+        sessionUnsubscribe();
+        setSessionUnsubscribe(null);
       }
       
       // ทำการ logout
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Logout failed:', error);
     }
-  }, [user, router, sessionWatcher]);
+  }, [user, router, sessionUnsubscribe]);
 
   // ฟังก์ชันสำหรับตรวจสอบเมื่อมีการล็อกอินซ้ำซ้อน
   const handleSessionChange = useCallback((isValid: boolean) => {
@@ -232,20 +232,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // เริ่ม session watcher เมื่อ user และ sessionId มีการเปลี่ยนแปลง
   useEffect(() => {
     // ยกเลิก watcher เดิมถ้ามี
-    if (sessionWatcher) {
-      sessionWatcher();
-      setSessionWatcher(null);
+    if (sessionUnsubscribe) {
+      sessionUnsubscribe();
+      setSessionUnsubscribe(null);
     }
     
     if (user?.uid && sessionId) {
       devLog(`Starting session watcher for user ${user.uid} session ${sessionId}`);
-      const unsubscribe = watchCurrentSession(user.uid, sessionId, handleSessionChange);
-      setSessionWatcher(() => unsubscribe);
+      const unsubscribeFunc = watchCurrentSession(
+        user.uid,
+        sessionId,
+        handleSessionChange
+      );
+      setSessionUnsubscribe(() => unsubscribeFunc);
     }
     
     return () => {
-      if (sessionWatcher) {
-        sessionWatcher();
+      if (sessionUnsubscribe) {
+        sessionUnsubscribe();
       }
     };
   }, [user, sessionId, handleSessionChange]);
@@ -317,161 +321,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [logout, lastActivity, router, throttledReset, user, initialCachedUser, handleSessionChange]);
 
+  // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
-    devLog(`Attempting login for username: ${username}`);
-    setIsLoading(true);
-    setError(null);
-
     try {
-      const result = await loginWithCredentials(username, password, (userObj) => {
-        setUser(userObj);
-      });
-
-      if (!result.success) {
-        setError(result.error || 'Login failed');
-        setIsLoading(false);
+      setIsLoading(true);
+      setError(null);
+      
+      console.log("AuthContext: Starting login process...");
+      
+      if (!username || !password) {
+        console.error("Missing username or password");
+        setError('Please enter username and password');
         return false;
       }
-
-      // บันทึก log การ login - ทำแบบ non-blocking
-      if (result.user) {
-        import('./services/logService')
-          .then(({ logLogin }) => {
-            logLogin(result.user!)
-              .then(() => devLog(`Login success: ${username} role: ${result.user!.role}`))
-              .catch(err => console.error('Error logging login:', err));
-          })
-          .catch(err => console.error('Error importing logService:', err));
-      }
-
-      // Update last login timestamp - แบบ non-blocking แต่เริ่มทำทันที
-      if (result.userId) {
-        updateDoc(doc(db, 'users', result.userId), {
-          lastLogin: serverTimestamp()
-        }).catch(err => console.error('Failed to update last login time:', err));
-      }
-
-      // จัดการเซสชัน
-      let newSessionId = null;
       
-      try {
-        if (result.user) {
-          // ใช้ Promise.race แต่เพิ่มเวลา timeout เป็น 5 วินาที
-          const timeoutPromise = new Promise<string|null>((_, reject) => 
-            setTimeout(() => reject(new Error('Session creation timeout')), 5000)
-          );
-          
-          try {
-            newSessionId = await Promise.race([
-              resetUserSessions(result.user), 
-              timeoutPromise
-            ]);
-          } catch (timeoutErr) {
-            console.warn('Session creation timed out, using fallback session:', timeoutErr);
-            newSessionId = result.sessionId || null;
-          }
-          
-          if (newSessionId) {
-            sessionStorage.setItem('currentSessionId', newSessionId);
-            setSessionId(newSessionId);
-            devLog(`Created new session: ${newSessionId}`);
-          } else if (result.sessionId) {
-            sessionStorage.setItem('currentSessionId', result.sessionId);
-            setSessionId(result.sessionId);
-          }
-        } else if (result.sessionId) {
-          sessionStorage.setItem('currentSessionId', result.sessionId);
-          setSessionId(result.sessionId);
+      // แสดง username ที่พยายามล็อกอิน (ไม่แสดง password เพื่อความปลอดภัย)
+      console.log(`AuthContext: Login attempt for username: ${username}`);
+      
+      // ใช้ loginWithCredentials โดยส่ง callback ในการตั้งค่า user state
+      const result = await loginWithCredentials(
+        username, 
+        password, 
+        // ส่ง callback ในการตั้งค่า user เพื่อลดการโหลดข้อมูลซ้ำ
+        (loggedInUser) => {
+          console.log("AuthContext: Setting user directly from callback", 
+            loggedInUser ? `(${loggedInUser.username}, ${loggedInUser.role})` : 'null');
+          setUser(loggedInUser);
         }
-      } catch (sessionErr) {
-        console.error('Error handling session:', sessionErr);
-        // ใช้ sessionId จากผลลัพธ์การล็อกอินถ้ามี
+      );
+      
+      if (result.success && result.user) {
+        console.log(`AuthContext: Login successful for user: ${result.user.username}, role: ${result.user.role}`);
+        
+        // ตั้งค่า session ID ใน session storage
         if (result.sessionId) {
           sessionStorage.setItem('currentSessionId', result.sessionId);
-          setSessionId(result.sessionId);
-        }
-      }
-
-      // ทำให้มั่นใจว่า user ถูกตั้งค่าแล้วก่อนเปลี่ยนหน้า
-      if (result.user && !user) {
-        setUser(result.user);
-      }
-
-      // นำทางไปยังหน้าต่างๆ ตาม role/username หลังจาก login สำเร็จ
-      if (result.user) {
-        // เตรียม URL ที่จะ redirect ไป
-        let redirectUrl = '/';
-        
-        // ตรวจสอบและเปลี่ยนเส้นทางตาม username
-        if (result.user.username === 'test') {
-          redirectUrl = '/census/form';
-        } else if (result.user.username === 'admin') {
-          redirectUrl = '/census/approval';
-        } else if (result.user.username === 'bbee') {
-          redirectUrl = '/admin/database';
+          console.log(`AuthContext: Session ID saved to session storage: ${result.sessionId.substring(0, 5)}...`);
         } else {
-          // กรณีเป็น username อื่นๆ ให้ใช้ role ในการเปลี่ยนเส้นทาง
-          switch (result.user.role) {
-            case 'admin':
-              redirectUrl = '/census/approval';
-              break;
-            case 'developer':
-              redirectUrl = '/admin/database';
-              break;
-            default: // user role
-              redirectUrl = '/census/form';
-              break;
-          }
+          console.warn("AuthContext: No session ID returned after successful login");
         }
         
-        // ทำการ redirect และตรวจสอบผล
-        try {
-          router.push(redirectUrl);
-          
-          // ตรวจสอบว่าการ redirect สำเร็จหรือไม่หลังจาก 1 วินาที
-          setTimeout(() => {
-            if (window.location.pathname === '/login') {
-              console.log('Redirect did not happen automatically. Attempting to force redirect...');
-              window.location.href = redirectUrl;
-            }
-          }, 1000);
-        } catch (routerErr) {
-          console.error('Router navigation failed:', routerErr);
-          // ถ้า router.push ล้มเหลว ใช้ window.location แทน
-          window.location.href = redirectUrl;
-        }
+        // Reset inactivity timer
+        resetInactivityTimer();
+        
+        return true;
+      } else {
+        // กรณีล็อกอินไม่สำเร็จ
+        console.error(`AuthContext: Login failed: ${result.error || 'Unknown error'}`);
+        setError(result.error || 'Failed to login. Please check your credentials.');
+        return false;
       }
-
-      // สุดท้ายปิด loading state
-      setIsLoading(false);
-      return true;
-    } catch (err: any) {
-      console.error('Login error caught:', err);
-      setError(err.message || 'Login failed due to an unexpected error.');
-      setIsLoading(false);
+    } catch (err) {
+      console.error("AuthContext: Error during login:", err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       return false;
     } finally {
-      // หากยังอยู่ใน loading state หลังจากทุกอย่างเสร็จสิ้น (กรณีพิเศษ)
-      setTimeout(() => {
-        setIsLoading(false);
-        
-        // ตรวจสอบเพิ่มเติมว่ายังอยู่ที่หน้า login หรือไม่
-        if (window.location.pathname === '/login' && user) {
-          console.log('Still on login page after successful login. Forcing redirect...');
-          
-          // เลือกหน้าที่จะไปตาม role
-          let fallbackUrl = '/census/form'; // ค่าเริ่มต้น
-          if (user.role === 'admin') {
-            fallbackUrl = '/census/approval';
-          } else if (user.role === 'developer') {
-            fallbackUrl = '/admin/database';
-          }
-          
-          window.location.href = fallbackUrl;
-        }
-      }, 2000);
+      setIsLoading(false);
     }
   };
+
+  // ฟังก์ชันเริ่มการติดตามกิจกรรมของผู้ใช้
+  const startActivityTracking = useCallback(() => {
+    devLog('Starting activity tracking');
+    // ตั้งค่าเริ่มต้นสำหรับเวลาใช้งานล่าสุด
+    setLastActivity(Date.now());
+    
+    // แสดงให้เห็นว่าได้เริ่มการติดตามแล้ว
+    resetInactivityTimer();
+  }, [resetInactivityTimer]);
 
   // Export the auth context provider and hook
   const contextValue = {

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/app/features/auth/AuthContext';
 import { FiUser, FiLock, FiAlertCircle, FiEye, FiEyeOff, FiCheckCircle, FiX } from 'react-icons/fi';
-import { toast } from 'react-hot-toast';
+import { toast, Toast } from 'react-hot-toast';
 import { useTheme } from 'next-themes';
 import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
@@ -14,7 +14,7 @@ import { useLoading } from '@/app/core/contexts/LoadingContext';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 
 // Success toast component
-const SuccessToast = ({ message, t }: { message: string; t: any }) => (
+const SuccessToast = ({ message, t }: { message: string; t: Toast }) => (
   <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-emerald-900/40 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg animate-fadeIn">
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50">
@@ -35,7 +35,7 @@ const SuccessToast = ({ message, t }: { message: string; t: any }) => (
 );
 
 // Error toast component
-const ErrorToast = ({ message, t }: { message: string; t: any }) => (
+const ErrorToast = ({ message, t }: { message: string; t: Toast }) => (
   <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg animate-fadeIn">
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50">
@@ -63,6 +63,8 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const { login, user, isLoading, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -195,87 +197,47 @@ export default function LoginPage() {
   // Handle login form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ตรวจสอบว่ามีการกรอกข้อมูลครบถ้วนหรือไม่
+    if (!username || !password) {
+      setLocalError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+      showErrorToast('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+      return;
+    }
+    
     setLocalError(null);
-    
-    if (isLoading) return;
-    
-    // ตรวจสอบ CSRF token
-    if (!validateCSRFToken(csrfToken)) {
-      showErrorToast("การเข้าสู่ระบบล้มเหลว: Security token ไม่ถูกต้อง");
-      // สร้าง token ใหม่
-      const newToken = generateCSRFToken();
-      setCsrfToken(newToken);
-      return;
-    }
-    
-    // Validate inputs
-    if (!username.trim() || !password.trim()) {
-      showErrorToast("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
-      return;
-    }
-    
-    // Save username for next login if remember me is checked
-    if (rememberMe) {
-      sessionStorage.setItem('lastUsername', username);
-    } else {
-      sessionStorage.removeItem('lastUsername');
-    }
+    setLoginError(null);
+    setIsLoggingIn(true);  // เริ่มการเข้าสู่ระบบ
     
     try {
-      // แสดง loading screen
-      showLoading();
+      console.log("เริ่มกระบวนการล็อกอิน...");
+      showLoading(); // แสดง global loading indicator
       
-      // กำหนด timeout เพื่อป้องกันการรอนานเกินไป
-      const loginTimeout = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Login timeout - taking too long'));
-        }, 30000); // เพิ่มเป็น 30 วินาที จากเดิม 8 วินาที
-      });
+      // ทำการเข้าสู่ระบบด้วยข้อมูลที่ผู้ใช้กรอก
+      const response = await login(username, password);
       
-      // ใช้ Promise.race เพื่อแข่งกันระหว่างการ login และ timeout
-      const success = await Promise.race([
-        login(username, password),
-        loginTimeout
-      ]);
-      
-      // ถ้าไม่มี error และไม่มีการ redirect อัตโนมัติ ให้รีเฟรชหน้า
-      if (success) {
-        // แสดง toast แจ้งเตือนเมื่อล็อกอินสำเร็จ
+      if (response) {
+        // เข้าสู่ระบบสำเร็จ
         showSuccessToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${username}`);
         
+        // รีเฟรชหน้าหลังจากเข้าสู่ระบบสำเร็จ
+        console.log("ล็อกอินสำเร็จ กำลังรีไดเร็ค...");
         setTimeout(() => {
-          if (document.location.pathname === '/login') {
-            console.log('No automatic redirect occurred. Refreshing the page.');
-            document.location.reload();
-          }
-        }, 2000);
+          window.location.reload();
+        }, 200);
+      } else {
+        // กรณีเข้าสู่ระบบไม่สำเร็จ แต่ไม่มีข้อความผิดพลาดชัดเจน
+        console.log("ล็อกอินไม่สำเร็จ ไม่มีข้อความผิดพลาด");
+        setLoginError('มีข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
+        showErrorToast('มีข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      
-      if (err.message === 'Login timeout - taking too long') {
-        // กรณี timeout
-        showErrorToast("การเข้าสู่ระบบใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง");
-        setTimeout(() => {
-          // รีเฟรชหน้าเพื่อรีเซ็ตสถานะทั้งหมด
-          document.location.reload();
-        }, 500);
-      } else if (err.message?.includes('Invalid credentials') || err.message?.includes('incorrect password')) {
-        // กรณีรหัสผ่านผิด
-        setLocalError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
-        showErrorToast('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
-      } else if (err.message?.includes('user not found') || err.message?.includes('User not found')) {
-        // กรณีไม่พบผู้ใช้
-        setLocalError('ไม่พบชื่อผู้ใช้ในระบบ กรุณาตรวจสอบชื่อผู้ใช้');
-        showErrorToast('ไม่พบชื่อผู้ใช้ในระบบ กรุณาตรวจสอบชื่อผู้ใช้');
-      } else {
-        // กรณี error อื่นๆ
-        setLocalError(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
-        showErrorToast(err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ โปรดลองใหม่อีกครั้ง');
-      }
+      setLoginError(err.message || 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+      showErrorToast(err.message || 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
     } finally {
-      // ซ่อน loading screen
-      hideLoading();
+      setIsLoggingIn(false);  // สิ้นสุดการเข้าสู่ระบบ
+      hideLoading(); // ซ่อน global loading indicator
     }
   };
 
@@ -305,12 +267,26 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* แสดงข้อความผิดพลาด */}
+        {localError && (
+          <div className="my-4 p-3 bg-red-50 border border-red-300 text-red-700 rounded text-sm dark:bg-red-900 dark:border-red-800 dark:text-red-200">
+            {localError}
+          </div>
+        )}
+
+        {/* แสดงข้อความผิดพลาดจากการล็อกอิน */}
+        {loginError && (
+          <div className="my-4 p-3 bg-red-50 border border-red-300 text-red-700 rounded text-sm dark:bg-red-900 dark:border-red-800 dark:text-red-200">
+            {loginError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6 mt-8">
           {/* CSRF Token */}
           <input type="hidden" name="_csrf" value={csrfToken} />
           
           <div>
-            <label htmlFor="username" className="block text-xl md:text-2xl font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="username" className="text-base font-medium text-gray-900 dark:text-gray-100">
               Username
             </label>
             <div className="relative">
@@ -331,7 +307,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-xl md:text-2xl font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="password" className="text-base font-medium text-gray-900 dark:text-gray-100">
               Password
             </label>
             <div className="relative">
@@ -380,12 +356,6 @@ export default function LoginPage() {
             </label>
           </div>
 
-          {localError && (
-            <div className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
-              {localError}
-            </div>
-          )}
-
           <div>
             <Button
               type="submit"
@@ -393,7 +363,7 @@ export default function LoginPage() {
               size="md"
               fullWidth
               disabled={isLoading}
-              isLoading={isLoading}
+              isLoading={isLoggingIn}
               className="text-xl md:text-2xl py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all duration-200"
             >
               Sign In
@@ -402,6 +372,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-4 text-center text-base text-gray-600 dark:text-gray-400">
+          <p>In case of inaccessibility, please contact the system administrator.</p>
           <p>By signing in, you acknowledge and accept the hospital's internal policies.</p>
         </div>
 

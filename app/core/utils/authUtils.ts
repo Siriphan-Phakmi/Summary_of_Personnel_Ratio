@@ -30,41 +30,45 @@ export const hashPassword = async (password: string): Promise<string> => {
 };
 
 /**
- * ตรวจสอบรหัสผ่านว่าตรงกับรหัสที่เข้ารหัสไว้หรือไม่
- * @param password รหัสผ่านที่ผู้ใช้ป้อน
- * @param hashedPassword รหัสผ่านที่เข้ารหัสไว้ (หรืออาจเป็น plain text)
- * @returns ผลการตรวจสอบ
+ * เปรียบเทียบรหัสผ่านกับที่เข้ารหัสแล้ว
+ * @param inputPassword รหัสผ่านที่ผู้ใช้ป้อน
+ * @param hashedPassword รหัสผ่านที่เข้ารหัสแล้ว
+ * @returns true ถ้ารหัสผ่านตรงกัน, false ถ้าไม่ตรง
  */
-export const comparePassword = async (
-  password: string,
-  hashedPassword: string
-): Promise<boolean> => {
+export const comparePassword = async (inputPassword: string, hashedPassword: string): Promise<boolean> => {
   try {
-    console.log('Debug comparePassword - Input:', { 
-      passwordInput: password,
-      hashedPasswordLength: hashedPassword?.length || 0,
-      passwordIsEmpty: !password,
-      hashedIsEmpty: !hashedPassword
-    });
+    console.log('Comparing passwords (input length:', inputPassword.length, ', hashed starts with:', hashedPassword.substring(0, 5), '...)');
     
-    // ตรวจสอบว่า input มีค่าว่างหรือไม่
-    if (!password || !hashedPassword) {
-      console.error('Empty password or stored password provided');
-      return false;
+    // ตรวจสอบก่อนว่ารหัสผ่านที่เข้ารหัสมีรูปแบบที่ถูกต้อง
+    if (!hashedPassword || hashedPassword.length < 10) {
+      console.warn('Invalid hashed password format:', 
+                  hashedPassword ? `length ${hashedPassword.length} (too short)` : 'undefined/empty');
+      
+      // กรณีพิเศษ: ถ้ารหัสผ่านในฐานข้อมูลไม่ได้เข้ารหัส ให้เปรียบเทียบตรงๆ (ไม่ปลอดภัย แต่รองรับข้อมูลเก่า)
+      // ควรปรับปรุงในอนาคตให้เข้ารหัสทั้งหมด
+      console.warn('Falling back to direct comparison (UNSAFE)');
+      return inputPassword === hashedPassword;
     }
     
-    // ตรวจสอบว่าเป็น bcrypt hash หรือไม่ (ขึ้นต้นด้วย $ และมีความยาวมากกว่า 20 ตัวอักษร)
-    if (hashedPassword.startsWith('$') && hashedPassword.length >= 20) {
-      console.log('Comparing with bcrypt hash...');
-      return bcrypt.compare(password, hashedPassword);
-    }
+    // ตรวจสอบว่ารหัสผ่านใช้การเข้ารหัสแบบ bcrypt หรือไม่
+    const isBcrypt = hashedPassword.startsWith('$2a$') || 
+                    hashedPassword.startsWith('$2b$') || 
+                    hashedPassword.startsWith('$2y$');
     
-    // ถ้าไม่ใช่ bcrypt hash ให้เปรียบเทียบเป็น plain text
-    console.log('Comparing with plain text password...');
-    return password === hashedPassword;
-  } catch (err) {
-    console.error('Error comparing passwords:', err);
-    return false;
+    if (isBcrypt) {
+      // ใช้ bcrypt.compare ในการตรวจสอบ
+      const bcrypt = require('bcryptjs');
+      const result = await bcrypt.compare(inputPassword, hashedPassword);
+      console.log('bcrypt comparison result:', result);
+      return result;
+    } else {
+      // เปรียบเทียบตรงๆ สำหรับรหัสผ่านที่ไม่ได้เข้ารหัส (ไม่ปลอดภัย)
+      console.warn('Password is not hashed with bcrypt, using direct comparison (UNSAFE)');
+      return inputPassword === hashedPassword;
+    }
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    throw new Error('เกิดข้อผิดพลาดในการเปรียบเทียบรหัสผ่าน');
   }
 };
 
