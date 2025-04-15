@@ -12,11 +12,13 @@ export const checkUserRole = (
 ): boolean => {
   // ถ้าไม่มีผู้ใช้ ถือว่าไม่มีสิทธิ์
   if (!user) {
+    console.log('[Role Debug] User is null, no access granted');
     return false;
   }
   
   // ถ้าไม่กำหนดบทบาทที่ต้องการ แสดงว่าแค่มีบัญชีผู้ใช้ก็พอ
   if (!requiredRole) {
+    console.log('[Role Debug] No required role specified, access granted');
     return true;
   }
   
@@ -24,7 +26,14 @@ export const checkUserRole = (
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   
   // ตรวจสอบว่า user.role อยู่ในบทบาทที่กำหนดหรือไม่
-  return roles.includes(user.role);
+  const hasAccess = roles.includes(user.role);
+  console.log('[Role Debug] Role check:', {
+    userRole: user.role,
+    requiredRoles: roles,
+    hasAccess
+  });
+  
+  return hasAccess;
 };
 
 /**

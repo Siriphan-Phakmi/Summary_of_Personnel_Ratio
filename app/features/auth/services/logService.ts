@@ -114,6 +114,12 @@ export const logPageAccess = async (
   page: string,
   userAgent?: string
 ): Promise<void> => {
+  // ตรวจสอบข้อมูล user อย่างละเอียด
+  if (!user) {
+    console.error('Cannot log page access: User is null');
+    return;
+  }
+  
   if (!user?.uid || !user?.username) {
     console.error('Cannot log page access: User data is incomplete');
     return;

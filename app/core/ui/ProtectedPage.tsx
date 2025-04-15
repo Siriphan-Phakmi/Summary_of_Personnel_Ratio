@@ -68,7 +68,14 @@ export default function ProtectedPage({ children, requiredRole }: ProtectedPageP
       // บันทึก log การเข้าถึงหน้าเมื่อมีสิทธิ์เข้าถึง
       if (user && pathname) {
         devLog(`User ${user.username || user.uid} (${user.role}) accessing page: ${pathname}`);
-        logPageAccess(user, pathname);
+        // ตรวจสอบว่า user มีข้อมูลครบก่อนส่งไป logPageAccess
+        if (user.uid && user.username) {
+          logPageAccess(user, pathname).catch(err => {
+            console.error('Failed to log page access:', err);
+          });
+        } else {
+          console.warn('Cannot log page access: User data is incomplete', user);
+        }
       }
       
       // หากผ่านการตรวจสอบทั้งหมด

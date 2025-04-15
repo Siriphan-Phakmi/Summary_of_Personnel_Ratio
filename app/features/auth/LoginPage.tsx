@@ -198,7 +198,6 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // ตรวจสอบว่ามีการกรอกข้อมูลครบถ้วนหรือไม่
     if (!username || !password) {
       setLocalError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
       showErrorToast('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
@@ -207,37 +206,32 @@ export default function LoginPage() {
     
     setLocalError(null);
     setLoginError(null);
-    setIsLoggingIn(true);  // เริ่มการเข้าสู่ระบบ
+    setIsLoggingIn(true);
     
     try {
-      console.log("เริ่มกระบวนการล็อกอิน...");
-      showLoading(); // แสดง global loading indicator
+      showLoading();
       
-      // ทำการเข้าสู่ระบบด้วยข้อมูลที่ผู้ใช้กรอก
+      if (!navigator.onLine) {
+        throw new Error('ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้ กรุณาตรวจสอบการเชื่อมต่อของคุณ');
+      }
+
       const response = await login(username, password);
       
-      if (response) {
-        // เข้าสู่ระบบสำเร็จ
+      if (response === true) {
         showSuccessToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${username}`);
-        
-        // รีเฟรชหน้าหลังจากเข้าสู่ระบบสำเร็จ
-        console.log("ล็อกอินสำเร็จ กำลังรีไดเร็ค...");
-        setTimeout(() => {
-          window.location.reload();
-        }, 200);
-      } else {
-        // กรณีเข้าสู่ระบบไม่สำเร็จ แต่ไม่มีข้อความผิดพลาดชัดเจน
-        console.log("ล็อกอินไม่สำเร็จ ไม่มีข้อความผิดพลาด");
-        setLoginError('มีข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
-        showErrorToast('มีข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
+        return;
       }
+      
+      throw new Error('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
+      
     } catch (err: any) {
       console.error('Login error:', err);
-      setLoginError(err.message || 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
-      showErrorToast(err.message || 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+      const errorMessage = err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง';
+      setLoginError(errorMessage);
+      showErrorToast(errorMessage);
     } finally {
-      setIsLoggingIn(false);  // สิ้นสุดการเข้าสู่ระบบ
-      hideLoading(); // ซ่อน global loading indicator
+      setIsLoggingIn(false);
+      hideLoading();
     }
   };
 

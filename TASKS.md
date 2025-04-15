@@ -37,6 +37,7 @@
    - [x] พัฒนาคอมโพเนนต์ `ProtectedPage` สำหรับป้องกันหน้าที่ต้องล็อกอิน
    - [x] เพิ่มระบบบันทึกการใช้งาน (User Activity Logs)
    - [x] พัฒนาฟังก์ชันการ Sanitize ข้อมูลป้องกัน XSS และ SQL Injection
+   - [x] เพิ่ม event handler window.onbeforeunload เพื่อล้าง session และคุกกี้เมื่อผู้ใช้ปิดเบราว์เซอร์
 
 5. **การแก้ไขข้อผิดพลาด**
    - [x] แก้ไขปัญหา Login timeout ใน LoginPage.tsx โดยเพิ่มเวลา timeout จาก 8 วินาที เป็น 30 วินาที
@@ -50,6 +51,15 @@
    - [x] แก้ไข Type Errors ใน loginService.ts เกี่ยวกับ QuerySnapshot, resetUserSessions และ logLogin
    - [x] แก้ไขปัญหาการล็อกอินใช้เวลานานหรือค้าง โดยปรับปรุงการจัดการ Promise และเพิ่มการ log เพื่อติดตามขั้นตอนการทำงาน
    - [x] ปรับปรุงระบบตรวจสอบผู้ใช้และรหัสผ่านให้ตรงกับโครงสร้างข้อมูลใน Firebase
+   - [x] ทำความสะอาดโค้ด โดยลบไฟล์และโฟลเดอร์ที่ไม่จำเป็น:
+     - ลบไฟล์ `app/components/DataFetcher-example.tsx` (ไฟล์ตัวอย่างที่ไม่ได้ใช้งานจริง)
+     - ลบไฟล์ `app/features/approvals/ApprovalPage.tsx` (ซ้ำซ้อนกับ app/features/census/approval/ApprovalPage.tsx)
+     - ลบไฟล์ `app/features/census/index.ts` (ไม่มีการเรียกใช้งาน)
+     - ลบไฟล์ `app/features/census/HomePage.tsx` (ไม่มีการเรียกใช้งาน)
+     - ลบโฟลเดอร์ `app/features/approvals` (โฟลเดอร์ว่างเปล่า)
+     - ลบโฟลเดอร์ `app/styles` (โฟลเดอร์ว่างเปล่า)
+     - ลบโฟลเดอร์ `app/components` (โฟลเดอร์ว่างเปล่า)
+   - [x] แก้ไขไฟล์ tsconfig.json เพื่อลบการอ้างอิงถึงโฟลเดอร์ app/components ที่ไม่มีอยู่แล้ว
 
 ## งานที่กำลังดำเนินการ
 
@@ -122,6 +132,16 @@
 - [x] แก้ไข Type Errors ใน loginService.ts เกี่ยวกับ QuerySnapshot, resetUserSessions และ logLogin
 - [x] แก้ไขปัญหาการล็อกอินใช้เวลานานหรือค้าง โดยปรับปรุงการจัดการ Promise และเพิ่มการ log เพื่อติดตามขั้นตอนการทำงาน
 - [x] ปรับปรุงระบบตรวจสอบผู้ใช้และรหัสผ่านให้ตรงกับโครงสร้างข้อมูลใน Firebase
+- [x] ทำความสะอาดโค้ด โดยลบไฟล์และโฟลเดอร์ที่ไม่จำเป็น:
+   - ลบไฟล์ `app/components/DataFetcher-example.tsx` (ไฟล์ตัวอย่างที่ไม่ได้ใช้งานจริง)
+   - ลบไฟล์ `app/features/approvals/ApprovalPage.tsx` (ซ้ำซ้อนกับ app/features/census/approval/ApprovalPage.tsx)
+   - ลบไฟล์ `app/features/census/index.ts` (ไม่มีการเรียกใช้งาน)
+   - ลบไฟล์ `app/features/census/HomePage.tsx` (ไม่มีการเรียกใช้งาน)
+   - ลบโฟลเดอร์ `app/features/approvals` (โฟลเดอร์ว่างเปล่า)
+   - ลบโฟลเดอร์ `app/styles` (โฟลเดอร์ว่างเปล่า)
+   - ลบโฟลเดอร์ `app/components` (โฟลเดอร์ว่างเปล่า)
+- [x] แก้ไขไฟล์ tsconfig.json เพื่อลบการอ้างอิงถึงโฟลเดอร์ app/components ที่ไม่มีอยู่แล้ว
+- [x] เพิ่ม event handler `window.onbeforeunload` ใน AuthContext.tsx เพื่อจัดการล้าง session และคุกกี้เมื่อผู้ใช้ปิดเบราว์เซอร์โดยตรง
 
 ## งานที่กำลังดำเนินการ
 

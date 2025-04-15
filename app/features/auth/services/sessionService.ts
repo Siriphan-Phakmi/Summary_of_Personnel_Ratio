@@ -1,78 +1,76 @@
 import { rtdb } from '@/app/core/firebase/firebase';
 import { ref, onValue, set, onDisconnect, remove, serverTimestamp, get, update } from 'firebase/database';
+import { doc, setDoc } from 'firebase/firestore';
 import { User } from '@/app/core/types/user';
 import { v4 as uuidv4 } from 'uuid';
 import { logLogin, logLogout } from './logService';
 import { getDeviceInfo, getSafeUserAgent } from '@/app/core/utils/logUtils';
 
-/**
- * สร้าง session ใหม่สำหรับผู้ใช้
- * @param user ข้อมูลผู้ใช้ที่เข้าสู่ระบบ
- * @returns session ID
- */
-export const createUserSession = async (user: User): Promise<string> => {
-  if (!user?.uid || !user?.username) {
-    console.error('Cannot create session: User data is incomplete');
-    return '';
-  }
+// กำหนดค่าคงที่สำหรับระยะเวลาของ session (24 ชั่วโมง)
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * สร้าง session สำหรับผู้ใช้ที่เข้าสู่ระบบสำเร็จ
+ * @param userId ID ของผู้ใช้
+ * @param role บทบาทของผู้ใช้
+ * @returns Session ID ที่สร้าง
+ */
+export const createUserSession = async (
+  userId: string,
+  role: string
+): Promise<string> => {
   try {
-    const sessionId = uuidv4();
-    const deviceInfo = getDeviceInfo();
-    const userAgent = getSafeUserAgent();
+    // ตรวจสอบ userId และ role
+    if (!userId || userId.trim() === '') {
+      console.error('Cannot create session: Invalid user ID');
+      return '';
+    }
+
+    // กำหนดค่าเริ่มต้นให้ role ถ้าไม่มีค่า
+    const userRole = role || 'user';
     
-    // สร้าง session object
+    const sessionId = `session_${userId}_${Date.now()}`;
+    
+    // สร้าง document ใหม่ในคอลเลคชัน 'sessions'
     const sessionData = {
+      userId,
+      role: userRole,
       sessionId,
-      userId: user.uid,
-      username: user.username,
-      deviceInfo: deviceInfo,
-      userAgent,
-      startTime: serverTimestamp(),
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      isActive: true,
+      createdAt: serverTimestamp(),
       lastActive: serverTimestamp(),
-      isActive: true
+      expiresAt: new Date(Date.now() + SESSION_DURATION_MS) // Session จะหมดอายุหลังจาก X ชั่วโมง
     };
     
-    // บันทึก session ใหม่
-    const sessionRef = ref(rtdb, `sessions/${user.uid}/${sessionId}`);
-    await set(sessionRef, sessionData);
-    
-    // ตั้งค่าให้ลบ session เมื่อมีการตัดการเชื่อมต่อ
-    onDisconnect(sessionRef).update({ isActive: false, endTime: serverTimestamp() });
-    
-    // ตั้งค่า session ปัจจุบัน - ก่อนหน้านี้เราต้องเช็คว่ามี session เดิมหรือไม่
-    const currentSessionRef = ref(rtdb, `currentSessions/${user.uid}`);
-    
-    // เช็คว่ามี session เก่าที่ยังใช้งานอยู่หรือไม่
-    const snapshot = await get(currentSessionRef);
-    if (snapshot.exists()) {
-      // ถ้ามี session เก่า ให้ทำการปิด session เก่าก่อน
-      const oldSessionData = snapshot.val();
-      if (oldSessionData.sessionId && oldSessionData.sessionId !== sessionId) {
-        const oldSessionRef = ref(rtdb, `sessions/${user.uid}/${oldSessionData.sessionId}`);
-        await update(oldSessionRef, { 
-          isActive: false, 
-          endTime: serverTimestamp(),
-          endReason: 'new_session_created'
-        });
-      }
+    // ตรวจสอบว่ามี session เก่าของผู้ใช้นี้หรือไม่
+    try {
+      await resetUserSessions(userId);
+    } catch (resetErr) {
+      console.warn('Could not reset previous sessions, but continuing:', resetErr);
     }
     
-    // อัพเดท current session เป็น session ใหม่
-    await set(currentSessionRef, {
-      sessionId,
-      startTime: serverTimestamp(),
-      deviceInfo: deviceInfo,
-      lastActive: serverTimestamp()
-    });
+    // สร้าง session ใหม่
+    try {
+      const sessionRef = ref(rtdb, `sessions/${userId}/${sessionId}`);
+      await set(sessionRef, sessionData);
+      console.log(`Created new session ${sessionId} for user ${userId}`);
+    } catch (dbErr) {
+      console.error('Error creating session in realtime database:', dbErr);
+      // ถ้าเกิด error ก็ยังคืนค่า sessionId เพื่อให้สามารถใช้งานได้
+    }
     
-    // บันทึก log การเข้าสู่ระบบ
-    await logLogin(user, userAgent);
+    // บันทึก session ID ใน session storage
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('currentSessionId', sessionId);
+    }
     
     return sessionId;
   } catch (error) {
     console.error('Error creating user session:', error);
-    return '';
+    // ไม่ throw error แต่คืนค่า session ID ที่สร้างไว้เพื่อให้สามารถใช้งานได้ต่อ
+    // ในกรณีที่ไม่สามารถบันทึกลงฐานข้อมูลได้
+    return userId ? `session_${userId}_${Date.now()}_local` : '';
   }
 };
 
@@ -304,35 +302,26 @@ export const clearAllUserSessions = async (userId: string): Promise<void> => {
 };
 
 /**
- * รีเซ็ตเซสชันทั้งหมดของผู้ใช้และสร้างเซสชันใหม่
- * @param user ข้อมูลผู้ใช้
- * @returns sessionId ของเซสชันใหม่
+ * รีเซ็ตเซสชันทั้งหมดของผู้ใช้
+ * @param userId ID ของผู้ใช้
+ * @returns void
  */
-export const resetUserSessions = async (user: User): Promise<string> => {
-  if (!user?.uid) {
-    console.error('Cannot reset sessions: User data is incomplete');
-    return '';
+export const resetUserSessions = async (userId: string): Promise<void> => {
+  // ตรวจสอบว่า userId มีค่าที่ถูกต้องหรือไม่
+  if (!userId || userId.trim() === '') {
+    console.error('Cannot reset sessions: Missing user ID');
+    // ถ้าไม่มี userId ให้ return Promise ที่สำเร็จเพื่อไม่ให้ flow ของการทำงานถูกขัดจังหวะ
+    return Promise.resolve();
   }
   
   try {
-    // ลบเซสชันเก่าทั้งหมดก่อน
-    await clearAllUserSessions(user.uid);
-    
-    // สร้างเซสชันใหม่
-    const newSessionId = await createUserSession(user);
-    
-    // ล็อกการรีเซ็ตเซสชัน
-    try {
-      const { logLogin } = await import('./logService');
-      await logLogin(user, getSafeUserAgent());
-    } catch (error) {
-      console.error('Error logging session reset:', error);
-    }
-    
-    return newSessionId;
+    // ลบเซสชันเก่าทั้งหมด
+    await clearAllUserSessions(userId);
+    console.log(`All sessions cleared for user ${userId}`);
   } catch (error) {
     console.error('Error resetting user sessions:', error);
-    return '';
+    // ถ้าเกิด error ให้ return Promise ที่สำเร็จเพื่อไม่ให้ flow ของการทำงานถูกขัดจังหวะ
+    return Promise.resolve();
   }
 };
 

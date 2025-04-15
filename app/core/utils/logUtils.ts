@@ -105,25 +105,38 @@ export const getDeviceInfo = (): { deviceType: string; browserName: string } => 
 };
 
 /**
- * Log successful login
+ * บันทึกการเข้าสู่ระบบของผู้ใช้
+ * @param userId ID ของผู้ใช้
+ * @param username ชื่อผู้ใช้
+ * @param role บทบาทของผู้ใช้
+ * @param userAgent ข้อมูลเบราว์เซอร์ของผู้ใช้ (ถ้ามี)
+ * @returns void
  */
 export const logLogin = async (
   userId: string,
   username: string,
+  role: string = 'user',
   userAgent?: string
-): Promise<string | null> => {
-  const deviceInfo = getDeviceInfo();
-  return addLogEntry({
-    type: LogType.AUTH_LOGIN,
-    userId,
-    username,
-    details: {
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName
-    },
-    userAgent: userAgent || getSafeUserAgent()
-  });
+): Promise<void> => {
+  try {
+    const deviceInfo = getDeviceInfo();
+    
+    await addLogEntry({
+      type: LogType.AUTH_LOGIN,
+      userId,
+      username,
+      details: {
+        timestamp: new Date().toISOString(),
+        deviceType: deviceInfo.deviceType,
+        browserName: deviceInfo.browserName,
+        role: role,
+        success: true
+      },
+      userAgent: userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown')
+    });
+  } catch (error) {
+    console.error('Error logging login:', error);
+  }
 };
 
 /**
@@ -150,25 +163,37 @@ export const logLoginFailed = async (
 };
 
 /**
- * Log logout
+ * บันทึกการออกจากระบบของผู้ใช้
+ * @param userId ID ของผู้ใช้
+ * @param username ชื่อผู้ใช้
+ * @param role บทบาทของผู้ใช้
+ * @param userAgent ข้อมูลเบราว์เซอร์ของผู้ใช้ (ถ้ามี)
+ * @returns void
  */
 export const logLogout = async (
   userId: string,
   username: string,
+  role: string = 'user',
   userAgent?: string
-): Promise<string | null> => {
-  const deviceInfo = getDeviceInfo();
-  return addLogEntry({
-    type: LogType.AUTH_LOGOUT,
-    userId,
-    username,
-    details: {
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName
-    },
-    userAgent: userAgent || getSafeUserAgent()
-  });
+): Promise<void> => {
+  try {
+    const deviceInfo = getDeviceInfo();
+    
+    await addLogEntry({
+      type: LogType.AUTH_LOGOUT,
+      userId,
+      username,
+      details: {
+        timestamp: new Date().toISOString(),
+        deviceType: deviceInfo.deviceType,
+        browserName: deviceInfo.browserName,
+        role: role
+      },
+      userAgent: userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown')
+    });
+  } catch (error) {
+    console.error('Error logging logout:', error);
+  }
 };
 
 /**

@@ -15,19 +15,21 @@ import {
   checkSavedSession,
   getCachedUser,
 } from './services/loginService';
-import { logoutUser } from './services/logoutService';
+import { logoutService } from './services/logoutService';
 import { checkUserRole } from './services/roleService';
 import { 
   watchCurrentSession, 
   updateSessionActivity, 
   createUserSession,
-  resetUserSessions
+  resetUserSessions,
+  endUserSession
 } from './services/sessionService';
 
 // Define authentication context type
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLoggingOut: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   error: string | null;
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const initialCachedUser = getCachedUser();
   const [user, setUser] = useState<User | null>(initialCachedUser);
   const [isLoading, setIsLoading] = useState(initialCachedUser ? false : true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -87,63 +90,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Logout function must be defined *before* useEffect that uses it
-  const logout = useCallback(async () => {
-    try {
-      // บันทึก log การ logout ก่อน (เพราะต้องใช้ข้อมูล user ที่กำลังจะถูกลบ)
-      if (user) {
-        try {
-          const { logLogout } = await import('./services/logService');
-          await logLogout(user);
-          devLog(`Logout user: ${user.username || user.uid}`);
-        } catch (logError) {
-          console.error('Error logging logout:', logError);
-        }
-      }
+  // ฟังก์ชันล้าง cookies และ storage ที่เกี่ยวข้องกับการตรวจสอบสิทธิ์
+  const clearAuthCookies = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      // ล้าง session storage
+      sessionStorage.removeItem('currentSessionId');
+      sessionStorage.removeItem('csrfToken');
       
-      // ยกเลิก session watcher ถ้ามี
-      if (sessionUnsubscribe) {
-        sessionUnsubscribe();
-        setSessionUnsubscribe(null);
-      }
-      
-      // ทำการ logout
-      logoutUser(user, () => {
-        // ล้างข้อมูล user state
-        setUser(null);
-        setSessionId(null);
-        
-        // ล้าง session storage เพิ่มเติม
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('currentSessionId');
-          localStorage.removeItem('lastLoginUser');
-          // ล้าง cache อื่นๆ ที่เกี่ยวข้อง
-          const keysToRemove = [];
-          for (let i = 0; i < sessionStorage.length; i++) {
-            const key = sessionStorage.key(i);
-            if (key && (key.startsWith('auth_') || key.startsWith('user_') || key.startsWith('session_'))) {
-              keysToRemove.push(key);
-            }
-          }
-          keysToRemove.forEach(key => sessionStorage.removeItem(key));
-          
-          // ล้าง local storage เกี่ยวกับ auth
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && (key.startsWith('auth_') || key.startsWith('user_') || key.startsWith('session_'))) {
-              localStorage.removeItem(key);
-            }
-          }
-          
-          devLog('Cleared session storage and auth-related local storage items');
-        }
-        
-        router.push('/login');
-      });
-    } catch (error) {
-      console.error('Logout failed:', error);
+      // ล้าง cookies ที่เกี่ยวข้อง
+      document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      devLog('Cleared auth cookies and storage');
     }
-  }, [user, router, sessionUnsubscribe]);
+  }, []);
+
+  // Logout function
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setIsLoggingOut(true);
+      setError(null);
+
+      if (user) {
+        // Call the logout service with the current user
+        await logoutService.logout(user);
+        
+        // Reset user state
+        setUser(null);
+        setLastActivity(0);
+        
+        // Clear session storage and cookies
+        clearAuthCookies();
+        
+        console.log("User logged out successfully");
+        
+        // Redirect to login page
+        router.push('/login');
+      } else {
+        // Even if there's no user, we should clear cookies and storage
+        clearAuthCookies();
+        console.log("No active user, but cleared auth data");
+      }
+    } catch (err) {
+      console.error("Error during logout:", err);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+      setIsLoggingOut(false);
+    }
+  }, [user, router, clearAuthCookies]);
 
   // ฟังก์ชันสำหรับตรวจสอบเมื่อมีการล็อกอินซ้ำซ้อน
   const handleSessionChange = useCallback((isValid: boolean) => {
@@ -158,7 +155,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้
   const checkRole = useCallback((requiredRole?: string | string[]) => {
+    // เพิ่ม log เพื่อตรวจสอบ
+    console.log('[AUTH Debug] checkRole called with:', { 
+      user: user ? { 
+        uid: user.uid, 
+        role: user.role,
+        username: user.username 
+      } : null, 
+      requiredRole 
+    });
     return checkUserRole(user, requiredRole);
+  }, [user]);
+
+  // เพิ่ม effect เพื่อ log การเปลี่ยนแปลงของ user
+  useEffect(() => {
+    if (user) {
+      console.log('[AUTH Debug] User state changed:', { 
+        uid: user.uid, 
+        role: user.role,
+        username: user.username 
+      });
+    } else {
+      console.log('[AUTH Debug] User is null or undefined');
+    }
   }, [user]);
 
   // Reset inactivity timer when user interacts with the app
@@ -257,37 +276,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // ถ้ามี initialCachedUser แล้ว ให้ข้ามการเซ็ต isLoading = true
     // เพื่อป้องกันการกระพริบของหน้าจอ
-    if (!initialCachedUser) {
-      setIsLoading(true);
-    }
+    // if (!initialCachedUser) {
+    //  setIsLoading(true); // นำออกไปก่อน เพื่อให้ initial state จัดการ
+    // }
+    
+    // เพิ่ม debugging log
+    console.log('AuthContext initial state:', { 
+      hasInitialCachedUser: !!initialCachedUser,
+      initialUserRole: initialCachedUser?.role || 'none',
+      // isLoading // Reflects state *before* checkSession runs
+      isLoading: true // Assume loading until checkSession completes
+    });
     
     // ตรวจสอบ session ที่บันทึกไว้
     const checkSession = async () => {
+      // Ensure loading is true at the start of the check
+      // Note: Initial state might already be true if !initialCachedUser
+      setIsLoading(true); 
       try {
-        const userData = await checkSavedSession(user);
+        const userData = await checkSavedSession(user); // Pass current user state
         if (userData) {
+          console.log('Session check successful, user data:', { 
+            username: userData.username,
+            role: userData.role, 
+            uid: userData.uid
+          });
+          
           setUser(userData);
           
           // ตรวจสอบ sessionId ที่บันทึกไว้ใน sessionStorage
           const savedSessionId = sessionStorage.getItem('currentSessionId');
           if (savedSessionId && userData.uid) {
             // ตรวจสอบว่า session ยังใช้งานได้หรือไม่
-            watchCurrentSession(userData.uid, savedSessionId, handleSessionChange);
+            // แก้ไข: ย้าย session watcher ไปเริ่มหลังจาก setSessionId
+            // watchCurrentSession(userData.uid, savedSessionId, handleSessionChange);
             setSessionId(savedSessionId);
           } else if (userData.uid) {
             // ถ้าไม่มี session ที่บันทึกไว้ สร้าง session ใหม่
-            const newSessionId = await createUserSession(userData);
-            if (newSessionId) {
-              sessionStorage.setItem('currentSessionId', newSessionId);
-              setSessionId(newSessionId);
+            try {
+              const newSessionId = await createUserSession(userData.uid, userData.role);
+              if (newSessionId) {
+                sessionStorage.setItem('currentSessionId', newSessionId);
+                setSessionId(newSessionId);
+              }
+            } catch (sessionErr) {
+              console.error('Error creating new session, but continuing login:', sessionErr);
+              // ไม่ throw error เพื่อให้ยังสามารถเข้าสู่ระบบได้แม้จะไม่มี session
             }
           }
+        } else {
+           // If no userData from checkSavedSession, clear local state
+           setUser(null);
+           setSessionId(null);
+           if (sessionUnsubscribe) {
+             sessionUnsubscribe();
+             setSessionUnsubscribe(null);
+           } 
         }
       } catch (err) {
         console.error('Error checking saved session:', err);
-        setUser(null);
+        setUser(null); // Clear user on error
+        // Also clear session ID state and unsubscribe
+        setSessionId(null);
+        if (sessionUnsubscribe) {
+          sessionUnsubscribe();
+          setSessionUnsubscribe(null);
+        }
       } finally {
+        // Crucially, set loading to false regardless of outcome
         setIsLoading(false);
+        devLog(`checkSession completed, isLoading set to false.`);
       }
     };
 
@@ -296,8 +354,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Add event listeners for activity tracking
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    const currentThrottledReset = throttledReset; // Capture current throttledReset
     events.forEach(event => {
-      window.addEventListener(event, throttledReset);
+      window.addEventListener(event, currentThrottledReset);
     });
 
     // Set up inactivity timer
@@ -307,7 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (timeSinceLastActivity > SESSION_TIMEOUT && user) {
         console.log('Session timed out due to inactivity');
-        logout();
+        logout(); // Use captured logout
         router.push('/login?reason=session_expired');
       }
     }, 60000); // Check every minute
@@ -315,65 +374,167 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Clean up function
     return () => {
       events.forEach(event => {
-        window.removeEventListener(event, throttledReset);
+        window.removeEventListener(event, currentThrottledReset);
       });
       clearInterval(intervalId);
+      // Cleanup session watcher on unmount or dependency change
+      if (sessionUnsubscribe) {
+        devLog('Cleaning up session watcher due to effect re-run or unmount');
+        sessionUnsubscribe();
+      }
     };
-  }, [logout, lastActivity, router, throttledReset, user, initialCachedUser, handleSessionChange]);
+    // Dependency array review: 
+    // - logout: Needed for inactivity timeout
+    // - lastActivity: Needed for inactivity timeout calculation
+    // - router: Needed for redirect on timeout
+    // - throttledReset: Needed for activity listeners
+    // - user: Check if user exists for timeout
+    // - initialCachedUser: Used only for initial log, could be removed if log is adjusted
+    // - handleSessionChange: Needed for session watcher
+    // - sessionUnsubscribe: Needed for cleanup
+    // Removed user from dependency array to prevent potential loops on setUser inside checkSession
+    // Let's refine dependencies further if needed, but start with this core set.
+  }, [logout, lastActivity, router, throttledReset, initialCachedUser, handleSessionChange, sessionUnsubscribe]);
+
+  // จัดการกับการปิดเบราว์เซอร์
+  useEffect(() => {
+    // ฟังก์ชันจัดการเมื่อผู้ใช้ปิดเบราว์เซอร์
+    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+      devLog('Browser is closing, attempting to end session');
+      
+      // กรณีที่มีการล็อกอินแล้ว ให้แสดงข้อความยืนยันก่อนปิดหน้า
+      if (user?.uid) {
+        // ข้อความเตือนผู้ใช้
+        const message = "คุณกำลังจะออกจากระบบ คุณแน่ใจหรือไม่?";
+        event.preventDefault();
+        event.returnValue = message;
+        return message;
+      }
+      
+      // กรณีที่เป็นการ refresh ปกติ (ไม่ใช่ปิดเบราว์เซอร์)
+      if (event.type === 'beforeunload') {
+        // ไม่ต้องทำอะไรกับ session หากเป็นการ refresh
+        return;
+      }
+      
+      // ถ้ามี user และ sessionId ให้สิ้นสุด session เฉพาะกรณีปิดเบราว์เซอร์จริงๆ
+      if (user?.uid && sessionId) {
+        try {
+          // พยายามสิ้นสุด session โดยไม่รอให้เสร็จสมบูรณ์
+          // เนื่องจากเบราว์เซอร์อาจปิดก่อนที่การส่งคำขอจะเสร็จสมบูรณ์
+          await endUserSession(user.uid, sessionId, user);
+          devLog(`Session ${sessionId} ended for user ${user.uid}`);
+        } catch (error) {
+          console.error('Error ending session on browser close:', error);
+        }
+      }
+      
+      // ล้าง cookies และ storage ที่เกี่ยวข้องเฉพาะเมื่อปิดเบราว์เซอร์จริงๆ
+      // clearAuthCookies();
+    };
+    
+    // ลงทะเบียนฟังก์ชันกับ beforeunload event
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+    
+    // ยกเลิกการลงทะเบียนเมื่อ component unmount
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      }
+    };
+  }, [user, sessionId, clearAuthCookies]);
 
   // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      console.log("AuthContext: Starting login process...");
-      
-      if (!username || !password) {
-        console.error("Missing username or password");
-        setError('Please enter username and password');
-        return false;
-      }
-      
-      // แสดง username ที่พยายามล็อกอิน (ไม่แสดง password เพื่อความปลอดภัย)
-      console.log(`AuthContext: Login attempt for username: ${username}`);
-      
-      // ใช้ loginWithCredentials โดยส่ง callback ในการตั้งค่า user state
-      const result = await loginWithCredentials(
-        username, 
-        password, 
-        // ส่ง callback ในการตั้งค่า user เพื่อลดการโหลดข้อมูลซ้ำ
-        (loggedInUser) => {
-          console.log("AuthContext: Setting user directly from callback", 
-            loggedInUser ? `(${loggedInUser.username}, ${loggedInUser.role})` : 'null');
-          setUser(loggedInUser);
+
+      // เพิ่ม debug log
+      console.log('Login attempt with username:', username);
+
+      // Call login service
+      const loginResult = await loginWithCredentials(username, password, (userData) => {
+        // ตรวจสอบและแก้ไขข้อมูล user ให้ครบถ้วนก่อนเซ็ต
+        if (userData) {
+          console.log('User data from callback:', { 
+            username: userData.username, 
+            uid: userData.uid,
+            hasUid: !!userData.uid
+          });
+
+          // ตรวจสอบว่ามี username และ uid หรือไม่
+          if (!userData.username || !userData.uid) {
+            console.warn('Incomplete user data from login, attempting to fix');
+            
+            // แก้ไขข้อมูลที่ขาดหายไป
+            if (!userData.username && username) {
+              userData.username = username.toLowerCase();
+            }
+            
+            // ถ้ายังขาด uid ไม่ควรเซ็ตข้อมูล user
+            if (!userData.uid) {
+              console.error('Cannot set user: Missing uid');
+              return;
+            }
+          }
+          
+          // เซ็ตข้อมูล user เมื่อข้อมูลครบถ้วน
+          setUser(userData);
+          console.log('User set successfully:', userData.uid);
         }
-      );
-      
-      if (result.success && result.user) {
-        console.log(`AuthContext: Login successful for user: ${result.user.username}, role: ${result.user.role}`);
+      });
+
+      console.log('Login result:', { 
+        success: loginResult.success, 
+        hasUser: !!loginResult.user,
+        userId: loginResult.userId,
+        hasSessionId: !!loginResult.sessionId
+      });
+
+      if (loginResult.success && loginResult.user) {
+        // ตรวจสอบอีกครั้งว่า user มี uid
+        if (!loginResult.user.uid) {
+          console.error('Login successful but user has no uid');
+          
+          // ถ้าไม่มี uid แต่มี userId ในผลลัพธ์ ให้ใช้ userId แทน
+          if (loginResult.userId) {
+            loginResult.user.uid = loginResult.userId;
+            console.log('Set user.uid from loginResult.userId:', loginResult.userId);
+          } else {
+            setError('ข้อมูลผู้ใช้ไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ');
+            return false;
+          }
+        }
         
-        // ตั้งค่า session ID ใน session storage
-        if (result.sessionId) {
-          sessionStorage.setItem('currentSessionId', result.sessionId);
-          console.log(`AuthContext: Session ID saved to session storage: ${result.sessionId.substring(0, 5)}...`);
+        // บันทึก session ID ถ้ามี
+        if (loginResult.sessionId) {
+          sessionStorage.setItem('currentSessionId', loginResult.sessionId);
+          setSessionId(loginResult.sessionId);
+        }
+        
+        // อัพเดทสถานะผู้ใช้
+        setUser(loginResult.user);
+        console.log('User set after successful login:', loginResult.user.uid);
+        
+        // นำทางไปยังหน้าที่เหมาะสมตาม role
+        if (loginResult.user.role === 'admin' || loginResult.user.role === 'developer' || loginResult.user.role === 'super_admin') {
+          router.push('/census/approval');
         } else {
-          console.warn("AuthContext: No session ID returned after successful login");
+          // ถ้าเป็น user ทั่วไปหรือ role อื่นๆ
+          router.push('/census/form');
         }
-        
-        // Reset inactivity timer
-        resetInactivityTimer();
         
         return true;
-      } else {
-        // กรณีล็อกอินไม่สำเร็จ
-        console.error(`AuthContext: Login failed: ${result.error || 'Unknown error'}`);
-        setError(result.error || 'Failed to login. Please check your credentials.');
-        return false;
       }
+      
+      throw new Error(loginResult.error || 'ไม่สามารถเข้าสู่ระบบได้');
+      
     } catch (err) {
-      console.error("AuthContext: Error during login:", err);
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด';
+      console.error('Login error:', errorMessage);
       setError(errorMessage);
       return false;
     } finally {
@@ -395,6 +556,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const contextValue = {
     user,
     isLoading,
+    isLoggingOut,
     login,
     logout,
     error,

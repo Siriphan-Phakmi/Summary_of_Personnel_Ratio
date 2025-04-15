@@ -3,6 +3,10 @@ import { logLogout } from './logService';
 import { clearAuthCookies } from '@/app/core/utils/authUtils';
 import toast from 'react-hot-toast';
 import { endUserSession } from './sessionService';
+import { useRouter } from 'next/navigation';
+import { ref, update, serverTimestamp, get } from 'firebase/database';
+import { rtdb, db } from '@/app/core/firebase/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 /**
  * ทำการออกจากระบบ
@@ -83,44 +87,81 @@ export const clearAllSessions = (): void => {
 };
 
 /**
- * ออกจากระบบและล้างข้อมูล session
- * @param userId ID ของผู้ใช้ที่ต้องการออกจากระบบ
- * @returns ผลลัพธ์การออกจากระบบ
+ * ออกจากระบบและล้างข้อมูลที่เกี่ยวข้อง
+ * @param user ข้อมูลผู้ใช้ที่กำลังออกจากระบบ
+ * @returns void
  */
-export const logout = async (userId: string): Promise<{
-  success: boolean;
-  error?: string;
-}> => {
-  console.log('Logging out user:', userId);
-  
+export const logout = async (user?: User | null): Promise<void> => {
   try {
-    // 1. ปิด session ปัจจุบัน
-    const sessionId = sessionStorage.getItem('currentSessionId');
-    if (sessionId) {
-      // สร้าง minimal user object สำหรับ log
-      const minimalUser: User = {
-        uid: userId,
-        role: 'user' // ใส่ค่าเริ่มต้นสำหรับ required field
-      };
-      await endUserSession(userId, sessionId, minimalUser);
+    // เช็คว่ามีข้อมูลผู้ใช้หรือไม่
+    if (!user?.uid) {
+      console.log('No user data available for logout');
+      // ล้าง cookies และ session storage ถึงแม้ไม่มีข้อมูลผู้ใช้
+      clearAuthCookies();
+      return;
     }
     
-    // 2. ลบข้อมูล session จาก sessionStorage
-    sessionStorage.removeItem(`session_${userId}`);
-    sessionStorage.removeItem(`user_data_${userId}`);
-    sessionStorage.removeItem('currentSessionId');
+    console.log('Logging out user:', user.username || user.uid);
     
-    // 3. ลบข้อมูล cookie
+    // อัพเดทสถานะล่าสุดก่อนออกจากระบบ
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        lastActive: new Date()
+      });
+    } catch (err) {
+      console.error('Error updating last active time:', err);
+      // ไม่ throw error เพื่อให้กระบวนการออกจากระบบยังคงดำเนินต่อไป
+    }
+    
+    // ปิด session ที่กำลังใช้งาน
+    try {
+      const currentSessionId = sessionStorage.getItem('currentSessionId');
+      
+      if (currentSessionId) {
+        console.log('Found active session:', currentSessionId);
+        const sessionRef = ref(rtdb, `sessions/${user.uid}/${currentSessionId}`);
+        
+        // อัพเดทสถานะ session เป็นไม่ได้ใช้งาน
+        await update(sessionRef, {
+          isActive: false,
+          endTime: serverTimestamp(),
+          endReason: 'user_logout'
+        });
+        
+        console.log('Session updated to inactive');
+      } else {
+        console.log('No active session found for user:', user.uid);
+      }
+    } catch (sessionErr) {
+      console.error('Error closing session:', sessionErr);
+      // ไม่ throw error เพื่อให้กระบวนการออกจากระบบยังคงดำเนินต่อไป
+    }
+    
+    // บันทึก log การออกจากระบบ
+    try {
+      await logLogout(user);
+      console.log('Logout logged successfully');
+    } catch (logErr) {
+      console.error('Error logging logout:', logErr);
+      // ไม่ throw error เพื่อให้กระบวนการออกจากระบบยังคงดำเนินต่อไป
+    }
+    
+    // ล้าง cookies และ local storage
     clearAuthCookies();
     
-    return {
-      success: true
-    };
-  } catch (error: any) {
-    console.error('Logout error:', error);
-    return {
-      success: false,
-      error: error.message || 'An error occurred during logout'
-    };
+    console.log('Logout process completed for user:', user.username || user.uid);
+  } catch (err) {
+    console.error('Error during logout:', err);
+    
+    // เพื่อความปลอดภัย ล้าง cookies และ storage แม้จะมีข้อผิดพลาด
+    clearAuthCookies();
+    
+    throw new Error('เกิดข้อผิดพลาดในการออกจากระบบ กรุณาลองใหม่อีกครั้ง');
   }
+};
+
+// Export as an object with the logout method
+export const logoutService = {
+  logout
 }; 
