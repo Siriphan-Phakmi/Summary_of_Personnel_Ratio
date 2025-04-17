@@ -5,7 +5,15 @@ import { toast } from 'react-hot-toast';
 import { collectionTemplates } from '../services/databaseService';
 import FieldManager from './FieldManager';
 import DocumentFieldView from './DocumentFieldView';
-import { deleteCollectionV2 as deleteCollection, deleteDocument, createCollectionV2 } from '../services/databaseService';
+import { 
+  deleteCollectionV2 as deleteCollection, 
+  deleteDocument, 
+  createNewCollection, 
+  addRecentCollection 
+} from '../services/databaseService';
+import { Button, Input, Select, Card, Divider, Badge, Spin } from 'antd';
+import { PlusOutlined, SearchOutlined, SyncOutlined, DeleteOutlined, HistoryOutlined } from '@ant-design/icons';
+import styles from '../styles/CollectionManager.module.css';
 
 /**
  * คอมโพเนนต์สำหรับจัดการคอลเลกชันและเอกสารใน Firestore
@@ -17,7 +25,9 @@ const CollectionManager: React.FC = () => {
     loading: collectionsLoading, 
     error: collectionsError, 
     addCollection,
-    loadCollections
+    loadCollections,
+    removeCollectionFromList,
+    checkCollectionExists
   } = useFirestoreCollection();
   
   // State สำหรับฟอร์มสร้างคอลเลกชันใหม่
@@ -44,6 +54,17 @@ const CollectionManager: React.FC = () => {
 
   // เมื่อต้องการลบคอลเลกชัน
   const handleDeleteCollection = async (collectionId: string) => {
+    // ป้องกันการลบคอลเลกชันหลักของระบบ
+    const protectedCollections = [
+      'users', 'systemLogs', 'sessions', 'wards', 'wardForms',
+      'approvals', 'dailySummaries', 'currentSessions'
+    ];
+    
+    if (protectedCollections.includes(collectionId)) {
+      toast.error(`ไม่สามารถลบคอลเลกชัน "${collectionId}" ได้เนื่องจากเป็นคอลเลกชันหลักของระบบ`);
+      return;
+    }
+
     if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบคอลเลกชัน "${collectionId}"?\nการทำเช่นนี้จะลบข้อมูลทั้งหมดในคอลเลกชันนี้ และไม่สามารถกู้คืนได้`)) {
       return;
     }
@@ -52,10 +73,20 @@ const CollectionManager: React.FC = () => {
     try {
       const success = await deleteCollection(collectionId);
       if (success) {
+        // ลบคอลเลกชันออกจากรายการทันที โดยไม่ต้องรอโหลดคอลเลกชันใหม่ทั้งหมด
+        removeCollectionFromList(collectionId);
+        
+        // อัปเดต UI หากคอลเลกชันที่ถูกลบคือคอลเลกชันที่กำลังเลือกอยู่
         if (selectedCollection === collectionId) {
           setSelectedCollection(null);
         }
-        await loadCollections();
+        
+        // ตรวจสอบว่าคอลเลกชันยังมีอยู่จริงหรือไม่
+        const stillExists = await checkCollectionExists(collectionId);
+        if (stillExists) {
+          // ถ้ายังมีอยู่ ให้โหลดคอลเลกชันใหม่ทั้งหมดเพื่ออัปเดตสถานะล่าสุด
+          await loadCollections();
+        }
       }
     } finally {
       setDeleteLoading(null);
@@ -72,20 +103,22 @@ const CollectionManager: React.FC = () => {
     const collectionId = newCollectionId.trim();
     
     try {
-      if (showTemplateSelector && selectedTemplate) {
-        // สร้างคอลเลกชันจากเทมเพลต
-        await createCollectionV2(collectionId);
-      } else {
-        // สร้างคอลเลกชันปกติ
-        await addCollection(collectionId);
+      // ใช้ฟังก์ชัน createNewCollection แทน
+      const createdCollectionId = await createNewCollection(collectionId, 
+        showTemplateSelector && selectedTemplate ? selectedTemplate : undefined);
+      
+      if (createdCollectionId) {
+        // คอลเลกชันถูกสร้างเรียบร้อยแล้ว
+        setNewCollectionId('');
+        setSelectedTemplate('');
+        setShowTemplateSelector(false);
+        
+        // รีเฟรชข้อมูลคอลเลกชัน
+        await loadCollections();
+        
+        // เลือกคอลเลกชันที่สร้างใหม่ทันที
+        setSelectedCollection(createdCollectionId);
       }
-      
-      setNewCollectionId('');
-      setSelectedTemplate('');
-      setShowTemplateSelector(false);
-      
-      // รีเฟรชข้อมูลคอลเลกชัน
-      await loadCollections();
     } catch (error) {
       console.error('Error creating collection:', error);
     }
@@ -114,7 +147,21 @@ const CollectionManager: React.FC = () => {
 
   // เรียงลำดับคอลเลกชัน
   const sortedCollections = useMemo(() => {
+    // แสดงคอลเลกชันหลักของระบบก่อน
+    const protectedCollections = [
+      'users', 'systemLogs', 'sessions', 'wards', 'wardForms',
+      'approvals', 'dailySummaries', 'currentSessions'
+    ];
+    
     return [...filteredCollections].sort((a, b) => {
+      // จัดอันดับตามความสำคัญ
+      const aIsProtected = protectedCollections.includes(a.id);
+      const bIsProtected = protectedCollections.includes(b.id);
+      
+      if (aIsProtected && !bIsProtected) return -1;
+      if (!aIsProtected && bIsProtected) return 1;
+      
+      // ถ้าทั้งคู่เป็นคอลเลกชันหลักหรือไม่ใช่ทั้งคู่ ให้เรียงตามชื่อ
       if (sortOrder === 'asc') {
         return a.id.localeCompare(b.id);
       } else {
@@ -241,28 +288,35 @@ const CollectionManager: React.FC = () => {
                   `}
                   onClick={() => handleSelectCollection(collection.id)}
                 >
-                  <span className="truncate">{collection.id}</span>
+                  <div className="flex items-center space-x-1.5 truncate">
+                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="truncate" title={`คอลเลกชัน ${collection.id} (ใช้งานได้)`}>{collection.id}</span>
+                  </div>
                   
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCollection(collection.id);
-                        }}
-                        disabled={deleteLoading === collection.id}
-                    className="ml-2 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50"
-                        title="ลบคอลเลกชัน"
-                      >
-                        {deleteLoading === collection.id ? (
-                      <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                        ) : (
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
+                  <div className="flex items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCollection(collection.id);
+                      }}
+                      disabled={deleteLoading === collection.id}
+                      className="ml-2 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50"
+                      title="ลบคอลเลกชัน"
+                    >
+                      {deleteLoading === collection.id ? (
+                        <svg className="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

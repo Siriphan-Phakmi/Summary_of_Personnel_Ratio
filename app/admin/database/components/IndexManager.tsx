@@ -10,6 +10,42 @@ const IndexManager: React.FC = () => {
 
   // ข้อมูล Indexes ที่จำเป็นต้องสร้าง
   const requiredIndexes = [
+    // เพิ่ม index สำหรับคอลเลกชัน wards เพื่อแก้ไข error
+    {
+      collection: 'wards',
+      fields: [
+        { fieldPath: 'active', order: 'ASCENDING' },
+        { fieldPath: 'wardOrder', order: 'ASCENDING' },
+        { fieldPath: '__name__', order: 'ASCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลใน wardForms ตามวันที่และ shift
+    {
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'date', order: 'ASCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' },
+        { fieldPath: 'wardId', order: 'ASCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลกะดึกของวันก่อนหน้า
+    {
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'date', order: 'DESCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' },
+        { fieldPath: 'wardId', order: 'ASCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลตามสถานะและวันที่
+    {
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'status', order: 'ASCENDING' },
+        { fieldPath: 'date', order: 'ASCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' }
+      ]
+    },
     { 
       collection: 'wardForms',
       fields: [

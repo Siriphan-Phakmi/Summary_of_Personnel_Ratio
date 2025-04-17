@@ -6,7 +6,7 @@ import { endUserSession } from './sessionService';
 import { useRouter } from 'next/navigation';
 import { ref, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb, db } from '@/app/core/firebase/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 /**
  * ทำการออกจากระบบ
@@ -93,6 +93,10 @@ export const clearAllSessions = (): void => {
  */
 export const logout = async (user?: User | null): Promise<void> => {
   try {
+    console.log('Logout called with user:', user ? 
+      { uid: user.uid, username: user.username, role: user.role } : 
+      'No user provided');
+      
     // เช็คว่ามีข้อมูลผู้ใช้หรือไม่
     if (!user?.uid) {
       console.log('No user data available for logout');
@@ -106,9 +110,20 @@ export const logout = async (user?: User | null): Promise<void> => {
     // อัพเดทสถานะล่าสุดก่อนออกจากระบบ
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        lastActive: new Date()
-      });
+      
+      // ตรวจสอบว่าเอกสารมีอยู่จริงก่อนอัปเดต
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        // เอกสารมีอยู่จริง จึงอัพเดต
+        await updateDoc(userRef, {
+          lastActive: new Date()
+        });
+        console.log(`Updated lastActive for user ${user.uid}`);
+      } else {
+        // เอกสารไม่มีอยู่ ไม่สามารถอัพเดตได้
+        console.warn(`Cannot update lastActive: User document with ID ${user.uid} does not exist`);
+      }
     } catch (err) {
       console.error('Error updating last active time:', err);
       // ไม่ throw error เพื่อให้กระบวนการออกจากระบบยังคงดำเนินต่อไป

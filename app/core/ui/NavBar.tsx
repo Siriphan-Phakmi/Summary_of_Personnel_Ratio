@@ -7,6 +7,7 @@ import { useAuth } from '@/app/features/auth';
 import { Button } from '@/app/core/ui';
 import { FiLogOut, FiUser, FiClipboard, FiCheckSquare, FiPieChart, FiUsers, FiMenu, FiX, FiLogIn, FiServer } from 'react-icons/fi';
 import Image from 'next/image';
+import { initializeClientSetup } from '@/app/config/setupDefaultData';
 
 // Placeholder component for loading state
 const NavPlaceholder = ({ className = '' }: { className?: string }) => (
@@ -15,6 +16,13 @@ const NavPlaceholder = ({ className = '' }: { className?: string }) => (
 
 const NavBar = () => {
   const { user, isLoading, isLoggingOut, logout } = useAuth();
+  console.log("NavBar component loading with: ", { 
+    user: user ? `${user.firstName} ${user.lastName}` : "No user", 
+    isLoggedIn: !!user,
+    isLoading, 
+    isLoggingOut
+  });
+
   const router = useRouter();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,25 +33,33 @@ const NavBar = () => {
   // หลังจาก component mount บน client แล้ว ค่อยเปลี่ยน isClient เป็น true
   useEffect(() => {
     setIsClient(true);
-  }, []);
-
-  // แสดง log เพื่อดูค่าของตัวแปรที่สำคัญ
-  useEffect(() => {
-    if (isClient) {
-      console.log('NavBar state:', { 
-        isLoggedIn: !!user, 
-        userRole: user?.role, 
-        isLoading, 
-        isLoggingOut 
-      });
+    
+    // ตั้งค่าข้อมูลเริ่มต้นเมื่อโหลดหน้า NavBar
+    if (user) {
+      initializeClientSetup();
     }
-  }, [isClient, user, isLoading, isLoggingOut]);
+    
+    console.log("NavBar: isClient set to true");
+  }, [user]);
 
   const isActive = (path: string) => pathname === path;
   
   // ตรวจสอบ role ของผู้ใช้งาน
   const isAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
   const isDeveloper = user && user.role === 'developer';
+
+  // แสดง log เพื่อดูค่าของตัวแปรที่สำคัญ
+  useEffect(() => {
+    console.log('NavBar state update:', { 
+      isClient,
+      isLoggedIn: !!user, 
+      userRole: user?.role || 'none',
+      isAdmin,
+      isDeveloper,
+      isLoading, 
+      isLoggingOut 
+    });
+  }, [isClient, user, isAdmin, isDeveloper, isLoading, isLoggingOut]);
   
   // ฟังก์ชันจัดการการคลิกปุ่ม login
   const handleLoginClick = () => {
@@ -67,20 +83,17 @@ const NavBar = () => {
   // ปรับปรุงเงื่อนไขในการแสดงปุ่ม Login/Logout
   const renderAuthButton = () => {
     // Log สถานะสำคัญเพื่อการดีบั๊ก
-    console.log('renderAuthButton:', { isClient, isLoading, user: !!user, isLoggingOut });
+    console.log('renderAuthButton:', { 
+      isClient, 
+      isLoading, 
+      isLoggedIn: !!user, 
+      userRole: user?.role || 'none',
+      isLoggingOut 
+    });
     
-    // กำลังอยู่ใน server-side rendering หรือกำลังโหลดข้อมูล
-    if (!isClient || isLoading) {
-      return (
-        <button className="inline-flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-          <div className="animate-spin h-4 w-4 mr-2 border-2 border-gray-300 rounded-full border-t-blue-600"></div>
-          Loading
-        </button>
-      );
-    }
-    
-    // กรณีล็อกอินแล้ว
+    // กรณีล็อกอินแล้ว แสดงปุ่ม Logout เสมอ
     if (user) {
+      console.log('User is logged in, showing Logout button for user:', user.firstName);
       return (
         <>
           <div className="flex flex-col items-end mr-4">
@@ -100,6 +113,7 @@ const NavBar = () => {
     }
     
     // กรณียังไม่ได้ล็อกอิน
+    console.log('User is not logged in, showing Login button');
     return (
       <Button variant="ghost" size="sm" onClick={handleLoginClick} leftIcon={<FiLogIn />}>Login</Button>
     );
@@ -108,22 +122,17 @@ const NavBar = () => {
   // ปรับปรุงเงื่อนไขในการแสดงปุ่ม Login/Logout บนโหมด Mobile
   const renderMobileAuthButton = () => {
     // Log สถานะสำคัญเพื่อการดีบั๊ก
-    console.log('renderMobileAuthButton:', { isClient, isLoading, user: !!user, isLoggingOut });
+    console.log('renderMobileAuthButton:', { 
+      isClient, 
+      isLoading, 
+      isLoggedIn: !!user, 
+      userRole: user?.role || 'none',
+      isLoggingOut 
+    });
     
-    // กำลังอยู่ใน server-side rendering หรือกำลังโหลดข้อมูล
-    if (!isClient || isLoading) {
-      return (
-        <div className="px-2 py-3">
-          <button className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
-            <div className="animate-spin h-4 w-4 mr-3 border-2 border-gray-300 rounded-full border-t-blue-600"></div>
-            Loading
-          </button>
-        </div>
-      );
-    }
-    
-    // กรณีล็อกอินแล้ว
+    // กรณีล็อกอินแล้ว แสดงปุ่ม Logout เสมอ
     if (user) {
+      console.log('User is logged in, showing Logout button for mobile');
       return (
         <>
           <div className="flex items-center px-4">
@@ -165,6 +174,7 @@ const NavBar = () => {
     }
     
     // กรณียังไม่ได้ล็อกอิน
+    console.log('User is not logged in, showing Login button for mobile');
     return (
       <div className="px-2 py-3">
         <button
@@ -200,7 +210,7 @@ const NavBar = () => {
 
           {/* Desktop Menu Links */}
           <div className="hidden md:flex md:items-center md:space-x-4">
-            {/* Form menu */}
+            {/* Form menu - ทุก Role สามารถเห็นได้ */}
             <NavLink 
               href="/census/form" 
               active={isActive('/census/form')} 
@@ -208,7 +218,7 @@ const NavBar = () => {
               text={isAdmin ? "WardForm" : "Form"} 
             />
             
-            {/* Approval menu */}
+            {/* Approval menu - ทุก Role สามารถเห็นได้ */}
             <NavLink 
               href="/census/approval" 
               active={isActive('/census/approval')} 
@@ -216,7 +226,7 @@ const NavBar = () => {
               text="Approval" 
             />
             
-            {/* Dashboard menu */}
+            {/* Dashboard menu - ทุก Role สามารถเห็นได้ */}
             <NavLink 
               href="/census/dashboard" 
               active={isActive('/census/dashboard')} 
@@ -224,8 +234,8 @@ const NavBar = () => {
               text="Dashboard" 
             />
             
-            {/* User Management - แสดงเสมอสำหรับผู้ใช้ที่ล็อกอิน */}
-            {user && (
+            {/* User Management - แสดงสำหรับ Admin และ Developer เท่านั้น */}
+            {(isAdmin || isDeveloper) && (
               <NavLink 
                 href="/admin/users" 
                 active={isActive('/admin/users')} 
@@ -234,8 +244,8 @@ const NavBar = () => {
               />
             )}
             
-            {/* Database Management - แสดงเสมอสำหรับผู้ใช้ที่ล็อกอิน */}
-            {user && (
+            {/* Database Management - แสดงเฉพาะกับ Developer เท่านั้น */}
+            {isDeveloper && (
               <NavLink 
                 href="/admin/database" 
                 active={isActive('/admin/database')} 
@@ -272,7 +282,7 @@ const NavBar = () => {
         <div className="md:hidden bg-white dark:bg-gray-800 shadow-lg">
           {/* Mobile Menu Links */}
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {/* Form menu */}
+            {/* Form menu - ทุก Role สามารถเห็นได้ */}
             <MobileNavLink 
               href="/census/form" 
               active={isActive('/census/form')} 
@@ -281,7 +291,7 @@ const NavBar = () => {
               onClick={() => setIsMenuOpen(false)} 
             />
             
-            {/* Approval menu */}
+            {/* Approval menu - ทุก Role สามารถเห็นได้ */}
             <MobileNavLink 
               href="/census/approval" 
               active={isActive('/census/approval')} 
@@ -290,7 +300,7 @@ const NavBar = () => {
               onClick={() => setIsMenuOpen(false)} 
             />
             
-            {/* Dashboard menu */}
+            {/* Dashboard menu - ทุก Role สามารถเห็นได้ */}
             <MobileNavLink 
               href="/census/dashboard" 
               active={isActive('/census/dashboard')} 
@@ -299,8 +309,8 @@ const NavBar = () => {
               onClick={() => setIsMenuOpen(false)} 
             />
             
-            {/* User Management - แสดงเสมอสำหรับผู้ใช้ที่ล็อกอิน */}
-            {user && (
+            {/* User Management - แสดงสำหรับ Admin และ Developer เท่านั้น */}
+            {(isAdmin || isDeveloper) && (
               <MobileNavLink 
                 href="/admin/users" 
                 active={isActive('/admin/users')} 
@@ -310,8 +320,8 @@ const NavBar = () => {
               />
             )}
             
-            {/* Database Management - แสดงเสมอสำหรับผู้ใช้ที่ล็อกอิน */}
-            {user && (
+            {/* Database Management - แสดงเฉพาะกับ Developer เท่านั้น */}
+            {isDeveloper && (
               <MobileNavLink 
                 href="/admin/database" 
                 active={isActive('/admin/database')} 

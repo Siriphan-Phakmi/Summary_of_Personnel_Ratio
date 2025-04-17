@@ -139,8 +139,8 @@ export const getCachedUser = (): User | null => {
 const updateLastLogin = async (userId: string): Promise<void> => {
   try {
     // ตรวจสอบว่า userId ถูกต้องก่อน
-    if (!userId || userId.trim() === '') {
-      console.warn('Cannot update last login: Invalid user ID');
+    if (!userId || userId.trim() === '' || userId === '0' || userId === '3') {
+      console.warn('Cannot update last login: Invalid or reserved user ID:', userId);
       return;
     }
 
@@ -160,6 +160,51 @@ const updateLastLogin = async (userId: string): Promise<void> => {
     }
   } catch (error) {
     console.error('Error updating last login:', error);
+  }
+};
+
+/**
+ * ตรวจสอบว่าเอกสารผู้ใช้มีอยู่จริงหรือไม่
+ * @param userId รหัสผู้ใช้
+ * @returns true ถ้าเอกสารมีอยู่, false ถ้าไม่มี
+ */
+const checkUserExists = async (userId: string): Promise<boolean> => {
+  try {
+    if (!userId || userId.trim() === '') return false;
+    
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
+    return userDoc.exists();
+  } catch (error) {
+    console.error('Error checking if user exists:', error);
+    return false;
+  }
+};
+
+/**
+ * สร้างเซสชันผู้ใช้หลังจากตรวจสอบว่าผู้ใช้มีอยู่จริง
+ * @param userId รหัสผู้ใช้
+ * @param role บทบาทของผู้ใช้
+ * @returns sessionId หรือ void
+ */
+const safeCreateUserSession = async (userId: string, role: string): Promise<string | void> => {
+  try {
+    if (!userId || userId.trim() === '' || userId === '0' || userId === '3') {
+      console.warn('Cannot create session: Invalid or reserved user ID:', userId);
+      return;
+    }
+    
+    // ตรวจสอบว่าผู้ใช้มีอยู่จริง
+    const exists = await checkUserExists(userId);
+    if (!exists) {
+      console.warn(`Cannot create session: User document with ID ${userId} does not exist`);
+      return;
+    }
+    
+    // สร้างเซสชั่น
+    return createUserSession(userId, role);
+  } catch (error) {
+    console.error('Error creating user session:', error);
   }
 };
 
@@ -201,9 +246,11 @@ export const loginWithCredentials = async (
         const promises = [];
         
         // ตรวจสอบว่ามี userId ก่อนสร้าง session
-        if (user && user.uid) {
-          promises.push(createUserSession(user.uid, user.role));
+        if (user && user.uid && user.uid.trim() !== '' && user.uid !== '0' && user.uid !== '3') {
+          promises.push(safeCreateUserSession(user.uid, user.role));
           promises.push(updateLastLogin(user.uid));
+        } else {
+          console.warn('Skipping session creation and login update for invalid user ID:', user?.uid);
         }
         
         // ตรวจสอบผลลัพธ์ของ promises (ถ้ามี)
@@ -306,11 +353,11 @@ export const loginWithCredentials = async (
     const promises = [];
     
     // ตรวจสอบว่ามี userId ก่อนสร้าง session
-    if (userData && userData.uid) {
-      promises.push(createUserSession(userData.uid, userData.role));
+    if (userData && userData.uid && userData.uid.trim() !== '' && userData.uid !== '0' && userData.uid !== '3') {
+      promises.push(safeCreateUserSession(userData.uid, userData.role));
       updateLastLogin(userData.uid).catch(err => console.error('Error updating last login:', err));
     } else {
-      console.error('Cannot create session or update login: Missing uid');
+      console.warn('Skipping session creation and login update for invalid user ID:', userData?.uid);
     }
     
     // ตรวจสอบผลลัพธ์ของ promises (ถ้ามี)

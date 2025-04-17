@@ -211,6 +211,19 @@ const DatabaseSetup: React.FC = () => {
           <li>หลังจากสร้างโครงสร้างฐานข้อมูลแล้ว ตรวจสอบใน Firebase Console ว่าคอลเลกชันถูกสร้างอย่างถูกต้อง</li>
         </ul>
       </div>
+      
+      <div className="mb-8 bg-blue-50 dark:bg-blue-900/50 p-4 rounded-lg">
+        <h2 className="text-xl font-bold text-blue-800 dark:text-blue-300 mb-2">คำแนะนำในการจัดการฐานข้อมูล</h2>
+        <ul className="list-disc pl-5 space-y-1 text-blue-700 dark:text-blue-300">
+          <li>หน้านี้ใช้สำหรับจัดการคอลเลกชันและเอกสารใน Firebase Firestore โดยตรง</li>
+          <li>การแก้ไขข้อมูลจะมีผลทันทีกับระบบที่ใช้งานจริง ควรใช้ความระมัดระวัง</li>
+          <li>การสร้าง Indexes ต้องทำผ่าน Firebase Console หรือ Firebase CLI</li>
+          <li>หลังจากสร้างคอลเลกชันแล้ว ตรวจสอบใน Firebase Console ว่าคอลเลกชันถูกสร้างอย่างถูกต้อง</li>
+          <li className="font-medium text-blue-800 dark:text-blue-200">คอลเลกชันที่แสดงในหน้านี้เป็นเฉพาะคอลเลกชันที่มีอยู่จริงใน Firebase เท่านั้น</li>
+          <li className="font-medium text-blue-800 dark:text-blue-200">เมื่อลบคอลเลกชัน ระบบจะตรวจสอบและไม่แสดงคอลเลกชันที่ไม่มีอยู่จริงโดยอัตโนมัติ</li>
+          <li className="font-medium text-blue-800 dark:text-blue-200">หากต้องการคอลเลกชันที่ไม่มีอยู่ในรายการ ให้สร้างคอลเลกชันใหม่ตามต้องการ</li>
+        </ul>
+      </div>
     </div>
   );
 };

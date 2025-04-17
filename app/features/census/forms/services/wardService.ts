@@ -427,4 +427,71 @@ export const updateWardOrders = async (
     console.error('Error updating ward orders:', error);
     throw error;
   }
+};
+
+/**
+ * ตั้งค่าแผนกเริ่มต้นสำหรับระบบ
+ * ฟังก์ชันนี้จะตรวจสอบว่ามีแผนกที่กำหนดไว้ในระบบแล้วหรือไม่
+ * ถ้ายังไม่มีจะเพิ่มแผนกเริ่มต้นให้
+ */
+export const setupDefaultWards = async (): Promise<void> => {
+  try {
+    // ตรวจสอบว่ามีแผนกในระบบหรือยัง
+    const existingWards = await getAllWards();
+    
+    // ถ้ามีแผนกอยู่แล้วและมีจำนวนมากกว่าหรือเท่ากับจำนวนแผนกเริ่มต้น ไม่ต้องทำอะไร
+    if (existingWards.length >= 13) {
+      console.log('Ward collections already exist. Skipping setup.');
+      return;
+    }
+    
+    // กำหนดรายการแผนกเริ่มต้น
+    const defaultWards: Omit<Ward, 'id' | 'createdAt' | 'updatedAt'>[] = [
+      { wardId: 'ward6', wardName: 'Ward6', active: true, wardOrder: 1, description: 'Ward 6' },
+      { wardId: 'ward7', wardName: 'Ward7', active: true, wardOrder: 2, description: 'Ward 7' },
+      { wardId: 'ward8', wardName: 'Ward8', active: true, wardOrder: 3, description: 'Ward 8' },
+      { wardId: 'ward9', wardName: 'Ward9', active: true, wardOrder: 4, description: 'Ward 9' },
+      { wardId: 'wardgi', wardName: 'WardGI', active: true, wardOrder: 5, description: 'Ward GI' },
+      { wardId: 'ward10b', wardName: 'Ward10B', active: true, wardOrder: 6, description: 'Ward 10B' },
+      { wardId: 'ward11', wardName: 'Ward11', active: true, wardOrder: 7, description: 'Ward 11' },
+      { wardId: 'ward12', wardName: 'Ward12', active: true, wardOrder: 8, description: 'Ward 12' },
+      { wardId: 'icu', wardName: 'ICU', active: true, wardOrder: 9, description: 'Intensive Care Unit' },
+      { wardId: 'ccu', wardName: 'CCU', active: true, wardOrder: 10, description: 'Coronary Care Unit' },
+      { wardId: 'lr', wardName: 'LR', active: true, wardOrder: 11, description: 'Labor Room' },
+      { wardId: 'nsy', wardName: 'NSY', active: true, wardOrder: 12, description: 'Nursery' },
+      { wardId: 'total', wardName: 'Total', active: true, wardOrder: 13, description: 'Total Summary' }
+    ];
+    
+    // สร้าง batch เพื่อเพิ่มข้อมูลทั้งหมดในครั้งเดียว
+    const batch = writeBatch(db);
+    const wardsCollection = collection(db, COLLECTION_WARDS);
+    
+    // สร้าง map เก็บรายการแผนกที่มีอยู่แล้ว เพื่อไม่เพิ่มซ้ำ
+    const existingWardMap = new Map<string, boolean>();
+    existingWards.forEach(ward => {
+      existingWardMap.set(ward.wardId.toLowerCase(), true);
+    });
+    
+    // เพิ่มเฉพาะแผนกที่ยังไม่มี
+    for (const ward of defaultWards) {
+      if (!existingWardMap.has(ward.wardId.toLowerCase())) {
+        const newWardRef = doc(wardsCollection);
+        batch.set(newWardRef, {
+          ...ward,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        console.log(`Adding ward: ${ward.wardName}`);
+      } else {
+        console.log(`Ward ${ward.wardName} already exists. Skipping.`);
+      }
+    }
+    
+    // บันทึกข้อมูลทั้งหมด
+    await batch.commit();
+    console.log('Default wards setup completed');
+  } catch (error) {
+    console.error('Error setting up default wards:', error);
+    throw error;
+  }
 }; 

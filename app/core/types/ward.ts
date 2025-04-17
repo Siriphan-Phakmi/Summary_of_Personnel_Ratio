@@ -44,6 +44,7 @@ export interface WardForm {
   dateString?: string; // วันที่ในรูปแบบ string (YYYY-MM-DD)
   shift: ShiftType;
   patientCensus: number;
+  totalPatientCensus?: number; // ยอดผู้ป่วยหลังจากคำนวณรับเข้า-จำหน่าย
   nurseManager: number;
   rn: number;
   pn: number;
