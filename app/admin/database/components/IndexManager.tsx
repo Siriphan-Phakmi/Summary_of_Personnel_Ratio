@@ -28,6 +28,15 @@ const IndexManager: React.FC = () => {
         { fieldPath: 'wardId', order: 'ASCENDING' }
       ]
     },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลตาม dateString, shift และ wardId (ใช้ใน getWardForm)
+    {
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'dateString', order: 'ASCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' },
+        { fieldPath: 'wardId', order: 'ASCENDING' }
+      ]
+    },
     // เพิ่ม index สำหรับการค้นหาข้อมูลกะดึกของวันก่อนหน้า
     {
       collection: 'wardForms',
@@ -35,6 +44,17 @@ const IndexManager: React.FC = () => {
         { fieldPath: 'date', order: 'DESCENDING' },
         { fieldPath: 'shift', order: 'ASCENDING' },
         { fieldPath: 'wardId', order: 'ASCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลกะดึกของวันก่อนหน้าที่อนุมัติแล้ว (ใช้ใน getPreviousNightShiftForm)
+    {
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'dateString', order: 'ASCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' },
+        { fieldPath: 'status', order: 'ASCENDING' },
+        { fieldPath: 'finalizedAt', order: 'DESCENDING' }
       ]
     },
     // เพิ่ม index สำหรับการค้นหาข้อมูลตามสถานะและวันที่
@@ -70,6 +90,34 @@ const IndexManager: React.FC = () => {
         { fieldPath: 'wardId', order: 'ASCENDING' }
       ]
     },
+    // เพิ่ม index สำหรับการค้นหาแบบฟอร์มร่างล่าสุด (ใช้ใน getLatestDraftForm)
+    { 
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'createdBy', order: 'ASCENDING' },
+        { fieldPath: 'isDraft', order: 'ASCENDING' },
+        { fieldPath: 'updatedAt', order: 'DESCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลตามช่วงวันที่ (ใช้ใน getWardFormsByWardAndDate)
+    { 
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'date', order: 'ASCENDING' },
+        { fieldPath: 'shift', order: 'ASCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลตามช่วงวันที่ย้อนหลัง (ใช้ใน getPreviousDayLastForm)
+    { 
+      collection: 'wardForms',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'date', order: 'DESCENDING' },
+        { fieldPath: 'updatedAt', order: 'DESCENDING' }
+      ]
+    },
     { 
       collection: 'approvals',
       fields: [
@@ -81,6 +129,36 @@ const IndexManager: React.FC = () => {
       collection: 'approvals',
       fields: [
         { fieldPath: 'approvedBy', order: 'ASCENDING' },
+        { fieldPath: 'date', order: 'DESCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาการอนุมัติตามฟอร์ม
+    {
+      collection: 'approvals',
+      fields: [
+        { fieldPath: 'formId', order: 'ASCENDING' },
+        { fieldPath: 'approvedAt', order: 'DESCENDING' }
+      ]
+    },
+    // เพิ่ม index สำหรับการค้นหาข้อมูลสรุปรายวัน
+    {
+      collection: 'dailySummaries',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'date', order: 'DESCENDING' }
+      ]
+    },
+    {
+      collection: 'dailySummaries',
+      fields: [
+        { fieldPath: 'wardId', order: 'ASCENDING' },
+        { fieldPath: 'dateString', order: 'DESCENDING' }
+      ]
+    },
+    {
+      collection: 'dailySummaries',
+      fields: [
+        { fieldPath: 'allFormsApproved', order: 'ASCENDING' },
         { fieldPath: 'date', order: 'DESCENDING' }
       ]
     },

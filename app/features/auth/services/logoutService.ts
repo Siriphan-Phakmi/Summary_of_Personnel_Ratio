@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ref, update, serverTimestamp, get } from 'firebase/database';
 import { rtdb, db } from '@/app/core/firebase/firebase';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { dismissAllToasts } from '@/app/core/utils/toastUtils';
 
 /**
  * ทำการออกจากระบบ
@@ -18,6 +19,9 @@ export const logoutUser = async (
   onLogoutComplete?: () => void
 ): Promise<void> => {
   try {
+    // 0. ลบ toast notifications ทั้งหมด
+    dismissAllToasts();
+    
     // 1. ปิด session ถ้ามีข้อมูล user และ session
     if (user?.uid) {
       const sessionId = sessionStorage.getItem('currentSessionId');
@@ -66,6 +70,9 @@ export const clearAllSessions = (): void => {
   if (typeof window === 'undefined') return;
   
   try {
+    // ลบ toast notifications ทั้งหมด
+    dismissAllToasts();
+    
     // ล้าง cookies ที่ใช้ในระบบใหม่
     clearAuthCookies();
     
@@ -96,6 +103,9 @@ export const logout = async (user?: User | null): Promise<void> => {
     console.log('Logout called with user:', user ? 
       { uid: user.uid, username: user.username, role: user.role } : 
       'No user provided');
+      
+    // ลบ toast notifications ทั้งหมด
+    dismissAllToasts();
       
     // เช็คว่ามีข้อมูลผู้ใช้หรือไม่
     if (!user?.uid) {

@@ -137,32 +137,51 @@ export const validateFormData = (formData: Partial<WardForm>): {
  * @returns ข้อมูลแบบฟอร์ม หรือ null ถ้าไม่พบ
  */
 export const getWardForm = async (
-  date: Date, 
+  date: Date | Timestamp | string, 
   shift: ShiftType, 
   wardId: string
 ): Promise<WardForm | null> => {
   try {
-    // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD เพื่อใช้ในการค้นหา
-    const dateString = format(date, 'yyyy-MM-dd');
+    // ตรวจสอบและแปลงพารามิเตอร์ date ให้เป็น Date object
+    let dateObj: Date;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'object' && date && 'toDate' in date && typeof date.toDate === 'function') {
+      // Timestamp object จาก Firestore
+      dateObj = date.toDate();
+    } else if (typeof date === 'string') {
+      // พยายามแปลงจาก ISO string หรือรูปแบบอื่นๆ
+      dateObj = new Date(date);
+    } else {
+      throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
+    }
     
-    // สร้าง query
+    // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD เพื่อใช้ในการค้นหา
+    const dateString = format(dateObj, 'yyyy-MM-dd');
+    
+    console.log(`กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+    
+    // สร้าง query ใช้ index ที่เหมาะสม (dateString + shift + wardId)
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
     const q = query(
       wardFormsRef,
-      where('wardId', '==', wardId),
       where('dateString', '==', dateString),
-      where('shift', '==', shift)
+      where('shift', '==', shift),
+      where('wardId', '==', wardId)
     );
     
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
+      console.log(`ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
       return null;
     }
     
     // ใช้เอกสารแรกที่พบ
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
+    
+    console.log(`พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId} (ID: ${docSnapshot.id})`);
     
     return {
       ...formData,
@@ -181,18 +200,33 @@ export const getWardForm = async (
  * @returns ข้อมูลแบบฟอร์มกะดึกล่าสุด หรือ null ถ้าไม่พบ
  */
 export const getPreviousNightShiftForm = async (
-  date: Date, 
+  date: Date | Timestamp | string, 
   wardId: string
 ): Promise<WardForm | null> => {
   try {
+    // ตรวจสอบและแปลงพารามิเตอร์ date ให้เป็น Date object
+    let dateObj: Date;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'object' && date && 'toDate' in date && typeof date.toDate === 'function') {
+      // Timestamp object จาก Firestore
+      dateObj = date.toDate();
+    } else if (typeof date === 'string') {
+      // พยายามแปลงจาก ISO string หรือรูปแบบอื่นๆ
+      dateObj = new Date(date);
+    } else {
+      throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
+    }
+
     // คำนวณวันก่อนหน้า
-    const previousDate = new Date(date);
-    previousDate.setDate(previousDate.getDate() - 1);
+    const previousDate = subDays(dateObj, 1);
     
     // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD
     const dateString = format(previousDate, 'yyyy-MM-dd');
     
-    // สร้าง query
+    console.log(`กำลังค้นหาแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+    
+    // สร้าง query ใช้ index ที่เหมาะสม (wardId + dateString + shift + status + finalizedAt)
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
     const q = query(
       wardFormsRef,
@@ -207,11 +241,14 @@ export const getPreviousNightShiftForm = async (
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
+      console.log(`ไม่พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
       return null;
     }
     
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
+    
+    console.log(`พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId} (ID: ${docSnapshot.id})`);
     
     return {
       ...formData,

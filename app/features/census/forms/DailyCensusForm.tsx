@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { useAuth } from '@/app/features/auth';
@@ -75,6 +75,11 @@ export default function DailyCensusForm() {
     calculatedCensus: 0,
   });
   
+  // เพิ่ม state สำหรับ Modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [previousFormData, setPreviousFormData] = useState<WardForm | null>(null);
+  const [currentFormData, setCurrentFormData] = useState<Partial<WardForm> | null>(null);
+  
   // Function to load existing form data - Moved outside useEffect
   const loadExistingFormData = async () => {
     try {
@@ -120,6 +125,8 @@ export default function DailyCensusForm() {
 
       setLoading(true);
 
+      console.log(`Loading form data for: ${dateObj.toISOString()}, ${selectedShift}, ${selectedWard.wardId}`);
+
       // Try to load existing form for the selected date, ward, and shift
       const existingFormData = await getWardForm(dateObj, selectedShift, selectedWard.wardId); // Use selectedWard.wardId
 
@@ -145,6 +152,24 @@ export default function DailyCensusForm() {
         setPlannedDischarge(existingFormData.plannedDischarge || 0);
         setComment(existingFormData.comment || '');
 
+        // Calculate total patient census
+        const totalAdmissions = (existingFormData.newAdmit || 0) + 
+                              (existingFormData.transferIn || 0) + 
+                              (existingFormData.referIn || 0);
+        const totalDischarges = (existingFormData.discharge || 0) + 
+                               (existingFormData.dead || 0) + 
+                               (existingFormData.transferOut || 0) + 
+                               (existingFormData.referOut || 0);
+        const calculatedTotal = (existingFormData.patientCensus || 0) + totalAdmissions - totalDischarges;
+
+        // Update census calculation object
+        setCensusCalculation({
+          previousCensus: existingFormData.patientCensus || 0,
+          admissions: totalAdmissions,
+          discharges: totalDischarges,
+          calculatedCensus: calculatedTotal
+        });
+
         showSuccessToast('โหลดข้อมูลฟอร์มเดิมสำเร็จ');
       } else {
         setExistingForm(null);
@@ -157,6 +182,8 @@ export default function DailyCensusForm() {
         // Calculate previous day
         const prevDate = new Date(dateObj);
         prevDate.setDate(prevDate.getDate() - 1);
+
+        console.log(`Looking for previous night shift data: ${prevDate.toISOString()}, ${selectedWard.wardId}`);
 
         // Pass Date object instead of string
         const prevNightForm = await getPreviousNightShiftForm(prevDate, selectedWard.wardId); // Use selectedWard.wardId
@@ -260,7 +287,7 @@ export default function DailyCensusForm() {
     const totalAdmissions = (newAdmit || 0) + (transferIn || 0) + (referIn || 0);
     const totalDischarges = (discharge || 0) + (dead || 0) + (transferOut || 0) + (referOut || 0);
     
-    const calculatedTotal = (patientCensus || 0) + totalAdmissions - totalDischarges;
+    const calculatedTotal = Math.max(0, (patientCensus || 0) + totalAdmissions - totalDischarges);
     
     // Update census calculation object
     setCensusCalculation({
@@ -271,7 +298,7 @@ export default function DailyCensusForm() {
     });
   }, [patientCensus, newAdmit, transferIn, referIn, discharge, dead, transferOut, referOut]);
   
-  // ฟังก์ชัน ส่งข้อมูลฟอร์ม
+  // ปรับปรุงฟังก์ชัน handleSaveDraft
   const handleSaveDraft = async () => {
     try {
       if (!selectedWard || !user?.uid) {
@@ -283,13 +310,6 @@ export default function DailyCensusForm() {
         showErrorToast('ไม่พบข้อมูลผู้ใช้');
         return;
       }
-
-      setLoading(true);
-
-      // Calculate total patient census
-      const totalAdmissions = (newAdmit || 0) + (transferIn || 0) + (referIn || 0);
-      const totalDischarges = (discharge || 0) + (dead || 0) + (transferOut || 0) + (referOut || 0);
-      const calculatedTotal = (patientCensus || 0) + totalAdmissions - totalDischarges;
 
       // Convert date string to Date object
       let dateObj: Date;
@@ -311,11 +331,17 @@ export default function DailyCensusForm() {
         );
       }
 
+      // Calculate total patient census
+      const totalAdmissions = (newAdmit || 0) + (transferIn || 0) + (referIn || 0);
+      const totalDischarges = (discharge || 0) + (dead || 0) + (transferOut || 0) + (referOut || 0);
+      const calculatedTotal = Math.max(0, (patientCensus || 0) + totalAdmissions - totalDischarges);
+
+      // สร้างข้อมูลฟอร์มปัจจุบัน
       const formData: Partial<WardForm> = {
         wardId: selectedWard.wardId,
         wardName: selectedWard.wardName,
         date: dateObj, // Use Date object instead of string
-        dateString: selectedDate, // Keep original string format for display
+        dateString: format(dateObj, 'yyyy-MM-dd'), // Always store in YYYY-MM-DD format
         shift: selectedShift,
         patientCensus: patientCensus || 0,
         totalPatientCensus: calculatedTotal,
@@ -341,10 +367,54 @@ export default function DailyCensusForm() {
         isDraft: true
       };
 
-      if (selectedShift === ShiftType.MORNING) {
-        await saveMorningShiftFormDraft(formData, user);
+      // ตรวจสอบว่ามีข้อมูลเดิมหรือไม่ 
+      if (existingForm && existingForm.status === FormStatus.DRAFT) {
+        // ถ้ามีข้อมูลเดิมที่เป็น Draft อยู่แล้ว ให้แสดง Modal เพื่อยืนยัน
+        setPreviousFormData(existingForm);
+        setCurrentFormData(formData);
+        setShowConfirmModal(true);
+        return;
+      }
+
+      // ถ้าไม่มีข้อมูลเดิม หรือข้อมูลเดิมไม่ใช่ Draft ให้บันทึกเลย
+      await saveFormDraft(formData);
+      
+    } catch (error) {
+      console.error('Error saving form:', error);
+      showErrorToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+    }
+  };
+
+  // เพิ่มฟังก์ชันสำหรับบันทึกข้อมูล (update ถ้ามี id, add ถ้าไม่มี)
+  const saveFormDraft = async (formData: Partial<WardForm>) => {
+    try {
+      setLoading(true);
+      
+      console.log('Saving draft form data:', formData);
+      
+      if (!user) {
+        showErrorToast('ไม่พบข้อมูลผู้ใช้');
+        return;
+      }
+
+      // ถ้ามี id ของ existingForm ให้ update document เดิม
+      const formId = (previousFormData?.id || existingForm?.id) as string | undefined;
+      if (formId) {
+        // ใช้ updateDoc จาก wardFormService
+        const { updateDoc, doc } = await import('firebase/firestore');
+        const { db } = await import('@/app/core/firebase/firebase');
+        const { COLLECTION_WARDFORMS } = await import('@/app/features/census/forms/services/wardFormService');
+        await updateDoc(doc(db, COLLECTION_WARDFORMS, formId), {
+          ...formData,
+          updatedAt: new Date(),
+        });
       } else {
-        await saveNightShiftFormDraft(formData, user);
+        // ถ้าไม่มี id ให้ save แบบปกติ (add ใหม่)
+        if (selectedShift === ShiftType.MORNING) {
+          await saveMorningShiftFormDraft(formData, user);
+        } else {
+          await saveNightShiftFormDraft(formData, user);
+        }
       }
 
       showSuccessToast('บันทึกข้อมูลสำเร็จ');
@@ -357,6 +427,7 @@ export default function DailyCensusForm() {
       showErrorToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     } finally {
       setLoading(false);
+      setShowConfirmModal(false);
     }
   };
   
@@ -382,7 +453,7 @@ export default function DailyCensusForm() {
       // Calculate total patient census
       const totalAdmissions = (newAdmit || 0) + (transferIn || 0) + (referIn || 0);
       const totalDischarges = (discharge || 0) + (dead || 0) + (transferOut || 0) + (referOut || 0);
-      const calculatedTotal = (patientCensus || 0) + totalAdmissions - totalDischarges;
+      const calculatedTotal = Math.max(0, (patientCensus || 0) + totalAdmissions - totalDischarges);
 
       // Convert date string to Date object
       let dateObj: Date;
@@ -408,7 +479,7 @@ export default function DailyCensusForm() {
         wardId: selectedWard.wardId,
         wardName: selectedWard.wardName,
         date: dateObj, // Use Date object instead of string
-        dateString: selectedDate, // Keep original string format for display
+        dateString: format(dateObj, 'yyyy-MM-dd'), // Always store in YYYY-MM-DD format
         shift: selectedShift,
         patientCensus: patientCensus || 0,
         totalPatientCensus: calculatedTotal,
@@ -433,6 +504,8 @@ export default function DailyCensusForm() {
         status: FormStatus.FINAL,
         isDraft: false
       };
+
+      console.log('Saving final form data:', formData);
 
       if (selectedShift === ShiftType.MORNING) {
         await finalizeMorningShiftForm(formData, user);
@@ -473,12 +546,126 @@ export default function DailyCensusForm() {
     return true;
   };
 
+  // เพิ่ม Component Modal สำหรับยืนยันการบันทึกทับ
+  const ConfirmSaveModal = () => {
+    if (!showConfirmModal || !previousFormData || !currentFormData) return null;
+
+    // ฟังก์ชันช่วยแปลง timestamp เป็น Date
+    const formatTimestamp = (timestamp: any): string => {
+      try {
+        if (!timestamp) return '-';
+        
+        // ถ้าเป็น object ที่มี seconds property
+        if (typeof timestamp === 'object' && timestamp !== null) {
+          if ('seconds' in timestamp && typeof timestamp.seconds === 'number') {
+            return new Date(timestamp.seconds * 1000).toLocaleString('th-TH');
+          }
+          // ถ้าเป็น Date object
+          if (timestamp instanceof Date) {
+            return timestamp.toLocaleString('th-TH');
+          }
+          // ถ้าเป็น Firebase Timestamp ที่มี toDate method
+          if ('toDate' in timestamp && typeof timestamp.toDate === 'function') {
+            return timestamp.toDate().toLocaleString('th-TH');
+          }
+        }
+        return '-';
+      } catch (error) {
+        console.error('Error formatting timestamp:', error);
+        return '-';
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+              พบข้อมูลแบบร่างที่บันทึกไว้แล้ว
+            </h2>
+            
+            <div className="mb-4">
+              <p className="text-gray-700 dark:text-gray-300 mb-4">
+                มีข้อมูลแบบร่างที่บันทึกไว้แล้ว คุณต้องการดำเนินการอย่างไร?
+              </p>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-3 text-blue-600 dark:text-blue-400">
+                    ข้อมูลเดิม (บันทึกเมื่อ {formatTimestamp(previousFormData.updatedAt)})
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">จำนวนผู้ป่วย:</span> {previousFormData.patientCensus || 0}</p>
+                    <p><span className="font-medium">ยอดผู้ป่วยหลังคำนวณ:</span> {previousFormData.totalPatientCensus || 0}</p>
+                    <p><span className="font-medium">บุคลากร:</span> NM: {previousFormData.nurseManager || 0}, RN: {previousFormData.rn || 0}, PN: {previousFormData.pn || 0}, WC: {previousFormData.wc || 0}</p>
+                    <p><span className="font-medium">รับเข้ารวม:</span> {(previousFormData.newAdmit || 0) + (previousFormData.transferIn || 0) + (previousFormData.referIn || 0)}</p>
+                    <p><span className="font-medium">จำหน่ายรวม:</span> {(previousFormData.discharge || 0) + (previousFormData.dead || 0) + (previousFormData.transferOut || 0) + (previousFormData.referOut || 0)}</p>
+                    <p><span className="font-medium">หมายเหตุ:</span> {previousFormData.comment || '-'}</p>
+                  </div>
+                </div>
+                
+                <div className="border border-green-300 dark:border-green-600 rounded-lg p-4 bg-green-50 dark:bg-green-900/20">
+                  <h3 className="text-lg font-medium mb-3 text-green-600 dark:text-green-400">
+                    ข้อมูลใหม่
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="font-medium">จำนวนผู้ป่วย:</span> {currentFormData.patientCensus || 0}</p>
+                    <p><span className="font-medium">ยอดผู้ป่วยหลังคำนวณ:</span> {currentFormData.totalPatientCensus || 0}</p>
+                    <p><span className="font-medium">บุคลากร:</span> NM: {currentFormData.nurseManager || 0}, RN: {currentFormData.rn || 0}, PN: {currentFormData.pn || 0}, WC: {currentFormData.wc || 0}</p>
+                    <p><span className="font-medium">รับเข้ารวม:</span> {(currentFormData.newAdmit || 0) + (currentFormData.transferIn || 0) + (currentFormData.referIn || 0)}</p>
+                    <p><span className="font-medium">จำหน่ายรวม:</span> {(currentFormData.discharge || 0) + (currentFormData.dead || 0) + (currentFormData.transferOut || 0) + (currentFormData.referOut || 0)}</p>
+                    <p><span className="font-medium">หมายเหตุ:</span> {currentFormData.comment || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
+              <button 
+                className="bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 py-2 px-4 rounded transition-colors font-medium text-sm"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                ยกเลิก
+              </button>
+              <button 
+                className="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded transition-colors font-medium text-sm"
+                onClick={() => {
+                  // ใช้ข้อมูลเดิม
+                  setShowConfirmModal(false);
+                  // โหลดข้อมูลเดิมมาแสดงอีกครั้ง
+                  loadExistingFormData();
+                  showInfoToast('ใช้ข้อมูลเดิม');
+                }}
+              >
+                ใช้ข้อมูลเดิม
+              </button>
+              <button 
+                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors font-medium text-sm"
+                onClick={() => {
+                  // บันทึกทับข้อมูลเดิม
+                  if (currentFormData) {
+                    saveFormDraft(currentFormData);
+                  }
+                }}
+              >
+                บันทึกทับ
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <ProtectedPage>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
         <div className="container p-4 mx-auto max-w-4xl">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">แบบฟอร์มบันทึกจำนวนผู้ป่วยและบุคลากรประจำวัน</h1>
+          
+          {/* แสดง Modal เมื่อต้องการยืนยันการบันทึกทับ */}
+          <ConfirmSaveModal />
           
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">ข้อมูลทั่วไป</h2>
@@ -589,9 +776,28 @@ export default function DailyCensusForm() {
             
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">ข้อมูลบุคลากรและผู้ป่วย</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+            <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  (Total Patient Census)
+                </label>
+                <input 
+                  type="number" 
+                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700
+                  focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
+                  dark:border-gray-600 dark:bg-gray-700 dark:text-white
+                  dark:focus:border-blue-400 dark:focus:ring-blue-400"
+                  value={censusCalculation.calculatedCensus || 0}
+                  readOnly
+                />
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  *ยอดรวมจำนวนผู้ป่วย ไม่สามารถแก้ไขได้
+                </p>
+              </div>
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  จำนวนผู้ป่วย (Patient Census)
+                  จำนวนผู้ป่วยตอนนี้ (Patient Census)
                 </label>
                 <input 
                   type="number" 
@@ -610,6 +816,8 @@ export default function DailyCensusForm() {
                   </p>
                 )}
               </div>
+              
+
               
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -899,14 +1107,16 @@ export default function DailyCensusForm() {
               <button 
                 className="bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 py-2 px-4 rounded transition-colors font-medium text-sm"
                 onClick={handleSaveDraft}
+                disabled={loading}
               >
-                Save Draft
+                {loading ? 'กำลังบันทึก...' : 'Save Draft'}
               </button>
               <button 
                 className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors font-medium text-sm"
                 onClick={handleSaveFinal}
+                disabled={loading}
               >
-                Save Final
+                {loading ? 'กำลังบันทึก...' : 'Save Final'}
               </button>
             </div>
           </div>

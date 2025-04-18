@@ -8,6 +8,7 @@ import { ref, get } from 'firebase/database';
 import { User } from '@/app/core/types/user';
 import toast from 'react-hot-toast';
 import { isTokenValid } from '@/app/core/utils/authUtils';
+import { dismissAllToasts } from '@/app/core/utils/toastUtils';
 
 // Import services
 import {
@@ -111,6 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setIsLoggingOut(true);
       setError(null);
+
+      // ลบ toast notifications ทั้งหมดก่อนออกจากระบบ
+      dismissAllToasts();
 
       if (user) {
         // Call the logout service with the current user

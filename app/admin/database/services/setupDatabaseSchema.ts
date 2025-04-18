@@ -476,14 +476,34 @@ export const createSystemLogsCollection = async (): Promise<void> => {
  */
 export const checkRequiredIndexes = (): void => {
   console.log('Required indexes that should be created in Firebase Console:');
-  console.log('1. wardForms - Composite Index:');
-  console.log('   - wardId (ASC), date (DESC), shift (ASC)');
-  console.log('   - createdBy (ASC), date (DESC), status (ASC)');
+  
+  console.log('\n1. wardForms - Composite Indexes:');
+  console.log('   - wardId (ASC), dateString (ASC), shift (ASC), status (ASC), finalizedAt (DESC)');
+  console.log('   - dateString (ASC), shift (ASC), wardId (ASC)');
+  console.log('   - date (ASC), shift (ASC), wardId (ASC)');
+  console.log('   - date (DESC), shift (ASC), wardId (ASC)');
+  console.log('   - status (ASC), date (ASC), shift (ASC)');
   console.log('   - status (ASC), date (DESC), wardId (ASC)');
-  console.log('2. approvals - Composite Index:');
+  console.log('   - wardId (ASC), date (DESC), shift (ASC)');
+  console.log('   - wardId (ASC), date (ASC), shift (ASC)');
+  console.log('   - wardId (ASC), date (DESC), updatedAt (DESC)');
+  console.log('   - createdBy (ASC), date (DESC), status (ASC)');
+  console.log('   - wardId (ASC), createdBy (ASC), isDraft (ASC), updatedAt (DESC)');
+  
+  console.log('\n2. wards - Composite Index:');
+  console.log('   - active (ASC), wardOrder (ASC), __name__ (ASC)');
+  
+  console.log('\n3. approvals - Composite Indexes:');
   console.log('   - wardId (ASC), date (DESC)');
   console.log('   - approvedBy (ASC), date (DESC)');
-  console.log('3. systemLogs - Composite Index:');
+  console.log('   - formId (ASC), approvedAt (DESC)');
+  
+  console.log('\n4. dailySummaries - Composite Indexes:');
+  console.log('   - wardId (ASC), date (DESC)');
+  console.log('   - wardId (ASC), dateString (DESC)');
+  console.log('   - allFormsApproved (ASC), date (DESC)');
+  
+  console.log('\n5. systemLogs - Composite Indexes:');
   console.log('   - type (ASC), createdAt (DESC)');
   console.log('   - userId (ASC), createdAt (DESC)');
   

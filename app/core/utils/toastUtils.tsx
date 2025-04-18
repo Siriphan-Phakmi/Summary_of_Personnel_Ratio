@@ -91,4 +91,12 @@ export const showSimpleSuccessToast = (message: string) => {
 
 export const showSimpleErrorToast = (message: string) => {
   return toast.error(message);
+};
+
+/**
+ * ลบ toast notifications ทั้งหมดที่กำลังแสดงอยู่
+ * ประโยชน์สำหรับการล้าง notifications ก่อนออกจากระบบหรือเปลี่ยนหน้า
+ */
+export const dismissAllToasts = () => {
+  toast.dismiss();
 }; 
