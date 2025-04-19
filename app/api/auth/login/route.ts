@@ -69,8 +69,15 @@ export async function POST(request: Request) {
     const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
     
     // ตรวจสอบ CSRF token
-    // Note: ในการใช้งานจริง ควรมีการ validate CSRF token
-    // ด้วยการเปรียบเทียบกับค่าที่เก็บใน session
+    const cookieStore = await cookies();
+    const csrfCookie = cookieStore.get('csrf_token')?.value;
+    if (csrfCookie !== csrfToken) {
+      await logLoginFailed(username, 'Invalid CSRF token', request.headers.get('user-agent') || '');
+      return NextResponse.json(
+        { success: false, error: 'Invalid CSRF token' },
+        { status: 403 }
+      );
+    }
     
     // ตรวจสอบ rate limit โดยใช้ IP
     if (checkRateLimit(ip)) {
@@ -115,7 +122,7 @@ export async function POST(request: Request) {
       );
     }
     
-    // ตรวจสอบรหัสผ่าน
+    // ตรวจสอบรหัสผ่าน (ลบ plaintext comparison ออก)
     const passwordMatch = await comparePassword(password, userData.password);
     
     if (!passwordMatch) {
@@ -142,18 +149,6 @@ export async function POST(request: Request) {
     // สร้าง session
     // Note: ควรใช้ library เช่น iron-session หรือ next-auth ในการสร้าง session
     
-    // กำหนด cookies
-    const cookieStore = cookies();
-    
-    // ตั้งค่า auth token cookie (httpOnly เพื่อความปลอดภัย)
-    cookieStore.set('auth_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      maxAge: 86400, // 1 วัน
-      path: '/'
-    });
-    
     // สร้าง user cookie ที่ไม่มีข้อมูลอ่อนไหว (non-httpOnly) เพื่อให้ JavaScript อ่านได้
     const safeUserData = {
       uid: userId,
@@ -165,7 +160,17 @@ export async function POST(request: Request) {
       approveWardIds: userData.approveWardIds || []
     };
     
-    cookieStore.set('user_data', JSON.stringify(safeUserData), {
+    // ตั้งค่า auth token cookie (httpOnly เพื่อความปลอดภัย)
+    await cookieStore.set('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: 86400, // 1 วัน
+      path: '/'
+    });
+    
+    // สร้าง user cookie ที่ไม่มีข้อมูลอ่อนไหว (non-httpOnly) เพื่อให้ JavaScript อ่านได้
+    await cookieStore.set('user_data', JSON.stringify(safeUserData), {
       httpOnly: false, // อนุญาตให้ JavaScript อ่านได้
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'strict',

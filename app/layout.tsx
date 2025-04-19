@@ -32,8 +32,8 @@ export default function RootLayout({
       </head>
       <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300">
         <ThemeProvider>
-          <AuthProvider>
-            <LoadingProvider>
+          <LoadingProvider>
+            <AuthProvider>
               <div className="fixed bottom-4 right-4 z-50">
                 <ThemeToggle />
               </div>
@@ -70,8 +70,8 @@ export default function RootLayout({
                   }
                 }}
               />
-            </LoadingProvider>
-          </AuthProvider>
+            </AuthProvider>
+          </LoadingProvider>
         </ThemeProvider>
       </body>
     </html>

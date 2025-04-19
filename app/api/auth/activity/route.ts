@@ -7,7 +7,7 @@ import { verifyToken } from '@/app/core/utils/authUtils';
 export async function POST(request: Request) {
   try {
     // ตรวจสอบ token ใน cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken = cookieStore.get('auth_token')?.value;
     
     if (!authToken) {

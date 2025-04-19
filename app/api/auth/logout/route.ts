@@ -27,13 +27,13 @@ export async function POST(request: Request) {
     }
     
     // ล้าง cookies
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     
     // ลบ auth token cookie
-    cookieStore.delete('auth_token');
+    await cookieStore.delete('auth_token');
     
     // ลบ user data cookie
-    cookieStore.delete('user_data');
+    await cookieStore.delete('user_data');
     
     // ส่งข้อมูลกลับ
     return NextResponse.json({

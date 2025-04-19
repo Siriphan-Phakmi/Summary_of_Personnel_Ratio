@@ -7,7 +7,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 export async function GET(request: Request) {
   try {
     // ดึง token จาก cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken = cookieStore.get('auth_token')?.value;
     
     if (!authToken) {
@@ -22,8 +22,8 @@ export async function GET(request: Request) {
     
     if (!tokenData || !tokenData.userId) {
       // Token ไม่ถูกต้องหรือหมดอายุ ให้ล้าง cookies
-      cookieStore.delete('auth_token');
-      cookieStore.delete('user_data');
+      await cookieStore.delete('auth_token');
+      await cookieStore.delete('user_data');
       
       return NextResponse.json(
         { authenticated: false, error: 'Invalid or expired token' },
@@ -35,8 +35,8 @@ export async function GET(request: Request) {
     const userDoc = await getDoc(doc(db, 'users', tokenData.userId));
     
     if (!userDoc.exists()) {
-      cookieStore.delete('auth_token');
-      cookieStore.delete('user_data');
+      await cookieStore.delete('auth_token');
+      await cookieStore.delete('user_data');
       
       return NextResponse.json(
         { authenticated: false, error: 'User not found' },
@@ -48,8 +48,8 @@ export async function GET(request: Request) {
     
     // ตรวจสอบสถานะการใช้งาน
     if (userData.active === false) {
-      cookieStore.delete('auth_token');
-      cookieStore.delete('user_data');
+      await cookieStore.delete('auth_token');
+      await cookieStore.delete('user_data');
       
       return NextResponse.json(
         { authenticated: false, error: 'Account is disabled' },
@@ -80,6 +80,14 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('Session verification error:', error);
+    // In case of error, still try to clear cookies if possible, though it might fail if cookieStore wasn't assigned
+    try {
+      const cookieStore = await cookies(); 
+      await cookieStore.delete('auth_token');
+      await cookieStore.delete('user_data');
+    } catch (clearError) {
+      console.error("Failed to clear cookies during session error handling:", clearError);
+    }
     return NextResponse.json(
       { authenticated: false, error: 'Error verifying session' },
       { status: 500 }
