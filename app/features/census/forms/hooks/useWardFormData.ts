@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { getWardForm, getPreviousNightShiftForm, getLatestDraftForm } from '../services/wardFormService';
@@ -54,6 +54,7 @@ export const useWardFormData = ({
   const [isMorningCensusReadOnly, setIsMorningCensusReadOnly] = useState(false);
   const [isFormReadOnly, setIsFormReadOnly] = useState(false);
   const [existingDraftData, setExistingDraftData] = useState<WardForm | null>(null);
+  const toastShownRef = useRef({ morning: false, night: false, error: false, load: false }); // Ref to track toasts
 
   const loadExistingFormData = useCallback(async () => {
     if (!selectedWard || !selectedDate || !user) {
@@ -154,8 +155,122 @@ export const useWardFormData = ({
   }, [selectedWard, selectedDate, selectedShift, user, morningShiftStatus, nightShiftStatus]); // Include shift statuses
 
   useEffect(() => {
-    loadExistingFormData();
-  }, [loadExistingFormData]);
+    if (!selectedWard || !selectedDate || !user) {
+        setFormData(initialFormData);
+        setIsMorningCensusReadOnly(false);
+        setIsFormReadOnly(false);
+        setExistingDraftData(null);
+        // Reset toast flags when inputs change
+        toastShownRef.current = { morning: false, night: false, error: false, load: false };
+        return;
+    }
+
+    // Reset toast flags for this specific load cycle
+    toastShownRef.current.morning = false;
+    toastShownRef.current.night = false;
+    toastShownRef.current.error = false;
+    toastShownRef.current.load = false;
+
+    const loadData = async () => {
+        setIsLoading(true);
+        setErrors({});
+        setIsMorningCensusReadOnly(false);
+        setIsFormReadOnly(false);
+        setFormData(initialFormData); 
+
+        try {
+          const targetDate = new Date(selectedDate + 'T00:00:00');
+          const dateTimestamp = Timestamp.fromDate(targetDate);
+
+          // Fetch Previous Night Shift Form Data (only needed for Morning Shift)
+          let previousNightForm: WardForm | null = null;
+          if (selectedShift === ShiftType.MORNING) {
+              previousNightForm = await getPreviousNightShiftForm(targetDate, selectedWard);
+              if (previousNightForm?.totalPatientCensus !== undefined) {
+                if (!toastShownRef.current.morning) {
+                  showInfoToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน');
+                  toastShownRef.current.morning = true;
+                }
+                setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.totalPatientCensus }));
+                setIsMorningCensusReadOnly(true);
+              } else {
+                if (!toastShownRef.current.night) { // Use night flag for this message
+                  showInfoToast('ไม่พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน กรุณากรอกข้อมูล');
+                  toastShownRef.current.night = true;
+                }
+                setIsMorningCensusReadOnly(false);
+              }
+          }
+
+          // Fetch Existing Form Data for the selected shift
+          const existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
+
+          if (existingForm) {
+            console.log('Existing form found:', existingForm);
+            const currentShiftExpectedStatus = selectedShift === ShiftType.MORNING ? morningShiftStatus : nightShiftStatus;
+
+            if (existingForm.isDraft || existingForm.status === currentShiftExpectedStatus) {
+               setFormData({
+                  ...existingForm,
+                  patientCensus: Number(existingForm.patientCensus ?? 0),
+                  nurseManager: Number(existingForm.nurseManager ?? 0),
+                  rn: Number(existingForm.rn ?? 0),
+                  pn: Number(existingForm.pn ?? 0),
+                  wc: Number(existingForm.wc ?? 0),
+                  newAdmit: Number(existingForm.newAdmit ?? 0),
+                  transferIn: Number(existingForm.transferIn ?? 0),
+                  referIn: Number(existingForm.referIn ?? 0),
+                  transferOut: Number(existingForm.transferOut ?? 0),
+                  referOut: Number(existingForm.referOut ?? 0),
+                  discharge: Number(existingForm.discharge ?? 0),
+                  dead: Number(existingForm.dead ?? 0),
+                  available: Number(existingForm.available ?? 0),
+                  unavailable: Number(existingForm.unavailable ?? 0),
+                  plannedDischarge: Number(existingForm.plannedDischarge ?? 0),
+                  date: existingForm.date,
+               });
+               if (!toastShownRef.current.load) {
+                 showInfoToast(`โหลดข้อมูล${existingForm.isDraft ? 'ร่าง' : 'ที่บันทึกสมบูรณ์'}สำหรับกะ${selectedShift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}แล้ว`);
+                 toastShownRef.current.load = true;
+               }
+               setIsFormReadOnly(existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED);
+            }
+          } else {
+             console.log('No existing form found for this shift.');
+             if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.totalPatientCensus !== undefined) {
+               setFormData(prev => ({ 
+                 ...initialFormData, 
+                 patientCensus: previousNightForm.totalPatientCensus 
+               }));
+               setIsMorningCensusReadOnly(true);
+             } else {
+               setFormData(initialFormData);
+               setIsMorningCensusReadOnly(false);
+             }
+             setIsFormReadOnly(false);
+          }
+
+          const latestDraft = await getLatestDraftForm(selectedWard, user); 
+          setExistingDraftData(latestDraft);
+
+        } catch (error) {
+          console.error("Error loading existing form data:", error);
+          if (!toastShownRef.current.error) {
+            showErrorToast('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+            toastShownRef.current.error = true;
+          }
+          setFormData(initialFormData);
+          setIsMorningCensusReadOnly(false);
+          setIsFormReadOnly(false);
+          setExistingDraftData(null);
+        } finally {
+          setIsLoading(false);
+        }
+    };
+
+    loadData();
+
+  }, [selectedWard, selectedDate, selectedShift, user]); // Dependencies are stable inputs
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;

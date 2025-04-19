@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, query, orderBy, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, where, addDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { db, rtdb } from '@/app/core/firebase/firebase';
 import { ref, onValue, get, remove, set } from 'firebase/database';
@@ -16,7 +16,7 @@ import { getActiveWards } from '@/app/features/census/forms/services/wardService
 import { hashPassword } from '@/app/core/utils/authUtils';
 import { clearAllUserSessions } from '@/app/features/auth/services/sessionService';
 import toast from 'react-hot-toast';
-import { FiEdit2, FiTrash2, FiUserX, FiUserCheck, FiLogOut, FiPlus, FiEdit, FiRefreshCw, FiX } from 'react-icons/fi';
+import { FiEdit2, FiTrash2, FiUserX, FiUserCheck, FiLogOut, FiPlus, FiEdit, FiRefreshCw, FiX, FiEye, FiEyeOff } from 'react-icons/fi';
 import { FaUserCheck, FaUserSlash } from "react-icons/fa";
 import { UserRole } from '@/app/core/types/user';
 import { logServerAction } from '@/app/features/auth/services/logServerAction';
@@ -38,7 +38,7 @@ interface UserData extends User {
   password?: string;
   sessions?: UserSession[];
   department?: string;
-  floor?: string;
+  floor?: string | null;
 }
 
 // Custom Toggle Switch Component
@@ -114,6 +114,7 @@ export default function UserManagement() {
     active: true,
   });
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
@@ -140,26 +141,19 @@ export default function UserManagement() {
     };
   }, []);
 
-  // Define fetchUsers at component level
-  const fetchUsers = async () => {
+  // Wrap fetch functions in useCallback
+  const fetchUsers = useCallback(async () => {
     if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) return;
-    
     setLoading(true);
     try {
       const usersRef = collection(db, 'users');
       const q = query(usersRef, orderBy('username'));
       const snapshot = await getDocs(q);
-      
       const usersData: UserData[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data() as UserData;
-        usersData.push({
-          ...data,
-          uid: doc.id,
-          floor: data.floor || ''
-        });
+        usersData.push({ ...data, uid: doc.id, floor: data.floor || '' });
       });
-      
       setUsers(usersData);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -167,23 +161,23 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminUser]);
+
+  const fetchActiveWards = useCallback(async () => {
+    setLoadingWards(true);
+    try {
+      const activeWards = await getActiveWards();
+      setWardList(activeWards);
+    } catch (error) {
+      console.error('Error fetching active wards:', error);
+      toast.error('ไม่สามารถโหลดข้อมูลหอผู้ป่วยได้');
+    } finally {
+      setLoadingWards(false);
+    }
+  }, []);
 
   // Fetch Wards and Users
   useEffect(() => {
-    const fetchActiveWards = async () => {
-      setLoadingWards(true);
-      try {
-        const activeWards = await getActiveWards();
-        setWardList(activeWards);
-      } catch (error) {
-        console.error('Error fetching active wards:', error);
-        toast.error('ไม่สามารถโหลดข้อมูลหอผู้ป่วยได้');
-      } finally {
-        setLoadingWards(false);
-      }
-    };
-
     fetchUsers();
     fetchActiveWards();
 
@@ -204,7 +198,7 @@ export default function UserManagement() {
     return () => {
       unsubscribeSessions();
     };
-  }, [adminUser]);
+  }, [fetchUsers, fetchActiveWards]);
 
   const resetForm = () => {
     setFormData({
@@ -357,7 +351,7 @@ export default function UserManagement() {
         lastName: formData.lastName,
         role: formData.role,
         department: formData.department,
-        floor: formData.floor || undefined,
+        floor: formData.floor || null,
         active: formData.active,
         updatedAt: serverTimestamp(),
       };
@@ -623,15 +617,29 @@ export default function UserManagement() {
                   required
                   className="mb-2"
                 />
-                <Input
-                  label="Password"
-                  type="password"
-                  value={formData.password || ''}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  placeholder={editingUser ? "Leave blank to keep current" : "Enter password"}
-                  required={!editingUser}
-                  className="mb-2"
-                />
+                <div className="relative">
+                  <Input
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password || ''}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    placeholder={editingUser ? "Leave blank to keep current" : "Enter password"}
+                    required={!editingUser}
+                    className="mb-2 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 top-9 pr-3 flex items-center text-sm leading-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <FiEyeOff className="h-5 w-5" />
+                    ) : (
+                      <FiEye className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
                 <Input
                   label="First Name"
                   value={formData.firstName || ''}

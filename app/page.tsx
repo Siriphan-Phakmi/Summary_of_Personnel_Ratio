@@ -12,11 +12,16 @@ export default function RootPage() {
     // Wait for auth state to be determined
     if (authStatus !== 'loading') {
       if (user && authStatus === 'authenticated') {
-        // If logged in, go to the home page for further routing
-        router.push('/home');
+        // ป้องกัน redirect loop โดยใช้ replace และ redirect ไปที่ target path โดยตรง
+        const targetPath = (user.role === 'admin' || user.role === 'developer') 
+          ? '/census/approval' 
+          : '/census/form';
+        
+        // ใช้ replace เพื่อไม่ให้มีประวัติการ navigate ไว้ใน history
+        router.replace(targetPath);
       } else if (authStatus === 'unauthenticated') {
         // If not logged in, go to the login page
-        router.push('/login');
+        router.replace('/login');
       }
     }
   }, [user, authStatus, router]);

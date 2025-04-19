@@ -13,15 +13,16 @@ export default function CensusRedirectPage() {
     // Wait for auth state to load
     if (authStatus !== 'loading') {
       if (user && authStatus === 'authenticated') {
-        // Redirect based on role
-        if (user.role === 'admin') {
-          router.push('/census/approval'); // Admins go to approval
-        } else {
-          router.push('/census/form'); // Other users go to form
-        }
+        // ป้องกัน redirect loop - ใช้ replace แทน push
+        const targetPath = user.role === 'admin' 
+          ? '/census/approval' 
+          : '/census/form';
+          
+        // ใช้ replace เพื่อไม่ให้มีประวัติการ navigate ไว้ใน history
+        router.replace(targetPath);
       } else if (authStatus === 'unauthenticated') {
         // Not logged in, redirect to login
-        router.push('/login');
+        router.replace('/login');
       }
     }
   }, [user, authStatus, router]);
