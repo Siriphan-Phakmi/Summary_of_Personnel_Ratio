@@ -11,6 +11,8 @@ import { Button, Input } from '@/app/core/ui';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { User } from '@/app/core/types/user';
+import { Ward } from '@/app/core/types/ward';
+import { getActiveWards } from '@/app/features/census/forms/services/wardService';
 import { hashPassword } from '@/app/core/utils/authUtils';
 import { clearAllUserSessions } from '@/app/features/auth/services/sessionService';
 import toast from 'react-hot-toast';
@@ -90,12 +92,12 @@ const formatTimestamp = (timestamp: any): string => {
   return 'ไม่ทราบ';
 };
 
-const floorOptions = ["Floor B", ...Array.from({ length: 12 }, (_, i) => `Floor ${i + 1}`)];
-
 export default function UserManagement() {
   const { user: adminUser } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wardList, setWardList] = useState<Ward[]>([]);
+  const [loadingWards, setLoadingWards] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [activeSessions, setActiveSessions] = useState<{[key: string]: {sessionId: string, deviceInfo: any}}>({});
@@ -139,57 +141,51 @@ export default function UserManagement() {
   }, []);
 
   // Define fetchUsers at component level
-    const fetchUsers = async () => {
-      // อนุญาตให้ทั้ง admin และ developer ดูข้อมูลได้
-      if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) return;
-      
+  const fetchUsers = async () => {
+    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) return;
+    
     setLoading(true);
-      try {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, orderBy('username'));
-        const snapshot = await getDocs(q);
-        
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('username'));
+      const snapshot = await getDocs(q);
+      
       const usersData: UserData[] = [];
-        snapshot.forEach((doc) => {
+      snapshot.forEach((doc) => {
         const data = doc.data() as UserData;
-          usersData.push({
-            ...data,
-            uid: doc.id,
-            floor: data.floor || ''
-          });
+        usersData.push({
+          ...data,
+          uid: doc.id,
+          floor: data.floor || ''
         });
-        
-        setUsers(usersData);
+      });
+      
+      setUsers(usersData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Wards and Users
+  useEffect(() => {
+    const fetchActiveWards = async () => {
+      setLoadingWards(true);
+      try {
+        const activeWards = await getActiveWards();
+        setWardList(activeWards);
       } catch (error) {
-        console.error('Error fetching users:', error);
-        toast.error('Failed to load users');
+        console.error('Error fetching active wards:', error);
+        toast.error('ไม่สามารถโหลดข้อมูลหอผู้ป่วยได้');
       } finally {
-        setLoading(false);
+        setLoadingWards(false);
       }
     };
 
-  // Fetch users
-  useEffect(() => {
     fetchUsers();
-    const fetchWards = async () => {
-      try {
-        const wardsRef = collection(db, 'wards');
-        const snapshot = await getDocs(wardsRef);
-        
-        const wardsData: {id: string, name: string}[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          wardsData.push({
-            id: doc.id,
-            name: data.wardName
-          });
-        });
-        
-        setUsers(users.map(u => ({ ...u, floor: u.floor || '' })));
-      } catch (error) {
-        console.error('Error fetching wards:', error);
-      }
-    };
+    fetchActiveWards();
 
     // Fetch active sessions
     const fetchActiveSessions = () => {
@@ -203,12 +199,10 @@ export default function UserManagement() {
         }
       });
     };
-
-    fetchWards();
-    const unsubscribe = fetchActiveSessions();
+    const unsubscribeSessions = fetchActiveSessions();
     
     return () => {
-      unsubscribe();
+      unsubscribeSessions();
     };
   }, [adminUser]);
 
@@ -243,7 +237,6 @@ export default function UserManagement() {
   };
 
   const handleToggleUserStatus = async (user: UserData) => {
-    // อนุญาตให้ทั้ง admin และ developer ดำเนินการได้
     if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
       toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
       return;
@@ -334,7 +327,6 @@ export default function UserManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // อนุญาตให้ทั้ง admin และ developer แก้ไขข้อมูลได้
     if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
       toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
       return;
@@ -365,28 +357,23 @@ export default function UserManagement() {
         lastName: formData.lastName,
         role: formData.role,
         department: formData.department,
-        floor: formData.floor,
+        floor: formData.floor || undefined,
         active: formData.active,
         updatedAt: serverTimestamp(),
       };
       
       if (editingUser) {
-        // Update existing user
         const userRef = doc(db, 'users', editingUser.uid);
         
-        // Prepare update data (excluding username if it hasn't changed)
         const updatePayload: Partial<UserData> = { ...userData };
-        delete updatePayload.username; // Don't update username on edit
+        delete updatePayload.username;
 
-        // Only update password if provided
         if (formData.password) {
-            const hashedPassword = await hashPassword(formData.password);
-            updatePayload.password = hashedPassword;
+            updatePayload.password = await hashPassword(formData.password);
         }
         
         await updateDoc(userRef, updatePayload);
         
-        // บันทึก log การแก้ไขผู้ใช้
         await logServerAction(
           'update_user',
           { uid: adminUser!.uid, username: adminUser!.username || '' },
@@ -399,15 +386,12 @@ export default function UserManagement() {
           }
         );
         
-        // Update local state
         setUsers(users.map(u => 
-          u.uid === editingUser.uid ? {...u, ...updatePayload, username: editingUser.username } : u // Keep original username
+          u.uid === editingUser.uid ? {...u, ...updatePayload, username: editingUser.username } : u
         ));
         
         toast.success(`อัปเดตข้อมูลผู้ใช้ ${editingUser.username} สำเร็จ`);
       } else {
-        // Create new user
-        // Check for duplicate username before creating
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('username', '==', userData.username));
         const querySnapshot = await getDocs(q);
@@ -419,17 +403,14 @@ export default function UserManagement() {
           return;
         }
 
-        // Add createdAt and hash password
         userData.createdAt = serverTimestamp();
         if (formData.password) {
             userData.password = await hashPassword(formData.password);
         }
         
-        // Set document ID to be the same as the username for consistency
         const newUserRef = doc(db, 'users', userData.username!);
         await setDoc(newUserRef, userData);
         
-        // บันทึก log การสร้างผู้ใช้ใหม่
         await logServerAction(
           'create_user',
           { uid: adminUser.uid, username: adminUser.username || '' },
@@ -440,11 +421,9 @@ export default function UserManagement() {
           }
         );
         
-        // Add to local state
-        // Ensure all fields from UserData are present, even if undefined initially
         const newUserForState: UserData = {
-            id: userData.username!, // id is username
-            uid: userData.username!, // uid is username
+            id: userData.username!,
+            uid: userData.username!,
             username: userData.username,
             firstName: userData.firstName,
             lastName: userData.lastName,
@@ -452,7 +431,7 @@ export default function UserManagement() {
             department: userData.department,
             floor: userData.floor || '',
             active: userData.active,
-            createdAt: new Date(), // Use current client time for immediate display, Firestore will overwrite
+            createdAt: new Date(),
             updatedAt: new Date(),
             sessions: [],
             lastLogin: undefined
@@ -463,12 +442,10 @@ export default function UserManagement() {
       }
       
       resetForm();
-      fetchUsers();
     } catch (error) {
       console.error('Error saving user:', error);
       setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
       toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
-      // Add error logging if needed
       await logServerAction(
         editingUser ? 'update_user_failed' : 'create_user_failed',
         { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
@@ -481,13 +458,6 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleWardToggle = (wardId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      floor: prev.floor === wardId ? '' : wardId
-    }));
   };
 
   const renderStatus = (user: UserData) => (
@@ -517,7 +487,7 @@ export default function UserManagement() {
       setLoading(true);
       try {
         // Delete from Firestore
-        await deleteDoc(doc(db, 'users', userIdToDelete)); // Use ID (username) to delete
+        await deleteDoc(doc(db, 'users', userIdToDelete));
         
         // Optional: Clear sessions from Realtime Database if necessary
         try {
@@ -591,12 +561,18 @@ export default function UserManagement() {
     }
   };
 
-  if (loading && users.length === 0) {
+  // Helper function to get Ward Name from ID
+  const getWardNameById = (wardId: string): string => {
+    const ward = wardList.find(w => w.id === wardId);
+    return ward ? ward.wardName : (wardId || 'ไม่ระบุ');
+  };
+
+  if ((loading || loadingWards) && users.length === 0) {
     return (
       <ProtectedPage requiredRole={['admin', 'developer']}>
         <NavBar />
         <div className="container mx-auto px-4 py-8">
-        <div className="p-4">Loading user data...</div>
+        <div className="p-4">Loading data...</div> 
         </div>
       </ProtectedPage>
     );
@@ -608,7 +584,6 @@ export default function UserManagement() {
       <div className="container mx-auto px-4 py-8 admin-page">
         <h1 className="text-3xl font-bold mb-6">จัดการผู้ใช้</h1>
         
-        {/* ปุ่มเพิ่มผู้ใช้ใหม่ */}
         <div className="mb-6">
           <button
             onClick={() => {
@@ -632,7 +607,6 @@ export default function UserManagement() {
           </button>
         </div>
         
-        {/* ฟอร์มเพิ่มหรือแก้ไขผู้ใช้ */}
         {showAddUser && (
           <div className="bg-white dark:bg-gray-800 p-6 rounded shadow-md mb-6">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
@@ -705,17 +679,22 @@ export default function UserManagement() {
                 </div>
                 <div className="md:col-span-2 mb-4">
                   <label className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Floor
+                    Floor / Ward 
                   </label>
                   <select 
                     value={formData.floor || ''}
                     onChange={(e) => setFormData({...formData, floor: e.target.value})}
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
+                    disabled={loadingWards}
                   >
-                    <option value="">-- ไม่ระบุ --</option>
-                    {floorOptions.map(floor => (
-                      <option key={floor} value={floor}>{floor}</option>
-                    ))}
+                    <option value="">-- ไม่ระบุ --</option> 
+                    {loadingWards ? (
+                        <option disabled>Loading wards...</option>
+                    ) : (
+                        wardList.map(ward => (
+                            <option key={ward.id} value={ward.id}>{ward.wardName}</option>
+                        ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -731,7 +710,6 @@ export default function UserManagement() {
           </div>
         )}
         
-        {/* ปุ่มรีเฟรชข้อมูล */}
         <div className="mb-4 flex flex-col md:flex-row md:items-center md:space-x-4">
           <button 
             onClick={() => {
@@ -775,10 +753,8 @@ export default function UserManagement() {
           </div>
         </div>
         
-        {/* แสดงตารางบน Desktop และการ์ดบน Mobile */}
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
           {isMobile ? (
-            /* มุมมองสำหรับมือถือแบบการ์ด */
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <div className="p-4 text-center">กำลังโหลดข้อมูล...</div>
@@ -816,6 +792,10 @@ export default function UserManagement() {
                       <span className="font-medium">บทบาท:</span> {getRoleText(user.role)}
                     </div>
                     
+                    <div className="text-lg text-gray-500 dark:text-gray-300 mb-2">
+                      <span className="font-medium">Ward:</span> {getWardNameById(user.floor || '')}
+                    </div>
+                    
                     <div className="flex justify-end space-x-3" onClick={e => e.stopPropagation()}>
                       <button
                         onClick={(e) => {
@@ -851,14 +831,16 @@ export default function UserManagement() {
                       </button>
                     </div>
                     
-                    {/* แสดงข้อมูลเพิ่มเติมเมื่อกดเปิด */}
                     {editingUser === user && (
                       <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 text-sm">
                         <p className="mb-1 text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">สร้างเมื่อ:</span> {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'ไม่ทราบ'}
+                          <span className="font-medium">สร้างเมื่อ:</span> {formatTimestamp(user.createdAt)}
                         </p>
                         <p className="mb-1 text-gray-600 dark:text-gray-300">
-                          <span className="font-medium">แก้ไขล่าสุด:</span> {formatTimestamp(user.lastUpdated)}
+                          <span className="font-medium">แก้ไขล่าสุด:</span> {formatTimestamp(user.updatedAt)}
+                        </p>
+                        <p className="mb-1 text-gray-600 dark:text-gray-300">
+                          <span className="font-medium">Ward:</span> {getWardNameById(user.floor || '')}
                         </p>
                       </div>
                     )}
@@ -867,7 +849,6 @@ export default function UserManagement() {
               )}
             </div>
           ) : (
-            /* มุมมองสำหรับเดสก์ท็อปแบบตาราง */
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -907,11 +888,10 @@ export default function UserManagement() {
                       <tr 
                         className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                         onClick={() => {
-                          // ถ้ากดที่แถวแล้ว ให้เปิด/ปิดการแสดงข้อมูลเพิ่มเติม
                           if (editingUser === user) {
-                            setEditingUser(null); // ปิดการแสดงข้อมูล
+                            setEditingUser(null);
                           } else {
-                            setEditingUser(user); // เปิดการแสดงข้อมูล
+                            setEditingUser(user);
                           }
                         }}
                       >
@@ -933,22 +913,13 @@ export default function UserManagement() {
                         <td 
                           className="px-6 py-4 whitespace-nowrap text-right text-lg font-medium table-data"
                           onClick={(e) => {
-                            // หยุดการ propagation เพื่อให้การคลิกปุ่มไม่ทำให้แถวทั้งแถวถูกคลิกด้วย
                             e.stopPropagation();
                           }}
                         >
                           <button
                             onClick={(e) => {
-                              e.stopPropagation(); // ป้องกันการทำงานซ้ำซ้อน
+                              e.stopPropagation();
                               handleEditUser(user);
-                              
-                              // หน่วงเวลาเล็กน้อยก่อนโฟกัสที่ช่อง username
-                              setTimeout(() => {
-                                const usernameInput = document.querySelector('input[placeholder="Enter username"]') as HTMLInputElement;
-                                if (usernameInput) {
-                                  usernameInput.focus();
-                                }
-                              }, 100);
                             }}
                             className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3 text-xl"
                             title="แก้ไขข้อมูล"
@@ -957,7 +928,7 @@ export default function UserManagement() {
                           </button>
                           <button
                             onClick={(e) => {
-                              e.stopPropagation(); // ป้องกันการทำงานซ้ำซ้อน
+                              e.stopPropagation();
                               handleToggleUserStatus(user);
                             }}
                             className={`${user.active ? 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'} mr-3 text-xl`}
@@ -967,7 +938,7 @@ export default function UserManagement() {
                           </button>
                           <button
                             onClick={(e) => {
-                              e.stopPropagation(); // ป้องกันการทำงานซ้ำซ้อน
+                              e.stopPropagation();
                               if (window.confirm(`คุณแน่ใจหรือว่าต้องการลบผู้ใช้ "${user.username}" หรือไม่?`)) {
                                 handleDeleteUser(user.uid, user.username || '');
                               }
@@ -980,7 +951,6 @@ export default function UserManagement() {
                         </td>
                       </tr>
                       
-                      {/* ส่วนขยายแสดงรายละเอียดเพิ่มเติม */}
                       {editingUser === user && (
                         <tr>
                           <td colSpan={5} className="px-6 py-4 bg-gray-50 dark:bg-gray-700">
@@ -988,10 +958,13 @@ export default function UserManagement() {
                               <div>
                                 <h3 className="text-sm font-semibold mb-2 text-gray-900 dark:text-gray-100">ข้อมูลเพิ่มเติม</h3>
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  สร้างเมื่อ: {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'ไม่ทราบ'}
+                                  สร้างเมื่อ: {formatTimestamp(user.createdAt)}
                                 </p>
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  แก้ไขล่าสุด: {formatTimestamp(user.lastUpdated)}
+                                  แก้ไขล่าสุด: {formatTimestamp(user.updatedAt)}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-300">
+                                  <span className="font-medium">Ward:</span> {getWardNameById(user.floor || '')}
                                 </p>
                               </div>
                             </div>
