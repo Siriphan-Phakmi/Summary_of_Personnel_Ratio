@@ -52,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const userRef = useRef(user); // Use ref to hold the latest user state for the beacon
 
   const authService = AuthService.getInstance();
 
@@ -268,6 +269,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoggingOut(false);
     }
   }, [isLoggingOut, user, router, clearTimers]);
+
+  // Update ref whenever user state changes
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  // Effect for handling browser close / beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Only attempt logout if user is currently authenticated
+      if (userRef.current && authStatus === 'authenticated') {
+        devLog('beforeunload: User is authenticated. Attempting to send logout beacon.');
+        
+        // Capture user data for the beacon
+        const currentUserForBeacon = userRef.current;
+        const logoutData = JSON.stringify({
+          userId: currentUserForBeacon.uid,
+          username: currentUserForBeacon.username,
+          role: currentUserForBeacon.role,
+          logoutType: 'browser_close' // Indicate reason for logout
+        });
+
+        // Use sendBeacon for a higher chance of delivery on unload
+        try {
+          const blob = new Blob([logoutData], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/auth/logout', blob)) {
+            devLog('Logout beacon successfully queued.');
+          } else {
+            devLog('Logout beacon failed to queue (navigator.sendBeacon returned false).');
+          }
+        } catch (e) {
+          devLog(`Error sending beacon: ${e}`);
+        }
+
+        // Trigger browser's confirmation dialog
+        event.preventDefault(); // Standard practice
+        const confirmationMessage = 'คุณต้องการออกจากระบบและปิดหน้านี้หรือไม่?';
+        event.returnValue = confirmationMessage; // For older browsers
+        return confirmationMessage; // For modern browsers (though message is often ignored)
+      } else {
+        devLog('beforeunload: No user or not authenticated, skipping beacon and prompt.');
+      }
+    };
+
+    // Add listener only when authenticated
+    if (authStatus === 'authenticated') {
+      devLog('Adding beforeunload listener.');
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    } else {
+      // Ensure listener is removed if status changes to non-authenticated
+      devLog('Removing beforeunload listener (user not authenticated).');
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    // Cleanup listener on component unmount or when auth status changes
+    return () => {
+      devLog('Cleaning up beforeunload listener.');
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [authStatus]); // Re-run when authStatus changes
 
   // Check session on initial load and path change
   useEffect(() => {

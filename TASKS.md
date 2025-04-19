@@ -12,7 +12,7 @@
    - [x] เพิ่มฟังก์ชัน `getApprovedSummariesByDateRange` ดึงข้อมูลตามช่วงเวลา
    - [x] สร้าง interface `DailySummary` สำหรับข้อมูลสรุปประจำวัน
    - [x] แก้ไข Type Error เกี่ยวกับ TimestampField และการแปลงวันที่
-   - [x] ปรับปรุงฟังก์ชัน `createServerTimestamp` ใน timestampUtils.ts
+   - [x] ปรับปรุงฟังก์ชัน `createServerTimestamp` ใน timestampUtils.ts ให้ return ค่า `serverTimestamp()` ที่ถูกต้อง
    - [x] แก้ไขกระบวนการตรวจสอบและสร้าง indexes ใน Firestore
    - [x] แก้ไข API Route `/api/auth/login` ให้ตรวจสอบ CSRF Token
    - [x] แก้ไข API Route `/api/auth/login` ให้ใช้ `bcrypt.compare` ในการตรวจสอบรหัสผ่าน
@@ -23,6 +23,8 @@
        - [x] ตรวจสอบ `generateToken` และ `verifyToken` ให้ทำงานสอดคล้องกัน
        - [x] เพิ่ม `export` ให้ `generateCSRFToken` และ `validateCSRFToken`
        - [x] แก้ไข Linter errors หลังการปรับปรุง `comparePassword`
+   - [x] **ปรับปรุง Document ID:** แก้ไข `wardFormService.ts` ให้สร้าง Document ID แบบกำหนดเอง (Custom ID) สำหรับ Collection `wardForms` ตามรูปแบบ `{wardId}_{shift}_{status}_d{date}_t{time}` และเปลี่ยนไปใช้ `setDoc` แทน `addDoc`
+   - [x] แก้ไข Linter Errors ที่เกิดจากการปรับปรุง Document ID (เกี่ยวกับ Type ของวันที่ และการเข้าถึง Property แบบ Dynamic)
 
 2. **การพัฒนา UI/UX**
    - [x] สร้างคอมโพเนนต์ `LoadingOverlay` สำหรับแสดงสถานะโหลดข้อมูล
@@ -48,7 +50,7 @@
    - [x] พัฒนาคอมโพเนนต์ `ProtectedPage` สำหรับป้องกันหน้าที่ต้องล็อกอิน
    - [x] เพิ่มระบบบันทึกการใช้งาน (User Activity Logs)
    - [x] พัฒนาฟังก์ชันการ Sanitize ข้อมูลป้องกัน XSS และ SQL Injection
-   - [x] เพิ่ม event handler window.onbeforeunload เพื่อล้าง session และคุกกี้เมื่อผู้ใช้ปิดเบราว์เซอร์
+   - [x] **จัดการการปิด Browser:** เพิ่ม event handler `window.onbeforeunload` ใน AuthContext.tsx เพื่อแสดงคำยืนยัน และใช้ `navigator.sendBeacon` เพื่อ *พยายาม* ส่ง Request Logout ไปยัง Server เมื่อผู้ใช้ปิด Browser/Tab
    - [x] ปรับปรุงกระบวนการ logout ให้เรียกใช้ `dismissAllToasts` ก่อนออกจากระบบ
    - [x] พัฒนาระบบ CSRF Protection สำหรับการ login และ form submission
    - [x] สร้าง API Routes สำหรับระบบ Authentication (`/api/auth/*`)
@@ -74,33 +76,20 @@
    - [x] แก้ไข Type Errors ใน loginService.ts เกี่ยวกับ QuerySnapshot, resetUserSessions และ logLogin
    - [x] แก้ไขปัญหาการล็อกอินใช้เวลานานหรือค้าง โดยปรับปรุงการจัดการ Promise และเพิ่มการ log เพื่อติดตามขั้นตอนการทำงาน
    - [x] ปรับปรุงระบบตรวจสอบผู้ใช้และรหัสผ่านให้ตรงกับโครงสร้างข้อมูลใน Firebase
-   - [x] ทำความสะอาดโค้ด โดยลบไฟล์และโฟลเดอร์ที่ไม่จำเป็น:
-     - ลบไฟล์ `app/components/DataFetcher-example.tsx` (ไฟล์ตัวอย่างที่ไม่ได้ใช้งานจริง)
-     - ลบไฟล์ `app/features/approvals/ApprovalPage.tsx` (ซ้ำซ้อนกับ app/features/census/approval/ApprovalPage.tsx)
-     - ลบไฟล์ `app/features/census/index.ts` (ไม่มีการเรียกใช้งาน)
-     - ลบไฟล์ `app/features/census/HomePage.tsx` (ไม่มีการเรียกใช้งาน)
-     - ลบโฟลเดอร์ `app/features/approvals` (โฟลเดอร์ว่างเปล่า)
-     - ลบโฟลเดอร์ `app/styles` (โฟลเดอร์ว่างเปล่า)
-     - ลบโฟลเดอร์ `app/components` (โฟลเดอร์ว่างเปล่า)
+   - [x] ทำความสะอาดโค้ด โดยลบไฟล์และโฟลเดอร์ที่ไม่จำเป็น (ตามรายการที่เคยทำ)
    - [x] แก้ไขไฟล์ tsconfig.json เพื่อลบการอ้างอิงถึงโฟลเดอร์ app/components ที่ไม่มีอยู่แล้ว
-   - [x] เพิ่ม event handler `window.onbeforeunload` ใน AuthContext.tsx เพื่อจัดการล้าง session และคุกกี้เมื่อผู้ใช้ปิดเบราว์เซอร์โดยตรง
-   - [x] เพิ่มฟังก์ชัน `dismissAllToasts` ใน toastUtils.tsx สำหรับล้าง toast notifications ทั้งหมด
-   - [x] ปรับปรุงฟังก์ชัน `logout` ใน AuthContext.tsx ให้เรียกใช้ `dismissAllToasts` ก่อนออกจากระบบ
    - [x] ปรับปรุงฟังก์ชัน `logoutUser`, `clearAllSessions` และ `logout` ใน logoutService.ts ให้เรียกใช้ `dismissAllToasts` ด้วย
+   - [x] **ปัญหา Loop ไม่สิ้นสุด:** แก้ไขปัญหาหน้า `/census/form` โหลดซ้ำและแสดง Toast แจ้งเตือนข้อมูลกะดึกรัวๆ สาเหตุเกิดจาก Role Mismatch ใน `ProtectedPage` ทำให้เกิด Redirect Loop (แก้ไขโดยเพิ่ม role `nurse` ใน `requiredRole` ของ `ProtectedPage` ใน `DailyCensusForm.tsx`)
+   - [x] **ปัญหา FirebaseError (Invalid Data):** แก้ไข Error `Unsupported field value: a function` ที่เกิดตอนบันทึกข้อมูล `wardForms` (แก้ไข `createServerTimestamp` ใน `timestampUtils.ts`)
 
 ## งานที่กำลังดำเนินการ
 
-1. **การแก้ไขข้อผิดพลาด**
-   - [x] **ปัญหา Login:** ผู้ใช้ Login สำเร็จ (เห็น Toast) แต่ถูก Redirect กลับมาหน้า Login ทันที (แก้ไขโดยเปลี่ยน sameSite cookie จาก 'strict' เป็น 'lax' ใน /api/auth/login)
-   - [ ] แก้ไข Linter Errors ที่เหลือเกี่ยวกับการแปลง Timestamp (ถ้ามี)
-
-2. **การพัฒนาระบบแจ้งเตือน**
-   - [x] ปรับปรุงระบบการจัดการ toast notifications ให้มีการล้างเมื่อ logout
+1. **การพัฒนาระบบแจ้งเตือน**
    - [ ] พัฒนาระบบแจ้งเตือนเมื่อมีการอนุมัติ/ปฏิเสธแบบฟอร์ม
    - [ ] เพิ่มการแจ้งเตือนเมื่อต้องกรอกข้อมูลสรุป 24 ชั่วโมง
    - [ ] ปรับปรุงการแสดง Toast ในมุมมองโมบาย
 
-3. **การพัฒนาหน้า Dashboard**
+2. **การพัฒนาหน้า Dashboard**
    - [ ] เพิ่มการแสดงกราฟข้อมูลย้อนหลัง
    - [ ] พัฒนา UI สำหรับเปรียบเทียบข้อมูลรายวอร์ด
    - [ ] เพิ่มตัวเลือกการกรองข้อมูลที่ละเอียดขึ้น
@@ -123,7 +112,7 @@
 
 3. **การตรวจสอบและความปลอดภัย**
    - [ ] พัฒนาระบบเข้ารหัสรหัสผ่านด้วย bcrypt สำหรับรหัสผ่านที่ยังเก็บแบบ plain text
-   - [ ] พัฒนาระบบบันทึกการใช้งานแบบละเอียด (Detailed Logging)
+   - [ ] พัฒนาระบบบันทึกการใช้งานแบบละเอียด (Detailed Logging) - *พิจารณาเพิ่ม Field เช่น browserName, deviceType แทนการใช้ Custom ID*
    - [ ] เพิ่มการตรวจสอบความครบถ้วนของข้อมูล (Data Integrity) 
    - [ ] ปรับปรุงความปลอดภัยในการเข้าถึงข้อมูล
    - [ ] เพิ่มการเข้ารหัสข้อมูลสำคัญก่อนจัดเก็บ
