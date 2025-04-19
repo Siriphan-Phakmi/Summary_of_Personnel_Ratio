@@ -14,6 +14,15 @@
    - [x] แก้ไข Type Error เกี่ยวกับ TimestampField และการแปลงวันที่
    - [x] ปรับปรุงฟังก์ชัน `createServerTimestamp` ใน timestampUtils.ts
    - [x] แก้ไขกระบวนการตรวจสอบและสร้าง indexes ใน Firestore
+   - [x] แก้ไข API Route `/api/auth/login` ให้ตรวจสอบ CSRF Token
+   - [x] แก้ไข API Route `/api/auth/login` ให้ใช้ `bcrypt.compare` ในการตรวจสอบรหัสผ่าน
+   - [x] แก้ไข API Route `/api/auth/login` ให้สร้าง Token และตั้ง Cookie อย่างถูกต้อง
+   - [x] ตรวจสอบ API Route `/api/auth/session` สำหรับการยืนยัน Session
+   - [x] แก้ไข Utility `authUtils.ts`:
+       - [x] ปรับปรุง `comparePassword` ให้ใช้ bcrypt เท่านั้น ลบ Fallback Plaintext
+       - [x] ตรวจสอบ `generateToken` และ `verifyToken` ให้ทำงานสอดคล้องกัน
+       - [x] เพิ่ม `export` ให้ `generateCSRFToken` และ `validateCSRFToken`
+       - [x] แก้ไข Linter errors หลังการปรับปรุง `comparePassword`
 
 2. **การพัฒนา UI/UX**
    - [x] สร้างคอมโพเนนต์ `LoadingOverlay` สำหรับแสดงสถานะโหลดข้อมูล
@@ -54,7 +63,7 @@
    - [x] ปรับปรุง UI/UX ของหน้า Login ให้ใช้งานง่ายและปลอดภัยยิ่งขึ้น
 
 5. **การแก้ไขข้อผิดพลาด**
-   - [x] แก้ไขปัญหา Login timeout ใน LoginPage.tsx โดยเพิ่มเวลา timeout จาก 8 วินาที เป็น 30 วินาที
+   - [x] **ปัญหา Login:** ผู้ใช้ Login สำเร็จ (เห็น Toast) แต่ถูก Redirect กลับมาหน้า Login ทันที (แก้ไขโดยเปลี่ยน sameSite cookie จาก 'strict' เป็น 'lax' ใน /api/auth/login)
    - [x] แก้ไขปัญหาการแสดง Notifications ตอน Login สำเร็จ/ไม่สำเร็จ
    - [x] แก้ไขปัญหาการแสดง Notifications เมื่อใส่รหัสผ่านผิด (เพิ่มเงื่อนไขตรวจสอบข้อความ error เพื่อแสดง toast ที่เฉพาะเจาะจง)
    - [x] สร้างไฟล์ TASKS.md เพื่อติดตามความคืบหน้าของโปรเจค
@@ -82,8 +91,8 @@
 ## งานที่กำลังดำเนินการ
 
 1. **การแก้ไขข้อผิดพลาด**
-   - [ ] แก้ไขข้อผิดพลาดการแจ้งเตือน "ไม่พบชื่อผู้ใช้ในระบบ" ให้เฉพาะเจาะจงยิ่งขึ้น
-   - [ ] แก้ไข Linter Errors ที่เหลือเกี่ยวกับการแปลง Timestamp
+   - [x] **ปัญหา Login:** ผู้ใช้ Login สำเร็จ (เห็น Toast) แต่ถูก Redirect กลับมาหน้า Login ทันที (แก้ไขโดยเปลี่ยน sameSite cookie จาก 'strict' เป็น 'lax' ใน /api/auth/login)
+   - [ ] แก้ไข Linter Errors ที่เหลือเกี่ยวกับการแปลง Timestamp (ถ้ามี)
 
 2. **การพัฒนาระบบแจ้งเตือน**
    - [x] ปรับปรุงระบบการจัดการ toast notifications ให้มีการล้างเมื่อ logout

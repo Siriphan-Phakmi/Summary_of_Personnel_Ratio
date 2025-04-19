@@ -61,7 +61,7 @@ export type ServerTimestampType = {
 export interface User {
   uid: string;
   role: UserRole | string;
-  location?: string[];
+  floor?: string;
   firstName?: string;
   username?: string;
   lastName?: string;

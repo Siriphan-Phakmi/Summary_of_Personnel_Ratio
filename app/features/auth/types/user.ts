@@ -14,7 +14,7 @@ export interface User {
   firstName?: string;
   lastName?: string;
   role: UserRole;
-  location?: string[];
+  floor?: string;
   active?: boolean;
   password?: string;
   createdAt?: any;

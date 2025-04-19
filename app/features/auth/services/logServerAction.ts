@@ -39,7 +39,18 @@ function createSafeUserObject(user: Partial<User> | null): Record<string, any> |
  * @param details รายละเอียดเพิ่มเติม
  */
 export async function logServerAction(
-  action: 'login' | 'logout' | 'page_access',
+  action: 
+    | 'login' 
+    | 'logout' 
+    | 'page_access'
+    | 'activate_user'
+    | 'deactivate_user'
+    | 'status_change_failed'
+    | 'update_user'
+    | 'create_user'
+    | 'update_user_failed'
+    | 'create_user_failed'
+    | 'delete_user',
   user: Partial<User> | null, 
   details: Record<string, any> = {}
 ): Promise<void> {

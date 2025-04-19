@@ -3,9 +3,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, where, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, where, addDoc, getDoc, writeBatch } from 'firebase/firestore';
 import { db, rtdb } from '@/app/core/firebase/firebase';
-import { ref, onValue, get, remove } from 'firebase/database';
+import { ref, onValue, get, remove, set } from 'firebase/database';
 import { useAuth } from '@/app/features/auth';
 import { Button, Input } from '@/app/core/ui';
 import NavBar from '@/app/core/ui/NavBar';
@@ -15,6 +15,9 @@ import { hashPassword } from '@/app/core/utils/authUtils';
 import { clearAllUserSessions } from '@/app/features/auth/services/sessionService';
 import toast from 'react-hot-toast';
 import { FiEdit2, FiTrash2, FiUserX, FiUserCheck, FiLogOut, FiPlus, FiEdit, FiRefreshCw, FiX } from 'react-icons/fi';
+import { FaUserCheck, FaUserSlash } from "react-icons/fa";
+import { UserRole } from '@/app/core/types/user';
+import { logServerAction } from '@/app/features/auth/services/logServerAction';
 
 interface UserSession {
   sessionId: string;
@@ -33,6 +36,7 @@ interface UserData extends User {
   password?: string;
   sessions?: UserSession[];
   department?: string;
+  floor?: string;
 }
 
 // Custom Toggle Switch Component
@@ -86,7 +90,10 @@ const formatTimestamp = (timestamp: any): string => {
   return 'ไม่ทราบ';
 };
 
+const floorOptions = ["Floor B", ...Array.from({ length: 12 }, (_, i) => `Floor ${i + 1}`)];
+
 export default function UserManagement() {
+  const { user: adminUser } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -94,21 +101,22 @@ export default function UserManagement() {
   const [activeSessions, setActiveSessions] = useState<{[key: string]: {sessionId: string, deviceInfo: any}}>({});
   
   // Form states
-  const [username, setUsername] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('user');
-  const [location, setLocation] = useState<string[]>([]);
-  const [availableWards, setAvailableWards] = useState<{id: string, name: string}[]>([]);
-  const [department, setDepartment] = useState('');
+  const [formData, setFormData] = useState<Partial<UserData>>({
+    username: '',
+    firstName: '',
+    lastName: '',
+    password: '',
+    role: UserRole.NURSE,
+    department: '',
+    floor: '',
+    active: true,
+  });
+  const [error, setError] = useState<string | null>(null);
   
   // Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('all');
   
-  const { user } = useAuth();
-
   // เพิ่มตัวแปร state สำหรับตรวจจับขนาดหน้าจอ
   const [isMobile, setIsMobile] = useState(false);
 
@@ -133,7 +141,7 @@ export default function UserManagement() {
   // Define fetchUsers at component level
     const fetchUsers = async () => {
       // อนุญาตให้ทั้ง admin และ developer ดูข้อมูลได้
-      if (!user || (user.role !== 'admin' && user.role !== 'developer')) return;
+      if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) return;
       
     setLoading(true);
       try {
@@ -146,7 +154,8 @@ export default function UserManagement() {
         const data = doc.data() as UserData;
           usersData.push({
             ...data,
-            uid: doc.id
+            uid: doc.id,
+            floor: data.floor || ''
           });
         });
         
@@ -176,7 +185,7 @@ export default function UserManagement() {
           });
         });
         
-        setAvailableWards(wardsData);
+        setUsers(users.map(u => ({ ...u, floor: u.floor || '' })));
       } catch (error) {
         console.error('Error fetching wards:', error);
       }
@@ -201,34 +210,41 @@ export default function UserManagement() {
     return () => {
       unsubscribe();
     };
-  }, [user]);
+  }, [adminUser]);
 
   const resetForm = () => {
-    setUsername('');
-    setFirstName('');
-    setLastName('');
-    setPassword('');
-    setRole('user');
-    setLocation([]);
-    setDepartment('');
+    setFormData({
+      username: '',
+      firstName: '',
+      lastName: '',
+      password: '',
+      role: UserRole.NURSE,
+      department: '',
+      floor: '',
+      active: true,
+    });
     setEditingUser(null);
     setShowAddUser(false);
   };
 
   const handleEditUser = (user: UserData) => {
     setEditingUser(user);
-    setUsername(user.username || '');
-    setFirstName(user.firstName || '');
-    setLastName(user.lastName || '');
-    setRole(user.role || 'user');
-    setLocation(user.location || []);
-    setDepartment(user.department || '');
-    setShowAddUser(true);
+    setFormData({
+      username: user.username || '',
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      password: '',
+      role: user.role || UserRole.NURSE,
+      department: user.department || '',
+      floor: user.floor || '',
+      active: user.active,
+    });
+    setError('');
   };
 
   const handleToggleUserStatus = async (user: UserData) => {
     // อนุญาตให้ทั้ง admin และ developer ดำเนินการได้
-    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
+    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
       toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
       return;
     }
@@ -243,11 +259,12 @@ export default function UserManagement() {
       });
       
       // บันทึก log การเปลี่ยนสถานะ
-      await logUserAction(
+      await logServerAction(
         newStatus ? 'activate_user' : 'deactivate_user', 
-        user.uid, 
-        user.username || '', 
+        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
         { 
+          targetUserId: user.uid,
+          targetUsername: user.username || '',
           newStatus,
           timestamp: new Date().toISOString()
         }
@@ -264,11 +281,12 @@ export default function UserManagement() {
       toast.error('ไม่สามารถเปลี่ยนสถานะผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง');
       
       // บันทึก log ความผิดพลาด
-      await logUserAction(
+      await logServerAction(
         'status_change_failed', 
-        user.uid, 
-        user.username || '', 
+        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
         { 
+          targetUserId: user.uid,
+          targetUsername: user.username || '',
           attempted_status: !user.active,
           timestamp: new Date().toISOString(),
           error: error instanceof Error ? error.message : String(error)
@@ -317,93 +335,145 @@ export default function UserManagement() {
     e.preventDefault();
     
     // อนุญาตให้ทั้ง admin และ developer แก้ไขข้อมูลได้
-    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
+    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
       toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
       return;
     }
     
-    if (!username || !firstName || !lastName || (!editingUser && !password)) {
-      toast.error('Please fill in all required fields');
+    if (!formData.username || !formData.firstName || !formData.lastName || !formData.role || !formData.department) {
+      setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อผู้ใช้, ชื่อ, นามสกุล, บทบาท, แผนก)');
       return;
     }
     
-    setLoading(true);
+    if (!editingUser && !formData.password) {
+      setError('กรุณากำหนดรหัสผ่านสำหรับผู้ใช้ใหม่');
+      return;
+    }
     
+    if (formData.password && formData.password.length < 6) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      const userData: any = {
-        username,
-        firstName,
-        lastName,
-        role,
-        location,
-        department,
-        lastUpdated: new Date().toISOString()
+      const userData: Partial<UserData> = {
+        username: formData.username?.trim(),
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        role: formData.role,
+        department: formData.department,
+        floor: formData.floor,
+        active: formData.active,
+        updatedAt: serverTimestamp(),
       };
-      
-      if (password) {
-        userData.password = await hashPassword(password);
-      }
       
       if (editingUser) {
         // Update existing user
         const userRef = doc(db, 'users', editingUser.uid);
-        await updateDoc(userRef, userData);
+        
+        // Prepare update data (excluding username if it hasn't changed)
+        const updatePayload: Partial<UserData> = { ...userData };
+        delete updatePayload.username; // Don't update username on edit
+
+        // Only update password if provided
+        if (formData.password) {
+            const hashedPassword = await hashPassword(formData.password);
+            updatePayload.password = hashedPassword;
+        }
+        
+        await updateDoc(userRef, updatePayload);
         
         // บันทึก log การแก้ไขผู้ใช้
-        await logUserAction(
+        await logServerAction(
           'update_user',
-          editingUser.uid,
-          username,
+          { uid: adminUser!.uid, username: adminUser!.username || '' },
           {
-            fields_updated: Object.keys(userData).filter(key => key !== 'password'),
-            password_changed: !!password,
+            targetUserId: editingUser.uid,
+            targetUsername: editingUser.username || '',
+            fields_updated: Object.keys(updatePayload).filter(key => key !== 'password'),
+            password_changed: !!formData.password,
             timestamp: new Date().toISOString()
           }
         );
         
         // Update local state
         setUsers(users.map(u => 
-          u.uid === editingUser.uid ? {...u, ...userData} : u
+          u.uid === editingUser.uid ? {...u, ...updatePayload, username: editingUser.username } : u // Keep original username
         ));
         
-        toast.success(`User ${username} updated successfully`);
+        toast.success(`อัปเดตข้อมูลผู้ใช้ ${editingUser.username} สำเร็จ`);
       } else {
         // Create new user
-        userData.active = true;
-        userData.createdAt = new Date().toISOString();
+        // Check for duplicate username before creating
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', userData.username));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          setError('Username นี้มีผู้ใช้งานแล้ว กรุณาเปลี่ยนใหม่');
+          toast.error('Username นี้มีผู้ใช้งานแล้ว');
+          setLoading(false);
+          return;
+        }
+
+        // Add createdAt and hash password
+        userData.createdAt = serverTimestamp();
+        if (formData.password) {
+            userData.password = await hashPassword(formData.password);
+        }
         
-        // Generate a unique ID for the new user
-        const newUserRef = doc(collection(db, 'users'));
+        // Set document ID to be the same as the username for consistency
+        const newUserRef = doc(db, 'users', userData.username!);
         await setDoc(newUserRef, userData);
         
         // บันทึก log การสร้างผู้ใช้ใหม่
-        await logUserAction(
+        await logServerAction(
           'create_user',
-          newUserRef.id,
-          username,
+          { uid: adminUser.uid, username: adminUser.username || '' },
           {
-            role: userData.role,
+            newUsername: userData.username,
+            role: userData.role!,
             timestamp: new Date().toISOString()
           }
         );
         
         // Add to local state
-        setUsers([...users, { ...userData, uid: newUserRef.id }]);
+        // Ensure all fields from UserData are present, even if undefined initially
+        const newUserForState: UserData = {
+            id: userData.username!, // id is username
+            uid: userData.username!, // uid is username
+            username: userData.username,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            role: userData.role!,
+            department: userData.department,
+            floor: userData.floor || '',
+            active: userData.active,
+            createdAt: new Date(), // Use current client time for immediate display, Firestore will overwrite
+            updatedAt: new Date(),
+            sessions: [],
+            lastLogin: undefined
+        };
+        setUsers([...users, newUserForState]);
         
-        toast.success(`User ${username} created successfully`);
+        toast.success(`เพิ่มผู้ใช้ ${userData.username} สำเร็จ`);
       }
       
       resetForm();
+      fetchUsers();
     } catch (error) {
       console.error('Error saving user:', error);
-      toast.error('Failed to save user');
-      
-      // บันทึก log ความผิดพลาด
-      await logUserAction(
+      setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      // Add error logging if needed
+      await logServerAction(
         editingUser ? 'update_user_failed' : 'create_user_failed',
-        editingUser ? editingUser.uid : 'new_user',
-        username,
+        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
         {
+          usernameAttempt: formData.username,
           error: error instanceof Error ? error.message : String(error),
           timestamp: new Date().toISOString()
         }
@@ -414,11 +484,10 @@ export default function UserManagement() {
   };
 
   const handleWardToggle = (wardId: string) => {
-    setLocation(prev => 
-      prev.includes(wardId) 
-        ? prev.filter(id => id !== wardId) 
-        : [...prev, wardId]
-    );
+    setFormData(prev => ({
+      ...prev,
+      floor: prev.floor === wardId ? '' : wardId
+    }));
   };
 
   const renderStatus = (user: UserData) => (
@@ -434,55 +503,41 @@ export default function UserManagement() {
     </div>
   );
 
-  const handleDeleteUser = async (userId: string, username: string) => {
-    // อนุญาตให้ทั้ง admin และ developer ดำเนินการได้
-    if (!user || (user.role !== 'admin' && user.role !== 'developer')) {
-      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
+  const handleDeleteUser = async (userIdToDelete: string, usernameToDelete: string) => {
+    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
+      toast.error('คุณไม่มีสิทธิ์ลบผู้ใช้');
       return;
     }
-    
-    try {
-      // ลบผู้ใช้จาก Firestore
-      const userRef = doc(db, 'users', userId);
-      await deleteDoc(userRef);
-      
-      // บันทึก log การลบผู้ใช้
-      await logUserAction('delete', userId, username, { 
-        timestamp: new Date().toISOString(),
-        status: 'success'
-      });
-      
-      // อัปเดต state เพื่อให้ UI แสดงการเปลี่ยนแปลงทันที
-      setUsers(users.filter(u => u.uid !== userId));
-      
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      toast.error('ไม่สามารถลบผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง');
-      
-      // บันทึก log ความผิดพลาด
-      await logUserAction('delete_failed', userId, username, { 
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
+    if (userIdToDelete === adminUser.uid) {
+        toast.error('ไม่สามารถลบบัญชีของตัวเองได้');
+        return;
     }
-  };
 
-  // เพิ่มฟังก์ชันสำหรับบันทึก log
-  const logUserAction = async (action: string, userId: string, username: string, details: any = {}) => {
-    try {
-      const logRef = collection(db, 'userActivityLogs');
-      await addDoc(logRef, {
-        action,
-        userId,
-        username,
-        performedBy: user?.username || 'system',
-        performedByUserId: user?.uid || 'system',
-        timestamp: serverTimestamp(),
-        details
-      });
-      console.log(`Log recorded: ${action} for user ${username}`);
-    } catch (error) {
-      console.error('Error recording log:', error);
+    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ ${usernameToDelete}?`)) {
+      setLoading(true);
+      try {
+        // Delete from Firestore
+        await deleteDoc(doc(db, 'users', userIdToDelete)); // Use ID (username) to delete
+        
+        // Optional: Clear sessions from Realtime Database if necessary
+        try {
+          const sessionsRef = ref(rtdb, `sessions/${userIdToDelete}`);
+          await remove(sessionsRef);
+          const currentSessionRef = ref(rtdb, `currentSessions/${userIdToDelete}`);
+          await remove(currentSessionRef);
+        } catch (rtdbError) {
+            console.warn("Could not clear RTDB sessions during user deletion:", rtdbError);
+        }
+
+        toast.success(`ลบผู้ใช้ ${usernameToDelete} สำเร็จ`);
+        await logServerAction('delete_user', { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' }, { deletedUserId: userIdToDelete, deletedUsername: usernameToDelete });
+        fetchUsers(); // Refresh list
+      } catch (err) {
+        console.error("Error deleting user:", err);
+        toast.error('เกิดข้อผิดพลาดในการลบผู้ใช้');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -557,12 +612,16 @@ export default function UserManagement() {
         <div className="mb-6">
           <button
             onClick={() => {
-              setUsername('');
-              setFirstName('');
-              setLastName('');
-              setPassword('');
-              setRole('user');
-              setLocation([]);
+              setFormData({
+                username: '',
+                firstName: '',
+                lastName: '',
+                password: '',
+                role: UserRole.NURSE,
+                department: '',
+                floor: '',
+                active: true,
+              });
               setEditingUser(null);
               setShowAddUser(!showAddUser);
             }}
@@ -579,12 +638,13 @@ export default function UserManagement() {
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
               {editingUser ? 'แก้ไขข้อมูลผู้ใช้' : 'เพิ่มผู้ใช้ใหม่'}
             </h2>
+            {error && <p className="text-red-500 mb-4">{error}</p>}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Input
                   label="Username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={formData.username || ''}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
                   placeholder="Enter username"
                   required
                   className="mb-2"
@@ -592,24 +652,24 @@ export default function UserManagement() {
                 <Input
                   label="Password"
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password || ''}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
                   placeholder={editingUser ? "Leave blank to keep current" : "Enter password"}
                   required={!editingUser}
                   className="mb-2"
                 />
                 <Input
                   label="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  value={formData.firstName || ''}
+                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
                   placeholder="Enter first name"
                   required
                   className="mb-2"
                 />
                 <Input
                   label="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  value={formData.lastName || ''}
+                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
                   placeholder="Enter last name"
                   required
                   className="mb-2"
@@ -619,8 +679,8 @@ export default function UserManagement() {
                     Department
                   </label>
                   <select 
-                    value={department || ""}
-                    onChange={(e) => setDepartment(e.target.value)}
+                    value={formData.department || ""}
+                    onChange={(e) => setFormData({...formData, department: e.target.value})}
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
                   >
                     <option value="">-- เลือกแผนก --</option>
@@ -636,8 +696,8 @@ export default function UserManagement() {
                     Role
                   </label>
                   <select 
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value as UserRole})}
                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
                   >
                     {getOptions()}
@@ -645,28 +705,18 @@ export default function UserManagement() {
                 </div>
                 <div className="md:col-span-2 mb-4">
                   <label className="block text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Assign Wards
-                </label>
-                  <div className="border border-gray-300 dark:border-gray-600 rounded-md p-4 max-h-48 overflow-y-auto bg-white dark:bg-gray-700">
-                    {availableWards.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                  {availableWards.map(ward => (
-                    <div key={ward.id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`ward-${ward.id}`}
-                        checked={location.includes(ward.id)}
-                        onChange={() => handleWardToggle(ward.id)}
-                              className="mr-3 h-5 w-5 accent-blue-600 dark:accent-blue-500"
-                      />
-                            <label htmlFor={`ward-${ward.id}`} className="text-lg text-gray-900 dark:text-gray-100">{ward.name}</label>
-                    </div>
-                  ))}
-                      </div>
-                    ) : (
-                      <p className="text-lg text-gray-500 dark:text-gray-400">No wards available</p>
-                    )}
-                  </div>
+                    Floor
+                  </label>
+                  <select 
+                    value={formData.floor || ''}
+                    onChange={(e) => setFormData({...formData, floor: e.target.value})}
+                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-4 py-3 text-lg"
+                  >
+                    <option value="">-- ไม่ระบุ --</option>
+                    {floorOptions.map(floor => (
+                      <option key={floor} value={floor}>{floor}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="flex justify-end space-x-2">

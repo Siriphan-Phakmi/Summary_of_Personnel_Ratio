@@ -59,7 +59,7 @@ export const checkWardAccess = (
   }
   
   // ตรวจสอบว่าผู้ใช้มี ward ที่กำหนดหรือไม่
-  return !!user.location?.includes(wardId);
+  return user.floor === wardId;
 };
 
 export const getUserRole = async (user: User | null): Promise<UserRole | null> => {

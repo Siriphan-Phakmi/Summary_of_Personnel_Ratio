@@ -4,16 +4,30 @@ import { verifyToken } from '@/app/core/utils/authUtils';
 import { db } from '@/app/core/firebase/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
+/**
+ * แสดง log เฉพาะในโหมด development ฝั่ง server
+ */
+function serverDevLog(message: string): void {
+  if (process.env.NODE_ENV === 'development') {
+    const timestamp = new Date().toISOString();
+    console.log(`[SESSION API ${timestamp}] ${message}`);
+  }
+}
+
 export async function GET(request: Request) {
   try {
-    console.log('Session API called');
+    serverDevLog('Session API called');
     // ดึง token จาก cookie
     const cookieStore = await cookies();
+    const allCookies = cookieStore.getAll(); // Get all cookies for logging
+    serverDevLog(`All received cookies: ${JSON.stringify(allCookies)}`);
+    
     const authToken = cookieStore.get('auth_token')?.value;
     
-    console.log('Auth token in cookie:', authToken ? `${authToken.substring(0, 10)}...` : 'not found');
+    serverDevLog(`Auth token from cookie: ${authToken ? `${authToken.substring(0, 10)}...` : 'not found'}`);
     
     if (!authToken) {
+      serverDevLog('Auth token not found in cookies.');
       return NextResponse.json(
         { authenticated: false, error: 'No authentication token found' },
         { status: 401 }
@@ -21,54 +35,58 @@ export async function GET(request: Request) {
     }
     
     // ตรวจสอบความถูกต้องของ token
+    serverDevLog('Verifying token...');
     const tokenData = await verifyToken(authToken);
-    console.log('Token verification result:', tokenData ? 'valid' : 'invalid');
+    serverDevLog(`Token verification result: ${tokenData ? 'valid' : 'invalid or expired'}`);
     
     if (!tokenData || !tokenData.sub) {
       // Token ไม่ถูกต้องหรือหมดอายุ ให้ล้าง cookies
-      console.log('Invalid token or missing user ID');
-      await cookieStore.delete('auth_token');
-      await cookieStore.delete('user_data');
-      
-      return NextResponse.json(
+      serverDevLog('Invalid or expired token, or missing user ID (sub). Clearing cookies.');
+      const response = NextResponse.json(
         { authenticated: false, error: 'Invalid or expired token' },
         { status: 401 }
       );
+      // Attempt to clear cookies in the response
+      response.cookies.delete('auth_token');
+      response.cookies.delete('user_data');
+      return response;
     }
     
     // ตรวจสอบว่าผู้ใช้ยังมีอยู่และยังใช้งานได้หรือไม่
     const userId = tokenData.sub as string;
-    console.log('Checking user document:', userId);
-    const userDoc = await getDoc(doc(db, 'users', userId));
+    serverDevLog(`Token valid for user ID: ${userId}. Checking user document...`);
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
     
     if (!userDoc.exists()) {
-      console.log('User document not found');
-      await cookieStore.delete('auth_token');
-      await cookieStore.delete('user_data');
-      
-      return NextResponse.json(
+      serverDevLog('User document not found. Clearing cookies.');
+      const response = NextResponse.json(
         { authenticated: false, error: 'User not found' },
         { status: 401 }
       );
+      response.cookies.delete('auth_token');
+      response.cookies.delete('user_data');
+      return response;
     }
     
     const userData = userDoc.data();
-    console.log('User found:', userData.username);
+    serverDevLog(`User document found: ${userData.username}`);
     
     // ตรวจสอบสถานะการใช้งาน
     if (userData.active === false) {
-      console.log('User account is disabled');
-      await cookieStore.delete('auth_token');
-      await cookieStore.delete('user_data');
-      
-      return NextResponse.json(
+      serverDevLog('User account is disabled. Clearing cookies.');
+      const response = NextResponse.json(
         { authenticated: false, error: 'Account is disabled' },
         { status: 403 }
       );
+      response.cookies.delete('auth_token');
+      response.cookies.delete('user_data');
+      return response;
     }
     
     // อัพเดต lastActive
-    await updateDoc(doc(db, 'users', userId), {
+    serverDevLog(`Updating lastActive for user ${userId}`);
+    await updateDoc(userDocRef, {
       lastActive: new Date()
     });
     
@@ -83,25 +101,27 @@ export async function GET(request: Request) {
       approveWardIds: userData.approveWardIds || []
     };
     
-    console.log('Session valid, returning user data');
+    serverDevLog('Session valid. Returning authenticated status and user data.');
     // ส่งข้อมูลกลับ
     return NextResponse.json({
       authenticated: true,
       user: safeUserData
     });
   } catch (error) {
-    console.error('Session verification error:', error);
-    // In case of error, still try to clear cookies if possible, though it might fail if cookieStore wasn't assigned
-    try {
-      const cookieStore = await cookies(); 
-      await cookieStore.delete('auth_token');
-      await cookieStore.delete('user_data');
-    } catch (clearError) {
-      console.error("Failed to clear cookies during session error handling:", clearError);
-    }
-    return NextResponse.json(
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    serverDevLog(`Session verification error: ${errorMessage}`);
+    // In case of error, still try to clear cookies if possible
+    const response = NextResponse.json(
       { authenticated: false, error: 'Error verifying session' },
       { status: 500 }
     );
+    try {
+      response.cookies.delete('auth_token');
+      response.cookies.delete('user_data');
+      serverDevLog('Attempted to clear cookies during error handling.');
+    } catch (clearError) {
+      serverDevLog("Failed to clear cookies during session error handling.");
+    }
+    return response;
   }
 } 

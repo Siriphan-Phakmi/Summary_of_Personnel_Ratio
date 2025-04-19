@@ -116,7 +116,7 @@ export default function DailyCensusForm() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล تعداد پرسنل</h1>
+          <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล</h1>
 
           {isLoading ? (
             <div className="flex justify-center items-center h-64">

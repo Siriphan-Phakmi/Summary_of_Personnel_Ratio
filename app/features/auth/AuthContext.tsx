@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@/app/core/types/user';
 import { showErrorToast, dismissAllToasts } from '@/app/core/utils/toastUtils';
@@ -32,252 +32,263 @@ const SESSION_TIMEOUT = 30 * 60 * 1000;
 // Activity update interval (5 minutes)
 const ACTIVITY_UPDATE_INTERVAL = 5 * 60 * 1000;
 
-// Simple throttle implementation with basic types
-const throttle = (func: (...args: any[]) => void, limit: number): (...args: any[]) => void => {
-  let inThrottle: boolean = false;
-  let lastFunc: ReturnType<typeof setTimeout>;
-  let lastRan: number = 0;
-
-  const throttled = function(this: any, ...args: any[]) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      lastRan = Date.now();
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    } else {
-      clearTimeout(lastFunc);
-      lastFunc = setTimeout(() => {
-        if (Date.now() - lastRan >= limit) {
-          func.apply(this, args);
-          lastRan = Date.now();
-        }
-      }, limit - (Date.now() - lastRan));
-    }
-  };
-
-  return throttled;
-};
-
 /**
- * แสดง log
- * @param message ข้อความที่ต้องการแสดง
+ * แสดง log เฉพาะในโหมด development
  */
 function devLog(message: string): void {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[AUTH] ${message}`);
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`[AUTH ${timestamp}] ${message}`);
   }
 }
 
 // AuthProvider component to wrap around app
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading'); // Initialize as loading
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
-  const [lastActivity, setLastActivity] = useState(Date.now());
   const router = useRouter();
   const pathname = usePathname();
-  const { showLoading, hideLoading } = useLoading();
-  
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const activityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   const authService = AuthService.getInstance();
 
   // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้
-  const checkRole = useCallback((requiredRole?: string | string[]): boolean => {
-    if (authStatus !== 'authenticated' || !user) return false;
-    if (!requiredRole) return true;
+  const checkRole = (requiredRole?: string | string[]): boolean => {
+    if (!user || authStatus !== 'authenticated') return false;
+    if (!requiredRole) return true; // No specific role required
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (user.role === 'super_admin' || user.role === 'developer') return true;
     return roles.includes(user.role);
-  }, [user, authStatus]);
+  };
 
-  // Reset inactivity timer
-  const resetInactivityTimer = useCallback(() => {
-    setLastActivity(Date.now());
-  }, []);
-  const throttledReset = useCallback(throttle(resetInactivityTimer, 500), [resetInactivityTimer]);
-
-  // Logout function
-  const logout = useCallback(async (): Promise<void> => {
-    setIsLoggingOut(true); // Indicate logout process start
-    dismissAllToasts();
-    devLog('Logging out...');
-    try {
-      if (user) {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.uid, username: user.username, role: user.role })
-        });
-      }
-      setUser(null);
-      setAuthStatus('unauthenticated'); // Set status to unauthenticated
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.removeItem('is_browser_session');
-      }
-      devLog('Logout successful, redirecting to login.');
-      router.replace('/login');
-    } catch (error) {
-      console.error('Error during logout:', error);
-      setUser(null); // Still clear user
-      setAuthStatus('unauthenticated'); // Ensure status is unauthenticated on error
-      router.replace('/login');
-    } finally {
-      setIsLoggingOut(false);
+  // --- Helper Functions ---
+  const clearTimers = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
     }
-  }, [user, router]);
+    if (activityCheckIntervalRef.current) {
+      clearInterval(activityCheckIntervalRef.current);
+      activityCheckIntervalRef.current = null;
+    }
+    devLog('Cleared inactivity/activity timers.');
+  }, []);
 
-  // Initial session check effect
-  useEffect(() => {
-    let isMounted = true; // Prevent state update on unmounted component
-    setAuthStatus('loading'); // Start as loading when path changes or mounts
-    devLog(`Initial effect running. Path: ${pathname}`);
+  const resetInactivityTimer = useCallback(() => {
+    clearTimers();
+    devLog('Setting inactivity timer (30 minutes).');
+    inactivityTimerRef.current = setTimeout(() => {
+      devLog('Inactivity timeout reached. Logging out...');
+      logout();
+    }, 30 * 60 * 1000); // 30 minutes
+  }, [clearTimers]); // Add logout to dependency array later if needed
 
-    const checkSession = async () => {
-      devLog('checkSession started');
-      try {
-        if (typeof document !== 'undefined' && !document.cookie.includes('auth_token=')) {
-          devLog('No auth_token cookie found during initial check.');
-          return null;
-        }
-
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-        devLog(`checkSession response status: ${response.status}`);
-
-        if (!response.ok) return null;
-
-        const data = await response.json();
-        devLog(`checkSession response data: authenticated=${data.authenticated}`);
-        return data.authenticated && data.user ? data.user as User : null;
-      } catch (error) {
-        console.error('Error in checkSession:', error);
-        return null;
-      }
-    };
-
-    checkSession().then(sessionUser => {
-      if (!isMounted) return; // Don't update state if unmounted
-      
-      if (sessionUser) {
-        devLog(`Session valid for user: ${sessionUser.username}. Setting status to authenticated.`);
-        setUser(sessionUser);
-        setAuthStatus('authenticated');
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('is_browser_session', 'true');
-        }
-      } else {
-        devLog('No valid session found. Setting status to unauthenticated.');
-        setUser(null);
-        setAuthStatus('unauthenticated');
-        // Only redirect if not already on login page
-        if (pathname !== '/login') {
-          devLog('Redirecting to login page due to invalid session.');
-          router.replace('/login');
-        }
-      }
-    });
-
-    // Cleanup function
-    return () => {
-      isMounted = false;
-      devLog('Initial effect cleanup.');
-      // Cancel any pending async operations if possible
-    };
-  }, [pathname, router]); // Rerun when pathname changes
-
-  // Inactivity and activity update effect
-  useEffect(() => {
-    if (authStatus !== 'authenticated') return; // Only run timers if authenticated
-
-    devLog('Setting up inactivity/activity timers.');
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    events.forEach(event => window.addEventListener(event, throttledReset));
-
-    const inactivityInterval = setInterval(() => {
-      if (Date.now() - lastActivity > SESSION_TIMEOUT) {
-        devLog('Session timed out due to inactivity. Logging out...');
-        showErrorToast('คุณไม่ได้ใช้งานระบบนานเกินไป กรุณาเข้าสู่ระบบใหม่');
-        logout();
-      }
-    }, 60000);
-
-    const activityInterval = setInterval(async () => {
-      if (user) {
+  const setupActivityCheck = useCallback(() => {
+    devLog('Setting up periodic activity check (every 5 minutes).');
+    activityCheckIntervalRef.current = setInterval(async () => {
+      if (user?.uid) {
         try {
+          devLog('Sending periodic activity update.');
           await fetch('/api/auth/activity', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.uid })
+            body: JSON.stringify({ userId: user.uid }),
           });
-        } catch (error) {
-          console.error('Error updating activity:', error);
+        } catch (err) {
+          devLog(`Error sending activity update: ${err}`);
         }
       }
-    }, ACTIVITY_UPDATE_INTERVAL);
+    }, 5 * 60 * 1000); // 5 minutes
+  }, [user?.uid]);
 
-    return () => {
-      devLog('Cleaning up inactivity/activity timers.');
-      events.forEach(event => window.removeEventListener(event, throttledReset));
-      clearInterval(inactivityInterval);
-      clearInterval(activityInterval);
+  // Throttle function implementation
+  const throttle = (func: (...args: any[]) => void, limit: number): (...args: any[]) => void => {
+    let inThrottle: boolean;
+    return function(this: any, ...args: any[]) {
+      const context = this;
+      if (!inThrottle) {
+        func.apply(context, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
     };
-  }, [authStatus, user, lastActivity, throttledReset, logout]);
+  };
 
-  // Login function
-  const login = async (username: string, password: string): Promise<boolean> => {
-    devLog(`Attempting login for: ${username}`);
-    setAuthStatus('loading'); // Set status to loading during login attempt
-    showLoading();
+  const handleUserActivity = useCallback(throttle(() => {
+    devLog('User activity detected, resetting inactivity timer.');
+    resetInactivityTimer();
+  }, 1000 * 60), [resetInactivityTimer]); // Throttle activity reset to once per minute
+
+  // --- Main Logic Functions ---
+
+  const checkSession = useCallback(async () => {
+    devLog('checkSession started');
+    setAuthStatus('loading'); // Set to loading while checking
     setError(null);
     try {
-      const csrfResponse = await fetch('/api/auth/csrf');
-      const { csrfToken } = await csrfResponse.json();
-      devLog(`CSRF token fetched: ${csrfToken ? 'OK' : 'Failed'}`);
+      devLog('Calling /api/auth/session to verify token...');
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      devLog(`Session API response status: ${response.status}`);
 
+      if (response.ok) {
+        const data = await response.json();
+        devLog(`Session API response data: authenticated=${data.authenticated}`);
+        if (data.authenticated && data.user) {
+          devLog(`Valid session found for user: ${data.user.username}. Setting state.`);
+          setUser(data.user);
+          setAuthStatus('authenticated');
+          resetInactivityTimer();
+          setupActivityCheck();
+        } else {
+          // API returned 200 OK but authenticated: false
+          devLog('Session API reported unauthenticated. Clearing user state.');
+          setUser(null);
+          setAuthStatus('unauthenticated');
+          clearTimers();
+        }
+      } else {
+        // Response not OK (e.g., 401 Unauthorized, 500 Internal Server Error)
+        const errorText = await response.text();
+        devLog(`Session API request failed with status ${response.status}. Error: ${errorText}. Clearing user state.`);
+        setUser(null);
+        setAuthStatus('unauthenticated');
+        clearTimers();
+        // Optionally redirect on specific errors like 401
+        if (response.status === 401 && pathname !== '/login') {
+          devLog('Redirecting to login page due to 401 from session check.');
+          router.push('/login');
+        }
+      }
+    } catch (err) {
+      devLog(`Error during checkSession fetch: ${err}`);
+      setError('เกิดข้อผิดพลาดในการตรวจสอบเซสชัน');
+      setUser(null);
+      setAuthStatus('unauthenticated');
+      clearTimers();
+    }
+  }, [pathname, router, resetInactivityTimer, setupActivityCheck, clearTimers]);
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    devLog(`Attempting login for: ${username}`);
+    setAuthStatus('loading');
+    setError(null);
+    try {
+      // 1. Get CSRF token
+      devLog('Fetching CSRF token...');
+      const csrfRes = await fetch('/api/auth/csrf');
+      if (!csrfRes.ok) {
+        throw new Error('Failed to fetch CSRF token');
+      }
+      const { csrfToken } = await csrfRes.json();
+      devLog('CSRF token fetched: OK');
+
+      // 2. Attempt login
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password, csrfToken })
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ username, password, csrfToken }),
       });
       devLog(`Login API response status: ${response.status}`);
+
       const data = await response.json();
       devLog(`Login API response data: success=${data.success}, user=${data.user?.username}`);
 
-      if (!response.ok || !data.success || !data.user) {
-        const errorMsg = data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
-        devLog(`Login failed: ${errorMsg}`);
-        setError(errorMsg);
-        showErrorToast(errorMsg);
-        setAuthStatus('unauthenticated'); // Set status to unauthenticated on failure
+      if (response.ok && data.success && data.user) {
+        devLog(`Login successful for user: ${data.user.username}`);
+        setUser(data.user);
+        setAuthStatus('authenticated');
+        resetInactivityTimer();
+        setupActivityCheck();
+        return true;
+      } else {
+        const errorMessage = data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+        devLog(`Login failed: ${errorMessage}`);
+        setError(errorMessage);
         setUser(null);
+        setAuthStatus('unauthenticated');
         return false;
       }
-
-      devLog(`Login successful for user: ${data.user.username}`);
-      setUser(data.user);
-      setAuthStatus('authenticated'); // Set status to authenticated on success
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('is_browser_session', 'true');
-      }
-      // Redirect is now handled by LoginPage
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่คาดคิด';
       devLog(`Login error: ${errorMessage}`);
       setError(errorMessage);
-      showErrorToast(errorMessage);
-      setAuthStatus('unauthenticated'); // Ensure status is unauthenticated on catch
       setUser(null);
+      setAuthStatus('unauthenticated');
       return false;
-    } finally {
-      hideLoading();
-      // Do not set loading state here, let authStatus handle it
     }
   };
+
+  const logout = useCallback(async () => {
+    if (isLoggingOut) return;
+    devLog('Starting logout process...');
+    setIsLoggingOut(true);
+    setError(null);
+    clearTimers();
+    const currentUser = user; // Capture user before clearing state
+
+    try {
+      if (currentUser) {
+        devLog(`Calling logout API for user: ${currentUser.username}`);
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            userId: currentUser.uid,
+            username: currentUser.username,
+            role: currentUser.role
+          }),
+        });
+      } else {
+        devLog('No current user, proceeding with client-side logout.');
+      }
+      
+      // Always clear client state regardless of API call success
+      setUser(null);
+      setAuthStatus('unauthenticated');
+      devLog('User state cleared. Redirecting to login page.');
+      router.push('/login');
+    } catch (err) {
+      devLog(`Error during logout API call: ${err}`);
+      setError('เกิดข้อผิดพลาดในการออกจากระบบ');
+      // Still clear client state even if API fails
+      setUser(null);
+      setAuthStatus('unauthenticated');
+      router.push('/login');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, user, router, clearTimers]);
+
+  // Check session on initial load and path change
+  useEffect(() => {
+    devLog(`Initial effect running. Path: ${pathname}`);
+    if (authStatus === 'loading') { // Only run check if status is initially loading
+      checkSession();
+    }
+    // Set up activity listeners
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    window.addEventListener('click', handleUserActivity);
+
+    // Clean up listeners and timers on unmount
+    return () => {
+      devLog('Initial effect cleanup.');
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      window.removeEventListener('click', handleUserActivity);
+      clearTimers();
+    };
+  }, [pathname, checkSession, handleUserActivity, clearTimers, authStatus]); // Add authStatus dependency
 
   // Export the auth context provider and hook
   const contextValue = {

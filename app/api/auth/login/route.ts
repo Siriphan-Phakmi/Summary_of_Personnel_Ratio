@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     await cookieStore.set('auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 86400, // 1 วัน
       path: '/'
     });
@@ -178,7 +178,7 @@ export async function POST(request: Request) {
     await cookieStore.set('user_data', JSON.stringify(safeUserData), {
       httpOnly: false, // อนุญาตให้ JavaScript อ่านได้
       secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
+      sameSite: 'lax',
       maxAge: 86400, // 1 วัน
       path: '/'
     });

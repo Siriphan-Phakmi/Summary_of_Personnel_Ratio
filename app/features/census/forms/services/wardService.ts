@@ -13,7 +13,9 @@ import {
   limit,
   documentId,
   WriteBatch,
-  writeBatch
+  writeBatch,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { Ward } from '@/app/core/types/ward';
@@ -129,37 +131,16 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
       return wards;
     }
     
-    // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย
-    if (user.location && user.location.length > 0) {
-      // หากมีจำนวนแผนกที่เข้าถึงได้มากกว่า 10 แผนก ใช้วิธีดึงข้อมูลทั้งหมดแล้วกรอง
-      if (user.location.length > 10) {
-        const allWards = await getActiveWards();
-        return allWards.filter(ward => user.location?.includes(ward.id));
-      }
-      
-      // ถ้าแผนกไม่มาก ให้ใช้ 'in' query เพื่อประสิทธิภาพที่ดีกว่า
-      const wardQuery = query(
-        collection(db, COLLECTION_WARDS),
-        where(documentId(), 'in', user.location),
-        where('active', '==', true),
-        orderBy('wardOrder', 'asc')
-      );
-      
-      const querySnapshot = await getDocs(wardQuery);
-      const wards: Ward[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const wardData = doc.data() as Ward;
-        wards.push({
-          ...wardData,
-          id: doc.id
-        });
-      });
-      
-      return wards;
+    // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย (ปรับ Logic ใหม่)
+    // เดิม: อ้างอิง user.location
+    // ใหม่: User ทั่วไปให้เห็นทุก Ward ที่ Active เพื่อให้เลือกกรอกข้อมูลได้
+    if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) { // Assuming 'nurse' and 'viewer' are standard user roles
+      console.log(`[WardService] User role is ${user.role}, fetching all active wards.`);
+      return getActiveWards();
     }
-    
-    // กรณีไม่มีแผนกที่ได้รับมอบหมายชัดเจน ให้ส่งคืนลิสต์ว่าง
+
+    // กรณี Role อื่นๆ ที่ไม่ได้ระบุไว้ หรือไม่มีสิทธิ์เฉพาะ
+    console.log(`[WardService] User role ${user.role} does not have specific ward permissions defined here, returning empty list.`);
     return [];
   } catch (error) {
     console.error('Error getting wards by user permission:', error);
@@ -430,68 +411,59 @@ export const updateWardOrders = async (
 };
 
 /**
- * ตั้งค่าแผนกเริ่มต้นสำหรับระบบ
- * ฟังก์ชันนี้จะตรวจสอบว่ามีแผนกที่กำหนดไว้ในระบบแล้วหรือไม่
- * ถ้ายังไม่มีจะเพิ่มแผนกเริ่มต้นให้
+ * สร้างข้อมูลแผนกเริ่มต้น (ถ้ายังไม่มี)
  */
 export const setupDefaultWards = async (): Promise<void> => {
+  console.log('[WardService] Checking and setting up default wards...');
+  const defaultWards: Omit<Ward, 'id' | 'createdAt' | 'updatedAt'>[] = [
+    { wardId: 'Ward6', wardName: 'Ward6', active: true, wardOrder: 1 },
+    { wardId: 'Ward7', wardName: 'Ward7', active: true, wardOrder: 2 },
+    { wardId: 'Ward8', wardName: 'Ward8', active: true, wardOrder: 3 },
+    { wardId: 'Ward9', wardName: 'Ward9', active: true, wardOrder: 4 },
+    { wardId: 'WardGI', wardName: 'WardGI', active: true, wardOrder: 5 },
+    { wardId: 'Ward10B', wardName: 'Ward10B', active: true, wardOrder: 6 }, // Assuming 10B
+    { wardId: 'Ward11', wardName: 'Ward11', active: true, wardOrder: 7 },
+    { wardId: 'Ward12', wardName: 'Ward12', active: true, wardOrder: 8 },
+    { wardId: 'ICU', wardName: 'ICU', active: true, wardOrder: 9 },
+    { wardId: 'LR', wardName: 'LR', active: true, wardOrder: 10 },
+    { wardId: 'NSY', wardName: 'NSY', active: true, wardOrder: 11 },
+    { wardId: 'CCU', wardName: 'CCU', active: true, wardOrder: 12 }, // Added CCU
+    // { wardId: 'Total', wardName: 'Total', active: false, wardOrder: 99 }, // Removed Total ward
+  ];
+
+  const wardsRef = collection(db, COLLECTION_WARDS);
+  const batch = writeBatch(db);
+  let wardsAddedCount = 0;
+
   try {
-    // ตรวจสอบว่ามีแผนกในระบบหรือยัง
-    const existingWards = await getAllWards();
-    
-    // ถ้ามีแผนกอยู่แล้วและมีจำนวนมากกว่าหรือเท่ากับจำนวนแผนกเริ่มต้น ไม่ต้องทำอะไร
-    if (existingWards.length >= 13) {
-      console.log('Ward collections already exist. Skipping setup.');
-      return;
-    }
-    
-    // กำหนดรายการแผนกเริ่มต้น
-    const defaultWards: Omit<Ward, 'id' | 'createdAt' | 'updatedAt'>[] = [
-      { wardId: 'ward6', wardName: 'Ward6', active: true, wardOrder: 1, description: 'Ward 6' },
-      { wardId: 'ward7', wardName: 'Ward7', active: true, wardOrder: 2, description: 'Ward 7' },
-      { wardId: 'ward8', wardName: 'Ward8', active: true, wardOrder: 3, description: 'Ward 8' },
-      { wardId: 'ward9', wardName: 'Ward9', active: true, wardOrder: 4, description: 'Ward 9' },
-      { wardId: 'wardgi', wardName: 'WardGI', active: true, wardOrder: 5, description: 'Ward GI' },
-      { wardId: 'ward10b', wardName: 'Ward10B', active: true, wardOrder: 6, description: 'Ward 10B' },
-      { wardId: 'ward11', wardName: 'Ward11', active: true, wardOrder: 7, description: 'Ward 11' },
-      { wardId: 'ward12', wardName: 'Ward12', active: true, wardOrder: 8, description: 'Ward 12' },
-      { wardId: 'icu', wardName: 'ICU', active: true, wardOrder: 9, description: 'Intensive Care Unit' },
-      { wardId: 'ccu', wardName: 'CCU', active: true, wardOrder: 10, description: 'Coronary Care Unit' },
-      { wardId: 'lr', wardName: 'LR', active: true, wardOrder: 11, description: 'Labor Room' },
-      { wardId: 'nsy', wardName: 'NSY', active: true, wardOrder: 12, description: 'Nursery' },
-      { wardId: 'total', wardName: 'Total', active: true, wardOrder: 13, description: 'Total Summary' }
-    ];
-    
-    // สร้าง batch เพื่อเพิ่มข้อมูลทั้งหมดในครั้งเดียว
-    const batch = writeBatch(db);
-    const wardsCollection = collection(db, COLLECTION_WARDS);
-    
-    // สร้าง map เก็บรายการแผนกที่มีอยู่แล้ว เพื่อไม่เพิ่มซ้ำ
-    const existingWardMap = new Map<string, boolean>();
-    existingWards.forEach(ward => {
-      existingWardMap.set(ward.wardId.toLowerCase(), true);
-    });
-    
-    // เพิ่มเฉพาะแผนกที่ยังไม่มี
-    for (const ward of defaultWards) {
-      if (!existingWardMap.has(ward.wardId.toLowerCase())) {
-        const newWardRef = doc(wardsCollection);
-        batch.set(newWardRef, {
-          ...ward,
+    for (const wardData of defaultWards) {
+      // Use wardId as the document ID
+      const wardDocRef = doc(wardsRef, wardData.wardId);
+      const docSnap = await getDoc(wardDocRef);
+
+      if (!docSnap.exists()) {
+        console.log(`[WardService] Default ward ${wardData.wardId} not found. Creating...`);
+        batch.set(wardDocRef, {
+          ...wardData,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
-        console.log(`Adding ward: ${ward.wardName}`);
+        wardsAddedCount++;
       } else {
-        console.log(`Ward ${ward.wardName} already exists. Skipping.`);
+        // Optional: Update existing default wards if needed (e.g., ensure active=true, update order)
+        // console.log(`[WardService] Default ward ${wardData.wardId} already exists. Checking for updates...`);
+        // batch.update(wardDocRef, { wardOrder: wardData.wardOrder, active: wardData.active });
       }
     }
-    
-    // บันทึกข้อมูลทั้งหมด
-    await batch.commit();
-    console.log('Default wards setup completed');
+
+    if (wardsAddedCount > 0) {
+      await batch.commit();
+      console.log(`[WardService] Successfully added ${wardsAddedCount} default wards.`);
+    } else {
+      console.log('[WardService] All default wards already exist.');
+    }
   } catch (error) {
     console.error('Error setting up default wards:', error);
-    throw error;
+    // Handle error appropriately
   }
 }; 

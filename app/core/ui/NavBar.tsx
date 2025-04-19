@@ -107,7 +107,7 @@ const NavBar = () => {
             </span>
             <div className="text-sm text-gray-600 dark:text-gray-400">
               <span>{user?.role ? `${user.role} ` : ''}</span>
-              <span>{user?.location ? (Array.isArray(user.location) ? user.location.join(', ') : String(user.location)) : ''}</span>
+              <span>{user?.floor || ''}</span>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={handleLogout} leftIcon={<FiLogOut />} disabled={isLoggingOut}>
@@ -162,7 +162,7 @@ const NavBar = () => {
               </div>
               <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
                 <span>{user?.role ? `${user.role} ` : ''}</span>
-                <span>{user?.location ? (Array.isArray(user.location) ? user.location.join(', ') : String(user.location)) : ''}</span>
+                <span>{user?.floor || ''}</span>
               </div>
             </div>
           </div>
