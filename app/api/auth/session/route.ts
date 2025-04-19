@@ -6,9 +6,12 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export async function GET(request: Request) {
   try {
+    console.log('Session API called');
     // ดึง token จาก cookie
     const cookieStore = await cookies();
     const authToken = cookieStore.get('auth_token')?.value;
+    
+    console.log('Auth token in cookie:', authToken ? `${authToken.substring(0, 10)}...` : 'not found');
     
     if (!authToken) {
       return NextResponse.json(
@@ -19,9 +22,11 @@ export async function GET(request: Request) {
     
     // ตรวจสอบความถูกต้องของ token
     const tokenData = await verifyToken(authToken);
+    console.log('Token verification result:', tokenData ? 'valid' : 'invalid');
     
-    if (!tokenData || !tokenData.userId) {
+    if (!tokenData || !tokenData.sub) {
       // Token ไม่ถูกต้องหรือหมดอายุ ให้ล้าง cookies
+      console.log('Invalid token or missing user ID');
       await cookieStore.delete('auth_token');
       await cookieStore.delete('user_data');
       
@@ -32,9 +37,12 @@ export async function GET(request: Request) {
     }
     
     // ตรวจสอบว่าผู้ใช้ยังมีอยู่และยังใช้งานได้หรือไม่
-    const userDoc = await getDoc(doc(db, 'users', tokenData.userId));
+    const userId = tokenData.sub as string;
+    console.log('Checking user document:', userId);
+    const userDoc = await getDoc(doc(db, 'users', userId));
     
     if (!userDoc.exists()) {
+      console.log('User document not found');
       await cookieStore.delete('auth_token');
       await cookieStore.delete('user_data');
       
@@ -45,9 +53,11 @@ export async function GET(request: Request) {
     }
     
     const userData = userDoc.data();
+    console.log('User found:', userData.username);
     
     // ตรวจสอบสถานะการใช้งาน
     if (userData.active === false) {
+      console.log('User account is disabled');
       await cookieStore.delete('auth_token');
       await cookieStore.delete('user_data');
       
@@ -58,13 +68,13 @@ export async function GET(request: Request) {
     }
     
     // อัพเดต lastActive
-    await updateDoc(doc(db, 'users', tokenData.userId), {
+    await updateDoc(doc(db, 'users', userId), {
       lastActive: new Date()
     });
     
     // สร้าง user data ที่ปลอดภัย (ไม่มีข้อมูลอ่อนไหว)
     const safeUserData = {
-      uid: tokenData.userId,
+      uid: userId,
       username: userData.username,
       firstName: userData.firstName,
       lastName: userData.lastName,
@@ -73,6 +83,7 @@ export async function GET(request: Request) {
       approveWardIds: userData.approveWardIds || []
     };
     
+    console.log('Session valid, returning user data');
     // ส่งข้อมูลกลับ
     return NextResponse.json({
       authenticated: true,

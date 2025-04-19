@@ -2,7 +2,7 @@ import { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/app/features/theme';
 import { AuthProvider } from '@/app/features/auth';
-import { LoadingProvider } from '@/app/core/contexts/LoadingContext';
+import { LoadingProvider } from '@/app/core/components/Loading';
 import { Toaster } from 'react-hot-toast';
 import { ThemeToggle } from '@/app/core/ui';
 

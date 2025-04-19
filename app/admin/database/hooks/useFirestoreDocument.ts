@@ -1,151 +1,132 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  fetchDocumentsV2 as fetchDocuments, 
-  createDocument, 
-  fetchFields, 
-  setDocumentField,
-  FieldData 
-} from '../services/databaseService';
-import { DocumentData } from '../services/databaseService';
+  collection, 
+  doc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where, 
+  addDoc, 
+  updateDoc,
+  setDoc 
+} from 'firebase/firestore';
+import { db } from '@/app/core/firebase/firebase';
 
-// Export type Field เพื่อใช้ใน DocumentFieldView.tsx
-export type Field = FieldData;
+export interface Field {
+  name: string;
+  type: string;
+  value: any;
+}
 
-/**
- * Hook สำหรับจัดการเอกสารและฟิลด์ใน Firestore
- */
+interface Document {
+  id: string;
+  data: Record<string, any>;
+}
+
 export const useFirestoreDocument = (collectionId: string) => {
-  const [documents, setDocuments] = useState<DocumentData[]>([]);
-  const [fields, setFields] = useState<FieldData[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fields, setFields] = useState<Field[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-  // โหลดเอกสารเมื่อคอลเลกชันเปลี่ยน
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadDocs = async () => {
-      if (collectionId && isMounted) {
-        await loadDocuments();
-      }
-    };
-    
-    loadDocs();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [collectionId]); // ไม่ใส่ loadDocuments เป็น dependency
-
-  // โหลดฟิลด์เมื่อเอกสารที่เลือกเปลี่ยน
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadDocFields = async () => {
-      if (collectionId && selectedDocument && isMounted) {
-        try {
-          setLoading(true);
-          setError(null);
-          const documentPath = `${collectionId}/${selectedDocument}`;
-          const data = await fetchFields(documentPath);
-          if (isMounted) {
-            setFields(data);
-          }
-        } catch (err) {
-          if (isMounted) {
-            setError('ไม่สามารถโหลดฟิลด์ได้');
-            console.error('Error loading fields:', err);
-          }
-        } finally {
-          if (isMounted) {
-            setLoading(false);
-          }
-        }
-      } else if (isMounted) {
-        setFields([]);
-      }
-    };
-    
-    loadDocFields();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [collectionId, selectedDocument]); // ไม่ใส่ loadFields เป็น dependency
-
-  // โหลดเอกสารทั้งหมดในคอลเลกชัน
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
+    if (!collectionId) return;
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchDocuments(collectionId);
-      setDocuments(data);
+      const docsRef = collection(db, collectionId);
+      const snapshot = await getDocs(docsRef);
+      const docsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        data: doc.data()
+      }));
+      setDocuments(docsData);
+      setSelectedDocument(null);
+      setFields([]);
     } catch (err) {
-      setError('ไม่สามารถโหลดเอกสารได้');
-      console.error('Error loading documents:', err);
+      setError(err as Error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [collectionId]);
 
-  // สร้างเอกสารใหม่
-  const addDocument = async (docId: string) => {
-    try {
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  useEffect(() => {
+    const loadFields = async () => {
+      if (!selectedDocument || !collectionId) {
+        setFields([]);
+        return;
+      }
       setLoading(true);
-      setError(null);
-      await createDocument(collectionId, docId);
+      try {
+        const docRef = doc(db, collectionId, selectedDocument);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const loadedFields: Field[] = Object.entries(data).map(([key, value]) => ({
+            name: key,
+            value: value,
+            type: typeof value,
+          }));
+          setFields(loadedFields);
+        } else {
+          setFields([]);
+        }
+      } catch (err) {
+        setError(err as Error);
+        setFields([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFields();
+  }, [selectedDocument, collectionId]);
+
+  const addDocument = useCallback(async (documentId: string, initialData: Record<string, any> = {}) => {
+    try {
+      const docRef = doc(db, collectionId, documentId);
+      await setDoc(docRef, initialData); 
       await loadDocuments();
+      setSelectedDocument(documentId);
+    } catch (err) {
+      setError(err as Error);
+      throw err;
+    }
+  }, [collectionId, loadDocuments]);
+
+  const addOrUpdateField = useCallback(async (fieldName: string, value: any) => {
+    if (!selectedDocument) return false;
+    try {
+      const docRef = doc(db, collectionId, selectedDocument);
+      await updateDoc(docRef, { [fieldName]: value });
+      setFields(prevFields => {
+        const fieldIndex = prevFields.findIndex(f => f.name === fieldName);
+        const newField = { name: fieldName, value: value, type: typeof value };
+        if (fieldIndex > -1) {
+          const updatedFields = [...prevFields];
+          updatedFields[fieldIndex] = newField;
+          return updatedFields;
+        } else {
+          return [...prevFields, newField];
+        }
+      });
       return true;
     } catch (err) {
-      setError('ไม่สามารถสร้างเอกสารได้');
-      console.error('Error creating document:', err);
+      setError(err as Error);
       return false;
-    } finally {
-      setLoading(false);
     }
-  };
-
-  // เพิ่มหรืออัปเดตฟิลด์
-  const addOrUpdateField = async (
-    fieldName: string,
-    fieldType: string,
-    fieldValue: any
-  ) => {
-    try {
-      setLoading(true);
-      setError(null);
-      if (!collectionId || !selectedDocument) return false;
-      
-      const documentPath = `${collectionId}/${selectedDocument}`;
-      const success = await setDocumentField(
-        documentPath,
-        fieldName, 
-        fieldType, 
-        fieldValue
-      );
-      
-      if (success) {
-        // โหลดข้อมูลฟิลด์ใหม่หลังจากอัปเดต
-        const data = await fetchFields(documentPath);
-        setFields(data);
-      }
-      
-      return success;
-    } catch (err) {
-      setError('ไม่สามารถอัปเดตฟิลด์ได้');
-      console.error('Error updating field:', err);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [collectionId, selectedDocument]);
 
   return {
     documents,
-    fields,
     selectedDocument,
     setSelectedDocument,
+    fields, 
     loading,
     error,
     addDocument,

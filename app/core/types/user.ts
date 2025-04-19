@@ -3,8 +3,10 @@
  */
 export enum UserRole {
   ADMIN = 'admin',
+  HEAD_NURSE = 'head_nurse',
+  NURSE = 'nurse',
+  VIEWER = 'viewer',
   SUPER_ADMIN = 'super_admin',
-  USER = 'user',
   DEVELOPER = 'developer',
   APPROVER = 'approver'
 }

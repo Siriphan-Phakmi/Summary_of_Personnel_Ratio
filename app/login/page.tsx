@@ -11,19 +11,3 @@ export default function LoginPageWrapper() {
     </Suspense>
   );
 }
-
-const LoginContent = () => {
-  const searchParams = useSearchParams();
-  // ...logic อื่นๆ
-  return (
-    <Suspense fallback={<div>กำลังโหลด...</div>}>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-const LoginForm = () => {
-  const searchParams = useSearchParams();
-  // ...logic อื่นๆ
-  return <div>ฟอร์มล็อกอิน</div>;
-}

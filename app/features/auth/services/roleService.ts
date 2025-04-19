@@ -1,4 +1,6 @@
-import { User } from '@/app/core/types/user';
+import { User, UserRole } from '@/app/core/types/user';
+import { db } from '@/app/core/firebase/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 /**
  * ตรวจสอบว่าผู้ใช้มีสิทธิ์ในบทบาทที่กำหนดหรือไม่
@@ -58,4 +60,27 @@ export const checkWardAccess = (
   
   // ตรวจสอบว่าผู้ใช้มี ward ที่กำหนดหรือไม่
   return !!user.location?.includes(wardId);
+};
+
+export const getUserRole = async (user: User | null): Promise<UserRole | null> => {
+  if (!user) {
+    console.log('No user provided to getUserRole');
+    return null;
+  }
+
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (!userDoc.exists()) {
+      console.log('User document not found for role check');
+      return null;
+    }
+
+    const userData = userDoc.data();
+    return userData?.role || null;
+  } catch (error) {
+    console.error('Error getting user role:', error);
+    return null;
+  }
 }; 

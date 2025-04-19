@@ -1,10 +1,13 @@
 import { serverTimestamp, FieldValue } from 'firebase/firestore';
-import { TimestampField } from '../types/user';
+import { ServerTimestampType } from '@/app/core/types/user';
 
-/**
- * สร้าง timestamp ที่ใช้ serverTimestamp แต่รองรับ TimestampField type
- * @returns server timestamp ที่รองรับ TimestampField
- */
-export const createServerTimestamp = (): TimestampField => {
-  return serverTimestamp() as unknown as TimestampField;
+export const createServerTimestamp = (): ServerTimestampType => {
+  const timestamp = serverTimestamp();
+  return {
+    seconds: null,
+    nanoseconds: null,
+    isEqual: (timestamp as FieldValue).isEqual,
+    toDate: () => new Date(),
+    valueOf: () => null
+  };
 }; 

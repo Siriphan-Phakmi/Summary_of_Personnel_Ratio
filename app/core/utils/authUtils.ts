@@ -114,9 +114,11 @@ export const generateToken = async (
     // คำนวณเวลาหมดอายุ (3 ชั่วโมง สำหรับ token เอง)
     const expiresIn = Math.floor(Date.now() / 1000) + (EXPIRATION_MS / 1000);
 
+    console.log(`Generating token for user: ${username}, role: ${role}, id: ${userId}`);
+
     // สร้าง JWT token ด้วย jose
     const token = await new jose.SignJWT({
-        sub: userId,
+        sub: userId, // ใช้ sub เป็น standard claim สำหรับ subject (user id)
         username,
         role
       })
@@ -139,8 +141,18 @@ export const generateToken = async (
  */
 export const verifyToken = async (token: string): Promise<any | null> => {
   try {
+    if (!token || token.trim() === '') {
+      console.warn('Empty token provided for verification');
+      return null;
+    }
+    
+    console.log(`Verifying token (length: ${token.length})`);
+    
     const secretKey = new TextEncoder().encode(JWT_SECRET);
+    console.log('JWT_SECRET in use:', JWT_SECRET.substring(0, 3) + '...');
+    
     const { payload } = await jose.jwtVerify(token, secretKey);
+    console.log('Token verified successfully. Payload sub:', payload.sub);
     return payload;
   } catch (err) {
     // ถ้า error เป็น JWTExpired ไม่ต้อง log เป็น error ก็ได้

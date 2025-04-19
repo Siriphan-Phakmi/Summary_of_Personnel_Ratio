@@ -128,7 +128,7 @@ const CollectionManager: React.FC = () => {
       return collections;
     }
     return collections.filter(
-      col => col.id.toLowerCase().includes(collectionSearchTerm.toLowerCase())
+      (col: { id: string }) => col.id.toLowerCase().includes(collectionSearchTerm.toLowerCase())
     );
   }, [collections, collectionSearchTerm]);
 
@@ -387,7 +387,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
       return documents;
     }
     return documents.filter(
-      doc => doc.id.toLowerCase().includes(searchTerm.toLowerCase())
+      (doc: { id: string }) => doc.id.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [documents, searchTerm]);
   
@@ -468,7 +468,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
             </div>
           ) : (
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredDocuments.map(document => (
+              {filteredDocuments.map((document: { id: string; data: Record<string, any> }) => (
                 <li 
                   key={document.id}
                   className={`

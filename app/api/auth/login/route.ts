@@ -71,6 +71,11 @@ export async function POST(request: Request) {
     // ตรวจสอบ CSRF token
     const cookieStore = await cookies();
     const csrfCookie = cookieStore.get('csrf_token')?.value;
+    
+    // เพิ่ม Log เพื่อตรวจสอบค่า CSRF token
+    console.log('[LOGIN API] CSRF Token from Body:', csrfToken);
+    console.log('[LOGIN API] CSRF Token from Cookie:', csrfCookie);
+    
     if (csrfCookie !== csrfToken) {
       await logLoginFailed(username, 'Invalid CSRF token', request.headers.get('user-agent') || '');
       return NextResponse.json(

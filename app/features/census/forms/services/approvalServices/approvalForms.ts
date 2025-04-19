@@ -11,7 +11,7 @@ import { WardForm, FormStatus, FormApproval } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS } from './index';
 import { checkAndCreateDailySummary } from './dailySummary';
-import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
+import { createServerTimestamp } from '@/app/core/utils/dateUtils';
 
 /**
  * อนุมัติแบบฟอร์ม

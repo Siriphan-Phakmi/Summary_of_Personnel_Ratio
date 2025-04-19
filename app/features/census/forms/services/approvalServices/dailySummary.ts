@@ -18,7 +18,7 @@ import { User } from '@/app/core/types/user';
 import { format } from 'date-fns';
 import { DailySummary } from '@/app/core/types/approval';
 import { COLLECTION_WARDFORMS, COLLECTION_SUMMARIES } from './index';
-import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
+import { createServerTimestamp } from '@/app/core/utils/dateUtils';
 
 /**
  * ตรวจสอบและสร้างข้อมูลสรุปประจำวัน ถ้ามีการอนุมัติแบบฟอร์มครบทั้งกะเช้าและกะดึก

@@ -1,5 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
+import { Timestamp } from 'firebase/firestore';
+import { TimestampField } from '../types/user';
 
 /**
  * แปลงวันที่เป็นรูปแบบ YYYY-MM-DD
@@ -39,16 +41,33 @@ export const formatDateForForm = (date: Date | string | number): string => {
  * แปลงวันที่จาก Firebase Timestamp
  */
 export const formatTimestamp = (
-  timestamp: { seconds: number; nanoseconds: number } | Date | null | undefined, 
+  timestamp: TimestampField | null | undefined,
   pattern: string = 'd MMMM yyyy'
 ): string => {
   if (!timestamp) return '';
   
-  const date = timestamp instanceof Date 
-    ? timestamp 
-    : new Date((timestamp.seconds * 1000) + (timestamp.nanoseconds / 1000000));
+  let date: Date;
+  
+  if (timestamp instanceof Date) {
+    date = timestamp;
+  } else if (typeof timestamp === 'string') {
+    date = new Date(timestamp);
+  } else if (timestamp && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+    date = timestamp.toDate();
+  } else if (timestamp && 'seconds' in timestamp) {
+    date = new Date((timestamp.seconds as number) * 1000);
+  } else {
+    return '';
+  }
   
   return format(date, pattern, { locale: th });
+};
+
+/**
+ * สร้าง server timestamp
+ */
+export const createServerTimestamp = (): TimestampField => {
+  return Timestamp.now() as unknown as TimestampField;
 };
 
 /**

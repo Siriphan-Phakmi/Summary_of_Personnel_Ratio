@@ -10,7 +10,7 @@ import { useTheme } from 'next-themes';
 import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
 import { generateCSRFToken, validateCSRFToken } from '@/app/core/utils/authUtils';
-import { useLoading } from '@/app/core/contexts/LoadingContext';
+import { useLoading } from '@/app/core/components/Loading';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 
 // Toast component for success messages
@@ -206,8 +206,23 @@ export default function LoginPage() {
 
   // Generate CSRF token on component load
   useEffect(() => {
-    const token = generateCSRFToken();
-    setCsrfToken(token);
+    const fetchCsrfToken = async () => {
+      try {
+        // เรียก API เพื่อรับ CSRF token จากเซิร์ฟเวอร์
+        const response = await fetch('/api/auth/csrf');
+        const data = await response.json();
+        if (data.csrfToken) {
+          console.log('Received CSRF token from server');
+          setCsrfToken(data.csrfToken);
+        } else {
+          console.error('Failed to receive CSRF token');
+        }
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+      }
+    };
+    
+    fetchCsrfToken();
   }, []);
 
   // Handle login form submission
@@ -231,14 +246,18 @@ export default function LoginPage() {
         throw new Error('ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้ กรุณาตรวจสอบการเชื่อมต่อของคุณ');
       }
 
+      console.log(`Attempting to login with username: ${username}, CSRF token: ${csrfToken ? 'exists' : 'missing'}`);
       const response = await login(username, password);
+      console.log('Login response:', response);
       
       if (response === true) {
         showSuccessToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${username}`);
         return;
       }
       
-      throw new Error('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
+      // แก้ไข: ไม่ throw error ที่นี่ แต่แสดงข้อความผิดพลาดแทน
+      setLoginError('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
+      showErrorToast('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
       
     } catch (err: any) {
       console.error('Login error:', err);
@@ -306,7 +325,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter your username"
-                disabled={isLoading}
+                disabled={isLoggingIn}
                 className="w-full px-4 py-2 pl-10 text-xl md:text-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
                 ref={usernameInputRef}
@@ -328,7 +347,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                disabled={isLoading}
+                disabled={isLoggingIn}
                 className="w-full px-4 py-2 pl-10 text-xl md:text-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white pr-10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
               />
@@ -339,7 +358,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={togglePasswordVisibility}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                disabled={isLoading}
+                disabled={isLoggingIn}
               >
                 {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
               </button>
@@ -359,7 +378,7 @@ export default function LoginPage() {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={isLoading}
+              disabled={isLoggingIn}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
             />
             <label htmlFor="remember-me" className="ml-2 block text-lg text-gray-700 dark:text-gray-300">
@@ -373,7 +392,7 @@ export default function LoginPage() {
               variant="primary"
               size="md"
               fullWidth
-              disabled={isLoading}
+              disabled={isLoggingIn}
               isLoading={isLoggingIn}
               className="text-xl md:text-2xl py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-all duration-200"
             >
