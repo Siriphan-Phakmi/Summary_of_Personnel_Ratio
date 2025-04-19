@@ -187,6 +187,36 @@ export const updateSessionActivity = async (
 };
 
 /**
+ * อัพเดท session เมื่อมีการรีเฟรชหน้า
+ * @param userId ID ของผู้ใช้
+ * @param sessionId ID ของ session ปัจจุบัน
+ */
+export const updateSessionForRefresh = async (
+  userId: string,
+  sessionId: string
+): Promise<void> => {
+  if (!userId || !sessionId) return;
+  
+  try {
+    const sessionRef = ref(rtdb, `sessions/${userId}/${sessionId}`);
+    const currentSessionRef = ref(rtdb, `currentSessions/${userId}`);
+    
+    // อัพเดทสถานะและเวลาล่าสุดที่ใช้งาน
+    const updates = {
+      lastActive: serverTimestamp(),
+      wasRefreshed: true,
+      refreshedAt: serverTimestamp()
+    };
+    
+    await update(sessionRef, updates);
+    await update(currentSessionRef, updates);
+    console.log(`[SESSION] Updated session ${sessionId} for refresh`);
+  } catch (error) {
+    console.error('[SESSION] Error updating session for refresh:', error);
+  }
+};
+
+/**
  * สร้าง user object ที่ปลอดภัยไม่มี timestamp object ที่จะทำให้เกิดปัญหาเมื่อส่งไป server actions
  */
 function createSafeUserObject(user: User): User {

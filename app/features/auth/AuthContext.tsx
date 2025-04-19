@@ -7,7 +7,7 @@ import { db, rtdb } from '@/app/core/firebase/firebase';
 import { ref, get } from 'firebase/database';
 import { User } from '@/app/core/types/user';
 import toast from 'react-hot-toast';
-import { isTokenValid } from '@/app/core/utils/authUtils';
+import { isTokenValid, clearAuthCookies, getAuthCookie, getUserCookie } from '@/app/core/utils/authUtils';
 import { dismissAllToasts } from '@/app/core/utils/toastUtils';
 
 // Import services
@@ -23,7 +23,8 @@ import {
   updateSessionActivity, 
   createUserSession,
   resetUserSessions,
-  endUserSession
+  endUserSession,
+  updateSessionForRefresh
 } from './services/sessionService';
 
 // Define authentication context type
@@ -294,11 +295,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // ตรวจสอบ session ที่บันทึกไว้
     const checkSession = async () => {
-      // Ensure loading is true at the start of the check
-      // Note: Initial state might already be true if !initialCachedUser
-      setIsLoading(true); 
+      // เช็คว่าเป็นการรีเฟรชหน้าหรือไม่
+      const isRefreshing = typeof document !== 'undefined' && 
+        (document.cookie.includes('is_refreshing=true') || document.cookie.includes('was_refreshed=true'));
+      
+      // ตรวจสอบว่ามี session cookie อยู่หรือไม่
+      const hasAuthCookie = getAuthCookie() !== null;
+      const hasUserCookie = getUserCookie() !== null;
+      
+      if (isRefreshing && (hasAuthCookie || hasUserCookie)) {
+        console.log('Page is being refreshed with existing auth cookies');
+        // ถ้าเป็นการ refresh และมี cookie อยู่ ให้ใช้ข้อมูลจาก cookie ก่อน
+        const cookieUser = getUserCookie();
+        if (cookieUser && cookieUser.uid) {
+          setUser(cookieUser);
+          // ตรวจสอบ sessionId จาก sessionStorage
+          const savedSessionId = sessionStorage.getItem('currentSessionId');
+          if (savedSessionId) {
+            setSessionId(savedSessionId);
+            return; // ออกจากฟังก์ชันเลยถ้าพบข้อมูลครบ
+          }
+        }
+      }
+
+      setIsLoading(true);
       try {
-        const userData = await checkSavedSession(user); // Pass current user state
+        const userData = await checkSavedSession(user);
         if (userData) {
           console.log('Session check successful, user data:', { 
             username: userData.username,
@@ -311,12 +333,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // ตรวจสอบ sessionId ที่บันทึกไว้ใน sessionStorage
           const savedSessionId = sessionStorage.getItem('currentSessionId');
           if (savedSessionId && userData.uid) {
-            // ตรวจสอบว่า session ยังใช้งานได้หรือไม่
-            // แก้ไข: ย้าย session watcher ไปเริ่มหลังจาก setSessionId
-            // watchCurrentSession(userData.uid, savedSessionId, handleSessionChange);
             setSessionId(savedSessionId);
           } else if (userData.uid) {
-            // ถ้าไม่มี session ที่บันทึกไว้ สร้าง session ใหม่
             try {
               const newSessionId = await createUserSession(userData.uid, userData.role);
               if (newSessionId) {
@@ -325,31 +343,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
             } catch (sessionErr) {
               console.error('Error creating new session, but continuing login:', sessionErr);
-              // ไม่ throw error เพื่อให้ยังสามารถเข้าสู่ระบบได้แม้จะไม่มี session
             }
           }
-        } else {
-           // If no userData from checkSavedSession, clear local state
-           setUser(null);
-           setSessionId(null);
-           if (sessionUnsubscribe) {
-             sessionUnsubscribe();
-             setSessionUnsubscribe(null);
-           } 
+        } else if (isRefreshing && hasUserCookie) {
+          // ถ้าไม่พบข้อมูลผู้ใช้แต่เป็นการรีเฟรชหน้า และมี cookie อยู่
+          const cookieUser = getUserCookie();
+          if (cookieUser && cookieUser.uid) {
+            console.log('Using cookie data after refresh:', cookieUser.username || cookieUser.uid);
+            setUser(cookieUser);
+            
+            // ตรวจสอบ sessionId จาก sessionStorage
+            const savedSessionId = sessionStorage.getItem('currentSessionId');
+            if (savedSessionId) {
+              setSessionId(savedSessionId);
+            } else if (cookieUser.uid) {
+              try {
+                const newSessionId = await createUserSession(cookieUser.uid, cookieUser.role);
+                if (newSessionId) {
+                  sessionStorage.setItem('currentSessionId', newSessionId);
+                  setSessionId(newSessionId);
+                }
+              } catch (sessionErr) {
+                console.error('Error creating new session after refresh:', sessionErr);
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Error checking saved session:', err);
-        setUser(null); // Clear user on error
-        // Also clear session ID state and unsubscribe
-        setSessionId(null);
-        if (sessionUnsubscribe) {
-          sessionUnsubscribe();
-          setSessionUnsubscribe(null);
+        
+        // ถ้าเป็นการรีเฟรชหน้า ให้พยายามรักษาสถานะไว้
+        if (isRefreshing && (hasAuthCookie || hasUserCookie || user)) {
+          console.log('Error on refresh, but keeping user state for restoration attempts');
+          return; // ไม่ต้องทำอะไรต่อ ปล่อยให้ใช้ข้อมูลเดิมต่อไป
         }
       } finally {
-        // Crucially, set loading to false regardless of outcome
         setIsLoading(false);
-        devLog(`checkSession completed, isLoading set to false.`);
       }
     };
 
@@ -402,9 +431,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // จัดการกับการปิดเบราว์เซอร์
   useEffect(() => {
+    // ตัวแปรเพื่อติดตามสถานะว่าเป็นการ refresh หรือการปิดหน้าจริงๆ
+    let isRefreshing = false;
+    
+    // ฟังก์ชันติดตามการโหลดหน้า
+    const handlePageLoad = () => {
+      // เช็คว่ามี cookie 'is_refreshing' ซึ่งจะมีเมื่อเป็นการรีเฟรชหน้า
+      const hasRefreshCookie = document.cookie.includes('is_refreshing=true');
+      
+      if (hasRefreshCookie) {
+        devLog('Page was refreshed, restoring session');
+        
+        // เรียกใช้ checkSession อีกครั้งเพื่อกู้คืน session
+        const checkAndRestoreSession = async () => {
+          try {
+            const userData = await checkSavedSession(user);
+            if (userData) {
+              console.log('Session restored after refresh');
+              setUser(userData);
+              
+              // ตรวจสอบ sessionId จาก sessionStorage
+              const savedSessionId = sessionStorage.getItem('currentSessionId');
+              if (savedSessionId && userData.uid) {
+                setSessionId(savedSessionId);
+                
+                // อัพเดท session ว่าเป็นการ refresh
+                try {
+                  await updateSessionForRefresh(userData.uid, savedSessionId);
+                  devLog(`Updated session ${savedSessionId} as refreshed for user ${userData.uid}`);
+                } catch (error) {
+                  console.error('Error updating session after refresh:', error);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error restoring session after refresh:', error);
+          }
+        };
+        
+        checkAndRestoreSession();
+      }
+      
+      // เซ็ตค่ากลับเป็น false เมื่อโหลดหน้าเสร็จ
+      isRefreshing = false;
+    };
+    
+    // ฟังก์ชันจัดการเมื่อมีการเริ่มนำทาง
+    const handleBeforeNavigate = () => {
+      // เซ็ตค่าเป็น true เมื่อเริ่มมีการนำทาง
+      isRefreshing = true;
+    };
+    
     // ฟังก์ชันจัดการเมื่อผู้ใช้ปิดเบราว์เซอร์
     const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
-      devLog('Browser is closing, attempting to end session');
+      devLog('BeforeUnload event triggered');
       
       // กรณีที่มีการล็อกอินแล้ว ให้แสดงข้อความยืนยันก่อนปิดหน้า
       if (user?.uid) {
@@ -412,43 +492,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const message = "คุณกำลังจะออกจากระบบ คุณแน่ใจหรือไม่?";
         event.preventDefault();
         event.returnValue = message;
-        return message;
       }
       
-      // กรณีที่เป็นการ refresh ปกติ (ไม่ใช่ปิดเบราว์เซอร์)
-      if (event.type === 'beforeunload') {
-        // ไม่ต้องทำอะไรกับ session หากเป็นการ refresh
-        return;
+      // สร้าง cookie ชั่วคราวเพื่อตรวจจับว่าเป็นการ refresh หรือปิดเบราว์เซอร์
+      if (typeof document !== 'undefined') {
+        document.cookie = 'is_refreshing=true; max-age=5;';
       }
       
-      // ถ้ามี user และ sessionId ให้สิ้นสุด session เฉพาะกรณีปิดเบราว์เซอร์จริงๆ
+      // เนื่องจากการ refresh จะทำให้ unload และ load หน้าใหม่
+      // เราจะไม่ออกจากระบบในทุกกรณี แต่จะอัพเดทสถานะ session แทน
       if (user?.uid && sessionId) {
         try {
-          // พยายามสิ้นสุด session โดยไม่รอให้เสร็จสมบูรณ์
-          // เนื่องจากเบราว์เซอร์อาจปิดก่อนที่การส่งคำขอจะเสร็จสมบูรณ์
-          await endUserSession(user.uid, sessionId, user);
-          devLog(`Session ${sessionId} ended for user ${user.uid}`);
+          // อัพเดท timestamp ของ session เพื่อให้รู้ว่ายังใช้งานอยู่
+          await updateSessionForRefresh(user.uid, sessionId);
+          devLog(`Updated session ${sessionId} activity for user ${user.uid}`);
         } catch (error) {
-          console.error('Error ending session on browser close:', error);
+          console.error('Error updating session activity on beforeunload:', error);
         }
       }
-      
-      // ล้าง cookies และ storage ที่เกี่ยวข้องเฉพาะเมื่อปิดเบราว์เซอร์จริงๆ
-      // clearAuthCookies();
     };
     
-    // ลงทะเบียนฟังก์ชันกับ beforeunload event
+    // ลงทะเบียนฟังก์ชันกับ event ต่างๆ
     if (typeof window !== 'undefined') {
+      // สำหรับ beforeunload event
       window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      // ใช้ pageshow/pagehide สำหรับตรวจจับการ refresh
+      window.addEventListener('pageshow', (event) => {
+        // เช็คว่าเป็นการโหลดจาก bfcache (back-forward cache) หรือไม่
+        const isPersisted = event.persisted;
+        if (isPersisted) {
+          devLog('Page restored from bfcache, restoring session');
+        }
+        
+        // เรียกฟังก์ชัน handlePageLoad เพื่อจัดการ refresh
+        handlePageLoad();
+      });
+      
+      window.addEventListener('pagehide', handleBeforeNavigate);
+      
+      // เช็คว่ามี cookie 'is_refreshing' เมื่อโหลดหน้า
+      // ถ้ามี แสดงว่าเป็นการ refresh ไม่ใช่การเปิดเบราว์เซอร์ใหม่
+      const hasRefreshCookie = document.cookie.includes('is_refreshing=true');
+      if (hasRefreshCookie) {
+        isRefreshing = true;
+        devLog('Page is being refreshed (detected via cookie)');
+        
+        // ตั้งค่า cookie อายุสั้นเพื่อแยกแยะระหว่างการรีเฟรชและการเปิดแท็บใหม่
+        document.cookie = 'was_refreshed=true; max-age=3;';
+      }
     }
     
     // ยกเลิกการลงทะเบียนเมื่อ component unmount
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('pageshow', handlePageLoad);
+        window.removeEventListener('pagehide', handleBeforeNavigate);
       }
     };
-  }, [user, sessionId, clearAuthCookies]);
+  }, [user, sessionId]);
 
   // Login function
   const login = async (username: string, password: string): Promise<boolean> => {

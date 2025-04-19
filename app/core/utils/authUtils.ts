@@ -8,6 +8,7 @@ const SALT_ROUNDS = 10;
 // ค่าคงที่สำหรับการสร้าง JWT token
 const JWT_SECRET = process.env.NEXT_PUBLIC_JWT_SECRET || 'bpk9-secure-jwt-secret';
 const JWT_EXPIRES_IN = '12h'; // token หมดอายุหลังจาก 12 ชั่วโมง
+const JWT_LONG_EXPIRES_IN = '30d'; // token หมดอายุหลังจาก 30 วัน สำหรับ Remember Me
 
 // ชื่อ cookie ที่ใช้เก็บ token
 const TOKEN_COOKIE_NAME = 'auth_token';
@@ -146,12 +147,31 @@ export const verifyToken = async (token: string): Promise<any | null> => {
  * @param token JWT token ที่ต้องการบันทึก
  */
 export const setAuthCookie = (token: string): void => {
-  // ไม่ระบุ expires ทำให้เป็น session cookie ที่จะหายไปเมื่อปิด browser
-  Cookies.set(TOKEN_COOKIE_NAME, token, {
-    path: '/',
-    secure: process.env.NODE_ENV === 'production', // ใช้ HTTPS ในโหมด production
-    sameSite: 'strict', // ป้องกัน CSRF
-  });
+  // สร้าง cookie ที่จะคงอยู่ 7 วัน
+  if (typeof document !== 'undefined') {
+    // ตั้งค่า cookie โดยกำหนดอายุ 7 วัน (168 ชั่วโมง)
+    const expirationDate = new Date();
+    expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+    
+    const cookieOptions = [
+      `${TOKEN_COOKIE_NAME}=${token}`,
+      `expires=${expirationDate.toUTCString()}`,
+      'path=/',
+      'SameSite=Strict'
+    ];
+    
+    // เพิ่ม Secure flag ในโหมด production
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.push('Secure');
+    }
+    
+    document.cookie = cookieOptions.join('; ');
+    
+    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(`${TOKEN_COOKIE_NAME}_backup`, token);
+    }
+  }
 };
 
 /**
@@ -159,16 +179,33 @@ export const setAuthCookie = (token: string): void => {
  * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
  */
 export const setUserCookie = (userData: any): void => {
-  // ไม่ระบุ expires ทำให้เป็น session cookie ที่จะหายไปเมื่อปิด browser
-  
   // แปลงข้อมูลเป็น JSON string
   const userDataString = JSON.stringify(userData);
   
-  Cookies.set(USER_COOKIE_NAME, userDataString, {
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-  });
+  if (typeof document !== 'undefined') {
+    // ตั้งค่า cookie โดยกำหนดอายุ 7 วัน (168 ชั่วโมง)
+    const expirationDate = new Date();
+    expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+    
+    const cookieOptions = [
+      `${USER_COOKIE_NAME}=${encodeURIComponent(userDataString)}`,
+      `expires=${expirationDate.toUTCString()}`,
+      'path=/',
+      'SameSite=Strict'
+    ];
+    
+    // เพิ่ม Secure flag ในโหมด production
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.push('Secure');
+    }
+    
+    document.cookie = cookieOptions.join('; ');
+    
+    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(`${USER_COOKIE_NAME}_backup`, userDataString);
+    }
+  }
 };
 
 /**
@@ -176,6 +213,32 @@ export const setUserCookie = (userData: any): void => {
  * @returns token หรือ null ถ้าไม่มี
  */
 export const getAuthCookie = (): string | null => {
+  if (typeof document !== 'undefined') {
+    // First try to get from cookie
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${TOKEN_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    
+    // If found in cookie, return it
+    if (cookieValue) {
+      return cookieValue;
+    }
+    
+    // If not found in cookie, try localStorage
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const localStorageValue = localStorage.getItem(`${TOKEN_COOKIE_NAME}_backup`);
+      if (localStorageValue) {
+        // If found in localStorage, restore it to cookie too
+        setAuthCookie(localStorageValue);
+        return localStorageValue;
+      }
+    }
+    
+    return null;
+  }
+  
+  // Fallback ถ้าใช้งานบน server-side
   return Cookies.get(TOKEN_COOKIE_NAME) || null;
 };
 
@@ -184,7 +247,34 @@ export const getAuthCookie = (): string | null => {
  * @returns ข้อมูลผู้ใช้ หรือ null ถ้าไม่มี
  */
 export const getUserCookie = (): any | null => {
-  const userDataString = Cookies.get(USER_COOKIE_NAME);
+  let userDataString: string | undefined;
+  
+  if (typeof document !== 'undefined') {
+    // First try to get from cookie
+    userDataString = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${USER_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    
+    // ต้อง decode URI component เพราะเราใช้ encodeURIComponent ตอนเซ็ต cookie
+    if (userDataString) {
+      userDataString = decodeURIComponent(userDataString);
+    } else {
+      // If not found in cookie, try localStorage
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const localStorageValue = localStorage.getItem(`${USER_COOKIE_NAME}_backup`);
+        if (localStorageValue) {
+          userDataString = localStorageValue;
+          // Restore cookie from localStorage
+          setUserCookie(JSON.parse(localStorageValue));
+        }
+      }
+    }
+  } else {
+    // Fallback ถ้าใช้งานบน server-side
+    userDataString = Cookies.get(USER_COOKIE_NAME);
+  }
+  
   if (!userDataString) return null;
   
   try {
@@ -203,13 +293,17 @@ export const clearAuthCookies = (): void => {
   Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
   Cookies.remove(USER_COOKIE_NAME, { path: '/' });
   
-  // ล้าง session storage
+  // ล้าง session storage และ local storage
   if (typeof window !== 'undefined') {
     // ล้าง session ID
     sessionStorage.removeItem('currentSessionId');
     
     // ล้าง CSRF token
     sessionStorage.removeItem('csrfToken');
+    
+    // ล้าง localStorage backups
+    localStorage.removeItem(`${TOKEN_COOKIE_NAME}_backup`);
+    localStorage.removeItem(`${USER_COOKIE_NAME}_backup`);
     
     // ล้าง cache อื่นๆ ที่เกี่ยวข้อง
     const authRelatedPrefixes = ['auth_', 'user_', 'session_', 'token_'];
@@ -296,4 +390,112 @@ export function validateCSRFToken(token: string): boolean {
   
   // ตรวจสอบว่า token ตรงกันหรือไม่
   return token === cookieValue;
-} 
+}
+
+/**
+ * สร้าง JWT token จากข้อมูลผู้ใช้ ที่มีอายุยาวนาน (สำหรับ Remember Me)
+ * @param userId ID ของผู้ใช้
+ * @param username ชื่อผู้ใช้
+ * @param role บทบาทของผู้ใช้
+ * @returns JWT token
+ */
+export const generateLongLivedToken = async (
+  userId: string,
+  username: string,
+  role: string
+): Promise<string> => {
+  try {
+    // แปลง string เป็น TextEncoder
+    const secretKey = new TextEncoder().encode(JWT_SECRET);
+    
+    // คำนวณเวลาหมดอายุ (30 วัน)
+    const expiresIn = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+    
+    // สร้าง JWT token ด้วย jose
+    const token = await new jose.SignJWT({ 
+        sub: userId,
+        username,
+        role,
+        longLived: true
+      })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(expiresIn)
+      .sign(secretKey);
+    
+    return token;
+  } catch (err) {
+    console.error('Error generating long-lived JWT token:', err);
+    throw new Error('Failed to generate long-lived authentication token');
+  }
+};
+
+/**
+ * บันทึก token ลงใน cookie แบบตั้งค่าให้จำไว้นาน (Remember Me)
+ * @param token JWT token ที่ต้องการบันทึก
+ */
+export const setLongLivedAuthCookie = (token: string): void => {
+  // สร้าง cookie ที่จะคงอยู่ 30 วัน
+  if (typeof document !== 'undefined') {
+    // ตั้งค่า cookie โดยกำหนดอายุ 30 วัน
+    const expirationDate = new Date();
+    expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+    
+    const cookieOptions = [
+      `${TOKEN_COOKIE_NAME}=${token}`,
+      `expires=${expirationDate.toUTCString()}`,
+      'path=/',
+      'SameSite=Strict'
+    ];
+    
+    // เพิ่ม Secure flag ในโหมด production
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.push('Secure');
+    }
+    
+    document.cookie = cookieOptions.join('; ');
+    
+    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(`${TOKEN_COOKIE_NAME}_backup`, token);
+      localStorage.setItem('remember_me', 'true');
+      localStorage.setItem('auth_expiration', expirationDate.toISOString());
+    }
+  }
+};
+
+/**
+ * บันทึกข้อมูลผู้ใช้ลงใน cookie แบบตั้งค่าให้จำไว้นาน (Remember Me)
+ * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
+ */
+export const setLongLivedUserCookie = (userData: any): void => {
+  // แปลงข้อมูลเป็น JSON string
+  const userDataString = JSON.stringify(userData);
+  
+  if (typeof document !== 'undefined') {
+    // ตั้งค่า cookie โดยกำหนดอายุ 30 วัน
+    const expirationDate = new Date();
+    expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+    
+    const cookieOptions = [
+      `${USER_COOKIE_NAME}=${encodeURIComponent(userDataString)}`,
+      `expires=${expirationDate.toUTCString()}`,
+      'path=/',
+      'SameSite=Strict'
+    ];
+    
+    // เพิ่ม Secure flag ในโหมด production
+    if (process.env.NODE_ENV === 'production') {
+      cookieOptions.push('Secure');
+    }
+    
+    document.cookie = cookieOptions.join('; ');
+    
+    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(`${USER_COOKIE_NAME}_backup`, userDataString);
+      localStorage.setItem('remember_me', 'true');
+      localStorage.setItem('user_expiration', expirationDate.toISOString());
+    }
+  }
+}; 
