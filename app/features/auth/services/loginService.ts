@@ -8,7 +8,8 @@ import {
   serverTimestamp,
   getDoc,
   QuerySnapshot,
-  DocumentData
+  DocumentData,
+  limit
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { User } from '@/app/core/types/user';
@@ -25,6 +26,16 @@ import {
 } from '@/app/core/utils/authUtils';
 import { validateAndSanitize } from '@/app/core/utils/securityUtils';
 import { createUserSession, verifyUserSession, hasActiveSession } from './sessionService';
+
+// กำหนด interface สำหรับผลลัพธ์การล็อกอิน
+export interface LoginResult {
+  success: boolean;
+  error?: string;
+  user: User | null;
+  token?: string;
+  sessionId?: string;
+  userId?: string;
+}
 
 // Rate limiting implementation
 // ใช้ Map เพื่อเก็บจำนวนการพยายามล็อกอินสำหรับแต่ละ IP หรือ username
@@ -212,183 +223,136 @@ const safeCreateUserSession = async (userId: string, role: string): Promise<stri
  * ล็อกอินด้วยชื่อผู้ใช้และรหัสผ่าน
  * @param username ชื่อผู้ใช้
  * @param password รหัสผ่าน
- * @param setUserCallback callback function สำหรับกำหนดค่า user หลังจากล็อกอินสำเร็จ
+ * @param onAuthStateChange callback function สำหรับกำหนดค่า user หลังจากล็อกอินสำเร็จ
  * @returns ผลลัพธ์การล็อกอิน
  */
 export const loginWithCredentials = async (
-  username: string, 
+  username: string,
   password: string,
-  setUserCallback?: (user: User) => void
-): Promise<{
-  success: boolean;
-  error?: string;
-  user?: User;
-  userId?: string;
-  sessionId?: string;
-}> => {
+  onAuthStateChange?: (user: User | null) => void
+): Promise<LoginResult> => {
+  console.log(`Login attempt with username: ${username}`);
+  
   try {
-    // ตรวจสอบ rate limit ก่อน
-    const identifier = username.toLowerCase();
-    if (checkRateLimit(identifier)) {
-      return {
-        success: false,
-        error: 'มีการพยายามเข้าสู่ระบบมากเกินไป กรุณารอสักครู่'
+    // ตรวจสอบว่า input ถูกต้องหรือไม่
+    if (!username || !password) {
+      return { 
+        success: false, 
+        error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน', 
+        user: null 
       };
     }
-
-    // ตรวจสอบ cache ก่อน
-    const cachedData = userCache.get(identifier);
-    if (cachedData && (Date.now() - cachedData.timestamp) < CACHE_EXPIRY) {
-      const user = cachedData.user as UserWithPassword;
-      const isValidPassword = await comparePassword(password, user.password || '');
-      if (isValidPassword) {
-        // สร้าง session และอัพเดทข้อมูลแยกไปทำงานพื้นหลัง
-        const promises = [];
-        
-        // ตรวจสอบว่ามี userId ก่อนสร้าง session
-        if (user && user.uid && user.uid.trim() !== '' && user.uid !== '0' && user.uid !== '3') {
-          promises.push(safeCreateUserSession(user.uid, user.role));
-          promises.push(updateLastLogin(user.uid));
-        } else {
-          console.warn('Skipping session creation and login update for invalid user ID:', user?.uid);
-        }
-        
-        // ตรวจสอบผลลัพธ์ของ promises (ถ้ามี)
-        if (promises.length > 0) {
-          try {
-            // ใช้ then แทน await เพื่อไม่ให้ขัดขวางการทำงานหลัก
-            Promise.all(promises).catch(error => {
-              console.error('Error in session/login update operations:', error);
-            });
-          } catch (promiseError) {
-            // จับ error แต่ไม่ทำให้การล็อกอินล้มเหลว
-            console.warn('Error in background session operations:', promiseError);
-          }
-        }
-
-        if (setUserCallback) {
-          setUserCallback(user);
-        }
-
-        return {
-          success: true,
-          user: user,
-          userId: user.uid
-        };
-      }
-    }
-
-    // ค้นหา user จาก Firestore โดยใช้ compound index
+    
+    // ค้นหาผู้ใช้จาก username
     const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef,
+      where('username', '==', username.toLowerCase()),
+      where('active', '==', true),
+      limit(1)
+    );
     
-    // ค้นหาแบบไม่เปรียบเทียบตัวพิมพ์ใหญ่-เล็ก
-    // ลองทั้งตัวเล็กทั้งหมด username.toLowerCase() และตามที่ผู้ใช้กรอก
-    const queries = [
-      query(
-        usersRef,
-        where('username', '==', username.toLowerCase()),
-        where('active', '==', true)
-      ),
-      query(
-        usersRef,
-        where('username', '==', username),
-        where('active', '==', true)
-      )
-    ];
+    const querySnapshot = await getDocs(q);
     
-    // ทำการค้นหาทั้งสองแบบ
-    let userSnapshot: QuerySnapshot<DocumentData>;
-    let userData: UserWithPassword | null = null;
-    
-    // ค้นหาตัวพิมพ์เล็กก่อน
-    userSnapshot = await getDocs(queries[0]);
-    
-    // ถ้าไม่พบให้ค้นหาตามที่ผู้ใช้กรอก
-    if (userSnapshot.empty) {
-      userSnapshot = await getDocs(queries[1]);
-    }
-    
-    if (userSnapshot.empty) {
-      checkRateLimit(identifier, false);
-      console.warn(`User not found: ${username} (lowercase: ${username.toLowerCase()})`);
-      return {
-        success: false,
-        error: 'ไม่พบชื่อผู้ใช้ในระบบ'
+    // ดูว่าพบผู้ใช้หรือไม่
+    if (querySnapshot.empty) {
+      console.log('User not found:', username);
+      return { 
+        success: false, 
+        error: 'ไม่พบชื่อผู้ใช้ในระบบ', 
+        user: null 
       };
     }
-
-    const userDoc = userSnapshot.docs[0];
-    userData = userDoc.data() as UserWithPassword;
     
-    // เพิ่ม uid ถ้าไม่มี โดยใช้ ID ของเอกสาร
-    if (!userData.uid) {
-      userData.uid = userDoc.id;
-      console.log('Added missing uid from document ID:', userDoc.id);
-    }
+    // ดึงข้อมูลผู้ใช้จาก document แรก
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data() as UserWithPassword;
+    userData.uid = userDoc.id; // เพิ่ม ID เข้าไปในข้อมูลผู้ใช้
     
-    // Debug log
-    console.log('User found:', {
-      username: userData.username,
-      enteredUsername: username,
-      uid: userData.uid
-    });
-
-    // ตรวจสอบรหัสผ่าน
-    const isValidPassword = await comparePassword(password, userData.password || '');
-    if (!isValidPassword) {
-      checkRateLimit(identifier, false);
-      return {
-        success: false,
-        error: 'รหัสผ่านไม่ถูกต้อง'
+    // ถ้าไม่มีรหัสผ่าน
+    if (!userData.password) {
+      console.error('User has no password set:', username);
+      return { 
+        success: false, 
+        error: 'บัญชีผู้ใช้ไม่ได้ตั้งค่ารหัสผ่าน กรุณาติดต่อผู้ดูแลระบบ', 
+        user: null 
       };
     }
-
-    // เก็บข้อมูลลง cache
-    userCache.set(identifier, {
-      user: userData,
-      timestamp: Date.now()
-    });
-
-    // สร้าง session และอัพเดทข้อมูลแยกไปทำงานพื้นหลัง
-    const promises = [];
     
-    // ตรวจสอบว่ามี userId ก่อนสร้าง session
-    if (userData && userData.uid && userData.uid.trim() !== '' && userData.uid !== '0' && userData.uid !== '3') {
-      promises.push(safeCreateUserSession(userData.uid, userData.role));
-      updateLastLogin(userData.uid).catch(err => console.error('Error updating last login:', err));
-    } else {
-      console.warn('Skipping session creation and login update for invalid user ID:', userData?.uid);
+    // เช็ครหัสผ่าน
+    const isPasswordValid = await comparePassword(password, userData.password);
+    if (!isPasswordValid) {
+      console.log('Invalid password for user:', username);
+      return { 
+        success: false, 
+        error: 'รหัสผ่านไม่ถูกต้อง', 
+        user: null 
+      };
     }
     
-    // ตรวจสอบผลลัพธ์ของ promises (ถ้ามี)
-    if (promises.length > 0) {
-      try {
-        // ใช้ then แทน await เพื่อไม่ให้ขัดขวางการทำงานหลัก
-        Promise.all(promises).catch(error => {
-          console.error('Error in session/login update operations:', error);
-        });
-      } catch (promiseError) {
-        // จับ error แต่ไม่ทำให้การล็อกอินล้มเหลว
-        console.warn('Error in background session operations:', promiseError);
-      }
+    // ถ้าผู้ใช้ถูกระงับการใช้งาน
+    if (userData.active === false) {
+      console.log('User account is disabled:', username);
+      return { 
+        success: false, 
+        error: 'บัญชีผู้ใช้ถูกระงับการใช้งาน', 
+        user: null 
+      };
     }
-
-    if (setUserCallback) {
-      setUserCallback(userData);
+    
+    // เพื่อความปลอดภัย ลบรหัสผ่านออกจากข้อมูลก่อนส่งกลับ
+    const { password: removedPassword, ...safeUserData } = userData;
+    const user = safeUserData as User;
+    
+    // สร้าง token และ session ใหม่
+    const token = await generateToken(user.uid, user.username || '', user.role);
+    setAuthCookie(token);
+    setUserCookie(user);
+    
+    // กำหนด browser session flag
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('is_browser_session', 'true');
     }
-
-    checkRateLimit(identifier, true);
-    return {
-      success: true,
-      user: userData,
-      userId: userData.uid
+    
+    // สร้าง session ใหม่
+    const newSessionId = await createUserSession(user.uid, user.role);
+    
+    // บันทึกประวัติการเข้าสู่ระบบ
+    try {
+      await logLogin(user.uid, 'login_success');
+    } catch (logError) {
+      console.error('Failed to log login action:', logError);
+    }
+    
+    // Callback เพื่อแจ้งให้ login form ทราบว่ามีการเปลี่ยนแปลงสถานะการตรวจสอบตัวตน
+    if (onAuthStateChange) {
+      onAuthStateChange(user);
+    }
+    
+    console.log('Login successful for user:', user.username);
+    return { 
+      success: true, 
+      user, 
+      userId: user.uid,
+      sessionId: newSessionId
     };
-
   } catch (error) {
-    console.error('Error in loginWithCredentials:', error);
-    return {
-      success: false,
-      error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ'
+    console.error('Login error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
+    
+    // ถ้าการเชื่อมต่อมีปัญหา
+    if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
+      return {
+        success: false,
+        error: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',
+        user: null
+      };
+    }
+    
+    return { 
+      success: false, 
+      error: errorMessage, 
+      user: null 
     };
   }
 };

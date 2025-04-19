@@ -16,6 +16,10 @@ export interface Ward {
 export interface CollectionData {
   id: string;
   path: string;
+  name?: string;
+  documentCount?: number;
+  lastUpdated?: Date | null;
+  isRecent?: boolean;
 }
 
 export interface DocumentData {
@@ -39,6 +43,7 @@ export interface CollectionTemplateField {
 
 export interface CollectionTemplate {
   fields: CollectionTemplateField[];
+  initialDocuments?: Array<{id?: string; [key: string]: any}>;
 }
 
 // Database structure templates
@@ -259,55 +264,19 @@ export const fetchCollections = async (): Promise<CollectionData[]> => {
     // 1. ดึงรายการคอลเลกชันที่เคยเข้าถึงล่าสุดจาก localStorage
     const recentCollections = getRecentCollections();
     
-    // 2. ตรวจสอบคอลเลกชันว่ามีอยู่จริงหรือไม่
-    for (const collectionId of recentCollections) {
-      try {
-        const collectionRef = collection(db, collectionId);
-        const q = query(collectionRef, limit(1));
-        const snapshot = await getDocs(q);
-        
-        // นับจำนวนเอกสารในคอลเลกชัน
-        const docCount = snapshot.size;
-        
-        // หา timestamp ล่าสุดในเอกสาร
-        let lastUpdated = null;
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data._updated && (!lastUpdated || data._updated.toDate() > lastUpdated)) {
-            lastUpdated = data._updated.toDate();
-          }
-        });
-        
-        // เพิ่มคอลเลกชันเข้าไปในรายการ (เฉพาะที่มีอยู่จริง)
-        existingCollections.push({
-          id: collectionId,
-          path: collectionRef.path,
-          name: formatCollectionName ? formatCollectionName(collectionId) : collectionId,
-          documentCount: docCount,
-          lastUpdated: lastUpdated || null,
-          isRecent: true
-        });
-      } catch (error) {
-        console.log(`Collection ${collectionId} is not accessible:`, error);
-        // ข้ามคอลเลกชันที่ไม่สามารถเข้าถึงได้
-      }
-    }
-    
-    // 3. ดึงคอลเลกชันเพิ่มเติมที่พบใน Firestore
-    // ใช้รายการคอลเลกชันพื้นฐานตามโครงสร้างในแผนผัง
+    // 2. กำหนดคอลเลกชันพื้นฐานที่สำคัญ
     const baseCollections = [
       'users', 'systemLogs', 'sessions', 'wards', 'wardForms',
       'approvals', 'dailySummaries', 'currentSessions'
     ];
     
-    // ตรวจสอบคอลเลกชันพื้นฐานที่ไม่อยู่ในรายการที่มีอยู่แล้ว
-    for (const collectionId of baseCollections) {
-      // ข้ามคอลเลกชันที่อยู่ในรายการแล้ว
-      if (existingCollections.some(col => col.id === collectionId)) {
-        continue;
-      }
-      
+    // รวมรายการคอลเลกชันที่จะตรวจสอบ และจำกัดไม่เกิน 10 รายการเพื่อลด API calls
+    const collectionIds = Array.from(new Set([...recentCollections, ...baseCollections])).slice(0, 10);
+    
+    // ตรวจสอบคอลเลกชันว่ามีอยู่จริงหรือไม่ โดยตรวจสอบแบบทีละรายการ
+    for (const collectionId of collectionIds) {
       try {
+        // ใช้ limit(1) เพื่อลดปริมาณข้อมูลที่ต้องดึง
         const collectionRef = collection(db, collectionId);
         const q = query(collectionRef, limit(1));
         const snapshot = await getDocs(q);
@@ -316,7 +285,7 @@ export const fetchCollections = async (): Promise<CollectionData[]> => {
         const docCount = snapshot.size;
         
         // หา timestamp ล่าสุดในเอกสาร
-        let lastUpdated = null;
+        let lastUpdated: Date | null = null;
         snapshot.forEach((doc) => {
           const data = doc.data();
           if (data._updated && (!lastUpdated || data._updated.toDate() > lastUpdated)) {
@@ -328,14 +297,14 @@ export const fetchCollections = async (): Promise<CollectionData[]> => {
           }
         });
         
-        // เพิ่มคอลเลกชันเข้าไปในรายการ
+        // เพิ่มคอลเลกชันเข้าไปในรายการ (แม้ว่าจะไม่มีเอกสารใดๆ)
         existingCollections.push({
           id: collectionId,
           path: collectionRef.path,
           name: formatCollectionName ? formatCollectionName(collectionId) : collectionId,
           documentCount: docCount,
           lastUpdated: lastUpdated || null,
-          isRecent: false
+          isRecent: recentCollections.includes(collectionId)
         });
         
         // บันทึกคอลเลกชันที่พบลงในรายการล่าสุด
@@ -343,8 +312,8 @@ export const fetchCollections = async (): Promise<CollectionData[]> => {
           addRecentCollection(collectionId);
         }
       } catch (error) {
+        console.log(`Collection ${collectionId} is not accessible:`, error);
         // ข้ามคอลเลกชันที่ไม่สามารถเข้าถึงได้
-        console.log(`Base collection ${collectionId} is not accessible:`, error);
       }
     }
     
@@ -453,7 +422,7 @@ export const createNewCollection = async (collectionId: string, templateId?: str
     
     toast.success(`คอลเลกชัน ${collectionId} ถูกสร้างเรียบร้อยแล้ว`);
     return collectionId;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating collection:', error);
     toast.error(`ไม่สามารถสร้างคอลเลกชัน: ${error.message}`);
     return null;
@@ -505,7 +474,7 @@ export const deleteCollectionV2 = async (collectionId: string): Promise<boolean>
         return true;
       } else {
         // ถ้ายังมีเอกสารเหลืออยู่ (อาจมีการเพิ่มในระหว่างลบ)
-        toast.warning(`ลบเอกสารบางส่วนในคอลเลกชัน "${collectionId}" สำเร็จ แต่ยังมีเอกสารบางส่วนเหลืออยู่`);
+        toast(`ลบเอกสารบางส่วนในคอลเลกชัน "${collectionId}" สำเร็จ แต่ยังมีเอกสารบางส่วนเหลืออยู่`);
         return false;
       }
     } catch (error) {

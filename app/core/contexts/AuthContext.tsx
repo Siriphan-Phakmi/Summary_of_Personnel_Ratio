@@ -1,11 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-const AuthContext = React.createContext();
+// สร้าง interface เพื่อกำหนดรูปแบบข้อมูลใน context
+interface AuthContextType {
+  user: any | null;
+  isAuthenticated: boolean;
+  setUser: React.Dispatch<React.SetStateAction<any | null>>;
+  setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
+}
 
-const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+// กำหนดค่าเริ่มต้นให้ createContext
+const defaultAuthContext: AuthContextType = {
+  user: null,
+  isAuthenticated: false,
+  setUser: () => null,
+  setIsAuthenticated: () => false,
+};
+
+const AuthContext = React.createContext<AuthContextType>(defaultAuthContext);
+
+const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+  const [user, setUser] = useState<any | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   const checkSession = async () => {
     try {
@@ -62,6 +78,47 @@ const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+};
+
+// Add missing cookie functions
+const getAuthCookie = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const cookies = document.cookie.split(';');
+  const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth_token='));
+  return authCookie ? authCookie.split('=')[1] : null;
+};
+
+const getUserFromCookie = (): any | null => {
+  if (typeof document === 'undefined') return null;
+  const cookies = document.cookie.split(';');
+  const userCookie = cookies.find(cookie => cookie.trim().startsWith('user_data='));
+  if (!userCookie) return null;
+  try {
+    return JSON.parse(decodeURIComponent(userCookie.split('=')[1]));
+  } catch (error) {
+    console.error('Error parsing user cookie:', error);
+    return null;
+  }
+};
+
+const setAuthCookie = (token: string) => {
+  if (typeof document === 'undefined') return;
+  document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Strict`;
+};
+
+const setUserCookie = (userData: any) => {
+  if (typeof document === 'undefined') return;
+  document.cookie = `user_data=${encodeURIComponent(JSON.stringify(userData))}; path=/; max-age=86400; SameSite=Strict`;
+};
+
+const removeAuthCookie = () => {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'auth_token=; path=/; max-age=0';
+};
+
+const removeUserCookie = () => {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'user_data=; path=/; max-age=0';
 };
 
 export { AuthProvider, useAuth }; 

@@ -41,6 +41,17 @@
    - [x] พัฒนาฟังก์ชันการ Sanitize ข้อมูลป้องกัน XSS และ SQL Injection
    - [x] เพิ่ม event handler window.onbeforeunload เพื่อล้าง session และคุกกี้เมื่อผู้ใช้ปิดเบราว์เซอร์
    - [x] ปรับปรุงกระบวนการ logout ให้เรียกใช้ `dismissAllToasts` ก่อนออกจากระบบ
+   - [x] พัฒนาระบบ CSRF Protection สำหรับการ login และ form submission
+   - [x] สร้าง API Routes สำหรับระบบ Authentication (`/api/auth/*`)
+   - [x] ปรับปรุง Security Headers และ CSP ใน middleware.ts
+   - [x] เพิ่มระบบ Rate Limiting สำหรับการ login
+   - [x] พัฒนาระบบ Session Timeout และ Inactivity Detection
+   - [x] ปรับปรุงการจัดการ Cookies (HttpOnly, Secure, SameSite)
+   - [x] เพิ่มระบบติดตามกิจกรรมผู้ใช้ (User Activity Tracking)
+   - [x] ปรับปรุงระบบ Login/Logout ให้ใช้ API Routes
+   - [x] เพิ่มการตรวจสอบ Browser Session เพื่อป้องกันการ login ซ้ำซ้อน
+   - [x] พัฒนาระบบแจ้งเตือนสำหรับความผิดพลาดในการ login
+   - [x] ปรับปรุง UI/UX ของหน้า Login ให้ใช้งานง่ายและปลอดภัยยิ่งขึ้น
 
 5. **การแก้ไขข้อผิดพลาด**
    - [x] แก้ไขปัญหา Login timeout ใน LoginPage.tsx โดยเพิ่มเวลา timeout จาก 8 วินาที เป็น 30 วินาที

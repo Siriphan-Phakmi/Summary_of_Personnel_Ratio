@@ -13,11 +13,6 @@ export const useFirestoreCollection = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // โหลดคอลเลกชันเมื่อเริ่มต้น
-  useEffect(() => {
-    loadCollections();
-  }, []);
-
   // ตรวจสอบว่าคอลเลกชันมีอยู่จริงหรือไม่
   const checkCollectionExists = useCallback(async (collectionId: string): Promise<boolean> => {
     try {
@@ -32,28 +27,78 @@ export const useFirestoreCollection = () => {
 
   // โหลดข้อมูลคอลเลกชัน
   const loadCollections = useCallback(async () => {
+    let isMounted = true;
+    
     try {
       setLoading(true);
       setError(null);
+      
+      // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่ เพื่อป้องกันการโหลดซ้ำโดยไม่จำเป็น
+      if (collections.length > 0 && !loading) {
+        setLoading(false);
+        return;
+      }
+      
       const data = await fetchCollections();
       
+      // ตรวจสอบว่ายังคงต้องการโหลดข้อมูลหรือไม่
+      if (!isMounted) return;
+      
       // กรองเฉพาะคอลเลกชันที่มีอยู่จริง (สำหรับความปลอดภัยเพิ่มเติม)
+      // ดึงข้อมูลเพียง 10 คอลเลกชันแรกเพื่อป้องกัน infinite loop
+      const maxCollectionsToCheck = 10;
       const existingCollections: CollectionData[] = [];
-      for (const col of data) {
+      
+      for (let i = 0; i < Math.min(data.length, maxCollectionsToCheck); i++) {
+        if (!isMounted) break;
+        
+        const col = data[i];
         const exists = await checkCollectionExists(col.id);
         if (exists) {
           existingCollections.push(col);
         }
       }
       
-      setCollections(existingCollections);
+      if (isMounted) {
+        setCollections(existingCollections);
+      }
     } catch (err) {
-      setError('ไม่สามารถโหลดข้อมูลคอลเลกชันได้');
-      console.error('Error loading collections:', err);
+      if (isMounted) {
+        setError('ไม่สามารถโหลดข้อมูลคอลเลกชันได้');
+        console.error('Error loading collections:', err);
+      }
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
-  }, [checkCollectionExists]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [checkCollectionExists, collections.length, loading]);
+  
+  // โหลดคอลเลกชันเมื่อเริ่มต้น
+  useEffect(() => {
+    let isMounted = true;
+    
+    // ตรวจสอบว่าเราได้พยายามโหลดข้อมูลไปแล้วหรือไม่
+    let attempted = false;
+    
+    const loadInitialData = async () => {
+      if (!attempted && isMounted && collections.length === 0 && !loading) {
+        attempted = true;
+        await loadCollections();
+      }
+    };
+    
+    loadInitialData();
+    
+    return () => {
+      isMounted = false;
+    };
+  // เอา loadCollections ออกจาก dependency array เพื่อป้องกัน infinite loop
+  }, [collections.length, loading]);
 
   // สร้างคอลเลกชันใหม่
   const addCollection = async (collectionId: string) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/app/features/auth/AuthContext';
@@ -13,43 +13,57 @@ import { generateCSRFToken, validateCSRFToken } from '@/app/core/utils/authUtils
 import { useLoading } from '@/app/core/contexts/LoadingContext';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 
-// Success toast component
+// Toast component for success messages
 const SuccessToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-emerald-900/40 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg animate-fadeIn">
-    <div className="flex-shrink-0 mr-3">
-      <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50">
-        <FiCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 animate-fadeIn" />
+  <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+    <div className="flex-1 w-0 p-4">
+      <div className="flex items-start">
+        <div className="flex-shrink-0 pt-0.5">
+          <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+            <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        </div>
+        <div className="ml-3 flex-1">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{message}</p>
+        </div>
       </div>
     </div>
-    <div className="flex-1 text-sm md:text-base font-medium text-green-800 dark:text-green-200">{message}</div>
-    <div className="ml-auto">
-      <button 
+    <div className="flex border-l border-gray-200 dark:border-gray-700">
+      <button
         onClick={() => toast.dismiss(t.id)}
-        className="p-3 h-10 w-10 flex items-center justify-center rounded-md text-green-500 hover:text-green-600 hover:bg-green-100 dark:text-green-400 dark:hover:text-green-300 dark:hover:bg-green-900/50 focus:outline-none transition-colors"
+        className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 focus:outline-none"
       >
-        <span className="sr-only">ปิด</span>
-        <FiX className="h-6 w-6" />
+        Close
       </button>
     </div>
   </div>
 );
 
-// Error toast component
+// Toast component for error messages
 const ErrorToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg animate-fadeIn">
-    <div className="flex-shrink-0 mr-3">
-      <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50">
-        <FiAlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 animate-pulse" />
+  <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+    <div className="flex-1 w-0 p-4">
+      <div className="flex items-start">
+        <div className="flex-shrink-0 pt-0.5">
+          <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+        </div>
+        <div className="ml-3 flex-1">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{message}</p>
+        </div>
       </div>
     </div>
-    <div className="flex-1 text-sm md:text-base font-medium text-red-800 dark:text-red-200">{message}</div>
-    <div className="ml-auto">
-      <button 
+    <div className="flex border-l border-gray-200 dark:border-gray-700">
+      <button
         onClick={() => toast.dismiss(t.id)}
-        className="p-3 h-10 w-10 flex items-center justify-center rounded-md text-red-500 hover:text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/50 focus:outline-none transition-colors"
+        className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 focus:outline-none"
       >
-        <span className="sr-only">ปิด</span>
-        <FiX className="h-6 w-6" />
+        Close
       </button>
     </div>
   </div>
@@ -70,6 +84,8 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const { theme } = useTheme();
   const { showLoading, hideLoading } = useLoading();
+  
+  const usernameInputRef = useRef<HTMLInputElement>(null);
   
   // Check for special login messages from URL params
   const sessionExpired = searchParams.get('reason') === 'session_expired';
@@ -277,7 +293,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-8">
           {/* CSRF Token */}
-          <input type="hidden" name="_csrf" value={csrfToken} />
+          <input type="hidden" name="csrfToken" value={csrfToken} />
           
           <div>
             <label htmlFor="username" className="text-base font-medium text-gray-900 dark:text-gray-100">
@@ -293,6 +309,7 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="w-full px-4 py-2 pl-10 text-xl md:text-2xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-75"
                 required
+                ref={usernameInputRef}
               />
               <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <FiUser className="h-4 w-4 text-gray-500 dark:text-gray-400" />

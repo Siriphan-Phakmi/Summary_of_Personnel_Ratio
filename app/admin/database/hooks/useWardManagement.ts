@@ -12,8 +12,20 @@ export const useWardManagement = () => {
 
   // โหลดข้อมูลวอร์ดเมื่อเริ่มต้น
   useEffect(() => {
-    loadWards();
-  }, []);
+    let mounted = true;
+    
+    const loadInitialData = async () => {
+      if (mounted) {
+        await loadWards();
+      }
+    };
+    
+    loadInitialData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []); // empty dependency array to run only once on mount
 
   // โหลดข้อมูลวอร์ดทั้งหมด
   const loadWards = async () => {

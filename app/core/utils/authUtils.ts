@@ -1,19 +1,25 @@
 import bcrypt from 'bcryptjs';
 import * as jose from 'jose';
-import Cookies from 'js-cookie';
+// import Cookies from 'js-cookie';
 
 // ค่า salt rounds สำหรับ bcrypt (ยิ่งมากยิ่งปลอดภัย แต่ใช้เวลาประมวลผลนานขึ้น)
 const SALT_ROUNDS = 10;
 
 // ค่าคงที่สำหรับการสร้าง JWT token
 const JWT_SECRET = process.env.NEXT_PUBLIC_JWT_SECRET || 'bpk9-secure-jwt-secret';
-const JWT_EXPIRES_IN = '12h'; // token หมดอายุหลังจาก 12 ชั่วโมง
-const JWT_LONG_EXPIRES_IN = '30d'; // token หมดอายุหลังจาก 30 วัน สำหรับ Remember Me
+// const JWT_EXPIRES_IN = '3h'; // ไม่จำเป็นต้องใช้แล้ว เพราะ cookie เป็น session cookie
+// const JWT_LONG_EXPIRES_IN = '30d'; // สำหรับ Remember Me (ไม่ใช้ใน flow นี้)
 
-// ชื่อ cookie ที่ใช้เก็บ token
+// ชื่อ cookie และ storage keys
 const TOKEN_COOKIE_NAME = 'auth_token';
-// ชื่อ cookie ที่ใช้เก็บข้อมูลผู้ใช้
 const USER_COOKIE_NAME = 'user_data';
+const TOKEN_BACKUP_KEY = `${TOKEN_COOKIE_NAME}_backup`;
+const USER_BACKUP_KEY = `${USER_COOKIE_NAME}_backup`;
+const BACKUP_EXPIRES_KEY_SUFFIX = '_expires';
+const SESSION_STORAGE_FLAG = 'is_browser_session'; // Key สำหรับ sessionStorage
+
+// เวลาหมดอายุ (3 ชั่วโมง) สำหรับ localStorage backup
+const EXPIRATION_MS = 3 * 60 * 60 * 1000;
 
 /**
  * เข้ารหัสรหัสผ่านด้วย bcrypt
@@ -39,7 +45,7 @@ export const hashPassword = async (password: string): Promise<string> => {
 export const comparePassword = async (inputPassword: string, hashedPassword: string): Promise<boolean> => {
   try {
     console.log('Comparing passwords (input length:', inputPassword.length, ', hashed length:', hashedPassword.length, ')');
-    
+
     // ป้องกันกรณี input เป็นค่าว่าง
     if (!inputPassword) {
       console.warn('Input password is empty');
@@ -51,23 +57,23 @@ export const comparePassword = async (inputPassword: string, hashedPassword: str
       console.warn('Stored password is empty or undefined');
       return false;
     }
-    
+
     // ตรวจสอบก่อนว่ารหัสผ่านที่เข้ารหัสมีรูปแบบที่ถูกต้อง
     if (hashedPassword.length < 10) {
       console.warn('Stored password may not be hashed properly (length:', hashedPassword.length, ')');
-      
+
       // กรณีพิเศษ: ตรวจสอบแบบ plaintext (ไม่เข้ารหัส)
       console.warn('Trying plaintext comparison for password');
       const isMatch = inputPassword === hashedPassword;
       console.log('Plaintext comparison result:', isMatch);
       return isMatch;
     }
-    
+
     // ตรวจสอบว่ารหัสผ่านใช้การเข้ารหัสแบบ bcrypt หรือไม่
-    const isBcrypt = hashedPassword.startsWith('$2a$') || 
-                    hashedPassword.startsWith('$2b$') || 
+    const isBcrypt = hashedPassword.startsWith('$2a$') ||
+                    hashedPassword.startsWith('$2b$') ||
                     hashedPassword.startsWith('$2y$');
-    
+
     if (isBcrypt) {
       // ใช้ bcrypt.compare ในการตรวจสอบ
       console.log('Using bcrypt comparison for hashed password');
@@ -104,21 +110,21 @@ export const generateToken = async (
   try {
     // แปลง string เป็น TextEncoder
     const secretKey = new TextEncoder().encode(JWT_SECRET);
-    
-    // คำนวณเวลาหมดอายุ (12 ชั่วโมง)
-    const expiresIn = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
-    
+
+    // คำนวณเวลาหมดอายุ (3 ชั่วโมง สำหรับ token เอง)
+    const expiresIn = Math.floor(Date.now() / 1000) + (EXPIRATION_MS / 1000);
+
     // สร้าง JWT token ด้วย jose
-    const token = await new jose.SignJWT({ 
+    const token = await new jose.SignJWT({
         sub: userId,
         username,
         role
       })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime(expiresIn)
+      .setExpirationTime(expiresIn) // Token มีอายุ 3 ชั่วโมง
       .sign(secretKey);
-    
+
     return token;
   } catch (err) {
     console.error('Error generating JWT token:', err);
@@ -137,365 +143,264 @@ export const verifyToken = async (token: string): Promise<any | null> => {
     const { payload } = await jose.jwtVerify(token, secretKey);
     return payload;
   } catch (err) {
-    console.error('Error verifying token:', err);
+    // ถ้า error เป็น JWTExpired ไม่ต้อง log เป็น error ก็ได้
+    if (err instanceof Error && err.name === 'JWTExpired') {
+      console.log('Token verification failed: Expired');
+    } else {
+      console.error('Error verifying token:', err);
+    }
     return null;
   }
 };
 
 /**
- * บันทึก token ลงใน cookie
+ * ตั้งค่า Cookie (Session) และ LocalStorage Backup (3 ชม.)
+ * @param name ชื่อ Cookie/Key
+ * @param value ค่าที่ต้องการเก็บ
+ * @param isUserData ถ้าเป็น true จะ encodeURIComponent สำหรับ cookie
+ */
+const setAuthStorage = (name: string, value: string, isUserData: boolean = false): void => {
+  if (typeof document === 'undefined') return;
+
+  const expirationDate = new Date(Date.now() + EXPIRATION_MS);
+  const cookieValue = isUserData ? encodeURIComponent(value) : value;
+
+  // 1. Set Cookie (Session Cookie - ลบเมื่อปิด Browser)
+  //    ไม่ตั้ง expires เพื่อให้เป็น session cookie
+  const cookieOptions = [
+    `${name}=${cookieValue}`,
+    'path=/',
+    'SameSite=Strict'
+  ];
+  if (process.env.NODE_ENV === 'production') {
+    cookieOptions.push('Secure');
+  }
+  document.cookie = cookieOptions.join('; ');
+  console.log(`[AUTH_UTILS] Set session cookie: ${name}`);
+
+  // 2. Set LocalStorage Backup (พร้อมเวลาหมดอายุ 3 ชั่วโมง)
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const backupKey = name === TOKEN_COOKIE_NAME ? TOKEN_BACKUP_KEY : USER_BACKUP_KEY;
+    const expiresKey = `${backupKey}${BACKUP_EXPIRES_KEY_SUFFIX}`;
+    // เก็บค่าจริง (userDataString สำหรับ user, token สำหรับ token)
+    localStorage.setItem(backupKey, value);
+    localStorage.setItem(expiresKey, expirationDate.toISOString());
+    console.log(`[AUTH_UTILS] Set localStorage backup: ${backupKey} expires ${expirationDate.toISOString()}`);
+  }
+
+  // 3. Set SessionStorage Flag (บ่งบอกว่า Browser ยังเปิดอยู่)
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(SESSION_STORAGE_FLAG, 'true');
+    console.log(`[AUTH_UTILS] Set sessionStorage flag: ${SESSION_STORAGE_FLAG}=true`);
+  }
+};
+
+/**
+ * ดึงค่า Cookie (Session) หรือ LocalStorage Backup (ถ้ายังไม่หมดอายุและ browser เดิม)
+ * @param name ชื่อ Cookie/Key
+ * @param isUserData ถ้าเป็น true จะ decodeURIComponent จาก cookie
+ * @returns ค่าที่เก็บไว้ หรือ null
+ */
+const getAuthStorage = (name: string, isUserData: boolean = false): string | null => {
+  if (typeof document === 'undefined') return null; // ทำงานฝั่ง Client เท่านั้น
+
+  // 0. ตรวจสอบ SessionStorage Flag ก่อน
+  const isSameBrowserSession = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_STORAGE_FLAG) === 'true';
+  if (!isSameBrowserSession) {
+    console.log(`[AUTH_UTILS] Not in the same browser session (flag=${sessionStorage.getItem(SESSION_STORAGE_FLAG)}). Clearing storage.`);
+    // ถ้าไม่ใช่ session เดิม แสดงว่า Browser ปิดเปิดใหม่ -> ไม่ควรมี session ค้าง
+    clearAuthStorage(); // เคลียร์ storage ที่อาจค้าง
+    return null;
+  }
+
+  // 1. ลองดึงจาก Cookie (Session Cookie)
+  const cookieValueRaw = document.cookie
+    .split('; ')
+    .find(row => row.startsWith(`${name}=`))
+    ?.split('=')[1];
+
+  if (cookieValueRaw) {
+    const cookieValue = isUserData ? decodeURIComponent(cookieValueRaw) : cookieValueRaw;
+    console.log(`[AUTH_UTILS] Found value in session cookie: ${name}`);
+    return cookieValue;
+  }
+  console.log(`[AUTH_UTILS] Value not found in session cookie: ${name}`);
+
+  // 2. ถ้าไม่มีใน Cookie ลองดึงจาก LocalStorage Backup
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const backupKey = name === TOKEN_COOKIE_NAME ? TOKEN_BACKUP_KEY : USER_BACKUP_KEY;
+    const expiresKey = `${backupKey}${BACKUP_EXPIRES_KEY_SUFFIX}`;
+    const backupValue = localStorage.getItem(backupKey);
+    const expirationString = localStorage.getItem(expiresKey);
+
+    console.log(`[AUTH_UTILS] Checking localStorage backup: ${backupKey}, value=${backupValue ? 'exists' : 'null'}, expires=${expirationString}`);
+
+    if (backupValue && expirationString) {
+      const expirationDate = new Date(expirationString);
+      const now = new Date();
+
+      if (expirationDate > now) {
+        // ถ้า Backup ยังไม่หมดอายุ และยังอยู่ใน Browser Session เดิม -> ใช้ได้
+        console.log(`[AUTH_UTILS] Using valid localStorage backup for ${name}. Restoring session cookie.`);
+        // คืนค่า และทำการ Restore Session Cookie ด้วย
+        setAuthStorage(name, backupValue, isUserData); // Restore Session Cookie
+        return backupValue; // คืนค่าจริง (userDataString หรือ token)
+      } else {
+        // ถ้าหมดอายุ -> ลบออกจาก LocalStorage
+        console.log(`[AUTH_UTILS] localStorage backup for ${name} expired. Removing.`);
+        localStorage.removeItem(backupKey);
+        localStorage.removeItem(expiresKey);
+      }
+    }
+  }
+
+  // ถ้าไม่พบที่ไหนเลย
+  console.log(`[AUTH_UTILS] No valid value found for ${name} in cookie or localStorage backup.`);
+  return null;
+};
+
+/**
+ * ล้างข้อมูล Authentication ทั้งหมด (Cookie, LocalStorage, SessionStorage)
+ */
+const clearAuthStorage = (): void => {
+  console.log("[AUTH_UTILS] Clearing all authentication storage...");
+  if (typeof document === 'undefined') return;
+
+  // ลบ Cookies
+  document.cookie = `${TOKEN_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+  document.cookie = `${USER_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+  console.log("[AUTH_UTILS] Cleared cookies.");
+
+  // ลบ LocalStorage Backups
+  if (typeof window !== 'undefined' && window.localStorage) {
+    localStorage.removeItem(TOKEN_BACKUP_KEY);
+    localStorage.removeItem(`${TOKEN_BACKUP_KEY}${BACKUP_EXPIRES_KEY_SUFFIX}`);
+    localStorage.removeItem(USER_BACKUP_KEY);
+    localStorage.removeItem(`${USER_BACKUP_KEY}${BACKUP_EXPIRES_KEY_SUFFIX}`);
+    console.log("[AUTH_UTILS] Cleared localStorage backups.");
+  }
+
+  // ลบ SessionStorage Flag
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(SESSION_STORAGE_FLAG);
+    console.log("[AUTH_UTILS] Cleared sessionStorage flag.");
+  }
+};
+
+/**
+ * บันทึก token (Session Cookie + LocalStorage Backup 3 ชม.)
  * @param token JWT token ที่ต้องการบันทึก
  */
 export const setAuthCookie = (token: string): void => {
-  // สร้าง cookie ที่จะคงอยู่ 7 วัน
-  if (typeof document !== 'undefined') {
-    // ตั้งค่า cookie โดยกำหนดอายุ 7 วัน (168 ชั่วโมง)
-    const expirationDate = new Date();
-    expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
-    
-    const cookieOptions = [
-      `${TOKEN_COOKIE_NAME}=${token}`,
-      `expires=${expirationDate.toUTCString()}`,
-      'path=/',
-      'SameSite=Strict'
-    ];
-    
-    // เพิ่ม Secure flag ในโหมด production
-    if (process.env.NODE_ENV === 'production') {
-      cookieOptions.push('Secure');
-    }
-    
-    document.cookie = cookieOptions.join('; ');
-    
-    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`${TOKEN_COOKIE_NAME}_backup`, token);
-    }
-  }
+  setAuthStorage(TOKEN_COOKIE_NAME, token, false);
 };
 
 /**
- * บันทึกข้อมูลผู้ใช้ลงใน cookie
+ * บันทึกข้อมูลผู้ใช้ (Session Cookie + LocalStorage Backup 3 ชม.)
  * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
  */
 export const setUserCookie = (userData: any): void => {
-  // แปลงข้อมูลเป็น JSON string
-  const userDataString = JSON.stringify(userData);
-  
-  if (typeof document !== 'undefined') {
-    // ตั้งค่า cookie โดยกำหนดอายุ 7 วัน (168 ชั่วโมง)
-    const expirationDate = new Date();
-    expirationDate.setTime(expirationDate.getTime() + (7 * 24 * 60 * 60 * 1000));
-    
-    const cookieOptions = [
-      `${USER_COOKIE_NAME}=${encodeURIComponent(userDataString)}`,
-      `expires=${expirationDate.toUTCString()}`,
-      'path=/',
-      'SameSite=Strict'
-    ];
-    
-    // เพิ่ม Secure flag ในโหมด production
-    if (process.env.NODE_ENV === 'production') {
-      cookieOptions.push('Secure');
-    }
-    
-    document.cookie = cookieOptions.join('; ');
-    
-    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`${USER_COOKIE_NAME}_backup`, userDataString);
-    }
+  try {
+    const userDataString = JSON.stringify(userData);
+    // ส่งค่าที่ stringify แล้วไปให้ setAuthStorage, isUserData=true เพื่อ encode cookie
+    setAuthStorage(USER_COOKIE_NAME, userDataString, true);
+  } catch (err) {
+    console.error('Error stringifying user data for cookie:', err);
   }
 };
 
 /**
- * ดึงข้อมูล token จาก cookie
+ * ดึงข้อมูล token จาก Cookie หรือ LocalStorage Backup (ถ้ายัง valid)
  * @returns token หรือ null ถ้าไม่มี
  */
 export const getAuthCookie = (): string | null => {
-  if (typeof document !== 'undefined') {
-    // First try to get from cookie
-    const cookieValue = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${TOKEN_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    
-    // If found in cookie, return it
-    if (cookieValue) {
-      return cookieValue;
-    }
-    
-    // If not found in cookie, try localStorage
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const localStorageValue = localStorage.getItem(`${TOKEN_COOKIE_NAME}_backup`);
-      if (localStorageValue) {
-        // If found in localStorage, restore it to cookie too
-        setAuthCookie(localStorageValue);
-        return localStorageValue;
-      }
-    }
-    
-    return null;
-  }
-  
-  // Fallback ถ้าใช้งานบน server-side
-  return Cookies.get(TOKEN_COOKIE_NAME) || null;
+  console.log("[AUTH_UTILS] Attempting to get auth token...");
+  return getAuthStorage(TOKEN_COOKIE_NAME, false);
 };
 
 /**
- * ดึงข้อมูลผู้ใช้จาก cookie
+ * ดึงข้อมูลผู้ใช้จาก Cookie หรือ LocalStorage Backup (ถ้ายัง valid)
  * @returns ข้อมูลผู้ใช้ หรือ null ถ้าไม่มี
  */
 export const getUserCookie = (): any | null => {
-  let userDataString: string | undefined;
-  
-  if (typeof document !== 'undefined') {
-    // First try to get from cookie
-    userDataString = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${USER_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    
-    // ต้อง decode URI component เพราะเราใช้ encodeURIComponent ตอนเซ็ต cookie
-    if (userDataString) {
-      userDataString = decodeURIComponent(userDataString);
-    } else {
-      // If not found in cookie, try localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const localStorageValue = localStorage.getItem(`${USER_COOKIE_NAME}_backup`);
-        if (localStorageValue) {
-          userDataString = localStorageValue;
-          // Restore cookie from localStorage
-          setUserCookie(JSON.parse(localStorageValue));
-        }
-      }
-    }
-  } else {
-    // Fallback ถ้าใช้งานบน server-side
-    userDataString = Cookies.get(USER_COOKIE_NAME);
+  console.log("[AUTH_UTILS] Attempting to get user data...");
+  // getAuthStorage(..., true) จะ decode cookie ให้ แต่คืนค่า string ที่ยังไม่ได้ parse
+  const userDataString = getAuthStorage(USER_COOKIE_NAME, true);
+  if (!userDataString) {
+      console.log("[AUTH_UTILS] User data string not found.");
+      return null;
   }
-  
-  if (!userDataString) return null;
-  
   try {
-    return JSON.parse(userDataString);
+    const userData = JSON.parse(userDataString);
+    console.log("[AUTH_UTILS] Successfully parsed user data.");
+    return userData;
   } catch (err) {
-    console.error('Error parsing user data from cookie:', err);
+    console.error('[AUTH_UTILS] Error parsing user data from storage:', err);
+    clearAuthStorage(); // เคลียร์ถ้าข้อมูลเสียหาย
     return null;
   }
 };
 
 /**
- * ล้าง cookies ทั้งหมดที่เกี่ยวข้องกับการ authentication และ cache
+ * ล้าง cookies และ storage ทั้งหมดที่เกี่ยวข้องกับการ authentication
+ * ชื่อใหม่ที่สื่อความหมายมากขึ้น
+ */
+export const clearAuthCookiesAndStorage = (): void => {
+  clearAuthStorage();
+};
+
+/**
+ * ฟังก์ชันเดิม แต่เปลี่ยนให้เรียกตัวใหม่ (เพื่อ backward compatibility ถ้ามี)
  */
 export const clearAuthCookies = (): void => {
-  // ล้าง cookies
-  Cookies.remove(TOKEN_COOKIE_NAME, { path: '/' });
-  Cookies.remove(USER_COOKIE_NAME, { path: '/' });
-  
-  // ล้าง session storage และ local storage
-  if (typeof window !== 'undefined') {
-    // ล้าง session ID
-    sessionStorage.removeItem('currentSessionId');
-    
-    // ล้าง CSRF token
-    sessionStorage.removeItem('csrfToken');
-    
-    // ล้าง localStorage backups
-    localStorage.removeItem(`${TOKEN_COOKIE_NAME}_backup`);
-    localStorage.removeItem(`${USER_COOKIE_NAME}_backup`);
-    
-    // ล้าง cache อื่นๆ ที่เกี่ยวข้อง
-    const authRelatedPrefixes = ['auth_', 'user_', 'session_', 'token_'];
-    
-    // ล้าง session storage
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && authRelatedPrefixes.some(prefix => key.startsWith(prefix))) {
-        sessionStorage.removeItem(key);
-      }
-    }
-    
-    // ล้าง local storage (เฉพาะส่วนที่เกี่ยวข้องกับ auth)
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && authRelatedPrefixes.some(prefix => key.startsWith(prefix))) {
-        localStorage.removeItem(key);
-      }
-    }
-    
-    // ลบ cookie แบบ native approach เพื่อความมั่นใจ
-    document.cookie = `${TOKEN_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    document.cookie = `${USER_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-  }
+  console.warn("[AUTH_UTILS] Deprecated: clearAuthCookies called. Use clearAuthCookiesAndStorage instead.");
+  clearAuthStorage();
 };
 
 /**
- * ฟังก์ชันสำหรับตรวจสอบว่า token ยังใช้งานได้หรือไม่
- * @returns ผลการตรวจสอบ
+ * ตรวจสอบว่า token ที่ให้มายังใช้งานได้หรือไม่ (ตรวจสอบกับ server หรือ local)
+ * @returns Promise<boolean>
  */
 export const isTokenValid = async (): Promise<boolean> => {
-  try {
-    const token = getAuthCookie();
-    if (!token) return false;
-    
-    const decoded = await verifyToken(token);
-    return decoded !== null;
-  } catch (err) {
-    console.error('Error validating token:', err);
+  const token = getAuthCookie();
+  if (!token) {
     return false;
   }
+  // ตรวจสอบ token ด้วย jose
+  const payload = await verifyToken(token);
+  return payload !== null;
 };
 
+// --- CSRF Functions ---
 /**
- * สร้าง CSRF token
- * @returns CSRF token
+ * สร้าง CSRF token แบบง่ายๆ
+ * @returns {string} CSRF token
  */
 export function generateCSRFToken(): string {
-  // สร้าง token แบบสุ่ม
-  const randomBytes = new Uint8Array(32);
-  if (typeof window !== 'undefined' && window.crypto) {
-    window.crypto.getRandomValues(randomBytes);
-  } else {
-    // Fallback สำหรับ server-side
-    for (let i = 0; i < randomBytes.length; i++) {
-      randomBytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  
-  // แปลง bytes เป็น base64 string
-  const base64 = btoa(String.fromCharCode.apply(null, Array.from(randomBytes)));
-  const token = base64
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-  
-  // บันทึก token ลงใน cookie
-  document.cookie = `csrf_token=${token}; path=/; SameSite=Strict; max-age=3600;`;
-  
-  return token;
+  if (typeof window === 'undefined') return ''; // ไม่ทำงานบน server
+  const csrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  // เก็บ token ใน sessionStorage
+  sessionStorage.setItem('csrfToken', csrfToken);
+  return csrfToken;
 }
 
 /**
- * ตรวจสอบ CSRF token
- * @param token CSRF token ที่ต้องการตรวจสอบ
- * @returns ผลการตรวจสอบ
+ * ตรวจสอบ CSRF token ที่ส่งมากับที่เก็บใน sessionStorage
+ * @param {string} token Token ที่ส่งมาจากฟอร์มหรือ header
+ * @returns {boolean} true ถ้า token ถูกต้อง
  */
 export function validateCSRFToken(token: string): boolean {
-  // ดึง token จาก cookie
-  const cookieValue = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrf_token='))
-    ?.split('=')[1];
-  
-  // ตรวจสอบว่า token ตรงกันหรือไม่
-  return token === cookieValue;
+  if (typeof window === 'undefined') return false; // ไม่ทำงานบน server
+  const storedToken = sessionStorage.getItem('csrfToken');
+  if (!storedToken || !token) {
+    return false;
+  }
+  return storedToken === token;
 }
 
-/**
- * สร้าง JWT token จากข้อมูลผู้ใช้ ที่มีอายุยาวนาน (สำหรับ Remember Me)
- * @param userId ID ของผู้ใช้
- * @param username ชื่อผู้ใช้
- * @param role บทบาทของผู้ใช้
- * @returns JWT token
- */
-export const generateLongLivedToken = async (
-  userId: string,
-  username: string,
-  role: string
-): Promise<string> => {
-  try {
-    // แปลง string เป็น TextEncoder
-    const secretKey = new TextEncoder().encode(JWT_SECRET);
-    
-    // คำนวณเวลาหมดอายุ (30 วัน)
-    const expiresIn = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
-    
-    // สร้าง JWT token ด้วย jose
-    const token = await new jose.SignJWT({ 
-        sub: userId,
-        username,
-        role,
-        longLived: true
-      })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime(expiresIn)
-      .sign(secretKey);
-    
-    return token;
-  } catch (err) {
-    console.error('Error generating long-lived JWT token:', err);
-    throw new Error('Failed to generate long-lived authentication token');
-  }
-};
+// --- Long-Lived Token Functions (สำหรับ Remember Me - ไม่ใช้ใน flow ปัจจุบัน) ---
+// เก็บไว้เผื่ออนาคต แต่ไม่เรียกใช้ใน flow นี้
 
-/**
- * บันทึก token ลงใน cookie แบบตั้งค่าให้จำไว้นาน (Remember Me)
- * @param token JWT token ที่ต้องการบันทึก
- */
-export const setLongLivedAuthCookie = (token: string): void => {
-  // สร้าง cookie ที่จะคงอยู่ 30 วัน
-  if (typeof document !== 'undefined') {
-    // ตั้งค่า cookie โดยกำหนดอายุ 30 วัน
-    const expirationDate = new Date();
-    expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000));
-    
-    const cookieOptions = [
-      `${TOKEN_COOKIE_NAME}=${token}`,
-      `expires=${expirationDate.toUTCString()}`,
-      'path=/',
-      'SameSite=Strict'
-    ];
-    
-    // เพิ่ม Secure flag ในโหมด production
-    if (process.env.NODE_ENV === 'production') {
-      cookieOptions.push('Secure');
-    }
-    
-    document.cookie = cookieOptions.join('; ');
-    
-    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`${TOKEN_COOKIE_NAME}_backup`, token);
-      localStorage.setItem('remember_me', 'true');
-      localStorage.setItem('auth_expiration', expirationDate.toISOString());
-    }
-  }
-};
-
-/**
- * บันทึกข้อมูลผู้ใช้ลงใน cookie แบบตั้งค่าให้จำไว้นาน (Remember Me)
- * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
- */
-export const setLongLivedUserCookie = (userData: any): void => {
-  // แปลงข้อมูลเป็น JSON string
-  const userDataString = JSON.stringify(userData);
-  
-  if (typeof document !== 'undefined') {
-    // ตั้งค่า cookie โดยกำหนดอายุ 30 วัน
-    const expirationDate = new Date();
-    expirationDate.setTime(expirationDate.getTime() + (30 * 24 * 60 * 60 * 1000));
-    
-    const cookieOptions = [
-      `${USER_COOKIE_NAME}=${encodeURIComponent(userDataString)}`,
-      `expires=${expirationDate.toUTCString()}`,
-      'path=/',
-      'SameSite=Strict'
-    ];
-    
-    // เพิ่ม Secure flag ในโหมด production
-    if (process.env.NODE_ENV === 'production') {
-      cookieOptions.push('Secure');
-    }
-    
-    document.cookie = cookieOptions.join('; ');
-    
-    // บันทึกลง localStorage ด้วยเพื่อให้คงอยู่แม้ cookie จะหมดอายุ
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(`${USER_COOKIE_NAME}_backup`, userDataString);
-      localStorage.setItem('remember_me', 'true');
-      localStorage.setItem('user_expiration', expirationDate.toISOString());
-    }
-  }
-}; 
+// export const generateLongLivedToken = async (...) => { ... }
+// export const setLongLivedAuthCookie = (token: string): void => { ... }
+// export const setLongLivedUserCookie = (userData: any): void => { ... } 

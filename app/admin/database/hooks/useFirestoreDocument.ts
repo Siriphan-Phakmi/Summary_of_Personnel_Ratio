@@ -23,36 +23,64 @@ export const useFirestoreDocument = (collectionId: string) => {
 
   // โหลดเอกสารเมื่อคอลเลกชันเปลี่ยน
   useEffect(() => {
-    if (collectionId) {
-      loadDocuments();
-    }
-  }, [collectionId]);
+    let isMounted = true;
+    
+    const loadDocs = async () => {
+      if (collectionId && isMounted) {
+        await loadDocuments();
+      }
+    };
+    
+    loadDocs();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [collectionId]); // ไม่ใส่ loadDocuments เป็น dependency
 
   // โหลดฟิลด์เมื่อเอกสารที่เลือกเปลี่ยน
   useEffect(() => {
-    if (collectionId && selectedDocument) {
-      loadFields();
-    } else {
-      setFields([]);
-    }
-  }, [collectionId, selectedDocument]);
+    let isMounted = true;
+    
+    const loadDocFields = async () => {
+      if (collectionId && selectedDocument && isMounted) {
+        try {
+          setLoading(true);
+          setError(null);
+          const documentPath = `${collectionId}/${selectedDocument}`;
+          const data = await fetchFields(documentPath);
+          if (isMounted) {
+            setFields(data);
+          }
+        } catch (err) {
+          if (isMounted) {
+            setError('ไม่สามารถโหลดฟิลด์ได้');
+            console.error('Error loading fields:', err);
+          }
+        } finally {
+          if (isMounted) {
+            setLoading(false);
+          }
+        }
+      } else if (isMounted) {
+        setFields([]);
+      }
+    };
+    
+    loadDocFields();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [collectionId, selectedDocument]); // ไม่ใส่ loadFields เป็น dependency
 
   // โหลดเอกสารทั้งหมดในคอลเลกชัน
   const loadDocuments = async () => {
-    if (!collectionId) return;
-    
     try {
       setLoading(true);
       setError(null);
       const data = await fetchDocuments(collectionId);
       setDocuments(data);
-      
-      // เลือกเอกสารแรกถ้ามี
-      if (data.length > 0 && !selectedDocument) {
-        setSelectedDocument(data[0].id);
-      } else if (data.length === 0) {
-        setSelectedDocument(null);
-      }
     } catch (err) {
       setError('ไม่สามารถโหลดเอกสารได้');
       console.error('Error loading documents:', err);
@@ -61,38 +89,14 @@ export const useFirestoreDocument = (collectionId: string) => {
     }
   };
 
-  // โหลดฟิลด์ทั้งหมดในเอกสาร
-  const loadFields = async () => {
-    if (!collectionId || !selectedDocument) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      const documentPath = `${collectionId}/${selectedDocument}`;
-      const data = await fetchFields(documentPath);
-      setFields(data);
-    } catch (err) {
-      setError('ไม่สามารถโหลดฟิลด์ได้');
-      console.error('Error loading fields:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // สร้างเอกสารใหม่
-  const addDocument = async (documentId: string) => {
+  const addDocument = async (docId: string) => {
     try {
       setLoading(true);
       setError(null);
-      const success = await createDocument(collectionId, documentId);
-      
-      if (success) {
-        // โหลดเอกสารใหม่หลังจากสร้างสำเร็จ
-        await loadDocuments();
-        setSelectedDocument(documentId);
-      }
-      
-      return success;
+      await createDocument(collectionId, docId);
+      await loadDocuments();
+      return true;
     } catch (err) {
       setError('ไม่สามารถสร้างเอกสารได้');
       console.error('Error creating document:', err);
@@ -104,15 +108,15 @@ export const useFirestoreDocument = (collectionId: string) => {
 
   // เพิ่มหรืออัปเดตฟิลด์
   const addOrUpdateField = async (
-    fieldName: string, 
+    fieldName: string,
     fieldType: string,
     fieldValue: any
   ) => {
-    if (!collectionId || !selectedDocument) return false;
-    
     try {
       setLoading(true);
       setError(null);
+      if (!collectionId || !selectedDocument) return false;
+      
       const documentPath = `${collectionId}/${selectedDocument}`;
       const success = await setDocumentField(
         documentPath,
@@ -122,8 +126,9 @@ export const useFirestoreDocument = (collectionId: string) => {
       );
       
       if (success) {
-        // โหลดฟิลด์ใหม่หลังจากอัปเดตสำเร็จ
-        await loadFields();
+        // โหลดข้อมูลฟิลด์ใหม่หลังจากอัปเดต
+        const data = await fetchFields(documentPath);
+        setFields(data);
       }
       
       return success;
@@ -140,12 +145,11 @@ export const useFirestoreDocument = (collectionId: string) => {
     documents,
     fields,
     selectedDocument,
+    setSelectedDocument,
     loading,
     error,
-    setSelectedDocument,
-    loadDocuments,
-    loadFields,
     addDocument,
+    loadDocuments,
     addOrUpdateField
   };
 }; 
