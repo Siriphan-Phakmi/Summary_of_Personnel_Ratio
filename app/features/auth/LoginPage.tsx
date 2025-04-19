@@ -78,8 +78,7 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const { login, user, isLoading, error } = useAuth();
+  const { login, user, authStatus, error } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { theme } = useTheme();
@@ -125,11 +124,11 @@ export default function LoginPage() {
   useEffect(() => {
     console.log("LoginPage useEffect - user state changed:", { 
       user: user ? `${user.username} (role: ${user.role})` : 'null', 
-      isLoading 
+      authStatus 
     });
     
     // Redirect logged-in user based on role and username
-    if (user && !isLoading) {
+    if (user && authStatus === 'authenticated') {
       console.log(`Redirecting logged-in user (${user.role}, ${user.username}) to appropriate page`);
       
       // ตรวจสอบและเปลี่ยนเส้นทางตาม username
@@ -154,7 +153,7 @@ export default function LoginPage() {
         }
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, authStatus, router]);
 
   // Show special message based on URL params
   useEffect(() => {
@@ -236,37 +235,24 @@ export default function LoginPage() {
     }
     
     setLocalError(null);
-    setLoginError(null);
     setIsLoggingIn(true);
     
     try {
-      showLoading();
-      
       if (!navigator.onLine) {
         throw new Error('ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้ กรุณาตรวจสอบการเชื่อมต่อของคุณ');
       }
 
       console.log(`Attempting to login with username: ${username}, CSRF token: ${csrfToken ? 'exists' : 'missing'}`);
-      const response = await login(username, password);
-      console.log('Login response:', response);
-      
-      if (response === true) {
-        showSuccessToast(`เข้าสู่ระบบสำเร็จ ยินดีต้อนรับ ${username}`);
-        return;
-      }
-      
-      // แก้ไข: ไม่ throw error ที่นี่ แต่แสดงข้อความผิดพลาดแทน
-      setLoginError('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
-      showErrorToast('ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
+      await login(username, password); // login now returns boolean, but redirect is handled by useEffect
+      console.log('[LoginPage] Login function called. Waiting for authStatus change...');
       
     } catch (err: any) {
-      console.error('Login error:', err);
-      const errorMessage = err.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง';
-      setLoginError(errorMessage);
+      console.error('[LoginPage] handleSubmit unexpected error:', err);
+      const errorMessage = err.message || 'เกิดข้อผิดพลาดร้ายแรงในการเข้าสู่ระบบ';
+      setLocalError(errorMessage);
       showErrorToast(errorMessage);
     } finally {
       setIsLoggingIn(false);
-      hideLoading();
     }
   };
 
@@ -300,13 +286,6 @@ export default function LoginPage() {
         {localError && (
           <div className="my-4 p-3 bg-red-50 border border-red-300 text-red-700 rounded text-sm dark:bg-red-900 dark:border-red-800 dark:text-red-200">
             {localError}
-          </div>
-        )}
-
-        {/* แสดงข้อความผิดพลาดจากการล็อกอิน */}
-        {loginError && (
-          <div className="my-4 p-3 bg-red-50 border border-red-300 text-red-700 rounded text-sm dark:bg-red-900 dark:border-red-800 dark:text-red-200">
-            {loginError}
           </div>
         )}
 

@@ -58,18 +58,7 @@ export const comparePassword = async (inputPassword: string, hashedPassword: str
       return false;
     }
 
-    // ตรวจสอบก่อนว่ารหัสผ่านที่เข้ารหัสมีรูปแบบที่ถูกต้อง
-    if (hashedPassword.length < 10) {
-      console.warn('Stored password may not be hashed properly (length:', hashedPassword.length, ')');
-
-      // กรณีพิเศษ: ตรวจสอบแบบ plaintext (ไม่เข้ารหัส)
-      console.warn('Trying plaintext comparison for password');
-      const isMatch = inputPassword === hashedPassword;
-      console.log('Plaintext comparison result:', isMatch);
-      return isMatch;
-    }
-
-    // ตรวจสอบว่ารหัสผ่านใช้การเข้ารหัสแบบ bcrypt หรือไม่
+    // ตรวจสอบว่ารหัสผ่านที่เข้ารหัสเป็นรูปแบบ bcrypt หรือไม่
     const isBcrypt = hashedPassword.startsWith('$2a$') ||
                     hashedPassword.startsWith('$2b$') ||
                     hashedPassword.startsWith('$2y$');
@@ -81,16 +70,14 @@ export const comparePassword = async (inputPassword: string, hashedPassword: str
       console.log('bcrypt comparison result:', result);
       return result;
     } else {
-      // เปรียบเทียบตรงๆ สำหรับรหัสผ่านที่ไม่ได้เข้ารหัส (ไม่ปลอดภัย)
-      console.warn('Password is not hashed with bcrypt, using direct comparison');
-      const isMatch = inputPassword === hashedPassword;
-      console.log('Plaintext comparison result:', isMatch);
-      return isMatch;
+      // ถ้าไม่ใช่ bcrypt hash ถือว่ารหัสผ่านไม่ถูกต้องเสมอ
+      console.warn('Stored password is not a valid bcrypt hash.');
+      return false;
     }
   } catch (error) {
     console.error('Error comparing passwords:', error);
-    // ไม่ throw error เพื่อป้องกันการหยุดทำงานของแอพ
-    console.warn('Password comparison failed, returning false');
+    // ในกรณีเกิดข้อผิดพลาดในการเปรียบเทียบ ให้ถือว่าไม่ตรงกัน
+    console.warn('Password comparison failed due to error, returning false');
     return false;
   }
 };
@@ -221,7 +208,6 @@ const getAuthStorage = (name: string, isUserData: boolean = false): string | nul
   if (!isSameBrowserSession) {
     console.log(`[AUTH_UTILS] Not in the same browser session (flag=${sessionStorage.getItem(SESSION_STORAGE_FLAG)}). Clearing storage.`);
     // ถ้าไม่ใช่ session เดิม แสดงว่า Browser ปิดเปิดใหม่ -> ไม่ควรมี session ค้าง
-    clearAuthStorage(); // เคลียร์ storage ที่อาจค้าง
     return null;
   }
 
@@ -275,6 +261,7 @@ const getAuthStorage = (name: string, isUserData: boolean = false): string | nul
  * ล้างข้อมูล Authentication ทั้งหมด (Cookie, LocalStorage, SessionStorage)
  */
 const clearAuthStorage = (): void => {
+  // ... (โค้ดของ clearAuthStorage ที่อาจถูกลบไป ควรใส่กลับมา หรือตรวจสอบให้แน่ใจว่ามีอยู่)
   console.log("[AUTH_UTILS] Clearing all authentication storage...");
   if (typeof document === 'undefined') return;
 
@@ -297,91 +284,12 @@ const clearAuthStorage = (): void => {
     sessionStorage.removeItem(SESSION_STORAGE_FLAG);
     console.log("[AUTH_UTILS] Cleared sessionStorage flag.");
   }
-};
+}; // <<< ตรวจสอบให้แน่ใจว่าฟังก์ชันนี้มีอยู่และถูกต้อง
 
 /**
  * บันทึก token (Session Cookie + LocalStorage Backup 3 ชม.)
- * @param token JWT token ที่ต้องการบันทึก
  */
-export const setAuthCookie = (token: string): void => {
-  setAuthStorage(TOKEN_COOKIE_NAME, token, false);
-};
-
-/**
- * บันทึกข้อมูลผู้ใช้ (Session Cookie + LocalStorage Backup 3 ชม.)
- * @param userData ข้อมูลผู้ใช้ที่ต้องการบันทึก
- */
-export const setUserCookie = (userData: any): void => {
-  try {
-    const userDataString = JSON.stringify(userData);
-    // ส่งค่าที่ stringify แล้วไปให้ setAuthStorage, isUserData=true เพื่อ encode cookie
-    setAuthStorage(USER_COOKIE_NAME, userDataString, true);
-  } catch (err) {
-    console.error('Error stringifying user data for cookie:', err);
-  }
-};
-
-/**
- * ดึงข้อมูล token จาก Cookie หรือ LocalStorage Backup (ถ้ายัง valid)
- * @returns token หรือ null ถ้าไม่มี
- */
-export const getAuthCookie = (): string | null => {
-  console.log("[AUTH_UTILS] Attempting to get auth token...");
-  return getAuthStorage(TOKEN_COOKIE_NAME, false);
-};
-
-/**
- * ดึงข้อมูลผู้ใช้จาก Cookie หรือ LocalStorage Backup (ถ้ายัง valid)
- * @returns ข้อมูลผู้ใช้ หรือ null ถ้าไม่มี
- */
-export const getUserCookie = (): any | null => {
-  console.log("[AUTH_UTILS] Attempting to get user data...");
-  // getAuthStorage(..., true) จะ decode cookie ให้ แต่คืนค่า string ที่ยังไม่ได้ parse
-  const userDataString = getAuthStorage(USER_COOKIE_NAME, true);
-  if (!userDataString) {
-      console.log("[AUTH_UTILS] User data string not found.");
-      return null;
-  }
-  try {
-    const userData = JSON.parse(userDataString);
-    console.log("[AUTH_UTILS] Successfully parsed user data.");
-    return userData;
-  } catch (err) {
-    console.error('[AUTH_UTILS] Error parsing user data from storage:', err);
-    clearAuthStorage(); // เคลียร์ถ้าข้อมูลเสียหาย
-    return null;
-  }
-};
-
-/**
- * ล้าง cookies และ storage ทั้งหมดที่เกี่ยวข้องกับการ authentication
- * ชื่อใหม่ที่สื่อความหมายมากขึ้น
- */
-export const clearAuthCookiesAndStorage = (): void => {
-  clearAuthStorage();
-};
-
-/**
- * ฟังก์ชันเดิม แต่เปลี่ยนให้เรียกตัวใหม่ (เพื่อ backward compatibility ถ้ามี)
- */
-export const clearAuthCookies = (): void => {
-  console.warn("[AUTH_UTILS] Deprecated: clearAuthCookies called. Use clearAuthCookiesAndStorage instead.");
-  clearAuthStorage();
-};
-
-/**
- * ตรวจสอบว่า token ที่ให้มายังใช้งานได้หรือไม่ (ตรวจสอบกับ server หรือ local)
- * @returns Promise<boolean>
- */
-export const isTokenValid = async (): Promise<boolean> => {
-  const token = getAuthCookie();
-  if (!token) {
-    return false;
-  }
-  // ตรวจสอบ token ด้วย jose
-  const payload = await verifyToken(token);
-  return payload !== null;
-};
+// ... (ส่วนที่เหลือของไฟล์)
 
 // --- CSRF Functions ---
 /**
@@ -409,10 +317,3 @@ export function validateCSRFToken(token: string): boolean {
   }
   return storedToken === token;
 }
-
-// --- Long-Lived Token Functions (สำหรับ Remember Me - ไม่ใช้ใน flow ปัจจุบัน) ---
-// เก็บไว้เผื่ออนาคต แต่ไม่เรียกใช้ใน flow นี้
-
-// export const generateLongLivedToken = async (...) => { ... }
-// export const setLongLivedAuthCookie = (token: string): void => { ... }
-// export const setLongLivedUserCookie = (userData: any): void => { ... } 

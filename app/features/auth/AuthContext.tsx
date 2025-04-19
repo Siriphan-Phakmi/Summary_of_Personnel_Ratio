@@ -9,10 +9,13 @@ import { AuthService } from '@/app/core/services/AuthService';
 import { auth } from '@/app/core/firebase/firebase';
 import { getUserRole } from '@/app/features/auth/services/roleService';
 
+// Define authentication status type
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
 // Define authentication context type
 interface AuthContextType {
   user: User | null;
-  isLoading: boolean;
+  authStatus: AuthStatus; // Use authStatus instead of isLoading
   isLoggingOut: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
@@ -68,7 +71,7 @@ function devLog(message: string): void {
 // AuthProvider component to wrap around app
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading'); // Initialize as loading
   const [error, setError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [lastActivity, setLastActivity] = useState(Date.now());
@@ -80,198 +83,133 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้
   const checkRole = useCallback((requiredRole?: string | string[]): boolean => {
-    // ถ้าไม่มีผู้ใช้ หรือไม่มีบทบาทที่ต้องการ ถือว่าไม่มีสิทธิ์
-    if (!user) return false;
+    if (authStatus !== 'authenticated' || !user) return false;
     if (!requiredRole) return true;
-    
-    // แปลงบทบาทเป็นอาร์เรย์
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    
-    // ถ้าเป็น super_admin หรือ developer ให้มีสิทธิ์ทุกอย่าง
     if (user.role === 'super_admin' || user.role === 'developer') return true;
-
-    // ตรวจสอบว่ามีบทบาทตรงกับที่ต้องการหรือไม่
     return roles.includes(user.role);
-  }, [user]);
+  }, [user, authStatus]);
 
-  // Reset inactivity timer when user interacts with the app
+  // Reset inactivity timer
   const resetInactivityTimer = useCallback(() => {
     setLastActivity(Date.now());
   }, []);
-
-  // Throttle the reset function (e.g., run at most once every 500ms)
-  const throttledReset = useCallback(
-    throttle(resetInactivityTimer, 500),
-    [resetInactivityTimer]
-  );
+  const throttledReset = useCallback(throttle(resetInactivityTimer, 500), [resetInactivityTimer]);
 
   // Logout function
   const logout = useCallback(async (): Promise<void> => {
+    setIsLoggingOut(true); // Indicate logout process start
+    dismissAllToasts();
+    devLog('Logging out...');
     try {
-      setIsLoading(true);
-      setIsLoggingOut(true);
-      dismissAllToasts();
-      
       if (user) {
-        // เรียกใช้ API route สำหรับออกจากระบบ
         await fetch('/api/auth/logout', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.uid,
-            username: user.username,
-            role: user.role
-          })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.uid, username: user.username, role: user.role })
         });
       }
-      
-      // ล้างข้อมูลผู้ใช้
       setUser(null);
-      
-      // เคลียร์ session storage
+      setAuthStatus('unauthenticated'); // Set status to unauthenticated
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('is_browser_session');
       }
-      
-      // Redirect ไปที่หน้า login
+      devLog('Logout successful, redirecting to login.');
       router.replace('/login');
     } catch (error) {
       console.error('Error during logout:', error);
-      // พยายามล้างข้อมูลผู้ใช้ถึงแม้จะมีข้อผิดพลาด
-      setUser(null);
+      setUser(null); // Still clear user
+      setAuthStatus('unauthenticated'); // Ensure status is unauthenticated on error
       router.replace('/login');
     } finally {
-      setIsLoading(false);
       setIsLoggingOut(false);
     }
   }, [user, router]);
 
-  // ใช้ useEffect เพื่อตรวจสอบ session เมื่อโหลดเว็บ
+  // Initial session check effect
   useEffect(() => {
-    // ฟังก์ชันตรวจสอบ session
-    const checkSession = async (): Promise<User | null> => {
-      try {
-        console.log('Checking user session...');
-        
-        // ตรวจสอบก่อนว่ามี cookie หรือไม่
-        if (typeof document !== 'undefined') {
-          const hasCookie = document.cookie.split(';').some(item => item.trim().startsWith('auth_token='));
-          if (!hasCookie) {
-            console.log('No auth_token cookie found');
-            return null;
-          }
-        }
-        
-        const response = await fetch('/api/auth/session', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // สำคัญมากสำหรับการส่ง cookie
-        });
+    let isMounted = true; // Prevent state update on unmounted component
+    setAuthStatus('loading'); // Start as loading when path changes or mounts
+    devLog(`Initial effect running. Path: ${pathname}`);
 
-        console.log('Session check response status:', response.status);
-        
-        if (!response.ok) {
-          if (response.status === 401) {
-            console.log('Session expired or invalid');
-          } else {
-            console.warn('Session check failed with status:', response.status);
-          }
+    const checkSession = async () => {
+      devLog('checkSession started');
+      try {
+        if (typeof document !== 'undefined' && !document.cookie.includes('auth_token=')) {
+          devLog('No auth_token cookie found during initial check.');
           return null;
         }
 
+        const response = await fetch('/api/auth/session', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+        devLog(`checkSession response status: ${response.status}`);
+
+        if (!response.ok) return null;
+
         const data = await response.json();
-        console.log('Session data:', data.authenticated ? 'Authenticated' : 'Not authenticated');
-        
-        if (data.authenticated && data.user) {
-          return data.user as User;
-        }
-        
-        return null;
+        devLog(`checkSession response data: authenticated=${data.authenticated}`);
+        return data.authenticated && data.user ? data.user as User : null;
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('Error in checkSession:', error);
         return null;
       }
     };
-    
-    // เรียกใช้ฟังก์ชันตรวจสอบ session
-    checkSession().then(user => {
-      if (user) {
-        devLog('Session valid, user: ' + user.username);
-        setUser(user);
-        
-        // บันทึกว่าเป็น browser session เดียวกัน
+
+    checkSession().then(sessionUser => {
+      if (!isMounted) return; // Don't update state if unmounted
+      
+      if (sessionUser) {
+        devLog(`Session valid for user: ${sessionUser.username}. Setting status to authenticated.`);
+        setUser(sessionUser);
+        setAuthStatus('authenticated');
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.setItem('is_browser_session', 'true');
         }
       } else {
-        devLog('No valid session found');
+        devLog('No valid session found. Setting status to unauthenticated.');
         setUser(null);
-        
-        // ถ้าไม่มี session ที่ถูกต้องและไม่ได้อยู่ที่หน้า login ให้ redirect
+        setAuthStatus('unauthenticated');
+        // Only redirect if not already on login page
         if (pathname !== '/login') {
+          devLog('Redirecting to login page due to invalid session.');
           router.replace('/login');
         }
       }
     });
-    
-    // ตรวจสอบ session อัตโนมัติทุก 5 นาที
-    const sessionInterval = setInterval(() => {
-      devLog('Auto session check');
-      checkSession();
-    }, 5 * 60 * 1000);
-    
-    // ตรวจสอบ session เมื่อมีการเปลี่ยนแปลงการเชื่อมต่อ
-    const handleOnline = () => {
-      devLog('Back online, checking session');
-      checkSession();
-    };
-    
-    window.addEventListener('online', handleOnline);
-    
-    // Cleanup
-    return () => {
-      clearInterval(sessionInterval);
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [pathname, router]);
 
-  // ใช้ useEffect สำหรับตรวจสอบ inactivity timeout
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      devLog('Initial effect cleanup.');
+      // Cancel any pending async operations if possible
+    };
+  }, [pathname, router]); // Rerun when pathname changes
+
+  // Inactivity and activity update effect
   useEffect(() => {
-    if (!user) return; // ไม่ต้องตรวจสอบถ้าไม่มีผู้ใช้
-    
-    // ตั้งค่า event listeners สำหรับการติดตามกิจกรรม
+    if (authStatus !== 'authenticated') return; // Only run timers if authenticated
+
+    devLog('Setting up inactivity/activity timers.');
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-    
-    events.forEach(event => {
-      window.addEventListener(event, throttledReset);
-    });
-    
-    // ตรวจสอบการไม่มีกิจกรรมทุก 1 นาที
+    events.forEach(event => window.addEventListener(event, throttledReset));
+
     const inactivityInterval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceLastActivity = now - lastActivity;
-      
-      if (timeSinceLastActivity > SESSION_TIMEOUT) {
+      if (Date.now() - lastActivity > SESSION_TIMEOUT) {
         devLog('Session timed out due to inactivity. Logging out...');
         showErrorToast('คุณไม่ได้ใช้งานระบบนานเกินไป กรุณาเข้าสู่ระบบใหม่');
         logout();
       }
-    }, 60000); // 1 นาที
-    
-    // ตรวจสอบการใช้งานและอัพเดทเซิร์ฟเวอร์ทุก 5 นาที
+    }, 60000);
+
     const activityInterval = setInterval(async () => {
       if (user) {
         try {
-          // อัพเดตข้อมูลกิจกรรมผ่าน API
           await fetch('/api/auth/activity', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: user.uid })
           });
         } catch (error) {
@@ -279,92 +217,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }, ACTIVITY_UPDATE_INTERVAL);
-    
-    // Cleanup
+
     return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, throttledReset);
-      });
+      devLog('Cleaning up inactivity/activity timers.');
+      events.forEach(event => window.removeEventListener(event, throttledReset));
       clearInterval(inactivityInterval);
       clearInterval(activityInterval);
     };
-  }, [user, lastActivity, throttledReset, logout]);
+  }, [authStatus, user, lastActivity, throttledReset, logout]);
 
-  // ฟังก์ชันสำหรับเข้าสู่ระบบ
+  // Login function
   const login = async (username: string, password: string): Promise<boolean> => {
+    devLog(`Attempting login for: ${username}`);
+    setAuthStatus('loading'); // Set status to loading during login attempt
+    showLoading();
+    setError(null);
     try {
-      setIsLoading(true);
-      showLoading();
-      setError(null);
-      
-      console.log(`[AUTH_CONTEXT] Logging in user: ${username}`);
-      
-      // ดึง CSRF token ก่อน
       const csrfResponse = await fetch('/api/auth/csrf');
       const { csrfToken } = await csrfResponse.json();
-      console.log(`[AUTH_CONTEXT] Retrieved CSRF token: ${csrfToken ? 'success' : 'failed'}`);
-      
-      // ส่งข้อมูลไปยัง API เพื่อเข้าสู่ระบบ
-      console.log(`[AUTH_CONTEXT] Sending login request with CSRF token: ${csrfToken?.substr(0, 5)}...`);
+      devLog(`CSRF token fetched: ${csrfToken ? 'OK' : 'Failed'}`);
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // สำคัญมากเพื่อส่ง cookies
-        body: JSON.stringify({
-          username,
-          password,
-          csrfToken
-        })
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password, csrfToken })
       });
-      
-      console.log(`[AUTH_CONTEXT] Login response status: ${response.status}`);
+      devLog(`Login API response status: ${response.status}`);
       const data = await response.json();
-      console.log(`[AUTH_CONTEXT] Login response data:`, { success: data.success, message: data.message, hasUser: !!data.user });
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+      devLog(`Login API response data: success=${data.success}, user=${data.user?.username}`);
+
+      if (!response.ok || !data.success || !data.user) {
+        const errorMsg = data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
+        devLog(`Login failed: ${errorMsg}`);
+        setError(errorMsg);
+        showErrorToast(errorMsg);
+        setAuthStatus('unauthenticated'); // Set status to unauthenticated on failure
+        setUser(null);
+        return false;
       }
-      
-      if (data.success && data.user) {
-        console.log(`[AUTH_CONTEXT] Login successful for user: ${data.user.username}`);
-        setUser(data.user);
-        
-        // บันทึกว่าเป็น browser session เดียวกัน
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('is_browser_session', 'true');
-        }
-        
-        // นำทางไปยังหน้าที่เหมาะสมตาม role
-        console.log(`[AUTH_CONTEXT] Redirecting user with role: ${data.user.role}`);
-        if (data.user.role === 'admin' || data.user.role === 'developer' || data.user.role === 'super_admin') {
-          router.push('/census/approval');
-        } else {
-          router.push('/census/form');
-        }
-        
-        return true;
-      } else {
-        console.log(`[AUTH_CONTEXT] Login failed: ${data.error || 'Unknown error'}`);
-        throw new Error(data.error || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+
+      devLog(`Login successful for user: ${data.user.username}`);
+      setUser(data.user);
+      setAuthStatus('authenticated'); // Set status to authenticated on success
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('is_browser_session', 'true');
       }
+      // Redirect is now handled by LoginPage
+      return true;
     } catch (error) {
-      console.error('[AUTH_CONTEXT] Login error:', error);
       const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
+      devLog(`Login error: ${errorMessage}`);
       setError(errorMessage);
       showErrorToast(errorMessage);
+      setAuthStatus('unauthenticated'); // Ensure status is unauthenticated on catch
+      setUser(null);
       return false;
     } finally {
-      setIsLoading(false);
       hideLoading();
+      // Do not set loading state here, let authStatus handle it
     }
   };
 
   // Export the auth context provider and hook
   const contextValue = {
     user,
-    isLoading,
+    authStatus, // Provide authStatus instead of isLoading
     isLoggingOut,
     login,
     logout,
@@ -388,4 +306,4 @@ export const useAuth = () => {
   return context;
 };
 
-export default AuthContext; 
+export default AuthContext;

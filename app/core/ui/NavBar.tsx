@@ -15,11 +15,11 @@ const NavPlaceholder = ({ className = '' }: { className?: string }) => (
 );
 
 const NavBar = () => {
-  const { user, isLoading, isLoggingOut, logout } = useAuth();
+  const { user, authStatus, isLoggingOut, logout } = useAuth();
   console.log("NavBar component loading with: ", { 
     user: user ? `${user.firstName} ${user.lastName}` : "No user", 
     isLoggedIn: !!user,
-    isLoading, 
+    authStatus,
     isLoggingOut
   });
 
@@ -56,10 +56,10 @@ const NavBar = () => {
       userRole: user?.role || 'none',
       isAdmin,
       isDeveloper,
-      isLoading, 
+      authStatus,
       isLoggingOut 
     });
-  }, [isClient, user, isAdmin, isDeveloper, isLoading, isLoggingOut]);
+  }, [isClient, user, isAdmin, isDeveloper, authStatus, isLoggingOut]);
   
   // ฟังก์ชันจัดการการคลิกปุ่ม login
   const handleLoginClick = () => {
@@ -82,18 +82,23 @@ const NavBar = () => {
 
   // ปรับปรุงเงื่อนไขในการแสดงปุ่ม Login/Logout
   const renderAuthButton = () => {
-    // Log สถานะสำคัญเพื่อการดีบั๊ก
     console.log('renderAuthButton:', { 
       isClient, 
-      isLoading, 
+      authStatus,
       isLoggedIn: !!user, 
       userRole: user?.role || 'none',
       isLoggingOut 
     });
     
-    // กรณีล็อกอินแล้ว แสดงปุ่ม Logout เสมอ
-    if (user) {
-      console.log('User is logged in, showing Logout button for user:', user.firstName);
+    // If loading, show placeholder or nothing
+    if (authStatus === 'loading') {
+        console.log('Auth status is loading, showing placeholder for auth button');
+        return <NavPlaceholder className="h-10 w-32" />;
+    }
+
+    // If authenticated, show user info and logout button
+    if (authStatus === 'authenticated' && user) {
+      console.log('User is authenticated, showing Logout button for user:', user.firstName);
       return (
         <>
           <div className="flex flex-col items-end mr-4">
@@ -112,27 +117,37 @@ const NavBar = () => {
       );
     }
     
-    // กรณียังไม่ได้ล็อกอิน
-    console.log('User is not logged in, showing Login button');
-    return (
-      <Button variant="ghost" size="sm" onClick={handleLoginClick} leftIcon={<FiLogIn />}>Login</Button>
-    );
+    // If unauthenticated, show Login button
+    if (authStatus === 'unauthenticated') {
+        console.log('User is unauthenticated, showing Login button');
+        return (
+          <Button variant="ghost" size="sm" onClick={handleLoginClick} leftIcon={<FiLogIn />}>Login</Button>
+        );
+    }
+
+    // Default case (should ideally not be reached)
+    return null;
   };
 
   // ปรับปรุงเงื่อนไขในการแสดงปุ่ม Login/Logout บนโหมด Mobile
   const renderMobileAuthButton = () => {
-    // Log สถานะสำคัญเพื่อการดีบั๊ก
     console.log('renderMobileAuthButton:', { 
       isClient, 
-      isLoading, 
+      authStatus,
       isLoggedIn: !!user, 
       userRole: user?.role || 'none',
       isLoggingOut 
     });
+
+    // If loading, show placeholder or nothing
+    if (authStatus === 'loading') {
+        console.log('Auth status is loading, showing placeholder for mobile auth button');
+        return <NavPlaceholder className="h-12 w-full px-4 mb-2" />;
+    }
     
-    // กรณีล็อกอินแล้ว แสดงปุ่ม Logout เสมอ
-    if (user) {
-      console.log('User is logged in, showing Logout button for mobile');
+    // If authenticated, show user info and logout button
+    if (authStatus === 'authenticated' && user) {
+      console.log('User is authenticated, showing Logout button for mobile');
       return (
         <>
           <div className="flex items-center px-4">
@@ -173,22 +188,27 @@ const NavBar = () => {
       );
     }
     
-    // กรณียังไม่ได้ล็อกอิน
-    console.log('User is not logged in, showing Login button for mobile');
-    return (
-      <div className="px-2 py-3">
-        <button
-          onClick={() => {
-            setIsMenuOpen(false);
-            router.push('/login');
-          }}
-          className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-        >
-          <FiLogIn className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
-          Login
-        </button>
-      </div>
-    );
+    // If unauthenticated, show Login button
+    if (authStatus === 'unauthenticated') {
+        console.log('User is unauthenticated, showing Login button for mobile');
+        return (
+          <div className="px-2 py-3">
+            <button
+              onClick={() => {
+                setIsMenuOpen(false);
+                router.push('/login');
+              }}
+              className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <FiLogIn className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
+              Login
+            </button>
+          </div>
+        );
+    }
+
+    // Default case
+    return null;
   };
   
   return (
