@@ -310,7 +310,7 @@ const IndexManager: React.FC = () => {
       <div className="mt-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
         <h3 className="text-md font-medium mb-2">วิธีการสร้าง Indexes</h3>
         <ol className="list-decimal list-inside space-y-2 text-sm">
-          <li>ไปที่ <a href="https://console.firebase.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Firebase Console</a></li>
+          <li>ไปที่ Firebase Console ในเบราว์เซอร์ของคุณ</li>
           <li>เลือกโปรเจค "{process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'BPK Personnel Ratio'}"</li>
           <li>เลือกเมนู "Firestore Database" จากเมนูด้านซ้าย</li>
           <li>คลิกแท็บ "Indexes"</li>

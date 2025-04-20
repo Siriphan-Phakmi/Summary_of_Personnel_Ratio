@@ -148,7 +148,7 @@ const DatabaseSetup: React.FC = () => {
           Firebase จำเป็นต้องมี composite indexes เพื่อให้ query ที่ซับซ้อนทำงานได้ ถ้าไม่มี index ที่ถูกต้อง คุณจะเจอข้อผิดพลาดดังนี้:
         </p>
         <div className="bg-red-50 dark:bg-red-900/30 p-3 rounded text-xs text-red-700 dark:text-red-300 font-mono mb-3">
-          Error: The query requires an index. You can create it here: https://console.firebase.google.com/...
+          Error: The query requires an index. You can create it here: [ต้องสร้าง index ในคอนโซลของ Firebase]
         </div>
         <p className="text-sm text-yellow-700 dark:text-yellow-400">
           คลิกปุ่ม "ตรวจสอบ Indexes ที่จำเป็น" เพื่อดูรายการ indexes ที่ควรสร้างใน Firebase Console
