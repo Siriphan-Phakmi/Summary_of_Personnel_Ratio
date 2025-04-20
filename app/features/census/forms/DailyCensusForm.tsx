@@ -79,6 +79,7 @@ export default function DailyCensusForm() {
     isMorningCensusReadOnly,
     existingDraftData,
     setExistingDraftData,
+    isCensusAutoCalculated,
     handleChange,
   } = useWardFormData({ selectedWard, selectedDate, selectedShift, user: currentUser, morningShiftStatus, nightShiftStatus });
 
@@ -178,6 +179,7 @@ export default function DailyCensusForm() {
                 isReadOnly={isFormReadOnly || isSaving}
                 selectedShift={selectedShift}
                 isMorningCensusReadOnly={isMorningCensusReadOnly}
+                isCensusAutoCalculated={isCensusAutoCalculated}
               />
 
               {/* Recorder Info Component */}

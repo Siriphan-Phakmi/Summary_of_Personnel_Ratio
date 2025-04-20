@@ -54,6 +54,7 @@ export const useWardFormData = ({
   const [isMorningCensusReadOnly, setIsMorningCensusReadOnly] = useState(false);
   const [isFormReadOnly, setIsFormReadOnly] = useState(false);
   const [existingDraftData, setExistingDraftData] = useState<WardForm | null>(null);
+  const [isCensusAutoCalculated, setIsCensusAutoCalculated] = useState(false);
   const toastShownRef = useRef({ morning: false, night: false, error: false, load: false }); // Ref to track toasts
 
   const loadExistingFormData = useCallback(async () => {
@@ -63,6 +64,7 @@ export const useWardFormData = ({
         setIsMorningCensusReadOnly(false);
         setIsFormReadOnly(false);
         setExistingDraftData(null);
+        setIsCensusAutoCalculated(false);
         return;
     }
 
@@ -72,6 +74,7 @@ export const useWardFormData = ({
     setIsMorningCensusReadOnly(false);
     setIsFormReadOnly(false);
     setFormData(initialFormData); // Reset form data first
+    setIsCensusAutoCalculated(false);
 
     try {
       const targetDate = new Date(selectedDate + 'T00:00:00');
@@ -85,6 +88,7 @@ export const useWardFormData = ({
             showInfoToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน');
             setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.totalPatientCensus }));
             setIsMorningCensusReadOnly(true);
+            setIsCensusAutoCalculated(true);
           } else {
             showInfoToast('ไม่พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน กรุณากรอกข้อมูล');
             setIsMorningCensusReadOnly(false);
@@ -122,6 +126,9 @@ export const useWardFormData = ({
            });
            showInfoToast(`โหลดข้อมูล${existingForm.isDraft ? 'ร่าง' : 'ที่บันทึกสมบูรณ์'}สำหรับกะ${selectedShift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}แล้ว`);
            setIsFormReadOnly(existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED);
+           if (selectedShift === ShiftType.MORNING && isMorningCensusReadOnly) {
+              setIsCensusAutoCalculated(true);
+           }
         }
       } else {
         console.log('No existing form found for this shift.');
@@ -131,6 +138,7 @@ export const useWardFormData = ({
             patientCensus: previousNightForm.totalPatientCensus 
           }));
           setIsMorningCensusReadOnly(true);
+          setIsCensusAutoCalculated(true);
         } else {
           setFormData(initialFormData);
           setIsMorningCensusReadOnly(false);
@@ -149,6 +157,7 @@ export const useWardFormData = ({
       setIsMorningCensusReadOnly(false);
       setIsFormReadOnly(false);
       setExistingDraftData(null);
+      setIsCensusAutoCalculated(false);
     } finally {
       setIsLoading(false);
     }
@@ -162,6 +171,7 @@ export const useWardFormData = ({
         setExistingDraftData(null);
         // Reset toast flags when inputs change
         toastShownRef.current = { morning: false, night: false, error: false, load: false };
+        setIsCensusAutoCalculated(false);
         return;
     }
 
@@ -176,7 +186,8 @@ export const useWardFormData = ({
         setErrors({});
         setIsMorningCensusReadOnly(false);
         setIsFormReadOnly(false);
-        setFormData(initialFormData); 
+        setFormData(initialFormData);
+        setIsCensusAutoCalculated(false);
 
         try {
           const targetDate = new Date(selectedDate + 'T00:00:00');
@@ -193,6 +204,7 @@ export const useWardFormData = ({
                 }
                 setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.totalPatientCensus }));
                 setIsMorningCensusReadOnly(true);
+                setIsCensusAutoCalculated(true);
               } else {
                 if (!toastShownRef.current.night) { // Use night flag for this message
                   showInfoToast('ไม่พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน กรุณากรอกข้อมูล');
@@ -234,6 +246,9 @@ export const useWardFormData = ({
                  toastShownRef.current.load = true;
                }
                setIsFormReadOnly(existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED);
+               if (selectedShift === ShiftType.MORNING && isMorningCensusReadOnly) {
+                  setIsCensusAutoCalculated(true);
+               }
             }
           } else {
              console.log('No existing form found for this shift.');
@@ -243,6 +258,7 @@ export const useWardFormData = ({
                  patientCensus: previousNightForm.totalPatientCensus 
                }));
                setIsMorningCensusReadOnly(true);
+               setIsCensusAutoCalculated(true);
              } else {
                setFormData(initialFormData);
                setIsMorningCensusReadOnly(false);
@@ -263,6 +279,7 @@ export const useWardFormData = ({
           setIsMorningCensusReadOnly(false);
           setIsFormReadOnly(false);
           setExistingDraftData(null);
+          setIsCensusAutoCalculated(false);
         } finally {
           setIsLoading(false);
         }
@@ -293,8 +310,10 @@ export const useWardFormData = ({
     setIsSaving, // Expose setter for save functions
     isMorningCensusReadOnly,
     isFormReadOnly,
+    setIsFormReadOnly, // Pass down to useFormPersistence
     existingDraftData,
     setExistingDraftData, // Add missing setter
+    isCensusAutoCalculated, // <-- Return new state
     handleChange,
     loadExistingFormData, // Expose reload function if needed
   };
