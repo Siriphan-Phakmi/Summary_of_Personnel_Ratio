@@ -51,7 +51,10 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
         {...createInputProps('patientCensus', 'Patient Census (คงพยาบาล)')}
         readOnly={patientCensusReadOnly}
         // Apply different styling if readOnly specifically for patient census
-        className={patientCensusReadOnly ? "form-input bg-gray-100 dark:bg-gray-700 cursor-not-allowed" : "form-input"}
+        className={patientCensusReadOnly 
+          ? "form-input bg-gray-100 dark:bg-gray-800/50 border-transparent cursor-not-allowed focus-visible:ring-0 focus-visible:outline-none" 
+          : "form-input"
+        }
       />
 
       {/* Nursing Staff */}
