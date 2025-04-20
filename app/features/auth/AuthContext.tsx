@@ -135,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           'Accept': 'application/json',
         },
+        credentials: 'include',
       });
       devLog(`Session API response status: ${response.status}`);
 
@@ -296,13 +297,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Use sendBeacon for a higher chance of delivery on unload
         try {
           const blob = new Blob([logoutData], { type: 'application/json' });
+          // ***** Comment out the sendBeacon call to prevent logout on refresh *****
+          /*
           if (navigator.sendBeacon('/api/auth/logout', blob)) {
             devLog('Logout beacon successfully queued.');
           } else {
             devLog('Logout beacon failed to queue (navigator.sendBeacon returned false).');
           }
+          */
+          devLog('Skipping sendBeacon call in beforeunload handler to prevent logout on refresh.'); // Add log
         } catch (e) {
-          devLog(`Error sending beacon: ${e}`);
+          devLog(`Error related to beacon (now skipped): ${e}`);
         }
 
         // Trigger browser's confirmation dialog
@@ -332,26 +337,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [authStatus]); // Re-run when authStatus changes
 
-  // Check session on initial load and path change
+  // Effect for initial session check and activity listeners
   useEffect(() => {
-    devLog(`Initial effect running. Path: ${pathname}`);
-    if (authStatus === 'loading') { // Only run check if status is initially loading
-      checkSession();
-    }
+    devLog(`Initial AuthProvider effect running.`);
+    // Check session only on initial mount
+    checkSession();
+
     // Set up activity listeners
+    devLog('Setting up activity listeners (mousemove, keydown, click)');
     window.addEventListener('mousemove', handleUserActivity);
     window.addEventListener('keydown', handleUserActivity);
     window.addEventListener('click', handleUserActivity);
 
     // Clean up listeners and timers on unmount
     return () => {
-      devLog('Initial effect cleanup.');
+      devLog('Cleaning up AuthProvider effect (listeners and timers).');
       window.removeEventListener('mousemove', handleUserActivity);
       window.removeEventListener('keydown', handleUserActivity);
       window.removeEventListener('click', handleUserActivity);
       clearTimers();
     };
-  }, [pathname, checkSession, handleUserActivity, clearTimers, authStatus]); // Add authStatus dependency
+    // Run only once on mount by having a stable dependency array
+  }, [checkSession, handleUserActivity, clearTimers]);
 
   // Export the auth context provider and hook
   const contextValue = {
