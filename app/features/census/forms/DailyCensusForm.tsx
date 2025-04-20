@@ -8,7 +8,9 @@ import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import Button from '@/app/core/ui/Button';
 import { format } from 'date-fns';
-import { showErrorToast } from '@/app/core/utils/toastUtils';
+import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
+import { logUserActivity } from '@/app/core/utils/logUtils';
+import { useLoading } from '@/app/core/hooks/useLoading';
 
 // Import Hooks
 import { useWardFormData } from './hooks/useWardFormData';
@@ -22,19 +24,21 @@ import RecorderInfo from './components/RecorderInfo';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
 
 export default function DailyCensusForm() {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
+  const { showLoading, hideLoading } = useLoading();
   const [wards, setWards] = useState<Ward[]>([]);
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isWardLoading, setIsWardLoading] = useState(false);
+  const [isFormReadOnly, setIsFormReadOnly] = useState(false);
 
   // Load wards once
   useEffect(() => {
     const loadWards = async () => {
-      if (!user) return;
+      if (!currentUser) return;
       setIsWardLoading(true);
       try {
-        const userWards = await getWardsByUserPermission(user);
+        const userWards = await getWardsByUserPermission(currentUser);
         setWards(userWards);
         if (userWards.length > 0 && !selectedWard) { // Set default only if not already set
           setSelectedWard(userWards[0].id);
@@ -47,7 +51,7 @@ export default function DailyCensusForm() {
       }
     };
     loadWards();
-  }, [user]); // Removed selectedWard from dependency
+  }, [currentUser]); // Removed selectedWard from dependency
 
   // --- Use Custom Hooks --- 
   const { 
@@ -73,19 +77,18 @@ export default function DailyCensusForm() {
     isSaving,
     setIsSaving,
     isMorningCensusReadOnly,
-    isFormReadOnly,
     existingDraftData,
-    setExistingDraftData, // Get setter from form data hook
+    setExistingDraftData,
     handleChange,
-  } = useWardFormData({ selectedWard, selectedDate, selectedShift, user, morningShiftStatus, nightShiftStatus });
+  } = useWardFormData({ selectedWard, selectedDate, selectedShift, user: currentUser, morningShiftStatus, nightShiftStatus });
 
   const { 
     validateForm, 
-    handleSaveDraft, 
+    handleSaveDraft: persistSaveDraft,
     saveFormDraft, 
-    handleSaveFinal, 
+    handleSaveFinal: persistSaveFinal,
     isConfirmModalOpen, 
-    setIsConfirmModalOpen 
+    setIsConfirmModalOpen
   } = useFormPersistence({
     formData,
     setFormData,
@@ -94,12 +97,12 @@ export default function DailyCensusForm() {
     selectedWard,
     selectedDate,
     selectedShift,
-    user,
+    user: currentUser,
     wards,
     existingDraftData,
     setExistingDraftData,
     setIsSaving,
-    setIsFormReadOnly: (readOnly) => setFormData(prev => ({ ...prev, isFormReadOnly: readOnly })), // Directly update readOnly state in formData hook
+    setIsFormReadOnly,
     morningShiftStatus,
     setMorningShiftStatus,
     setNightShiftStatus,
@@ -190,7 +193,7 @@ export default function DailyCensusForm() {
               <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
                 <Button
                   variant="secondary"
-                  onClick={handleSaveDraft}
+                  onClick={persistSaveDraft}
                   isLoading={isSaving}
                   disabled={isFormReadOnly || isSaving}
                   loadingText="กำลังบันทึกร่าง..."
@@ -200,7 +203,7 @@ export default function DailyCensusForm() {
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={handleSaveFinal}
+                  onClick={persistSaveFinal}
                   isLoading={isSaving}
                   disabled={isFormReadOnly || isSaving}
                   loadingText="กำลังบันทึก..."

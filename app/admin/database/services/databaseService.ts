@@ -1,6 +1,8 @@
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, deleteField, query, where, onSnapshot, writeBatch, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { toast } from 'react-hot-toast';
+import { User } from '@/app/core/types/user';
+import { logUserActivity } from '@/app/core/utils/logUtils';
 
 // Types
 export interface Ward {
@@ -665,8 +667,13 @@ export const setDocumentField = async (
 // ลบฟิลด์จากเอกสาร
 export const deleteDocumentField = async (
   documentPath: string,
-  fieldName: string
+  fieldName: string,
+  currentUser: User | null | undefined
 ): Promise<boolean> => {
+  if (!currentUser) {
+    toast.error('User not authenticated for deleting field.');
+    return false;
+  }
   try {
     // ป้องกันการลบฟิลด์สำคัญ
     const protectedFields = ['id', 'uid', 'createdAt', 'createdBy'];
@@ -686,7 +693,18 @@ export const deleteDocumentField = async (
       [fieldName]: deleteField(),
       updatedAt: serverTimestamp() // เพิ่ม timestamp ในการอัปเดต
     });
-    
+
+    // Log activity
+    await logUserActivity(
+      currentUser.uid,
+      currentUser.username || 'unknown',
+      'delete_document_field',
+      { 
+        documentPath: documentPath, // Use path which includes collection/docId
+        fieldName: fieldName
+      }
+    );
+
     toast.success(`ลบฟิลด์ "${fieldName}" สำเร็จ`);
     return true;
   } catch (error) {

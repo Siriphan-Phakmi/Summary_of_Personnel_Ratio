@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { Ward } from '@/app/core/types/ward'; // Import Ward type
+import { logUserActivity } from '@/app/core/utils/logUtils'; // Import logger
 import {
   saveMorningShiftFormDraft,
   finalizeMorningShiftForm,
@@ -149,6 +150,19 @@ export const useFormPersistence = ({
       const latestDraft = await getLatestDraftForm(selectedWard, user);
       setExistingDraftData(latestDraft);
 
+      // Log activity
+      await logUserActivity(
+        user.uid,
+        user.username || 'unknown',
+        'save_draft_form',
+        { 
+          wardId: selectedWard,
+          date: selectedDate,
+          shift: selectedShift,
+          formId: docId
+        }
+      );
+
     } catch (error: any) {
       console.error("Error saving draft:", error);
       showErrorToast(`เกิดข้อผิดพลาด: ${error.message || 'ไม่สามารถบันทึกร่างได้'}`);
@@ -247,8 +261,21 @@ export const useFormPersistence = ({
       setIsFormReadOnly(true);
       setFormData(prev => ({ ...prev, id: docId, status: FormStatus.FINAL, isDraft: false, totalPatientCensus: calculatedCensus }));
 
+      // Log activity
+      await logUserActivity(
+        user.uid,
+        user.username || 'unknown',
+        'save_final_form',
+        { 
+          wardId: selectedWard,
+          date: selectedDate,
+          shift: selectedShift,
+          formId: docId 
+        }
+      );
+
     } catch (error: any) {
-      console.error("Error saving final:", error);
+      console.error("Error finalizing form:", error);
       showErrorToast(`เกิดข้อผิดพลาด: ${error.message || 'ไม่สามารถบันทึกข้อมูลได้'}`);
     } finally {
       setIsSaving(false);

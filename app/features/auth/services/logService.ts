@@ -1,5 +1,12 @@
 import { User } from '@/app/core/types/user';
-import { logLogin as utilsLogLogin, logLogout as utilsLogLogout } from '@/app/core/utils/logUtils';
+import {
+    logLogin as utilsLogLogin,
+    logLogout as utilsLogLogout,
+    addLogEntry as utilsAddLogEntry,
+    SYSTEM_LOGS_COLLECTION,
+    LogType,
+    getDeviceInfo
+} from '@/app/core/utils/logUtils';
 import { logServerAction } from './logServerAction';
 
 /**
@@ -140,10 +147,9 @@ export const logPageAccess = async (
     });
     
     // ใช้ addLogEntry แทนเนื่องจากไม่มีฟังก์ชัน logPageAccess ใน logUtils
-    const { addLogEntry, LogType, getDeviceInfo } = await import('@/app/core/utils/logUtils');
     const deviceInfo = getDeviceInfo();
 
-    await addLogEntry({
+    await utilsAddLogEntry({
       type: 'page.access', // สร้าง type ใหม่สำหรับการเข้าถึงหน้า
       userId: user.uid,
       username: user.username,
@@ -155,7 +161,7 @@ export const logPageAccess = async (
         role: user.role
       },
       userAgent: userAgent || navigator.userAgent
-    });
+    }, SYSTEM_LOGS_COLLECTION);
   } catch (error) {
     console.error('Failed to log page access:', error);
   }

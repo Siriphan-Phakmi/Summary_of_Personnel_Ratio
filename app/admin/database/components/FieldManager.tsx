@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { logUserActivity } from '@/app/core/utils/logUtils';
+import { useAuth } from '@/app/features/auth';
 
 interface FieldManagerProps {
   collectionId: string;
@@ -17,6 +19,7 @@ const FieldManager: React.FC<FieldManagerProps> = ({
   addField,
   loading
 }) => {
+  const { user: currentUser } = useAuth();
   const [fieldName, setFieldName] = useState('');
   const [fieldType, setFieldType] = useState('string');
   const [fieldValue, setFieldValue] = useState('');
@@ -77,6 +80,19 @@ const FieldManager: React.FC<FieldManagerProps> = ({
     
     if (success) {
       toast.success(`เพิ่มฟิลด์ "${fieldName}" สำเร็จ`);
+      if(currentUser) {
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'add_document_field',
+          { 
+            collectionId: collectionId,
+            documentId: documentId,
+            fieldName: fieldName,
+            fieldType: fieldType,
+          }
+        );
+      }
       setFieldName('');
       setFieldValue('');
     }

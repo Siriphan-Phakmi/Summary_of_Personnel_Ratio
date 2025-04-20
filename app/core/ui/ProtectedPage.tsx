@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 import { logPageAccess } from '@/app/features/auth/services/logService';
@@ -32,6 +32,7 @@ export default function ProtectedPage({ children, requiredRole }: ProtectedPageP
   const router = useRouter();
   const pathname = usePathname();
   const [isMounted, setIsMounted] = useState(false);
+  const loggedPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     devLog('Component mounted.');
@@ -76,10 +77,14 @@ export default function ProtectedPage({ children, requiredRole }: ProtectedPageP
       }
       // Role check passed or not required, log access
       devLog(`Access granted for ${user.username} at ${pathname}`);
-      if (pathname) {
+      if (pathname && loggedPathRef.current !== pathname) {
+          devLog(`Logging access for new path: ${pathname}`);
           logPageAccess(user, pathname).catch(err => {
             console.error('Failed to log page access:', err);
           });
+          loggedPathRef.current = pathname;
+      } else {
+          devLog(`Skipping log for path: ${pathname} (already logged or null)`);
       }
     }
 

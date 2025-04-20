@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Field } from '../hooks/useFirestoreDocument';
 import { deleteDocumentField } from '../services/databaseService';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '@/app/features/auth';
 
 // ส่วนแสดงค่าเพื่อแสดงค่าในแต่ละประเภทข้อมูล
 const FieldValueDisplay: React.FC<{ field: Field }> = ({ field }) => {
@@ -144,6 +145,7 @@ const DocumentFieldView: React.FC<DocumentFieldViewProps> = ({
   // State สำหรับการแก้ไขฟิลด์
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<any>('');
+  const { user: currentUser } = useAuth();
 
   // กรองและเรียงลำดับฟิลด์
   const filteredAndSortedFields = useMemo(() => {
@@ -184,7 +186,7 @@ const DocumentFieldView: React.FC<DocumentFieldViewProps> = ({
 
     try {
       setDeleteLoading(fieldName);
-      const success = await deleteDocumentField(`${collectionId}/${documentId}`, fieldName);
+      const success = await deleteDocumentField(`${collectionId}/${documentId}`, fieldName, currentUser);
       
       if (success) {
         toast.success(`ลบฟิลด์ "${fieldName}" สำเร็จ`);

@@ -46,6 +46,12 @@ try {
   // Initialize Firebase app
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
+    // Log initialization details only once
+    console.log('Firebase connection initialized');
+    console.log('Firebase config:', {
+      projectId: firebaseConfig.projectId,
+      databaseURL: firebaseConfig.databaseURL
+    });
   } else {
     app = getApps()[0];
   }
@@ -69,10 +75,4 @@ try {
 
 // Export initialized instances
 export { db, rtdb, app, auth };
-export default db;
-
-console.log('Firebase connection initialized');
-console.log('Firebase config:', {
-  projectId: firebaseConfig.projectId,
-  databaseURL: firebaseConfig.databaseURL
-}); 
+export default db; 

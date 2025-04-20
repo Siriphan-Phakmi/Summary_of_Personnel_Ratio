@@ -11,6 +11,8 @@ import {
   setDoc 
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
+import { User } from '@/app/core/types/user';
+import { logUserActivity } from '@/app/core/utils/logUtils';
 
 export interface Field {
   name: string;
@@ -99,14 +101,35 @@ export const useFirestoreDocument = (collectionId: string) => {
     }
   }, [collectionId, loadDocuments]);
 
-  const addOrUpdateField = useCallback(async (fieldName: string, value: any) => {
+  const addOrUpdateField = useCallback(async (fieldName: string, value: any, type: string, currentUser: User | null | undefined): Promise<boolean> => {
     if (!selectedDocument) return false;
+    if (!currentUser) {
+        console.error('Cannot update field: User not provided');
+        return false;
+    }
     try {
       const docRef = doc(db, collectionId, selectedDocument);
+      const isUpdate = fields.some(f => f.name === fieldName);
+
       await updateDoc(docRef, { [fieldName]: value });
+
+      if (isUpdate) {
+          await logUserActivity(
+              currentUser.uid,
+              currentUser.username || 'unknown',
+              'update_document_field',
+              { 
+                  collectionId: collectionId,
+                  documentId: selectedDocument,
+                  fieldName: fieldName,
+                  fieldType: type
+              }
+          );
+      }
+
       setFields(prevFields => {
         const fieldIndex = prevFields.findIndex(f => f.name === fieldName);
-        const newField = { name: fieldName, value: value, type: typeof value };
+        const newField = { name: fieldName, value: value, type: type };
         if (fieldIndex > -1) {
           const updatedFields = [...prevFields];
           updatedFields[fieldIndex] = newField;
@@ -120,7 +143,7 @@ export const useFirestoreDocument = (collectionId: string) => {
       setError(err as Error);
       return false;
     }
-  }, [collectionId, selectedDocument]);
+  }, [collectionId, selectedDocument, fields]);
 
   return {
     documents,

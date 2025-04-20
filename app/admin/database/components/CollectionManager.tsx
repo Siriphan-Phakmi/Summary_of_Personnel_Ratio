@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
 import { toast } from 'react-hot-toast';
@@ -14,17 +14,21 @@ import {
 import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
 import { FiPlus, FiSearch, FiRefreshCw, FiTrash2, FiDatabase, FiCheckCircle, FiAlertTriangle, FiInbox, FiChevronLeft, FiLoader, FiX } from 'react-icons/fi';
+import { logUserActivity } from '@/app/core/utils/logUtils';
+import { useAuth } from '@/app/features/auth';
+import { User } from '@/app/core/types/user';
 
 /**
  * คอมโพเนนต์สำหรับจัดการคอลเลกชันและเอกสารใน Firestore
  */
 const CollectionManager: React.FC = () => {
+  const { user: currentUser } = useAuth();
   // Custom hooks
   const { 
     collections, 
     loading: collectionsLoading, 
     error: collectionsError, 
-    addCollection,
+    addCollection: addCollectionToList,
     loadCollections,
     removeCollectionFromList,
     checkCollectionExists
@@ -53,7 +57,8 @@ const CollectionManager: React.FC = () => {
   };
 
   // เมื่อต้องการลบคอลเลกชัน
-  const handleDeleteCollection = async (collectionId: string) => {
+  const handleDeleteCollection = useCallback(async (collectionId: string) => {
+    if (!currentUser) return;
     // ป้องกันการลบคอลเลกชันหลักของระบบ
     const protectedCollections = [
       'users', 'systemLogs', 'sessions', 'wards', 'wardForms',
@@ -77,6 +82,13 @@ const CollectionManager: React.FC = () => {
         if (selectedCollection === collectionId) {
           setSelectedCollection(null);
         }
+        // Log activity
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'delete_collection',
+          { collectionId: collectionId }
+        );
         const stillExists = await checkCollectionExists(collectionId);
         if (stillExists) {
           await loadCollections();
@@ -85,10 +97,11 @@ const CollectionManager: React.FC = () => {
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [currentUser, removeCollectionFromList, selectedCollection, checkCollectionExists]);
 
   // เมื่อต้องการสร้างคอลเลกชันใหม่
-  const handleCreateCollection = async () => {
+  const handleCreateCollection = useCallback(async () => {
+    if (!currentUser) return;
     if (!newCollectionId.trim()) {
       toast.error('กรุณาระบุชื่อคอลเลกชัน');
       return;
@@ -106,21 +119,28 @@ const CollectionManager: React.FC = () => {
         setShowTemplateSelector(false);
         await loadCollections();
         setSelectedCollection(createdCollectionId);
+        // Log activity
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'create_collection',
+          { collectionId: createdCollectionId, templateUsed: showTemplateSelector && selectedTemplate ? selectedTemplate : 'none' }
+        );
       }
     } catch (error) {
       console.error('Error creating collection:', error);
     }
-  };
+  }, [currentUser, newCollectionId, showTemplateSelector, selectedTemplate, loadCollections]);
 
   // เมื่อต้องการรีเฟรชข้อมูล
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
       await loadCollections();
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [loadCollections]);
 
   // กรองคอลเลกชันตามคำค้นหา
   const filteredCollections = useMemo(() => {
@@ -292,6 +312,7 @@ const CollectionManager: React.FC = () => {
             collectionId={selectedCollection}
             searchTerm={documentSearchTerm}
             onSearchChange={setDocumentSearchTerm}
+            currentUser={currentUser}
           />
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center border border-gray-200 dark:border-gray-700">
@@ -310,12 +331,14 @@ interface DocumentManagerProps {
   collectionId: string;
   searchTerm: string;
   onSearchChange: (value: string) => void;
+  currentUser: User | null | undefined;
 }
 
 const DocumentManager: React.FC<DocumentManagerProps> = ({ 
   collectionId,
   searchTerm,
-  onSearchChange
+  onSearchChange,
+  currentUser
 }) => {
   const { 
     documents, 
@@ -337,16 +360,17 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     setSelectedDocument(null);
   }, [collectionId, setSelectedDocument]);
   
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
         await loadDocuments();
     } finally {
         setIsRefreshing(false);
     }
-  };
+  }, [loadDocuments]);
   
-  const handleCreateDocument = async () => {
+  const handleCreateDocument = useCallback(async () => {
+    if (!currentUser) return;
     if (!newDocumentId.trim()) {
       toast.error('กรุณาระบุ ID เอกสาร');
       return;
@@ -357,13 +381,20 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
       setNewDocumentId('');
       setSelectedDocument(documentId);
       toast.success(`สร้างเอกสาร "${documentId}" สำเร็จ`);
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'create_document',
+        { collectionId: collectionId, documentId: documentId }
+      );
     } catch (error) {
       console.error('Error creating document:', error);
       toast.error('ไม่สามารถสร้างเอกสารได้');
     }
-  };
+  }, [currentUser, newDocumentId, collectionId, addDocument, setSelectedDocument]);
   
-  const handleDeleteDocument = async (documentId: string) => {
+  const handleDeleteDocument = useCallback(async (documentId: string) => {
+    if (!currentUser) return;
     if (!window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบเอกสาร "${documentId}"?\nการทำเช่นนี้จะลบข้อมูลทั้งหมดในเอกสารนี้ และไม่สามารถกู้คืนได้`)) {
       return;
     }
@@ -371,6 +402,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     try {
       await deleteDocument(collectionId, documentId);
       toast.success(`ลบเอกสาร "${documentId}" สำเร็จ`);
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'delete_document',
+        { collectionId: collectionId, documentId: documentId }
+      );
       if (selectedDocument === documentId) {
         setSelectedDocument(null);
       }
@@ -380,8 +417,15 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [currentUser, collectionId, selectedDocument, deleteDocument, setSelectedDocument]);
   
+  // *** Wrapper function to pass to FieldManager ***
+  const handleAddFieldWrapper = useCallback(async (fieldName: string, fieldType: string, fieldValue: any): Promise<boolean> => {
+    // This function matches the signature expected by FieldManager's addField prop.
+    // It calls the actual hook function `addOrUpdateField` internally.
+    return addOrUpdateField(fieldName, fieldValue, fieldType, currentUser);
+  }, [currentUser, addOrUpdateField]);
+
   const filteredDocuments = useMemo(() => {
     if (!searchTerm.trim()) {
       return documents;
@@ -511,7 +555,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
             <FieldManager
               collectionId={collectionId}
               documentId={selectedDocument}
-              addField={addOrUpdateField}
+              addField={handleAddFieldWrapper}
               loading={docsLoading}
             />
           ) : (

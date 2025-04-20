@@ -81,6 +81,7 @@
    - [x] ปรับปรุงฟังก์ชัน `logoutUser`, `clearAllSessions` และ `logout` ใน logoutService.ts ให้เรียกใช้ `dismissAllToasts` ด้วย
    - [x] **ปัญหา Loop ไม่สิ้นสุด:** แก้ไขปัญหาหน้า `/census/form` โหลดซ้ำและแสดง Toast แจ้งเตือนข้อมูลกะดึกรัวๆ สาเหตุเกิดจาก Role Mismatch ใน `ProtectedPage` ทำให้เกิด Redirect Loop (แก้ไขโดยเพิ่ม role `nurse` ใน `requiredRole` ของ `ProtectedPage` ใน `DailyCensusForm.tsx`)
    - [x] **ปัญหา FirebaseError (Invalid Data):** แก้ไข Error `Unsupported field value: a function` ที่เกิดตอนบันทึกข้อมูล `wardForms` (แก้ไข `createServerTimestamp` ใน `timestampUtils.ts`)
+   - [x] **แก้ไขปัญหา State Management ใน DailyCensusForm:** แก้ไข Type Error และปัญหาการส่งผ่าน State `isFormReadOnly` ระหว่าง Custom Hooks (`useWardFormData`, `useFormPersistence`) โดยปรับแก้ให้ State นี้ถูกจัดการภายใน Component `DailyCensusForm` โดยตรง
 
 ## งานที่กำลังดำเนินการ
 

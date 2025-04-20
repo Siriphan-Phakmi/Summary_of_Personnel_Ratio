@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { fetchWards, createWard, updateWard, deleteWard } from '../services/databaseService';
 import { Ward } from '../services/databaseService';
+import { User } from '@/app/core/types/user';
+import { logUserActivity } from '@/app/core/utils/logUtils';
 
 /**
  * Hook สำหรับจัดการข้อมูลวอร์ด
@@ -43,7 +45,11 @@ export const useWardManagement = () => {
   };
 
   // เพิ่มวอร์ดใหม่
-  const addWard = async (wardName: string) => {
+  const addWard = async (wardName: string, currentUser: User | null | undefined): Promise<boolean> => {
+    if (!currentUser) {
+      setError('User not authenticated to add ward.');
+      return false;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -64,6 +70,13 @@ export const useWardManagement = () => {
       if (newWard) {
         // Reload wards after successful creation
         await loadWards();
+        // Log user activity
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'create_ward',
+          { wardId: newWard.id, wardName: newWard.wardName }
+        );
         // You might want to return the newWard object or true here depending on desired hook behavior
         return true; // Assuming we still return boolean for success
       }
@@ -79,7 +92,11 @@ export const useWardManagement = () => {
   };
 
   // อัปเดตวอร์ดที่มีอยู่
-  const editWard = async (wardId: string, wardName: string) => {
+  const editWard = async (wardId: string, wardName: string, currentUser: User | null | undefined): Promise<boolean> => {
+    if (!currentUser) {
+      setError('User not authenticated to edit ward.');
+      return false;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -88,6 +105,13 @@ export const useWardManagement = () => {
       
       // โหลดข้อมูลวอร์ดใหม่หลังจากอัปเดตสำเร็จ
       await loadWards();
+      // Log user activity
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'edit_ward',
+        { wardId: wardId, newWardName: wardName }
+      );
       return true;
     } catch (err) {
       setError('ไม่สามารถอัปเดตวอร์ดได้');
@@ -99,15 +123,29 @@ export const useWardManagement = () => {
   };
 
   // ลบวอร์ดที่มีอยู่
-  const removeWard = async (wardId: string) => {
+  const removeWard = async (wardId: string, currentUser: User | null | undefined): Promise<boolean> => {
+    if (!currentUser) {
+      setError('User not authenticated to delete ward.');
+      return false;
+    }
     try {
       setLoading(true);
       setError(null);
       // ไม่ต้องใช้ตัวแปร success เนื่องจาก deleteWard ไม่คืนค่า
+      const wardToDelete = wards.find(w => w.id === wardId); // Find ward name for logging
       await deleteWard(wardId);
       
       // โหลดข้อมูลวอร์ดใหม่หลังจากลบสำเร็จ
       await loadWards();
+      // Log user activity
+      if (wardToDelete) { // Log only if ward info was found before deletion
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'delete_ward',
+          { wardId: wardId, wardName: wardToDelete.wardName }
+        );
+      }
       return true;
     } catch (err) {
       setError('ไม่สามารถลบวอร์ดได้');

@@ -10,6 +10,30 @@ export async function POST(request: Request) {
     const data = await request.json();
     const { userId, username, role } = data;
     
+    // ดึง User Agent จาก Header
+    const userAgentString = request.headers.get('user-agent') || '';
+
+    // --- Parse User Agent ตรงนี้ (Logic แบบเดียวกับ getDeviceInfo) ---
+    const uaLower = userAgentString.toLowerCase();
+    let clientBrowserName = 'Unknown';
+    if (userAgentString.includes('Edg/')) clientBrowserName = 'Edge';
+    else if (userAgentString.includes('OPR/') || userAgentString.includes('Opera')) clientBrowserName = 'Opera';
+    else if (userAgentString.includes('Chrome/') && !userAgentString.includes('Edg/')) clientBrowserName = 'Chrome';
+    else if (userAgentString.includes('Safari/') && !userAgentString.includes('Chrome/') && !userAgentString.includes('Edg/')) clientBrowserName = 'Safari';
+    else if (userAgentString.includes('Firefox/')) clientBrowserName = 'Firefox';
+    else if (uaLower.includes('msie') || userAgentString.includes('Trident/')) clientBrowserName = 'Internet Explorer';
+
+    let clientDeviceType = 'Desktop';
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(uaLower)) clientDeviceType = 'Tablet';
+    else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(uaLower)) clientDeviceType = 'Mobile';
+
+    // ถ้า userAgentString ว่างเปล่า (อาจจะเกิดจาก request แปลกๆ)
+    if (!userAgentString) {
+        clientBrowserName = 'Unknown';
+        clientDeviceType = 'Unknown';
+    }
+    // -------------------------------------------------------------
+
     // บันทึกประวัติการออกจากระบบ (ถ้ามีข้อมูลผู้ใช้)
     if (userId && username) {
       try {
@@ -18,8 +42,15 @@ export async function POST(request: Request) {
           lastActive: new Date()
         });
         
-        // บันทึกประวัติการออกจากระบบ
-        await logLogout(userId, username, role, request.headers.get('user-agent') || '');
+        // บันทึกประวัติการออกจากระบบ - ส่งค่าที่ parse แล้วไปด้วย
+        await logLogout(
+            userId,
+            username,
+            role,
+            userAgentString,       // User Agent ดิบ
+            clientBrowserName,     // Browser ที่ parse ได้
+            clientDeviceType       // Device ที่ parse ได้
+            );
       } catch (error) {
         console.error('Error updating user or logging logout:', error);
         // ไม่ return error เพื่อให้ยังสามารถล้าง session ได้
@@ -30,10 +61,10 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     
     // ลบ auth token cookie
-    await cookieStore.delete('auth_token');
+    cookieStore.delete('auth_token');
     
     // ลบ user data cookie
-    await cookieStore.delete('user_data');
+    cookieStore.delete('user_data');
     
     // ส่งข้อมูลกลับ
     return NextResponse.json({

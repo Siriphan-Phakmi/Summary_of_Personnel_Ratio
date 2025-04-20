@@ -20,6 +20,7 @@ import { FiEdit2, FiTrash2, FiUserX, FiUserCheck, FiLogOut, FiPlus, FiEdit, FiRe
 import { FaUserCheck, FaUserSlash } from "react-icons/fa";
 import { UserRole } from '@/app/core/types/user';
 import { logServerAction } from '@/app/features/auth/services/logServerAction';
+import { logUserActivity } from '@/app/core/utils/logUtils';
 
 interface UserSession {
   sessionId: string;
@@ -93,7 +94,7 @@ const formatTimestamp = (timestamp: any): string => {
 };
 
 export default function UserManagement() {
-  const { user: adminUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [wardList, setWardList] = useState<Ward[]>([]);
@@ -143,7 +144,7 @@ export default function UserManagement() {
 
   // Wrap fetch functions in useCallback
   const fetchUsers = useCallback(async () => {
-    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) return;
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'developer')) return;
     setLoading(true);
     try {
       const usersRef = collection(db, 'users');
@@ -161,7 +162,7 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  }, [adminUser]);
+  }, [currentUser]);
 
   const fetchActiveWards = useCallback(async () => {
     setLoadingWards(true);
@@ -231,38 +232,23 @@ export default function UserManagement() {
   };
 
   const handleToggleUserStatus = async (user: UserData) => {
-    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
-      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
-      return;
-    }
-    
+    if (!currentUser) return;
+    setLoading(true);
+    const newStatus = !user.active;
     try {
-      const userRef = doc(db, 'users', user.uid);
-      const newStatus = !user.active;
-      
-      await updateDoc(userRef, {
-        active: newStatus,
-        lastUpdated: new Date().toISOString()
-      });
-      
-      // บันทึก log การเปลี่ยนสถานะ
-      await logServerAction(
-        newStatus ? 'activate_user' : 'deactivate_user', 
-        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
-        { 
-          targetUserId: user.uid,
-          targetUsername: user.username || '',
-          newStatus,
-          timestamp: new Date().toISOString()
-        }
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, { active: newStatus });
+      setUsers(users.map(u => u.id === user.id ? { ...u, active: newStatus } : u));
+      toast.success(`เปลี่ยนสถานะ ${user.username} เป็น ${newStatus ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} สำเร็จ`);
+
+      // Log user activity
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'toggle_user_status',
+        { targetUserId: user.id, targetUsername: user.username, newStatus: newStatus }
       );
-      
-      // Update local state
-      setUsers(users.map(u => 
-        u.uid === user.uid ? {...u, active: newStatus} : u
-      ));
-      
-      toast.success(`ผู้ใช้ ${user.username} ${newStatus ? 'เปิดใช้งานแล้ว' : 'ปิดใช้งานแล้ว'}`);
+
     } catch (error) {
       console.error('Error toggling user status:', error);
       toast.error('ไม่สามารถเปลี่ยนสถานะผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง');
@@ -270,9 +256,9 @@ export default function UserManagement() {
       // บันทึก log ความผิดพลาด
       await logServerAction(
         'status_change_failed', 
-        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
+        { uid: currentUser?.uid || 'unknown', username: currentUser?.username || 'admin' },
         { 
-          targetUserId: user.uid,
+          targetUserId: user.id,
           targetUsername: user.username || '',
           attempted_status: !user.active,
           timestamp: new Date().toISOString(),
@@ -283,63 +269,73 @@ export default function UserManagement() {
   };
 
   const handleForceLogout = async (userId: string) => {
+    if (!currentUser) return;
+    setLoading(true);
     try {
-      // Remove the current session from RTDB
-      const sessionRef = ref(rtdb, `currentSessions/${userId}`);
-      await remove(sessionRef);
-      
-      toast.success('User was forced to logout');
+      await clearAllUserSessions(userId);
+      toast.success('บังคับออกจากระบบผู้ใช้สำเร็จ');
+      // Log user activity
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'force_logout',
+        { targetUserId: userId }
+      );
     } catch (error) {
       console.error('Error forcing logout:', error);
       toast.error('Failed to force logout');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleClearSessions = async (userId: string) => {
+    if (!currentUser) return;
+    setLoading(true);
     try {
       await clearAllUserSessions(userId);
-      toast.success('ลบ session ทั้งหมดเรียบร้อย');
-      fetchUsers(); // Refresh user data
+      toast.success('ล้างเซสชันผู้ใช้สำเร็จ');
+      // Log user activity
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'clear_user_sessions',
+        { targetUserId: userId }
+      );
     } catch (error) {
       console.error('Error clearing sessions:', error);
       toast.error('ไม่สามารถลบ session ได้');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteSession = async (userId: string, sessionId: string) => {
+    if (!currentUser) return;
+    setLoading(true);
     try {
       const sessionRef = ref(rtdb, `sessions/${userId}/${sessionId}`);
       await remove(sessionRef);
-      toast.success('Session deleted successfully');
+      toast.success('ลบเซสชันสำเร็จ');
       fetchUsers(); // Refresh user data
+      // Log user activity
+      await logUserActivity(
+        currentUser.uid,
+        currentUser.username || 'unknown',
+        'delete_user_session',
+        { targetUserId: userId, sessionId: sessionId }
+      );
     } catch (error) {
       console.error('Error deleting session:', error);
       toast.error('Failed to delete session');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
-      toast.error('คุณไม่มีสิทธิ์เพียงพอที่จะดำเนินการนี้');
-      return;
-    }
-    
-    if (!formData.username || !formData.firstName || !formData.lastName || !formData.role || !formData.department) {
-      setError('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อผู้ใช้, ชื่อ, นามสกุล, บทบาท, แผนก)');
-      return;
-    }
-    
-    if (!editingUser && !formData.password) {
-      setError('กรุณากำหนดรหัสผ่านสำหรับผู้ใช้ใหม่');
-      return;
-    }
-    
-    if (formData.password && formData.password.length < 6) {
-      setError('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
-      return;
-    }
+    if (!currentUser) return;
 
     setLoading(true);
     setError(null);
@@ -357,7 +353,7 @@ export default function UserManagement() {
       };
       
       if (editingUser) {
-        const userRef = doc(db, 'users', editingUser.uid);
+        const userRef = doc(db, 'users', editingUser.id);
         
         const updatePayload: Partial<UserData> = { ...userData };
         delete updatePayload.username;
@@ -368,20 +364,15 @@ export default function UserManagement() {
         
         await updateDoc(userRef, updatePayload);
         
-        await logServerAction(
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
           'update_user',
-          { uid: adminUser!.uid, username: adminUser!.username || '' },
-          {
-            targetUserId: editingUser.uid,
-            targetUsername: editingUser.username || '',
-            fields_updated: Object.keys(updatePayload).filter(key => key !== 'password'),
-            password_changed: !!formData.password,
-            timestamp: new Date().toISOString()
-          }
+          { targetUserId: editingUser.id, targetUsername: userData.username, changes: Object.keys(updatePayload) }
         );
         
         setUsers(users.map(u => 
-          u.uid === editingUser.uid ? {...u, ...updatePayload, username: editingUser.username } : u
+          u.id === editingUser.id ? {...u, ...updatePayload, username: editingUser.username } : u
         ));
         
         toast.success(`อัปเดตข้อมูลผู้ใช้ ${editingUser.username} สำเร็จ`);
@@ -405,14 +396,11 @@ export default function UserManagement() {
         const newUserRef = doc(db, 'users', userData.username!);
         await setDoc(newUserRef, userData);
         
-        await logServerAction(
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
           'create_user',
-          { uid: adminUser.uid, username: adminUser.username || '' },
-          {
-            newUsername: userData.username,
-            role: userData.role!,
-            timestamp: new Date().toISOString()
-          }
+          { targetUserId: userData.username, targetUsername: userData.username, role: userData.role }
         );
         
         const newUserForState: UserData = {
@@ -442,7 +430,7 @@ export default function UserManagement() {
       toast.error('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
       await logServerAction(
         editingUser ? 'update_user_failed' : 'create_user_failed',
-        { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' },
+        { uid: currentUser?.uid || 'unknown', username: currentUser?.username || 'admin' },
         {
           usernameAttempt: formData.username,
           error: error instanceof Error ? error.message : String(error),
@@ -468,13 +456,11 @@ export default function UserManagement() {
   );
 
   const handleDeleteUser = async (userIdToDelete: string, usernameToDelete: string) => {
-    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'developer')) {
-      toast.error('คุณไม่มีสิทธิ์ลบผู้ใช้');
+    if (!currentUser) return;
+
+    if (currentUser.uid === userIdToDelete) {
+      toast.error('ไม่สามารถลบผู้ใช้ปัจจุบันได้');
       return;
-    }
-    if (userIdToDelete === adminUser.uid) {
-        toast.error('ไม่สามารถลบบัญชีของตัวเองได้');
-        return;
     }
 
     if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ ${usernameToDelete}?`)) {
@@ -494,7 +480,12 @@ export default function UserManagement() {
         }
 
         toast.success(`ลบผู้ใช้ ${usernameToDelete} สำเร็จ`);
-        await logServerAction('delete_user', { uid: adminUser?.uid || 'unknown', username: adminUser?.username || 'admin' }, { deletedUserId: userIdToDelete, deletedUsername: usernameToDelete });
+        await logUserActivity(
+          currentUser.uid,
+          currentUser.username || 'unknown',
+          'delete_user',
+          { targetUserId: userIdToDelete, targetUsername: usernameToDelete }
+        );
         fetchUsers(); // Refresh list
       } catch (err) {
         console.error("Error deleting user:", err);

@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useWardManagement } from '../hooks/useWardManagement';
 import { toast } from 'react-hot-toast';
 import { Ward } from '../services/databaseService';
+import { useAuth } from '@/app/features/auth';
 
 /**
  * คอมโพเนนต์สำหรับจัดการวอร์ด
  */
 const WardManager: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const { wards, loading, error, addWard, editWard, removeWard } = useWardManagement();
   const [newWardName, setNewWardName] = useState('');
   const [editingWard, setEditingWard] = useState<string | null>(null);
@@ -21,7 +23,7 @@ const WardManager: React.FC = () => {
       return;
     }
     
-    const success = await addWard(newWardName);
+    const success = await addWard(newWardName, currentUser);
     
     if (success) {
       toast.success(`สร้างวอร์ด "${newWardName}" สำเร็จ`);
@@ -48,7 +50,7 @@ const WardManager: React.FC = () => {
       return;
     }
     
-    const success = await editWard(wardId, editingWardName);
+    const success = await editWard(wardId, editingWardName, currentUser);
     
     if (success) {
       toast.success(`อัปเดตวอร์ด "${editingWardName}" สำเร็จ`);
@@ -60,7 +62,7 @@ const WardManager: React.FC = () => {
   // ลบวอร์ด
   const handleDeleteWard = async (wardId: string, wardName: string) => {
     if (window.confirm(`ยืนยันการลบวอร์ด "${wardName}"?`)) {
-      const success = await removeWard(wardId);
+      const success = await removeWard(wardId, currentUser);
       
       if (success) {
         toast.success(`ลบวอร์ด "${wardName}" สำเร็จ`);

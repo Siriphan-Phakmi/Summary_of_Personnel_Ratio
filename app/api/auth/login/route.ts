@@ -138,6 +138,27 @@ export async function POST(request: Request) {
       );
     }
     
+    // --- Parse User Agent ก่อน Log Login สำเร็จ ---
+    const userAgentString = request.headers.get('user-agent') || '';
+    const uaLower = userAgentString.toLowerCase();
+    let clientBrowserName = 'Unknown';
+    if (userAgentString.includes('Edg/')) clientBrowserName = 'Edge';
+    else if (userAgentString.includes('OPR/') || userAgentString.includes('Opera')) clientBrowserName = 'Opera';
+    else if (userAgentString.includes('Chrome/') && !userAgentString.includes('Edg/')) clientBrowserName = 'Chrome';
+    else if (userAgentString.includes('Safari/') && !userAgentString.includes('Chrome/') && !userAgentString.includes('Edg/')) clientBrowserName = 'Safari';
+    else if (userAgentString.includes('Firefox/')) clientBrowserName = 'Firefox';
+    else if (uaLower.includes('msie') || userAgentString.includes('Trident/')) clientBrowserName = 'Internet Explorer';
+
+    let clientDeviceType = 'Desktop';
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(uaLower)) clientDeviceType = 'Tablet';
+    else if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/i.test(uaLower)) clientDeviceType = 'Mobile';
+
+    if (!userAgentString) {
+        clientBrowserName = 'Unknown';
+        clientDeviceType = 'Unknown';
+    }
+    // --------------------------------------------------
+
     // สร้าง JWT token
     const userId = userDoc.id;
     const token = await generateToken(userId, userData.username, userData.role);
@@ -148,8 +169,15 @@ export async function POST(request: Request) {
       lastActive: new Date()
     });
     
-    // บันทึกประวัติการเข้าสู่ระบบ
-    await logLogin(userId, username, userData.role, request.headers.get('user-agent') || '');
+    // บันทึกประวัติการเข้าสู่ระบบ - ส่งค่าที่ parse แล้วไปด้วย
+    await logLogin(
+        userId,
+        username,
+        userData.role,
+        userAgentString,    // User Agent ดิบ
+        clientBrowserName,  // Browser ที่ parse ได้
+        clientDeviceType    // Device ที่ parse ได้
+        );
     
     // สร้าง session
     // Note: ควรใช้ library เช่น iron-session หรือ next-auth ในการสร้าง session
