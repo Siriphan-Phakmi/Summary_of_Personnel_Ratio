@@ -158,8 +158,11 @@ export const getWardForm = async (
     
     // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD เพื่อใช้ในการค้นหา
     const dateString = format(dateObj, 'yyyy-MM-dd');
+
+    // Normalize wardId ให้เป็นตัวใหญ่เสมอ
+    const normalizedWardId = wardId.toUpperCase();
     
-    console.log(`กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+    console.log(`กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก (original) ${wardId} (normalized) ${normalizedWardId}`);
     
     // สร้าง query ใช้ index ที่เหมาะสม (dateString + shift + wardId)
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
@@ -167,13 +170,19 @@ export const getWardForm = async (
       wardFormsRef,
       where('dateString', '==', dateString),
       where('shift', '==', shift),
-      where('wardId', '==', wardId)
+      where('wardId', '==', normalizedWardId)
     );
+    
+    // Add detailed logging before executing the query
+    console.log(`[getWardForm] Querying with: dateString='${dateString}', shift='${shift}', wardId='${normalizedWardId}'`);
     
     const querySnapshot = await getDocs(q);
     
+    // Log the size of the result set
+    console.log(`[getWardForm] Query snapshot size: ${querySnapshot.size}`);
+
     if (querySnapshot.empty) {
-      console.log(`ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+      console.log(`ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
       return null;
     }
     
@@ -181,7 +190,7 @@ export const getWardForm = async (
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
     
-    console.log(`พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${wardId} (ID: ${docSnapshot.id})`);
+    console.log(`พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id})`);
     
     return {
       ...formData,
@@ -223,40 +232,58 @@ export const getPreviousNightShiftForm = async (
     
     // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD
     const dateString = format(previousDate, 'yyyy-MM-dd');
+
+    // Normalize wardId to uppercase
+    const normalizedWardId = wardId.toUpperCase();
     
-    console.log(`กำลังค้นหาแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+    console.log(`กำลังค้นหาแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
     
     // สร้าง query ใช้ index ที่เหมาะสม (wardId + dateString + shift + status + finalizedAt)
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
     const q = query(
       wardFormsRef,
-      where('wardId', '==', wardId),
+      where('wardId', '==', normalizedWardId), // Use normalized ID
       where('dateString', '==', dateString),
       where('shift', '==', ShiftType.NIGHT),
-      where('status', '==', FormStatus.APPROVED), // เฉพาะที่อนุมัติแล้วเท่านั้น
-      orderBy('finalizedAt', 'desc'),
+      // Should we query only approved, or finalized? Assuming approved for now.
+      // where('status', '==', FormStatus.APPROVED), 
+      where('status', 'in', [FormStatus.APPROVED, FormStatus.FINAL]), // Consider FINAL as well? Or just approved? Let's take approved for now.
+      orderBy('finalizedAt', 'desc'), // Need finalizedAt timestamp
       limit(1)
     );
     
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
-      console.log(`ไม่พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId}`);
+      console.log(`ไม่พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
       return null;
     }
     
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
     
-    console.log(`พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${wardId} (ID: ${docSnapshot.id})`);
+    console.log(`พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id})`);
     
-    return {
+    // Ensure date is correctly formatted if needed, potentially convert timestamp
+    const returnData = {
       ...formData,
-      id: docSnapshot.id
+      id: docSnapshot.id,
+       // Convert timestamp back to Date object or string if needed by caller
+       // date: formData.date instanceof Timestamp ? formData.date.toDate() : formData.date 
     };
+
+    // Add a specific check for totalPatientCensus as used in the hook
+    if (returnData.totalPatientCensus === undefined) {
+        console.warn(`[getPreviousNightShiftForm] Form ${docSnapshot.id} found, but totalPatientCensus is undefined.`);
+    } else {
+        console.log(`[getPreviousNightShiftForm] Found form ${docSnapshot.id} with totalPatientCensus: ${returnData.totalPatientCensus}`);
+    }
+
+
+    return returnData;
   } catch (error) {
     console.error('Error getting previous night shift form:', error);
-    throw error;
+    throw error; // Re-throw error for handling in the hook
   }
 };
 
@@ -577,11 +604,16 @@ export const getLatestDraftForm = async (
   user: User
 ): Promise<WardForm | null> => {
   try {
+    // Normalize wardId to uppercase
+    const normalizedWardId = wardId.toUpperCase();
+    
+    console.log(`[getLatestDraftForm] Querying for latest draft for ward ${normalizedWardId} by user ${user.uid}`);
+
     // สร้าง query
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
     const q = query(
       wardFormsRef,
-      where('wardId', '==', wardId),
+      where('wardId', '==', normalizedWardId), // Use normalized ID
       where('createdBy', '==', user.uid),
       where('isDraft', '==', true),
       orderBy('updatedAt', 'desc'),
@@ -591,19 +623,26 @@ export const getLatestDraftForm = async (
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
+       console.log(`[getLatestDraftForm] No draft found for ward ${normalizedWardId} by user ${user.uid}`);
       return null;
     }
     
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
     
+     console.log(`[getLatestDraftForm] Found draft form ID: ${docSnapshot.id}`);
+
     return {
       ...formData,
       id: docSnapshot.id
+      // Convert timestamp fields if necessary for the consumer
+      // date: formData.date instanceof Timestamp ? formData.date.toDate() : formData.date,
+      // createdAt: formData.createdAt instanceof Timestamp ? formData.createdAt.toDate() : formData.createdAt,
+      // updatedAt: formData.updatedAt instanceof Timestamp ? formData.updatedAt.toDate() : formData.updatedAt,
     };
   } catch (error) {
     console.error('Error getting latest draft form:', error);
-    throw error;
+    throw error; // Re-throw error for handling in the hook
   }
 };
 

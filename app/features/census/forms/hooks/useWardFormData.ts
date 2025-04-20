@@ -6,6 +6,7 @@ import { User } from '@/app/core/types/user';
 import { getWardForm, getPreviousNightShiftForm, getLatestDraftForm } from '../services/wardFormService';
 import { showInfoToast, showErrorToast } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 const initialFormData: Partial<WardForm> = {
   patientCensus: 0,
@@ -84,9 +85,9 @@ export const useWardFormData = ({
       let previousNightForm: WardForm | null = null;
       if (selectedShift === ShiftType.MORNING) {
           previousNightForm = await getPreviousNightShiftForm(targetDate, selectedWard);
-          if (previousNightForm?.totalPatientCensus !== undefined) {
+          if (previousNightForm?.patientCensus !== undefined) {
             showInfoToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน');
-            setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.totalPatientCensus }));
+            setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.patientCensus }));
             setIsMorningCensusReadOnly(true);
             setIsCensusAutoCalculated(true);
           } else {
@@ -132,10 +133,10 @@ export const useWardFormData = ({
         }
       } else {
         console.log('No existing form found for this shift.');
-        if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.totalPatientCensus !== undefined) {
+        if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.patientCensus !== undefined) {
           setFormData(prev => ({ 
             ...initialFormData, 
-            patientCensus: previousNightForm.totalPatientCensus 
+            patientCensus: previousNightForm.patientCensus 
           }));
           setIsMorningCensusReadOnly(true);
           setIsCensusAutoCalculated(true);
@@ -197,12 +198,12 @@ export const useWardFormData = ({
           let previousNightForm: WardForm | null = null;
           if (selectedShift === ShiftType.MORNING) {
               previousNightForm = await getPreviousNightShiftForm(targetDate, selectedWard);
-              if (previousNightForm?.totalPatientCensus !== undefined) {
+              if (previousNightForm?.patientCensus !== undefined) {
                 if (!toastShownRef.current.morning) {
                   showInfoToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน');
                   toastShownRef.current.morning = true;
                 }
-                setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.totalPatientCensus }));
+                setFormData(prev => ({ ...prev, patientCensus: previousNightForm!.patientCensus }));
                 setIsMorningCensusReadOnly(true);
                 setIsCensusAutoCalculated(true);
               } else {
@@ -218,12 +219,16 @@ export const useWardFormData = ({
           const existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
 
           if (existingForm) {
-            console.log('Existing form found:', existingForm);
-            const currentShiftExpectedStatus = selectedShift === ShiftType.MORNING ? morningShiftStatus : nightShiftStatus;
+            console.log('[useWardFormData] Existing form found:', existingForm); // Log fetched data
+            // const currentShiftExpectedStatus = selectedShift === ShiftType.MORNING ? morningShiftStatus : nightShiftStatus;
 
-            if (existingForm.isDraft || existingForm.status === currentShiftExpectedStatus) {
-               setFormData({
+            // Always load the data if an existing form is found, regardless of its status matching the 'expected' status.
+            // The form read-only state will be determined by the actual status of the loaded form.
+            // if (existingForm.isDraft || existingForm.status === currentShiftExpectedStatus) { 
+               const loadedData = {
                   ...existingForm,
+                  // Convert Timestamp to yyyy-MM-dd string for the input field
+                  date: existingForm.date instanceof Timestamp ? format(existingForm.date.toDate(), 'yyyy-MM-dd') : existingForm.date,
                   patientCensus: Number(existingForm.patientCensus ?? 0),
                   nurseManager: Number(existingForm.nurseManager ?? 0),
                   rn: Number(existingForm.rn ?? 0),
@@ -239,8 +244,9 @@ export const useWardFormData = ({
                   available: Number(existingForm.available ?? 0),
                   unavailable: Number(existingForm.unavailable ?? 0),
                   plannedDischarge: Number(existingForm.plannedDischarge ?? 0),
-                  date: existingForm.date,
-               });
+               };
+               setFormData(loadedData);
+               console.log('[useWardFormData] Set formData state:', loadedData); // Log state after setting
                if (!toastShownRef.current.load) {
                  showInfoToast(`โหลดข้อมูล${existingForm.isDraft ? 'ร่าง' : 'ที่บันทึกสมบูรณ์'}สำหรับกะ${selectedShift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}แล้ว`);
                  toastShownRef.current.load = true;
@@ -249,13 +255,31 @@ export const useWardFormData = ({
                if (selectedShift === ShiftType.MORNING && isMorningCensusReadOnly) {
                   setIsCensusAutoCalculated(true);
                }
-            }
+            // } else {
+            //    // If existing form doesn't match expected status (e.g., loading FINAL but expected DRAFT)
+            //    // Still apply the previous night census if applicable
+            //    console.log(`[useWardFormData] Existing form status (${existingForm.status}) does not match expected status (${currentShiftExpectedStatus}). Applying previous night census if applicable.`);
+            //    if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.patientCensus !== undefined) {
+            //      setFormData(prev => ({ 
+            //        ...initialFormData, 
+            //        patientCensus: previousNightForm.patientCensus // Use patientCensus
+            //      }));
+            //      setIsMorningCensusReadOnly(true);
+            //      setIsCensusAutoCalculated(true);
+            //    } else {
+            //      setFormData(initialFormData);
+            //      setIsMorningCensusReadOnly(false);
+            //    }
+            //    // Decide if the form should be read-only based on the *found* status, even if not loaded
+            //    setIsFormReadOnly(existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED);
+            // }
           } else {
              console.log('No existing form found for this shift.');
-             if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.totalPatientCensus !== undefined) {
+             // If no existing form, apply previous night census if applicable (check patientCensus)
+             if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.patientCensus !== undefined) {
                setFormData(prev => ({ 
                  ...initialFormData, 
-                 patientCensus: previousNightForm.totalPatientCensus 
+                 patientCensus: previousNightForm.patientCensus 
                }));
                setIsMorningCensusReadOnly(true);
                setIsCensusAutoCalculated(true);

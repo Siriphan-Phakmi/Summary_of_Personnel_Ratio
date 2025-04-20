@@ -25,6 +25,7 @@
        - [x] แก้ไข Linter errors หลังการปรับปรุง `comparePassword`
    - [x] **ปรับปรุง Document ID:** แก้ไข `wardFormService.ts` ให้สร้าง Document ID แบบกำหนดเอง (Custom ID) สำหรับ Collection `wardForms` ตามรูปแบบ `{wardId}_{shift}_{status}_d{date}_t{time}` และเปลี่ยนไปใช้ `setDoc` แทน `addDoc`
    - [x] แก้ไข Linter Errors ที่เกิดจากการปรับปรุง Document ID (เกี่ยวกับ Type ของวันที่ และการเข้าถึง Property แบบ Dynamic)
+   - [x] **สร้างและแก้ไข API Mock Data Generator:** พัฒนา API endpoint (`/api/dev/generate-mock-data`) และหน้า Developer Tools (`/admin/dev-tools`) สำหรับสร้างข้อมูล `wardForms` จำลองลง Firestore เพื่อการทดสอบ, แก้ไขข้อผิดพลาดเกี่ยวกับการ Import, Type, และการเรียกใช้ Firebase
 
 2. **การพัฒนา UI/UX**
    - [x] สร้างคอมโพเนนต์ `LoadingOverlay` สำหรับแสดงสถานะโหลดข้อมูล
