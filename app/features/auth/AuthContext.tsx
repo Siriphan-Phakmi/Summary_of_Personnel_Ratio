@@ -217,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(errorMessage);
         setUser(null);
         setAuthStatus('unauthenticated');
+        showErrorToast(errorMessage);
         return false;
       }
     } catch (err) {
@@ -225,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(errorMessage);
       setUser(null);
       setAuthStatus('unauthenticated');
+      showErrorToast(errorMessage);
       return false;
     }
   };
