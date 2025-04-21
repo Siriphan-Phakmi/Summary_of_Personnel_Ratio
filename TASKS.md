@@ -87,6 +87,10 @@
    - [x] **ปัญหา Loop ไม่สิ้นสุด:** แก้ไขปัญหาหน้า `/census/form` โหลดซ้ำและแสดง Toast แจ้งเตือนข้อมูลกะดึกรัวๆ สาเหตุเกิดจาก Role Mismatch ใน `ProtectedPage` ทำให้เกิด Redirect Loop (แก้ไขโดยเพิ่ม role `nurse` ใน `requiredRole` ของ `ProtectedPage` ใน `DailyCensusForm.tsx`)
    - [x] **ปัญหา FirebaseError (Invalid Data):** แก้ไข Error `Unsupported field value: a function` ที่เกิดตอนบันทึกข้อมูล `wardForms` (แก้ไข `createServerTimestamp` ใน `timestampUtils.ts`)
    - [x] **แก้ไขปัญหา State Management ใน DailyCensusForm:** แก้ไข Type Error และปัญหาการส่งผ่าน State `isFormReadOnly` ระหว่าง Custom Hooks (`useWardFormData`, `useFormPersistence`) โดยปรับแก้ให้ State นี้ถูกจัดการภายใน Component `DailyCensusForm` โดยตรง
+   - [x] **แก้ไขปัญหาหน้า Approval:** แก้ไขปัญหาหน้า Approval ไม่แสดงข้อมูลสำหรับ Role 'nurse' ทั้งที่ข้อมูลมีอยู่ (เกิดจาก Query ไม่ถูกต้องและไม่มี Firestore Index ที่เหมาะสม)
+   - [x] **ปรับปรุง Query หน้า Approval:** ปรับปรุงฟังก์ชัน `getPendingForms` ใน `approvalQueries.ts` ให้รองรับการ Filter ตาม `status` ที่ส่งมาจากหน้า Approval อย่างถูกต้อง (แก้ไขจากที่เคย Hardcode ค่า 'final')
+   - [x] **เพิ่ม Logging สำหรับ Debug:** เพิ่มการ Logging ใน `ApprovalPage.tsx` เพื่อช่วยตรวจสอบค่า Filter ที่ส่งไปยัง Service ระหว่างการ Debug ปัญหาหน้า Approval
+   - [x] **สร้าง Firestore Index:** ระบุและสร้าง Composite Index ที่จำเป็นใน Firestore สำหรับ Collection `wardForms` เพื่อรองรับ Query ของหน้า Approval (ตามเงื่อนไข `status`, `dateString`, `wardId`, `shift`)
 
 ## งานที่กำลังดำเนินการ
 

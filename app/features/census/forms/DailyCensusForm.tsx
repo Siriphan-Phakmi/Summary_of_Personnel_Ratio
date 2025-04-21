@@ -30,7 +30,6 @@ export default function DailyCensusForm() {
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isWardLoading, setIsWardLoading] = useState(false);
-  const [isFormReadOnly, setIsFormReadOnly] = useState(false);
 
   // Load wards once
   useEffect(() => {
@@ -81,6 +80,8 @@ export default function DailyCensusForm() {
     setExistingDraftData,
     isCensusAutoCalculated,
     handleChange,
+    isFormReadOnly,
+    setIsFormReadOnly,
   } = useWardFormData({ selectedWard, selectedDate, selectedShift, user: currentUser, morningShiftStatus, nightShiftStatus });
 
   const { 

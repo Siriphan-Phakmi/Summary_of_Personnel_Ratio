@@ -58,11 +58,12 @@ export async function POST(request: Request) {
       days,
       wardIds: targetWardIds, // Optional array of specific ward IDs
       statusToGenerate,
+      targetShift, // <-- Add targetShift from request body
     } = await request.json();
 
     // Validate input
-    if (!startDateStr || !days || days < 1 || !statusToGenerate) {
-       return NextResponse.json({ success: false, error: 'Missing or invalid parameters: startDate, days, statusToGenerate are required.' }, { status: 400 });
+    if (!startDateStr || !days || days < 1 || !statusToGenerate || !targetShift) { // <-- Validate targetShift
+       return NextResponse.json({ success: false, error: 'Missing or invalid parameters: startDate, days, statusToGenerate, targetShift are required.' }, { status: 400 });
     }
      // Check if status is valid (for now, only FINAL is implicitly supported by the frontend, but let's allow generating it)
     if (!Object.values(FormStatus).includes(statusToGenerate as FormStatus)) {
@@ -103,8 +104,29 @@ export async function POST(request: Request) {
       const dateStr = format(currentDate, 'yyyy-MM-dd'); // Format for document ID and data
 
       for (const ward of wardsToProcess) {
-        for (const shift of [ShiftType.MORNING, ShiftType.NIGHT]) {
-          const docId = `${ward.id}_${dateStr}_${shift}`;
+        // Determine which shifts to generate based on targetShift
+        let shiftsToGenerate: ShiftType[];
+        if (targetShift === 'both') {
+          shiftsToGenerate = [ShiftType.MORNING, ShiftType.NIGHT];
+        } else if (targetShift === ShiftType.MORNING) {
+          shiftsToGenerate = [ShiftType.MORNING];
+        } else if (targetShift === ShiftType.NIGHT) {
+          shiftsToGenerate = [ShiftType.NIGHT];
+        } else {
+          // Should not happen due to frontend validation, but handle defensively
+          shiftsToGenerate = [];
+          console.warn(`[API Mock Data] Invalid targetShift value: ${targetShift}. Skipping generation for ${dateStr}, ward ${ward.id}`);
+          errors.push(`Invalid targetShift value: ${targetShift} for ward ${ward.id} on ${dateStr}.`);
+          continue; // Skip to next ward
+        }
+
+        for (const shift of shiftsToGenerate) { // <-- Loop through determined shifts
+          // Construct Doc ID using date string, ward ID, and shift
+          // Example: WARD6_2024-01-15_morning or CCU_2024-01-16_night
+          // const docId = `${ward.id}_${dateStr}_${shift}`;
+          // --- New Doc ID Format --- 
+          const statusSuffix = statusToGenerate.toLowerCase(); // Ensure lowercase (e.g., 'final', 'draft')
+          const docId = `${ward.id}_${dateStr}_${shift}_${statusSuffix}`;
           const formRef = doc(firestore, 'wardForms', docId);
 
           // Generate mock data for one form
@@ -193,6 +215,6 @@ export async function GET() {
   }
   return NextResponse.json({
     message: 'Mock data generation endpoint. Use POST method to generate data.',
-    usage: 'POST /api/dev/generate-mock-data with body { startDate: \'YYYY-MM-DD\', days: number, wardIds?: string[], statusToGenerate: \'DRAFT\' | \'FINAL\' }'
+    usage: 'POST /api/dev/generate-mock-data with body { startDate: \'YYYY-MM-DD\', days: number, wardIds?: string[], statusToGenerate: \'DRAFT\' | \'FINAL\', targetShift: \'morning\' | \'night\' | \'both\' }'
   });
 } 

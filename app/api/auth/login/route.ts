@@ -189,6 +189,7 @@ export async function POST(request: Request) {
       firstName: userData.firstName,
       lastName: userData.lastName,
       role: userData.role,
+      floor: userData.floor || null,
       location: userData.location || [],
       approveWardIds: userData.approveWardIds || []
     };

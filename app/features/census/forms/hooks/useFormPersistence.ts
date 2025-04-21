@@ -72,15 +72,24 @@ export const useFormPersistence = ({
   const validateForm = useCallback((): boolean => {
     const validationResult = validateFormData(formData);
     const errorMap: Record<string, string> = {};
-    validationResult.errors.forEach(error => {
-      errorMap[error] = error;
+    validationResult.missingFields.forEach(field => {
+      errorMap[field] = `กรุณากรอกข้อมูลช่อง ${field}`;
     });
     setErrors(errorMap);
     
     if (!validationResult.isValid && validationResult.missingFields.length > 0) {
-      showErrorToast(`กรุณากรอกข้อมูลให้ครบ: ${validationResult.missingFields.join(', ')}`);
-      const firstErrorField = document.getElementById(validationResult.missingFields[0]);
-      firstErrorField?.focus();
+      const firstMissingField = validationResult.missingFields[0];
+      showErrorToast(`กรุณากรอกข้อมูล "${firstMissingField}" ให้ครบถ้วน`);
+
+      // Try to focus the first invalid field
+      try {
+        const fieldElement = document.querySelector(`[name="${firstMissingField}"]`) as HTMLElement;
+        if (fieldElement) {
+          fieldElement.focus();
+        }
+      } catch (e) {
+        console.error("Error focusing on element:", e);
+      }
     }
     
     return validationResult.isValid;
@@ -250,8 +259,8 @@ export const useFormPersistence = ({
       } else {
         // Re-check morning status for safety before finalizing night shift
         const morningStatusCheck = await checkMorningShiftFormStatus(targetDate, selectedWard);
-        if (morningStatusCheck.status !== FormStatus.FINAL && morningStatusCheck.status !== FormStatus.APPROVED) {
-          throw new Error('ต้องบันทึกข้อมูลกะเช้าให้สมบูรณ์ก่อนบันทึกกะดึก');
+        if (morningStatusCheck.status !== FormStatus.APPROVED) {
+          throw new Error('ต้องรออนุมัติข้อมูลกะเช้าก่อน จึงจะบันทึกข้อมูลกะดึกได้');
         }
         docId = await finalizeNightShiftForm(finalData, user);
         setNightShiftStatus(FormStatus.FINAL);

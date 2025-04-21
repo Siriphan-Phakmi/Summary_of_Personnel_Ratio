@@ -57,8 +57,11 @@ const ShiftSelection: React.FC<ShiftSelectionProps> = ({
     const status = shift === ShiftType.MORNING ? morningShiftStatus : nightShiftStatus;
     const baseText = shift === ShiftType.MORNING ? 'กะเช้า (Morning)' : 'กะดึก (Night)';
 
-    if (status === FormStatus.FINAL || status === FormStatus.APPROVED) {
-      return `${baseText} (บันทึกสมบูรณ์)`;
+    if (status === FormStatus.APPROVED) {
+      return `${baseText} (อนุมัติแล้ว)`;
+    }
+    if (status === FormStatus.FINAL) {
+      return `${baseText} (บันทึกสมบูรณ์)(รอ Approval...)`;
     }
     if (status === FormStatus.DRAFT) {
       return `${baseText} (ร่าง)`;

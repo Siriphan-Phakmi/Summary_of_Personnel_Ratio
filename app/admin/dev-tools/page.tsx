@@ -7,13 +7,17 @@ import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 import { format, addDays } from 'date-fns';
-import { FormStatus } from '@/app/core/types/ward';
+import { FormStatus, ShiftType } from '@/app/core/types/ward';
+
+// Define type for shift selection
+type TargetShift = ShiftType.MORNING | ShiftType.NIGHT | 'both';
 
 export default function DevToolsPage() {
   const [startDate, setStartDate] = useState<string>(format(addDays(new Date(), -1), 'yyyy-MM-dd'));
   const [days, setDays] = useState<number>(1);
   const [wardIdsInput, setWardIdsInput] = useState<string>(''); // Comma or newline separated
   const [statusToGenerate, setStatusToGenerate] = useState<FormStatus>(FormStatus.FINAL);
+  const [targetShift, setTargetShift] = useState<TargetShift>('both'); // Add state for target shift, default to both
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [errorList, setErrorList] = useState<string[]>([]);
@@ -33,6 +37,7 @@ export default function DevToolsPage() {
       startDate: startDate,
       days: days,
       statusToGenerate: statusToGenerate,
+      targetShift: targetShift, // Include targetShift in the request body
     };
 
     if (wardIds.length > 0) {
@@ -128,16 +133,31 @@ export default function DevToolsPage() {
              <select
                id="statusToGenerate"
                value={statusToGenerate}
-               // Cast the value to FormStatus on change
                onChange={(e) => setStatusToGenerate(e.target.value as FormStatus)}
                className="form-input"
-               disabled={isLoading} // Disable if generating APPROVED status is not implemented yet
+               disabled={isLoading}
              >
                <option value={FormStatus.FINAL}>FINAL</option>
-               {/* Add APPROVED option once implemented */}
-               {/* <option value={FormStatus.APPROVED}>APPROVED (Not Implemented)</option> */}
+               {/* Add DRAFT option if needed later */}
+               {/* <option value={FormStatus.DRAFT}>DRAFT</option> */}
              </select>
            </div>
+
+          {/* Shift to Generate - New Dropdown */}
+          <div>
+            <label htmlFor="targetShift" className="form-label">กะที่จะสร้าง</label>
+            <select
+              id="targetShift"
+              value={targetShift}
+              onChange={(e) => setTargetShift(e.target.value as TargetShift)}
+              className="form-input"
+              disabled={isLoading}
+            >
+              <option value="both">ทั้งสองกะ (เช้าและดึก)</option>
+              <option value={ShiftType.MORNING}>เฉพาะกะเช้า</option>
+              <option value={ShiftType.NIGHT}>เฉพาะกะดึก</option>
+            </select>
+          </div>
 
           {/* Generate Button */}
           <Button
