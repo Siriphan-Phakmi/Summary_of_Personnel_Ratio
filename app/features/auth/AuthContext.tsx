@@ -341,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     devLog(`Initial AuthProvider effect running.`);
     // Check session only on initial mount
-    checkSession();
+      checkSession();
 
     // Set up activity listeners
     devLog('Setting up activity listeners (mousemove, keydown, click)');
