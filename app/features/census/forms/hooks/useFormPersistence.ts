@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
+import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward'; // Import Ward type
 import { logUserActivity } from '@/app/core/utils/logUtils'; // Import logger
 import {
   saveMorningShiftFormDraft,
@@ -18,9 +17,11 @@ import {
   calculateNightShiftCensus,
   getLatestDraftForm // Needed for draft confirmation logic
 } from '../services/wardFormService';
-import { showSuccessToast, showErrorToast } from '@/app/core/utils/toastUtils';
+import { showSuccessToast, showErrorToast, showInfoToast } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
+import { logSystemError } from '@/app/core/utils/logUtils';
+import { formatDateYMD } from '@/app/core/utils/dateUtils'; // Import formatDateYMD
 
 interface UseFormPersistenceProps {
   formData: Partial<WardForm>;
@@ -35,10 +36,9 @@ interface UseFormPersistenceProps {
   existingDraftData: WardForm | null; // From useWardFormData
   setExistingDraftData: React.Dispatch<React.SetStateAction<WardForm | null>>; // To update after save
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsFormReadOnly: React.Dispatch<React.SetStateAction<boolean>>;
-  // Functions/State from shift management needed for finalization logic
   morningShiftStatus: FormStatus | null;
   setMorningShiftStatus: React.Dispatch<React.SetStateAction<FormStatus | null>>;
+  nightShiftStatus: FormStatus | null;
   setNightShiftStatus: React.Dispatch<React.SetStateAction<FormStatus | null>>;
   setIsMorningShiftDisabled: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNightShiftDisabled: React.Dispatch<React.SetStateAction<boolean>>;
@@ -58,9 +58,9 @@ export const useFormPersistence = ({
   existingDraftData,
   setExistingDraftData,
   setIsSaving,
-  setIsFormReadOnly,
   morningShiftStatus,
   setMorningShiftStatus,
+  nightShiftStatus,
   setNightShiftStatus,
   setIsMorningShiftDisabled,
   setIsNightShiftDisabled,
@@ -71,11 +71,7 @@ export const useFormPersistence = ({
   // --- Validation --- 
   const validateForm = useCallback((): boolean => {
     const validationResult = validateFormData(formData);
-    const errorMap: Record<string, string> = {};
-    validationResult.missingFields.forEach(field => {
-      errorMap[field] = `กรุณากรอกข้อมูลช่อง ${field}`;
-    });
-    setErrors(errorMap);
+    setErrors(validationResult.errors);
     
     if (!validationResult.isValid && validationResult.missingFields.length > 0) {
       const firstMissingField = validationResult.missingFields[0];
@@ -97,206 +93,262 @@ export const useFormPersistence = ({
 
   // --- Save Draft --- 
   const handleSaveDraft = useCallback(async () => {
-    if (!user || !selectedWard) return;
-
-    const currentWard = wards.find(w => w.id === selectedWard);
-    if (!currentWard) {
-        showErrorToast('ไม่พบข้อมูลวอร์ดที่เลือก');
-        return;
+    if (!user) {
+      showErrorToast('กรุณาเข้าสู่ระบบก่อนบันทึก');
+      return;
+    }
+    if (!selectedWard || !selectedDate) {
+       showErrorToast('กรุณาเลือกวอร์ดและวันที่');
+       return;
     }
 
-    // Check if existing draft conflicts with current selection
-    if (existingDraftData && 
-        (existingDraftData.dateString !== selectedDate || existingDraftData.shift !== selectedShift)) {
-      setIsConfirmModalOpen(true);
-    } else {
-      await saveFormDraft(formData); // Save directly if no conflict or same draft
+    // --- Find wardName FIRST ---
+    const wardName = wards.find(w => w.id === selectedWard)?.wardName || 'Unknown'; // Find wardName before validation
+
+    // Prepare data object for validation, including wardName
+    const dataForValidation = {
+      ...formData,
+      wardId: selectedWard, // Ensure wardId is included
+      date: formData.date || selectedDate, // Ensure date is included
+      shift: selectedShift, // Ensure shift is included
+      wardName: wardName, // Include the found wardName
+    };
+
+    console.log('[handleSaveDraft] Data for validation:', dataForValidation); // Log data being validated
+
+    // --- Validate using the prepared data ---
+    const validationResult = validateFormData(dataForValidation); // Validate the complete object
+    console.log(`[handleSaveDraft] Validation - isValid: ${validationResult.isValid}`);
+    console.log('[handleSaveDraft] Validation - missingFields:', JSON.stringify(validationResult.missingFields)); // Stringify to force display
+    console.log('[handleSaveDraft] Validation - errors:', JSON.stringify(validationResult.errors)); // Stringify to force display
+
+    setErrors(validationResult.errors); // Set the Record
+    
+    if (!validationResult.isValid) {
+        console.warn(`Draft validation failed. Missing fields: ${JSON.stringify(validationResult.missingFields)}, Errors: ${JSON.stringify(validationResult.errors)}`); // Improved warning
+        showErrorToast('ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบ');
+        return; 
     }
-  }, [user, selectedWard, wards, existingDraftData, selectedDate, selectedShift, formData]); // Add dependencies
-
-  const saveFormDraft = useCallback(async (dataToSave: Partial<WardForm>) => {
-    if (!user || !selectedWard) return;
-
-    const currentWard = wards.find(w => w.id === selectedWard);
-    if (!currentWard) {
-        showErrorToast('ไม่พบข้อมูลวอร์ดที่เลือก');
-        return;
+    
+    if (existingDraftData?.wardId === selectedWard && 
+        existingDraftData?.dateString === formatDateYMD(new Date(selectedDate + 'T12:00:00')) && 
+        existingDraftData?.shift === selectedShift) {
+      setIsConfirmModalOpen(true); 
+      return; 
     }
 
-    setIsSaving(true);
-    setErrors({});
-    setIsConfirmModalOpen(false);
+    await performSaveDraft();
 
-    try {
-      const dateTimestamp = Timestamp.fromDate(new Date(selectedDate + 'T00:00:00'));
-      const dataWithMeta: Partial<WardForm> = {
-        ...dataToSave,
-        wardId: selectedWard,
-        wardName: currentWard.wardName,
-        date: dateTimestamp,
-        dateString: selectedDate,
-        shift: selectedShift,
-        status: FormStatus.DRAFT,
-        isDraft: true,
-        createdBy: user.uid,
-        recorderFirstName: dataToSave.recorderFirstName || user.firstName || '',
-        recorderLastName: dataToSave.recorderLastName || user.lastName || '',
-        createdAt: dataToSave.createdAt || createServerTimestamp(),
-        updatedAt: createServerTimestamp(),
-      };
+  }, [formData, user, selectedWard, selectedDate, selectedShift, existingDraftData, setErrors]);
 
-      let docId: string;
-      if (selectedShift === ShiftType.MORNING) {
-        docId = await saveMorningShiftFormDraft(dataWithMeta, user);
-        setMorningShiftStatus(FormStatus.DRAFT); // Update status locally
-      } else {
-        docId = await saveNightShiftFormDraft(dataWithMeta, user);
-        setNightShiftStatus(FormStatus.DRAFT); // Update status locally
-      }
-      showSuccessToast('บันทึกข้อมูลร่างสำเร็จ');
-      setFormData(prev => ({ ...prev, id: docId }));
-      // Reload existing draft data after saving
-      const latestDraft = await getLatestDraftForm(selectedWard, user);
-      setExistingDraftData(latestDraft);
-
-      // Log activity
-      await logUserActivity(
-        user.uid,
-        user.username || 'unknown',
-        'save_draft_form',
-        { 
-          wardId: selectedWard,
-          date: selectedDate,
-          shift: selectedShift,
-          formId: docId
-        }
-      );
-
-    } catch (error: any) {
-      console.error("Error saving draft:", error);
-      showErrorToast(`เกิดข้อผิดพลาด: ${error.message || 'ไม่สามารถบันทึกร่างได้'}`);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [user, selectedWard, selectedDate, selectedShift, wards, setIsSaving, setErrors, setFormData, setExistingDraftData, setMorningShiftStatus, setNightShiftStatus]);
-
-  // --- Save Final --- 
-  const handleSaveFinal = useCallback(async () => {
-    if (!user || !selectedWard || !validateForm()) return;
-
-     const currentWard = wards.find(w => w.id === selectedWard);
-     if (!currentWard) {
-         showErrorToast('ไม่พบข้อมูลวอร์ดที่เลือก');
-         return;
-     }
-
-    setIsSaving(true);
-    setErrors({});
-
-    try {
-      const targetDate = new Date(selectedDate + 'T00:00:00');
-      const dateTimestamp = Timestamp.fromDate(targetDate);
-      let calculatedCensus: number | undefined = undefined;
-      let finalData: Partial<WardForm> = { ...formData };
-
-       // Calculate census before saving final
-       if (selectedShift === ShiftType.MORNING) {
-            const previousNightForm = await getPreviousNightShiftForm(targetDate, selectedWard);
-            calculatedCensus = calculateMorningCensus(previousNightForm, {
-                patientCensus: isMorningCensusReadOnly ? formData.patientCensus : undefined,
-                newAdmit: Number(formData.newAdmit ?? 0),
-                transferIn: Number(formData.transferIn ?? 0),
-                referIn: Number(formData.referIn ?? 0),
-                discharge: Number(formData.discharge ?? 0),
-                transferOut: Number(formData.transferOut ?? 0),
-                referOut: Number(formData.referOut ?? 0),
-                dead: Number(formData.dead ?? 0),
-            });
-       } else {
-           const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, selectedWard);
-           // Use morningShiftStatus passed from props for check
-           if (morningShiftStatus !== FormStatus.FINAL && morningShiftStatus !== FormStatus.APPROVED) {
-               throw new Error('ต้องบันทึกข้อมูลกะเช้าให้สมบูรณ์ก่อน');
-           }
-           if (!morningForm) { // Also check if morning form exists for calculation
-               throw new Error('ไม่พบข้อมูลกะเช้าสำหรับคำนวณ');
-           }
-           calculatedCensus = calculateNightShiftCensus(morningForm, {
-               newAdmit: Number(formData.newAdmit ?? 0),
-               transferIn: Number(formData.transferIn ?? 0),
-               referIn: Number(formData.referIn ?? 0),
-               discharge: Number(formData.discharge ?? 0),
-               transferOut: Number(formData.transferOut ?? 0),
-               referOut: Number(formData.referOut ?? 0),
-               dead: Number(formData.dead ?? 0),
-           });
+  const performSaveDraft = useCallback(async (isOverwrite: boolean = false) => {
+     if (!user) return; 
+     
+     setIsSaving(true);
+     setErrors({}); // Clear Record<string, string>
+     
+     try {
+       const validationResult = validateFormData(formData);
+       if (!validationResult.isValid) {
+           setErrors(validationResult.errors); // Set Record<string, string>
+           showErrorToast('เกิดข้อผิดพลาด: ข้อมูลไม่ถูกต้อง ไม่สามารถบันทึกร่างได้');
+           setIsSaving(false);
+           return;
        }
 
-       finalData = {
+       let savedDocId: string | null = null;
+       const wardName = wards.find(w => w.id === selectedWard)?.wardName || 'Unknown';
+       const dataToSave = {
          ...formData,
-         totalPatientCensus: calculatedCensus,
-         wardId: selectedWard,
-         wardName: currentWard.wardName,
-         date: dateTimestamp,
-         dateString: selectedDate,
-         shift: selectedShift,
-         status: FormStatus.FINAL,
-         isDraft: false,
-         createdBy: user.uid,
-         recorderFirstName: formData.recorderFirstName || user.firstName || '',
-         recorderLastName: formData.recorderLastName || user.lastName || '',
-         createdAt: formData.createdAt || createServerTimestamp(),
-         updatedAt: createServerTimestamp(),
-         finalizedAt: createServerTimestamp(),
+         wardName: wardName,
+         id: (isOverwrite && existingDraftData?.id) ? existingDraftData.id : undefined, 
+       };
+       
+       if (selectedShift === ShiftType.MORNING) {
+         savedDocId = await saveMorningShiftFormDraft(dataToSave, user);
+         setMorningShiftStatus(FormStatus.DRAFT); 
+       } else {
+         savedDocId = await saveNightShiftFormDraft(dataToSave, user);
+         setNightShiftStatus(FormStatus.DRAFT); 
+       }
+       
+       if (savedDocId) {
+           let dateValueForString: Date;
+           // Ensure dateValueForString is Date before passing to formatDateYMD
+           const dateFromForm = formData.date;
+           if (dateFromForm instanceof Timestamp) {
+               dateValueForString = dateFromForm.toDate();
+           } else if (dateFromForm instanceof Date) {
+               dateValueForString = dateFromForm;
+           } else {
+                // Handle case where date might be string or other format
+                try {
+                    dateValueForString = new Date(dateFromForm as string | number);
+                    if (isNaN(dateValueForString.getTime())) { // Check if date is valid
+                       throw new Error('Invalid date format');
+                    }
+                } catch (e) {
+                     console.warn("Could not parse date, defaulting for dateString", e);
+                     dateValueForString = new Date(); // Fallback
+                }
+           }
+           const dateValue = formData.date instanceof Timestamp ? formData.date.toDate() : formData.date;
+           const createdAtValue = formData.createdAt instanceof Timestamp ? formData.createdAt.toDate() : formData.createdAt;
+
+           const newDraftData = { 
+               ...dataToSave, 
+               id: savedDocId, 
+               status: FormStatus.DRAFT,
+               isDraft: true,
+               createdAt: createdAtValue || new Date(), 
+               updatedAt: new Date(), 
+               date: dateValue, 
+               // Correctly pass the definite Date object to formatDateYMD
+               dateString: formData.dateString || formatDateYMD(dateValueForString) 
+           } as WardForm; 
+           setExistingDraftData(newDraftData);
+       }
+
+       showSuccessToast('บันทึกข้อมูลร่างสำเร็จ');
+       setIsConfirmModalOpen(false); 
+       
+     } catch (error) {
+       console.error('Error saving draft:', error);
+       const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกร่าง';
+       if (errorMessage.startsWith('Validation failed:')) {
+           showErrorToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`);
+       } else {
+           showErrorToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`);
+       }
+       logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
+     } finally {
+       setIsSaving(false);
+     }
+  }, [
+      formData, 
+      user, 
+      selectedShift, 
+      wards, 
+      selectedWard,
+      selectedDate, 
+      setIsSaving, 
+      existingDraftData, 
+      setExistingDraftData,
+      setMorningShiftStatus, 
+      setNightShiftStatus,
+      setErrors 
+  ]);
+
+   // --- Confirmation Modal Handlers ---
+   const handleConfirmSaveDraft = () => {
+     performSaveDraft(true); 
+   };
+ 
+   const handleCloseConfirmModal = () => {
+     setIsConfirmModalOpen(false);
+   };
+
+  // --- Finalize Form Logic ---
+  const handleFinalizeForm = useCallback(async () => {
+    if (!user) {
+      showErrorToast('กรุณาเข้าสู่ระบบก่อนบันทึก');
+      return;
+    }
+     if (!selectedWard || !selectedDate) {
+       showErrorToast('กรุณาเลือกวอร์ดและวันที่');
+       return;
+    }
+
+    const validationResult = validateFormData(formData);
+    setErrors(validationResult.errors); // Set Record<string, string>
+
+    if (!validationResult.isValid) {
+      showErrorToast('ข้อมูลไม่ครบถ้วนหรือไม่ถูกต้อง กรุณาตรวจสอบ');
+      console.error(`Finalize validation failed. isValid: ${validationResult.isValid}`);
+      console.error('Finalize validation failed - missingFields:', JSON.stringify(validationResult.missingFields)); // Stringify to force display
+      console.error('Finalize validation failed - errors:', JSON.stringify(validationResult.errors)); // Stringify to force display
+      return;
+    }
+    
+    if (selectedShift === ShiftType.NIGHT) {
+      if (morningShiftStatus !== FormStatus.FINAL && morningShiftStatus !== FormStatus.APPROVED) {
+        showErrorToast('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้บันทึกสมบูรณ์หรืออนุมัติ');
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    setErrors({}); // Clear Record<string, string>
+
+    try {
+       let finalizedDocId: string | null = null;
+       const wardName = wards.find(w => w.id === selectedWard)?.wardName || 'Unknown';
+       const draftIdToUse = (existingDraftData?.wardId === selectedWard && 
+                             existingDraftData?.dateString === formatDateYMD(new Date(selectedDate + 'T12:00:00')) && 
+                             existingDraftData?.shift === selectedShift) 
+                            ? existingDraftData.id 
+                            : undefined;
+       
+       const dataToSave = { 
+           ...formData, 
+           wardName: wardName,
+           id: draftIdToUse 
        };
 
-      let docId: string;
-      if (selectedShift === ShiftType.MORNING) {
-        docId = await finalizeMorningShiftForm(finalData, user);
-        setMorningShiftStatus(FormStatus.FINAL);
-        setIsMorningShiftDisabled(true);
-        setIsNightShiftDisabled(false);
-      } else {
-        // Re-check morning status for safety before finalizing night shift
-        const morningStatusCheck = await checkMorningShiftFormStatus(targetDate, selectedWard);
-        if (morningStatusCheck.status !== FormStatus.APPROVED) {
-          throw new Error('ต้องรออนุมัติข้อมูลกะเช้าก่อน จึงจะบันทึกข้อมูลกะดึกได้');
-        }
-        docId = await finalizeNightShiftForm(finalData, user);
-        setNightShiftStatus(FormStatus.FINAL);
-        setIsNightShiftDisabled(true);
-      }
-      showSuccessToast('บันทึกข้อมูลสมบูรณ์แล้ว ไม่สามารถแก้ไขได้');
-      setIsFormReadOnly(true);
-      setFormData(prev => ({ ...prev, id: docId, status: FormStatus.FINAL, isDraft: false, totalPatientCensus: calculatedCensus }));
+       if (selectedShift === ShiftType.MORNING) {
+         finalizedDocId = await finalizeMorningShiftForm(dataToSave, user);
+         setMorningShiftStatus(FormStatus.FINAL);
+         setIsMorningShiftDisabled(true); 
+         if(nightShiftStatus !== FormStatus.FINAL && nightShiftStatus !== FormStatus.APPROVED) { 
+              setIsNightShiftDisabled(false);
+         }
+       } else { // Night Shift
+         finalizedDocId = await finalizeNightShiftForm(dataToSave, user);
+         setNightShiftStatus(FormStatus.FINAL);
+         setIsNightShiftDisabled(true); 
+       }
+       
+       setExistingDraftData(null); 
 
-      // Log activity
-      await logUserActivity(
-        user.uid,
-        user.username || 'unknown',
-        'save_final_form',
-        { 
-          wardId: selectedWard,
-          date: selectedDate,
-          shift: selectedShift,
-          formId: docId 
-        }
-      );
+       showSuccessToast('บันทึกข้อมูลสมบูรณ์สำเร็จ');
+       showInfoToast('ข้อมูลจะถูกส่งไปรอการอนุมัติ กรุณารอ Supervisor อนุมัติ');
 
-    } catch (error: any) {
-      console.error("Error finalizing form:", error);
-      showErrorToast(`เกิดข้อผิดพลาด: ${error.message || 'ไม่สามารถบันทึกข้อมูลได้'}`);
+    } catch (error) {
+      console.error('Error finalizing form:', error);
+      const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+       if (errorMessage.startsWith('Validation failed:')) {
+           showErrorToast(`บันทึกไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`);
+       } else {
+          showErrorToast(`บันทึกข้อมูลสมบูรณ์ไม่สำเร็จ: ${errorMessage}`);
+       }
+      logSystemError(error as Error, 'handleFinalizeForm', user?.uid, user?.username);
     } finally {
       setIsSaving(false);
     }
-  }, [user, selectedWard, selectedDate, selectedShift, formData, wards, validateForm, setIsSaving, setErrors, setIsFormReadOnly, setFormData, morningShiftStatus, setMorningShiftStatus, setNightShiftStatus, setIsMorningShiftDisabled, setIsNightShiftDisabled, isMorningCensusReadOnly]);
+  }, [
+      formData, 
+      user, 
+      selectedShift, 
+      morningShiftStatus, 
+      nightShiftStatus,
+      setIsSaving, 
+      wards,
+      selectedWard,
+      selectedDate,
+      setMorningShiftStatus,
+      setNightShiftStatus,
+      setIsMorningShiftDisabled,
+      setIsNightShiftDisabled,
+      setErrors, 
+      existingDraftData, 
+      setExistingDraftData 
+  ]);
 
   return {
-    validateForm,
     handleSaveDraft,
-    saveFormDraft, // Expose direct save function for modal confirmation
-    handleSaveFinal,
+    handleFinalizeForm,
     isConfirmModalOpen,
-    setIsConfirmModalOpen, // Expose setter for modal control
+    handleConfirmSaveDraft,
+    handleCloseConfirmModal,
   };
 }; 

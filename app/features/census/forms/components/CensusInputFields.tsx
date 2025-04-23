@@ -14,6 +14,7 @@ interface CensusInputFieldsProps {
   selectedShift: ShiftType;
   isMorningCensusReadOnly: boolean; // Specifically for morning patient census
   isCensusAutoCalculated: boolean; // <-- Add the new prop type
+  isDraftLoaded: boolean; // <-- Add prop
 }
 
 const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
@@ -24,6 +25,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
   selectedShift,
   isMorningCensusReadOnly,
   isCensusAutoCalculated, // <-- Destructure the new prop
+  isDraftLoaded, // <-- Destructure prop
 }) => {
 
   const isMorningShift = selectedShift === ShiftType.MORNING;

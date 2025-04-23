@@ -57,6 +57,8 @@ export const useWardFormData = ({
   const [existingDraftData, setExistingDraftData] = useState<WardForm | null>(null);
   const [isCensusAutoCalculated, setIsCensusAutoCalculated] = useState(false);
   const toastShownRef = useRef({ morning: false, night: false, error: false, load: false }); // Ref to track toasts
+  const [error, setError] = useState<string | null>(null); // General error state
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false); 
 
   useEffect(() => {
     if (!selectedWard || !selectedDate || !user) {
@@ -83,6 +85,8 @@ export const useWardFormData = ({
         setIsFormReadOnly(false);
         setFormData(initialFormData);
         setIsCensusAutoCalculated(false);
+        setError(null); // Reset error on load
+        setIsDraftLoaded(false); // Reset draft loaded
 
         try {
           const targetDate = new Date(selectedDate + 'T00:00:00');
@@ -161,6 +165,10 @@ export const useWardFormData = ({
                if (selectedShift === ShiftType.MORNING && isMorningCensusReadOnly) {
                   setIsCensusAutoCalculated(true);
                }
+               if (existingForm?.status === FormStatus.DRAFT) {
+                   setIsDraftLoaded(true);
+                   showInfoToast("ข้อมูลร่างสำหรับกะนี้ถูกโหลดแล้ว");
+               }
             // } else {
             //    // If existing form doesn't match expected status (e.g., loading FINAL but expected DRAFT)
             //    // Still apply the previous night census if applicable
@@ -219,6 +227,7 @@ export const useWardFormData = ({
           setIsFormReadOnly(false);
           setExistingDraftData(null);
           setIsCensusAutoCalculated(false);
+          setError((error as Error).message); // Set general error using error.message
         } finally {
           setIsLoading(false);
         }
@@ -237,6 +246,9 @@ export const useWardFormData = ({
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    if (error) { // Clear general error on change
+        setError(null);
+    }
   };
 
   return {
@@ -254,5 +266,8 @@ export const useWardFormData = ({
     setExistingDraftData, // Add missing setter
     isCensusAutoCalculated, // <-- Return new state
     handleChange,
+    error,          // <-- Return error
+    setError,       // <-- Return setError
+    isDraftLoaded,  // <-- Return isDraftLoaded
   };
 }; 

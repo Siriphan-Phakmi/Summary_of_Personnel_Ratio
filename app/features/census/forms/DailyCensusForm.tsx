@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/features/auth';
 import { Ward } from '@/app/core/types/ward';
 import { getWardsByUserPermission } from './services/wardService';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
-import Button from '@/app/core/ui/Button';
+import { Button, Input } from '@/app/core/ui';
 import { format } from 'date-fns';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 import { logUserActivity } from '@/app/core/utils/logUtils';
 import { useLoading } from '@/app/core/hooks/useLoading';
+import { Toaster } from 'react-hot-toast';
+import { FiSave, FiCheckSquare } from 'react-icons/fi';
 
 // Import Hooks
 import { useWardFormData } from './hooks/useWardFormData';
@@ -23,6 +25,9 @@ import CensusInputFields from './components/CensusInputFields';
 import RecorderInfo from './components/RecorderInfo';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
 
+// Import FormStatus correctly
+import { ShiftType, FormStatus, WardForm } from '@/app/core/types/ward';
+
 export default function DailyCensusForm() {
   const { user: currentUser } = useAuth();
   const { showLoading, hideLoading } = useLoading();
@@ -30,6 +35,10 @@ export default function DailyCensusForm() {
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isWardLoading, setIsWardLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isFormReadOnly, setIsFormReadOnly] = useState(false);
 
   // Load wards once
   useEffect(() => {
@@ -57,40 +66,36 @@ export default function DailyCensusForm() {
     selectedShift, 
     morningShiftStatus,
     nightShiftStatus,
-    isMorningShiftDisabled,
-    isNightShiftDisabled,
+    isMorningShiftDisabled: shiftHookMorningDisabled,
+    isNightShiftDisabled: shiftHookNightDisabled,
     isLoadingStatus,
     handleSelectShift,
-    setMorningShiftStatus, // Get setters from shift management
+    setMorningShiftStatus,
     setNightShiftStatus,
-    setIsMorningShiftDisabled, // Get setters from shift management
-    setIsNightShiftDisabled, // Get setters from shift management
+    setIsMorningShiftDisabled: setShiftHookMorningDisabled,
+    setIsNightShiftDisabled: setShiftHookNightDisabled,
   } = useShiftManagement({ selectedWard, selectedDate });
 
   const { 
     formData, 
     setFormData,
-    errors,
-    setErrors, 
-    isLoading: isFormDataLoading,
-    isSaving,
-    setIsSaving,
-    isMorningCensusReadOnly,
-    existingDraftData,
-    setExistingDraftData,
-    isCensusAutoCalculated,
+    error: dataError,
+    setError: setDataError,
     handleChange,
-    isFormReadOnly,
-    setIsFormReadOnly,
+    isFormReadOnly: dataFormReadOnly,
+    isMorningCensusReadOnly,
+    isCensusAutoCalculated,
+    isDraftLoaded,
+    errors: wardFormErrors,
+    setErrors: setWardFormErrors,
   } = useWardFormData({ selectedWard, selectedDate, selectedShift, user: currentUser, morningShiftStatus, nightShiftStatus });
 
   const { 
-    validateForm, 
-    handleSaveDraft: persistSaveDraft,
-    saveFormDraft, 
-    handleSaveFinal: persistSaveFinal,
-    isConfirmModalOpen, 
-    setIsConfirmModalOpen
+    handleSaveDraft,
+    handleFinalizeForm,
+    isConfirmModalOpen,
+    handleConfirmSaveDraft,
+    handleCloseConfirmModal,
   } = useFormPersistence({
     formData,
     setFormData,
@@ -101,60 +106,83 @@ export default function DailyCensusForm() {
     selectedShift,
     user: currentUser,
     wards,
-    existingDraftData,
-    setExistingDraftData,
+    existingDraftData: null,
+    setExistingDraftData: () => {},
     setIsSaving,
-    setIsFormReadOnly,
     morningShiftStatus,
     setMorningShiftStatus,
+    nightShiftStatus,
     setNightShiftStatus,
-    setIsMorningShiftDisabled,
-    setIsNightShiftDisabled,
+    setIsMorningShiftDisabled: setShiftHookMorningDisabled,
+    setIsNightShiftDisabled: setShiftHookNightDisabled,
     isMorningCensusReadOnly,
   });
 
-  const isLoading = isWardLoading || isFormDataLoading || isLoadingStatus;
+  useEffect(() => {
+    setIsFormReadOnly(dataFormReadOnly);
+  }, [dataFormReadOnly]);
+
+  const isLoading = isWardLoading || isLoadingStatus;
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedDate(e.target.value);
+    setErrors({});
+    setDataError(null);
+  };
+
+  const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedWard(e.target.value);
+    setErrors({});
+    setDataError(null);
+  };
+
+  // Combine loading states
+  const isPageLoading = isLoading || isLoadingStatus;
+  // Combine disabled states
+  const finalMorningDisabled = shiftHookMorningDisabled || isSaving || isFormReadOnly;
+  const finalNightDisabled = shiftHookNightDisabled || isSaving || isFormReadOnly;
 
   // Render UI
   return (
     <ProtectedPage requiredRole={['nurse', 'user', 'admin', 'developer']}> 
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
+        <Toaster position="top-right" />
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล</h1>
 
-          {isLoading ? (
+          {isPageLoading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
               </div>
           ) : (
-            <form onSubmit={(e) => e.preventDefault()} className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+            <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 border border-gray-200 dark:border-gray-700">
               {/* Ward and Date Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
+                <div>
                   <label htmlFor="ward" className="form-label">หอผู้ป่วย (Ward)</label>
-                <select 
+                  <select 
                     id="ward"
                     name="ward"
                     value={selectedWard}
-                    onChange={(e) => setSelectedWard(e.target.value)}
+                    onChange={handleWardChange}
                     className="form-input"
                     disabled={isSaving || isFormReadOnly}
                   >
                     <option value="" disabled>-- เลือกหอผู้ป่วย --</option>
-                  {wards.map((ward) => (
+                    {wards.map((ward) => (
                       <option key={ward.id} value={ward.id}>{ward.wardName}</option>
-                  ))}
-                </select>
+                    ))}
+                  </select>
                 </div>
-                    <div>
+                <div>
                   <label htmlFor="date" className="form-label">วันที่ (Date)</label>
-                  <input
+                  <Input
                     type="date"
                     id="date"
                     name="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={handleDateChange}
                     className="form-input"
                     disabled={isSaving || isFormReadOnly}
                     max={format(new Date(), 'yyyy-MM-dd')} 
@@ -165,11 +193,11 @@ export default function DailyCensusForm() {
               {/* Shift Selection Component */}
                <ShiftSelection
                  selectedShift={selectedShift}
-                 onSelectShift={handleSelectShift} // Use handler from hook
+                 onSelectShift={handleSelectShift}
                  morningShiftStatus={morningShiftStatus}
                  nightShiftStatus={nightShiftStatus}
-                 isMorningShiftDisabled={isMorningShiftDisabled || isSaving || isFormReadOnly}
-                 isNightShiftDisabled={isNightShiftDisabled || isSaving || isFormReadOnly}
+                 isMorningShiftDisabled={finalMorningDisabled}
+                 isNightShiftDisabled={finalNightDisabled}
                />
 
               {/* Census Input Fields Component */}
@@ -181,6 +209,7 @@ export default function DailyCensusForm() {
                 selectedShift={selectedShift}
                 isMorningCensusReadOnly={isMorningCensusReadOnly}
                 isCensusAutoCalculated={isCensusAutoCalculated}
+                isDraftLoaded={isDraftLoaded}
               />
 
               {/* Recorder Info Component */}
@@ -190,15 +219,17 @@ export default function DailyCensusForm() {
                 handleChange={handleChange}
                 errors={errors}
                 isReadOnly={isFormReadOnly || isSaving}
+                isDraftLoaded={isDraftLoaded}
               />
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
                 <Button
                   variant="secondary"
-                  onClick={persistSaveDraft}
+                  onClick={handleSaveDraft}
                   isLoading={isSaving}
-                  disabled={isFormReadOnly || isSaving}
+                  disabled={isFormReadOnly || isSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
+                  leftIcon={<FiSave />}
                   loadingText="กำลังบันทึกร่าง..."
                   className="w-full sm:w-auto"
                 >
@@ -206,24 +237,38 @@ export default function DailyCensusForm() {
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={persistSaveFinal}
+                  onClick={handleFinalizeForm}
                   isLoading={isSaving}
-                  disabled={isFormReadOnly || isSaving}
-                  loadingText="กำลังบันทึก..."
+                  disabled={isFormReadOnly || isSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
+                  leftIcon={<FiCheckSquare />}
+                  loadingText="กำลังบันทึกสมบูรณ์..."
                   className="w-full sm:w-auto"
                 >
                   บันทึกสมบูรณ์ (Save Final)
                 </Button>
               </div>
+
+              {/* Display validation errors (now from Record) */}
+              {Object.keys(errors).length > 0 && !isSaving && (
+                   <div className="text-red-500 dark:text-red-400 mt-4 text-left space-y-1">
+                       <p className="font-semibold">กรุณาแก้ไขข้อผิดพลาด:</p>
+                       <ul className="list-disc list-inside">
+                           {/* Iterate over the Record's values */}
+                           {Object.values(errors).map((errorMsg, index) => (
+                               <li key={index}>{errorMsg}</li>
+                           ))}
+                       </ul>
+                   </div>
+               )}
             </form>
           )}
 
            {/* Confirmation Modal Component */}
            <ConfirmSaveModal
              isOpen={isConfirmModalOpen}
-             onClose={() => setIsConfirmModalOpen(false)}
-             onConfirm={() => saveFormDraft(formData)} // Use direct save from persistence hook
-             formData={existingDraftData || {}} 
+             onClose={handleCloseConfirmModal}
+             onConfirm={handleConfirmSaveDraft}
+             formData={formData}
              isSaving={isSaving}
            />
 
@@ -232,18 +277,3 @@ export default function DailyCensusForm() {
     </ProtectedPage>
   );
 }
-
-// Removed old state declarations and logic functions previously here
-// - formData state and related handlers
-// - errors state and related handlers
-// - shift selection state and related handlers
-// - loading/saving states
-// - readOnly states
-// - existingDraftData state
-// - confirmModal state
-// - loadExistingFormData function
-// - handleChange function
-// - validateForm function
-// - handleSaveDraft function
-// - saveFormDraft function
-// - handleSaveFinal function

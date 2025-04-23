@@ -45,12 +45,12 @@ const parseDate = (dateStr: string): Date => {
 /**
  * ตรวจสอบความครบถ้วนของข้อมูลแบบฟอร์ม
  * @param formData ข้อมูลแบบฟอร์มที่ต้องการตรวจสอบ
- * @returns ผลการตรวจสอบ {isValid: boolean, missingFields: string[]}
+ * @returns ผลการตรวจสอบ {isValid: boolean, missingFields: string[], errors: Record<string, string>}
  */
 export const validateFormData = (formData: Partial<WardForm>): {
   isValid: boolean;
   missingFields: string[];
-  errors: string[];
+  errors: Record<string, string>;
 } => {
   const requiredFields = [
     'wardId',
@@ -77,7 +77,7 @@ export const validateFormData = (formData: Partial<WardForm>): {
   ];
   
   const missingFields: string[] = [];
-  const errors: string[] = [];
+  const errors: Record<string, string> = {};
   
   // ตรวจสอบฟิลด์ที่จำเป็น
   requiredFields.forEach(field => {
@@ -110,20 +110,20 @@ export const validateFormData = (formData: Partial<WardForm>): {
   numericFields.forEach(field => {
     const value = formData[field as keyof typeof formData];
     if (value !== undefined && typeof value === 'number' && value < 0) {
-      errors.push(`ฟิลด์ ${field} ต้องไม่เป็นค่าติดลบ`);
+      errors[field] = 'ฟิลด์ ต้องไม่เป็นค่าติดลบ';
     }
   });
   
   // ตรวจสอบวันที่
   if (formData.date && !(formData.date instanceof Date) && !(formData.date instanceof Timestamp)) {
-    errors.push('รูปแบบวันที่ไม่ถูกต้อง');
+    errors['date'] = 'รูปแบบวันที่ไม่ถูกต้อง';
   }
   
   // ตรวจสอบค่าอื่นๆ ตามความต้องการเพิ่มเติม
   // ...
   
   return {
-    isValid: missingFields.length === 0 && errors.length === 0,
+    isValid: missingFields.length === 0 && Object.keys(errors).length === 0,
     missingFields,
     errors
   };
