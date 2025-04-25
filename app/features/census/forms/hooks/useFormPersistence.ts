@@ -118,31 +118,61 @@ export const useFormPersistence = ({
   }
 
   // --- Validation Callback (using prepareDataForSave) --- 
-  const validateForm = useCallback((dataToValidate: Partial<WardForm>): boolean => {
-    // เรียกใช้ validateFormData เพื่อตรวจสอบข้อมูล
+  const validateFormAndNotify = useCallback((dataToValidate: Partial<WardForm>): boolean => {
     const validationResult = validateFormData(dataToValidate);
     setErrors(validationResult.errors);
-    
-    if (!validationResult.isValid && validationResult.missingFields.length > 0) {
-      const firstMissingField = validationResult.missingFields[0];
-      // ใช้ข้อความ error จากผลการตรวจสอบ
-      const errorMsg = validationResult.errors[firstMissingField] || 'ข้อมูลไม่ถูกต้อง';
-      showSafeToast(`${errorMsg}`, 'error');
 
-      // พยายาม focus ที่ช่อง input แรกที่มีข้อผิดพลาด
-      try {
-        const fieldElement = document.querySelector(`[name="${firstMissingField}"]`) as HTMLElement;
-        if (fieldElement) {
-          // เพิ่มการหน่วงเวลาเล็กน้อย
-          setTimeout(() => fieldElement.focus(), 100);
+    if (!validationResult.isValid) {
+      // Only show ONE summary toast notification per failed validation attempt.
+      if (validationResult.missingFields.length > 0) {
+        const firstMissingField = validationResult.missingFields[0];
+        const fieldLabels: Record<string, string> = {
+          patientCensus: 'Patient Census (คงพยาบาล)',
+          nurseManager: 'Nurse Manager',
+          rn: 'RN (พยาบาลวิชาชีพ)',
+          pn: 'PN (พยาบาลเทคนิค)',
+          wc: 'WC (ผู้ช่วยเหลือคนไข้)',
+          newAdmit: 'New Admit (รับใหม่)',
+          transferIn: 'Transfer In (ย้ายเข้า)',
+          referIn: 'Refer In (รับส่งต่อ)',
+          transferOut: 'Transfer Out (ย้ายออก)',
+          referOut: 'Refer Out (ส่งต่อ)',
+          discharge: 'Discharge (จำหน่าย)',
+          dead: 'Dead (เสียชีวิต)',
+          available: 'Available Beds (เตียงว่าง)',
+          unavailable: 'Unavailable Beds (เตียงไม่ว่าง)',
+          plannedDischarge: 'Planned Discharge (วางแผนจำหน่าย)',
+          recorderFirstName: 'ชื่อผู้บันทึก',
+          recorderLastName: 'นามสกุลผู้บันทึก',
+        };
+        const missingFieldNames = validationResult.missingFields
+          .map(fieldName => fieldLabels[fieldName as keyof typeof fieldLabels] || fieldName)
+          .join(', ');
+        
+        // Simplified toast message
+        const toastMessage = `ข้อมูลไม่ครบถ้วน กรุณากรอก: ${missingFieldNames}`;
+        
+        showSafeToast(toastMessage, 'warning');
+
+        // Attempt to focus on the first missing field
+        try {
+          const fieldElement = document.querySelector(`[name="${firstMissingField}"]`) as HTMLElement;
+          if (fieldElement) {
+            setTimeout(() => fieldElement.focus(), 100);
+          }
+        } catch (e) {
+          console.error("Error focusing on element:", e);
         }
-      } catch (e) {
-        console.error("Error focusing on element:", e);
+      } else {
+        // General validation error (e.g., negative number) without specific missing fields
+        showSafeToast('ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบ', 'warning');
       }
+       // Log details for debugging
+       console.error(`Validation failed - errors:`, JSON.stringify(validationResult.errors));
     }
-    
+
     return validationResult.isValid;
-  }, [setErrors]); 
+  }, [setErrors]);
 
   // --- Save Draft --- 
   const handleSaveDraft = useCallback(async (isOverwrite: boolean = false) => {
@@ -165,13 +195,12 @@ export const useFormPersistence = ({
        return;
     }
 
-    // จัดเตรียมข้อมูล (แปลงค่า undefined เป็น 0)
     const dataToProcess = prepareDataForSave(formData); 
 
-    // ตรวจสอบความถูกต้องของข้อมูล
-    if (!validateForm(dataToProcess)) { 
-        showSafeToast('ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบและกรอกข้อมูลที่จำเป็นให้ครบถ้วน', 'warning');
-        return; // หยุดถ้าข้อมูลไม่ถูกต้อง
+    // Use the updated validation function (no context needed)
+    if (!validateFormAndNotify(dataToProcess)) { 
+        // Toast is already shown by validateFormAndNotify
+        return; 
     }
     
     // ตรวจสอบ draft ที่มีอยู่
@@ -188,7 +217,7 @@ export const useFormPersistence = ({
     await performSaveDraft(dataToProcess, isOverwrite);
 
   }, [formData, user, selectedWard, selectedDate, selectedShift, existingDraftData, 
-      setErrors, wards, isConfirmModalOpen, validateForm, prepareDataForSave, 
+      setErrors, wards, isConfirmModalOpen, validateFormAndNotify, prepareDataForSave,
       isSaveButtonDisabled, BUTTON_COOLDOWN_TIME]);
 
   const performSaveDraft = useCallback(async (dataToSave: Partial<WardForm>, isOverwrite: boolean = false) => {
@@ -304,56 +333,11 @@ export const useFormPersistence = ({
       return;
     }
 
-    // จัดเตรียมข้อมูล (แปลงค่า undefined เป็น 0)
     const dataToProcess = prepareDataForSave(formData);
 
-    // ตรวจสอบความถูกต้องของข้อมูล
-    const validationResult = validateFormData(dataToProcess);
-    setErrors(validationResult.errors);
-
-    if (!validationResult.isValid) {
-      const missingFieldNames = validationResult.missingFields.map(fieldName => {
-        // แปลงชื่อ field เป็นชื่อที่เข้าใจง่าย
-        const fieldLabels: Record<string, string> = {
-          patientCensus: 'Patient Census (คงพยาบาล)',
-          nurseManager: 'Nurse Manager',
-          rn: 'RN (พยาบาลวิชาชีพ)',
-          pn: 'PN (พยาบาลเทคนิค)',
-          wc: 'WC (ผู้ช่วยเหลือคนไข้)',
-          newAdmit: 'New Admit (รับใหม่)',
-          transferIn: 'Transfer In (ย้ายเข้า)',
-          referIn: 'Refer In (รับส่งต่อ)',
-          transferOut: 'Transfer Out (ย้ายออก)',
-          referOut: 'Refer Out (ส่งต่อ)',
-          discharge: 'Discharge (จำหน่าย)',
-          dead: 'Dead (เสียชีวิต)',
-          available: 'Available Beds (เตียงว่าง)',
-          unavailable: 'Unavailable Beds (เตียงไม่ว่าง)',
-          plannedDischarge: 'Planned Discharge (วางแผนจำหน่าย)',
-          recorderFirstName: 'ชื่อผู้บันทึก',
-          recorderLastName: 'นามสกุลผู้บันทึก',
-        };
-        return fieldLabels[fieldName as keyof typeof fieldLabels] || fieldName;
-      }).join(', ');
-
-      showSafeToast(`ข้อมูลไม่ครบถ้วน กรุณากรอก: ${missingFieldNames}`, 'warning');
-      
-      // พยายาม focus ที่ช่อง input แรกที่มีข้อผิดพลาด
-      if (validationResult.missingFields.length > 0) {
-        try {
-          const fieldElement = document.querySelector(`[name="${validationResult.missingFields[0]}"]`) as HTMLElement;
-          if (fieldElement) {
-            // เพิ่มการหน่วงเวลาเล็กน้อย
-            setTimeout(() => fieldElement.focus(), 100);
-          }
-        } catch (e) {
-          console.error("Error focusing on element:", e);
-        }
-      }
-      
-      console.error(`Finalize validation failed. isValid: ${validationResult.isValid}`);
-      console.error('Finalize validation failed - missingFields:', JSON.stringify(validationResult.missingFields));
-      console.error('Finalize validation failed - errors:', JSON.stringify(validationResult.errors));
+    // Use the updated validation function (no context needed)
+    if (!validateFormAndNotify(dataToProcess)) { 
+      // Toast is already shown by validateFormAndNotify
       return;
     }
     
@@ -429,8 +413,7 @@ export const useFormPersistence = ({
       setErrors, 
       existingDraftData, 
       setExistingDraftData,
-      validateForm,
-      prepareDataForSave,
+      validateFormAndNotify,
       isFinalizeButtonDisabled,
       BUTTON_COOLDOWN_TIME
   ]);

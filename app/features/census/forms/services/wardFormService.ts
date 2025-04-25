@@ -51,7 +51,7 @@ const parseDate = (dateStr: string): Date => {
 export const validateFormData = (formData: Partial<WardForm>): {
   isValid: boolean;
   missingFields: string[];
-  errors: Record<string, string>; // Return Record for specific field errors
+  errors: Record<string, string>;
 } => {
   // Define required fields (excluding comment)
   const requiredNumericFields: (keyof WardForm)[] = [
@@ -83,22 +83,19 @@ export const validateFormData = (formData: Partial<WardForm>): {
       }
   });
 
-  // Check required numeric fields
+  // Check required numeric fields - STRICT CHECK
   requiredNumericFields.forEach(field => {
     const value = formData[field];
     // Check for undefined, null, empty string, NaN, or negative numbers
-    // Allow 0 as a valid input
+    // 0 is allowed, but truly empty/undefined values are not.
     if (value === undefined || value === null || value === '' || isNaN(Number(value)) || Number(value) < 0) {
-      // Only consider truly empty values as "missing" for the list, but all invalid states cause validation failure
-      if (value === undefined || value === null || value === '') {
-         missingFields.push(field);
-      }
       isValid = false;
+      missingFields.push(field);
       errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
     }
   });
 
-  // Check required string fields (allow spaces within names)
+  // Check required string fields (allow spaces within names) - STRICT CHECK
   requiredStringFields.forEach(field => {
     const value = formData[field];
     if (!value || typeof value !== 'string' || value.trim() === '') {
@@ -115,7 +112,7 @@ export const validateFormData = (formData: Partial<WardForm>): {
   return {
     isValid,
     missingFields,
-    errors // Return the Record object
+    errors
   };
 };
 

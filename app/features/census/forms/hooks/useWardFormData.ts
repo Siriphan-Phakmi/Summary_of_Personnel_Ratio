@@ -42,18 +42,6 @@ interface UseWardFormDataProps {
   nightShiftStatus: FormStatus | null;   // Pass status from shift management
 }
 
-// Global toast tracker to prevent duplicates across component re-renders
-const globalToastTracker = {
-  previousNightNotFound: false,
-  previousNightApproved: false,
-  previousNightFinal: false,
-  previousNightDraft: false,
-  formLoaded: false,
-  pastDataReadOnly: false,
-  generalError: false,
-  draftLoaded: false
-};
-
 export const useWardFormData = ({
   selectedWard,
   selectedDate,
@@ -74,21 +62,7 @@ export const useWardFormData = ({
   const [error, setError] = useState<string | null>(null); // General error state
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   
-  // Function to safely show toast without duplicates
-  const safeShowToast = (message: string, type: 'info' | 'error' | 'warning', toastKey: keyof typeof globalToastTracker) => {
-    if (!globalToastTracker[toastKey]) {
-      showSafeToast(message, type);
-      globalToastTracker[toastKey] = true;
-    }
-  };
-
-  // Reset all toast trackers when inputs change significantly
   useEffect(() => {
-    // Reset global toast trackers when key inputs change
-    Object.keys(globalToastTracker).forEach(key => {
-      globalToastTracker[key as keyof typeof globalToastTracker] = false;
-    });
-    
     // Only proceed with data loading if we have the required inputs
     if (!selectedWard || !selectedDate || !user) {
         setFormData({}); // Reset to empty object
@@ -117,56 +91,53 @@ export const useWardFormData = ({
           let previousNightForm: WardForm | null = null;
           if (selectedShift === ShiftType.MORNING) {
               previousNightForm = await getLatestPreviousNightForm(targetDate, selectedWard);
+              
+              // Fetch Existing Form Data for the selected shift FIRST
+              const existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
+              const existingDraftLoaded = existingForm?.status === FormStatus.DRAFT;
+              setIsDraftLoaded(existingDraftLoaded); // Set draft status early
+              
               if (previousNightForm?.patientCensus !== undefined) {
-                // Check approval status
+                // Check approval status of previous night
                 if (previousNightForm.status === FormStatus.APPROVED) {
-                   // Approved, load census and make read-only
-                   safeShowToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน (อนุมัติแล้ว)', 'info', 'previousNightApproved');
-                   setFormData(prev => ({ ...prev, patientCensus: Number(previousNightForm!.patientCensus) }));
+                   showSafeToast('พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน (อนุมัติแล้ว)', 'info');
+                   // Set census later, after loading existingForm data
                    setIsMorningCensusReadOnly(true);
                    setIsCensusAutoCalculated(true);
                  } else if (previousNightForm.status === FormStatus.FINAL) {
-                    // Final but not Approved
-                    safeShowToast('พบข้อมูล Save Final คงพยาบาลจากกะดึกคืนก่อน แต่ยังไม่ได้ Approval กรุณาติดต่อฝ่ายการ และ Surveyor', 'warning', 'previousNightFinal');
-                    // Do not set patient census, ensure it's undefined or handled correctly
-                    setFormData(prev => ({...prev, patientCensus: undefined }));
+                    showSafeToast('พบข้อมูล Save Final คงพยาบาลจากกะดึกคืนก่อน แต่ยังไม่ได้ Approval กรุณาติดต่อฝ่ายการ และ Surveyor', 'warning');
                     setIsMorningCensusReadOnly(false);
                     setIsCensusAutoCalculated(false);
                  } else if (previousNightForm.status === FormStatus.DRAFT) {
-                    // Draft
-                    safeShowToast('พบข้อมูล Save Draft คงพยาบาลจากกะดึกคืนก่อน รบกวน Save Final และ ให้ Surveyor อนุมัติก่อน', 'warning', 'previousNightDraft');
-                    // Do not set patient census, ensure it's undefined
-                    setFormData(prev => ({...prev, patientCensus: undefined }));
+                    showSafeToast('พบข้อมูล Save Draft คงพยาบาลจากกะดึกคืนก่อน รบกวน Save Final และ ให้ Surveyor อนุมัติก่อน', 'warning');
                   setIsMorningCensusReadOnly(false);
                   setIsCensusAutoCalculated(false);
                 } else {
-                   // Unexpected status or DRAFT (treat DRAFT as needing finalization first)
-                   safeShowToast('ข้อมูลกะดึกคืนก่อนยังไม่สมบูรณ์/อนุมัติ Patient Census จะยังไม่แสดงผลอัตโนมัติ', 'warning', 'previousNightDraft');
-                   // Do not set patient census, ensure it's undefined
-                   setFormData(prev => ({...prev, patientCensus: undefined }));
+                   showSafeToast('ข้อมูลกะดึกคืนก่อนยังไม่สมบูรณ์/อนุมัติ Patient Census จะยังไม่แสดงผลอัตโนมัติ', 'warning');
                    setIsMorningCensusReadOnly(false);
                    setIsCensusAutoCalculated(false);
                 }
               } else {
-                // No previous night form found
-                safeShowToast('ไม่พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน กรุณากรอกข้อมูล', 'warning', 'previousNightNotFound');
-                // Ensure patientCensus is not set from previous night
-                setFormData(prev => ({...prev, patientCensus: undefined }));
+                // No previous night form found - BUT ONLY SHOW TOAST IF NO DRAFT EXISTS FOR CURRENT SHIFT
+                if (!existingDraftLoaded) { 
+                    showSafeToast('ไม่พบข้อมูลคงพยาบาลจากกะดึกคืนก่อน กรุณากรอกข้อมูล', 'warning');
+                }
                 setIsMorningCensusReadOnly(false);
-                setIsCensusAutoCalculated(false); // Ensure this is false if no previous form
+                setIsCensusAutoCalculated(false); 
               }
           } else {
-              // Night shift: ensure patient census starts undefined unless loaded later
-              setFormData(prev => ({...prev, patientCensus: undefined }));
-              setIsMorningCensusReadOnly(false); // Not applicable
-              setIsCensusAutoCalculated(false); // Not applicable
+              // Night shift: No previous night check needed here
+              setIsMorningCensusReadOnly(false); 
+              setIsCensusAutoCalculated(false); 
           }
 
-          // Fetch Existing Form Data for the selected shift
-          const existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
+          // Fetch Existing Form Data (moved earlier for morning shift)
+          const existingForm = selectedShift === ShiftType.NIGHT 
+              ? await getWardForm(dateTimestamp, selectedShift, selectedWard)
+              : (await getWardForm(dateTimestamp, ShiftType.MORNING, selectedWard)); // Reuse fetched data if morning
 
           if (existingForm) {
-            console.log('[useWardFormData] Existing form found:', existingForm); // Log fetched data
+            console.log('[useWardFormData] Existing form found:', existingForm); 
 
             const loadedData: Partial<WardForm> = {
                   ...existingForm,
@@ -179,55 +150,26 @@ export const useWardFormData = ({
               plannedDischarge: Number(existingForm.plannedDischarge ?? undefined),
             };
 
-            // If morning census was auto-calculated, override the loaded value
-            if (selectedShift === ShiftType.MORNING && isCensusAutoCalculated && previousNightForm?.patientCensus !== undefined) {
+            // Override patient census based on previous night check (if applicable)
+            if (selectedShift === ShiftType.MORNING && isCensusAutoCalculated && previousNightForm?.status === FormStatus.APPROVED) {
                 loadedData.patientCensus = Number(previousNightForm.patientCensus);
             }
 
-            setFormData(loadedData); // Set the loaded data (already Partial<WardForm>)
-               console.log('[useWardFormData] Set formData state:', loadedData); // Log state after setting
+            setFormData(loadedData);
 
-            // Determine Read Only status for the whole form first
+            // Set ReadOnly status
             const isFinalOrApproved = existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED;
             setIsFormReadOnly(isFinalOrApproved);
 
-            // Show appropriate toast based on status and date
+            // Show appropriate toast (loading/past data)
+            // The "previous night not found" toast is now handled conditionally above
             const isPastDate = new Date(selectedDate + 'T00:00:00') < new Date(format(new Date(), 'yyyy-MM-dd') + 'T00:00:00');
             if (isFinalOrApproved && isPastDate) {
-                // Specific toast for past, read-only forms
-                safeShowToast('นี่คือข้อมูลย้อนหลัง จะไม่สามารถบันทึกซ้ำได้ หากต้องการแก้ไข กรุณาติดต่อฝ่ายการพยาบาล หรือ Surveyor', 'info', 'pastDataReadOnly');
-            } else {
-                // General toast for loading existing data (draft or current final/approved)
-                safeShowToast(`โหลดข้อมูล${existingForm.isDraft ? 'ร่าง' : 'ที่บันทึกสมบูรณ์'}สำหรับกะ${selectedShift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}แล้ว`, 'info', 'formLoaded');
-            }
-
-               if (selectedShift === ShiftType.MORNING && isMorningCensusReadOnly) {
-                  setIsCensusAutoCalculated(true);
-               }
-            
-            if (existingForm?.status === FormStatus.DRAFT) {
-              setIsDraftLoaded(true);
-              safeShowToast("ข้อมูลร่างสำหรับกะนี้ถูกโหลดแล้ว", 'info', 'draftLoaded');
-            }
-
-            // Apply previous night census ONLY if it was APPROVED
-            if (selectedShift === ShiftType.MORNING && previousNightForm?.status === FormStatus.APPROVED && previousNightForm.patientCensus !== undefined) {
-                setFormData(prev => ({
-                    ...prev, // Keep other potential fields if any were set before
-                    patientCensus: Number(previousNightForm.patientCensus) // Set the approved census
-                }));
-                setIsMorningCensusReadOnly(true);
-                setIsCensusAutoCalculated(true);
-            } else {
-                // Otherwise (Morning shift but prev night not approved/found, or Night shift)
-                // Ensure the form starts with undefined census if not loaded/approved
-                if (selectedShift === ShiftType.MORNING) {
-                     setFormData(prev => ({ ...prev, patientCensus: undefined }));
-                }
-                // For night shift, patientCensus should already be undefined from earlier logic
-                setIsMorningCensusReadOnly(false); // Ensure editable
-                setIsCensusAutoCalculated(false); // Ensure not marked as auto
-                // Toast for missing/unapproved previous night shown earlier
+                showSafeToast('นี่คือข้อมูลย้อนหลัง...', 'info');
+            } else if (existingForm.status === FormStatus.DRAFT) { // Show draft loaded toast specifically
+                showSafeToast("ข้อมูลร่างสำหรับกะนี้ถูกโหลดแล้ว", 'info');
+            } else if (isFinalOrApproved) { // Show final/approved loaded toast
+                 showSafeToast(`โหลดข้อมูลที่บันทึกสมบูรณ์สำหรับกะ...แล้ว`, 'info');
             }
 
             // Update recorder names IF:
@@ -245,51 +187,35 @@ export const useWardFormData = ({
 
           } else {
              console.log('No existing form found for this shift.');
-             // If no existing form, apply previous night census if applicable (check patientCensus)
-             if (selectedShift === ShiftType.MORNING && previousNightForm && previousNightForm.patientCensus !== undefined) {
-               // Only set if the previous night form was approved
-               if(previousNightForm.status === FormStatus.APPROVED) {
+             // Apply previous night census if applicable (only if approved)
+             if (selectedShift === ShiftType.MORNING && previousNightForm?.status === FormStatus.APPROVED && previousNightForm.patientCensus !== undefined) {
                  setFormData(prev => ({
                    ...initialFormStructure,
                    patientCensus: previousNightForm.patientCensus,
-                   // Set initial recorder names here too when creating new form
                    recorderFirstName: user?.firstName || '',
                    recorderLastName: user?.lastName || '',
                  }));
-                 setIsMorningCensusReadOnly(true);
-                 setIsCensusAutoCalculated(true);
-               } else {
-                  // Not approved / Draft / Final / Not Found - set to initial, keep editable
-                  setFormData({
-                    ...initialFormStructure,
-                    // Set initial recorder names here too
-                    recorderFirstName: user?.firstName || '',
-                    recorderLastName: user?.lastName || '',
-                  });
-                  setIsMorningCensusReadOnly(false);
-                  setIsCensusAutoCalculated(false);
-                  // Relevant toast already shown above based on status
-               }
+                 // isMorningCensusReadOnly and isCensusAutoCalculated already set above
              } else {
-               // No previous night form or not Morning Shift - set initial structure
+               // No previous night or not approved, or night shift
                setFormData({
                  ...initialFormStructure,
-                 // Set initial recorder names here too
                  recorderFirstName: user?.firstName || '',
                  recorderLastName: user?.lastName || '',
                });
-               setIsMorningCensusReadOnly(false);
+               // isMorningCensusReadOnly and isCensusAutoCalculated already set above or not applicable
              }
              setIsFormReadOnly(false);
-             setIsDraftLoaded(false); // Ensure draft loaded is false if no existing form
+             // isDraftLoaded already set above based on the check
           }
 
+          // Fetch latest draft data (for potential overwrite logic)
           const latestDraft = await getLatestDraftForm(selectedWard, user); 
           setExistingDraftData(latestDraft);
 
         } catch (error) {
           console.error("Error loading existing form data:", error);
-          safeShowToast('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error', 'generalError');
+          showSafeToast('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
           setFormData({}); // Reset to empty object on error
           setIsMorningCensusReadOnly(false);
           setIsFormReadOnly(false);
