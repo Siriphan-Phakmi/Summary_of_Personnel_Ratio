@@ -24,6 +24,7 @@ import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
 import { checkAndCreateDailySummary } from './approvalServices/dailySummary';
 import { isEqual } from 'lodash';
+import { logSystemError } from '@/app/core/utils/logUtils';
 
 /**
  * คอลเลกชันใน Firestore
@@ -50,82 +51,71 @@ const parseDate = (dateStr: string): Date => {
 export const validateFormData = (formData: Partial<WardForm>): {
   isValid: boolean;
   missingFields: string[];
-  errors: Record<string, string>;
+  errors: Record<string, string>; // Return Record for specific field errors
 } => {
-  const requiredFields = [
-    'wardId',
-    'wardName',
-    'date',
-    'shift',
-    'patientCensus',
-    'nurseManager',
-    'rn',
-    'pn',
-    'wc',
-    'newAdmit',
-    'transferIn',
-    'referIn',
-    'transferOut',
-    'referOut',
-    'discharge',
-    'dead',
-    'available',
-    'unavailable',
-    'plannedDischarge',
-    'recorderFirstName',
-    'recorderLastName'
+  // Define required fields (excluding comment)
+  const requiredNumericFields: (keyof WardForm)[] = [
+    'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+    'newAdmit', 'transferIn', 'referIn',
+    'transferOut', 'referOut', 'discharge', 'dead',
+    'available', 'unavailable', 'plannedDischarge'
   ];
-  
+
+  const requiredStringFields: (keyof WardForm)[] = [
+    'recorderFirstName', 'recorderLastName'
+  ];
+
+  // Fields that are always required (part of basic structure)
+  const alwaysRequired: (keyof WardForm)[] = [
+      'wardId', 'wardName', 'date', 'shift'
+  ];
+
+  let isValid = true;
   const missingFields: string[] = [];
-  const errors: Record<string, string> = {};
-  
-  // ตรวจสอบฟิลด์ที่จำเป็น
-  requiredFields.forEach(field => {
-    if (formData[field as keyof typeof formData] === undefined || 
-        formData[field as keyof typeof formData] === null || 
-        formData[field as keyof typeof formData] === '') {
+  const errors: Record<string, string> = {}; 
+
+  // Check always required fields first
+  alwaysRequired.forEach(field => {
+      if (formData[field] === undefined || formData[field] === null || formData[field] === '') {
+          isValid = false;
+          missingFields.push(field);
+          errors[field] = 'ข้อมูลพื้นฐาน (เช่น วอร์ด, วันที่, กะ) ไม่ควรว่าง'; 
+      }
+  });
+
+  // Check required numeric fields
+  requiredNumericFields.forEach(field => {
+    const value = formData[field];
+    // Check for undefined, null, empty string, NaN, or negative numbers
+    // Allow 0 as a valid input
+    if (value === undefined || value === null || value === '' || isNaN(Number(value)) || Number(value) < 0) {
+      // Only consider truly empty values as "missing" for the list, but all invalid states cause validation failure
+      if (value === undefined || value === null || value === '') {
+         missingFields.push(field);
+      }
+      isValid = false;
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
+    }
+  });
+
+  // Check required string fields (allow spaces within names)
+  requiredStringFields.forEach(field => {
+    const value = formData[field];
+    if (!value || typeof value !== 'string' || value.trim() === '') {
+      isValid = false;
       missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูล';
     }
   });
-  
-  // ตรวจสอบค่าตัวเลขต้องไม่ติดลบ
-  const numericFields = [
-    'patientCensus',
-    'nurseManager',
-    'rn',
-    'pn',
-    'wc',
-    'newAdmit',
-    'transferIn',
-    'referIn',
-    'transferOut',
-    'referOut',
-    'discharge',
-    'dead',
-    'available',
-    'unavailable',
-    'plannedDischarge'
-  ];
-  
-  numericFields.forEach(field => {
-    const value = formData[field as keyof typeof formData];
-    if (value !== undefined && typeof value === 'number' && value < 0) {
-      errors[field] = 'ฟิลด์ ต้องไม่เป็นค่าติดลบ';
-    }
-  });
-  
-  // ตรวจสอบวันที่
-  if (formData.date && !(formData.date instanceof Date) && !(formData.date instanceof Timestamp)) {
-    errors['date'] = 'รูปแบบวันที่ไม่ถูกต้อง';
-  }
-  
-  // ตรวจสอบค่าอื่นๆ ตามความต้องการเพิ่มเติม
-  // ...
-  
+
+  // Specific validation logic (examples)
+  // if (formData.patientCensus !== undefined && Number(formData.patientCensus) < 0) { ... }
+  // if (formData.comment && formData.comment.length > 500) { ... }
+
   return {
-    isValid: missingFields.length === 0 && Object.keys(errors).length === 0,
+    isValid,
     missingFields,
-    errors
+    errors // Return the Record object
   };
 };
 
@@ -203,87 +193,74 @@ export const getWardForm = async (
 };
 
 /**
- * ดึงข้อมูลแบบฟอร์มกะดึกล่าสุดของวันก่อนหน้า
- * @param date วันที่ปัจจุบัน
+ * ดึงข้อมูลแบบฟอร์มกะดึกล่าสุดของวันก่อนหน้า (ไม่ว่าสถานะจะเป็นอะไร)
+ * @param date วันที่ปัจจุบัน (Date object)
  * @param wardId รหัสแผนก
  * @returns ข้อมูลแบบฟอร์มกะดึกล่าสุด หรือ null ถ้าไม่พบ
  */
-export const getPreviousNightShiftForm = async (
-  date: Date | Timestamp | string, 
+export const getLatestPreviousNightForm = async (
+  date: Date, 
   wardId: string
 ): Promise<WardForm | null> => {
+  if (!date || !wardId) {
+    console.error("getLatestPreviousNightForm: Missing required parameters", { date, wardId });
+    return null;
+  }
+  
   try {
-    // ตรวจสอบและแปลงพารามิเตอร์ date ให้เป็น Date object
-    let dateObj: Date;
-    if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'object' && date && 'toDate' in date && typeof date.toDate === 'function') {
-      // Timestamp object จาก Firestore
-      dateObj = date.toDate();
-    } else if (typeof date === 'string') {
-      // พยายามแปลงจาก ISO string หรือรูปแบบอื่นๆ
-      dateObj = new Date(date);
-    } else {
-      throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
-    }
-
-    // คำนวณวันก่อนหน้า
-    const previousDate = subDays(dateObj, 1);
-    
-    // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD
-    const dateString = format(previousDate, 'yyyy-MM-dd');
-
-    // Normalize wardId to uppercase
+    const previousDate = subDays(date, 1);
+    const previousDateString = formatDateYMD(previousDate);
     const normalizedWardId = wardId.toUpperCase();
-    
-    console.log(`กำลังค้นหาแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
-    
-    // สร้าง query ใช้ index ที่เหมาะสม (wardId + dateString + shift + status + finalizedAt)
-    const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
+
+    console.log(`[getLatestPrevNight] Querying for latest previous night: wardId=${normalizedWardId}, dateString=${previousDateString}`);
+
     const q = query(
-      wardFormsRef,
-      where('wardId', '==', normalizedWardId), // Use normalized ID
-      where('dateString', '==', dateString),
+      collection(db, COLLECTION_WARDFORMS),
+      where('wardId', '==', normalizedWardId),
+      where('dateString', '==', previousDateString),
       where('shift', '==', ShiftType.NIGHT),
-      // Should we query only approved, or finalized? Assuming approved for now.
-      // where('status', '==', FormStatus.APPROVED), 
-      where('status', 'in', [FormStatus.APPROVED, FormStatus.FINAL]), // Consider FINAL as well? Or just approved? Let's take approved for now.
-      orderBy('finalizedAt', 'desc'), // Need finalizedAt timestamp
+      orderBy('updatedAt', 'desc'), // Order by last update time
       limit(1)
     );
-    
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      console.log(`ไม่พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
+
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      const data = doc.data() as WardForm;
+      console.log(`[getLatestPrevNight] Found form: ID=${doc.id}, Status=${data.status}`);
+      
+      // Convert Timestamps
+      const convertTimestamp = (tsField: any): Date | null => {
+         if (!tsField) return null;
+         if (tsField instanceof Date) return tsField;
+         if (tsField instanceof Timestamp) return tsField.toDate();
+          if (tsField && typeof tsField.seconds === 'number') {
+           return new Timestamp(tsField.seconds, tsField.nanoseconds ?? 0).toDate();
+         }
+         if (typeof tsField === 'object' && '_seconds' in tsField) {
+             return new Timestamp((tsField as any)._seconds, (tsField as any)._nanoseconds).toDate();
+         }
+         try { return new Date(tsField); } catch { return null;}
+      };
+
+      return {
+        ...data,
+        id: doc.id,
+        date: convertTimestamp(data.date),
+        createdAt: convertTimestamp(data.createdAt),
+        updatedAt: convertTimestamp(data.updatedAt),
+        finalizedAt: convertTimestamp(data.finalizedAt),
+        approvedAt: convertTimestamp(data.approvedAt),
+      };
+    } else {
+      console.log(`[getLatestPrevNight] No form found for previous night.`);
       return null;
     }
-    
-    const docSnapshot = querySnapshot.docs[0];
-    const formData = docSnapshot.data() as WardForm;
-    
-    console.log(`พบแบบฟอร์มกะดึกของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id})`);
-    
-    // Ensure date is correctly formatted if needed, potentially convert timestamp
-    const returnData = {
-      ...formData,
-      id: docSnapshot.id,
-       // Convert timestamp back to Date object or string if needed by caller
-       // date: formData.date instanceof Timestamp ? formData.date.toDate() : formData.date 
-    };
-
-    // Add a specific check for totalPatientCensus as used in the hook
-    if (returnData.totalPatientCensus === undefined) {
-        console.warn(`[getPreviousNightShiftForm] Form ${docSnapshot.id} found, but totalPatientCensus is undefined.`);
-    } else {
-        console.log(`[getPreviousNightShiftForm] Found form ${docSnapshot.id} with totalPatientCensus: ${returnData.totalPatientCensus}`);
-    }
-
-
-    return returnData;
   } catch (error) {
-    console.error('Error getting previous night shift form:', error);
-    throw error; // Re-throw error for handling in the hook
+    console.error('Error fetching latest previous night shift form:', error);
+    logSystemError(error as Error, 'getLatestPreviousNightForm', undefined, `wardId: ${wardId}, date: ${formatDateYMD(date)}`);
+    return null;
   }
 };
 
@@ -457,6 +434,14 @@ export const saveMorningShiftFormDraft = async (
     createdAt: formData.createdAt || serverTimestamp(), // Set createdAt on first draft save
   };
 
+  // Remove potentially undefined fields before saving
+  Object.keys(dataToSave).forEach(key => {
+      const fieldKey = key as keyof WardForm;
+      if (dataToSave[fieldKey] === undefined) {
+          delete dataToSave[fieldKey];
+      }
+  });
+
   try {
     await setDoc(formRef, dataToSave, { merge: true }); // Use setDoc with merge:true to create or update
     console.log(`Morning draft saved with ID: ${customId}`);
@@ -539,6 +524,14 @@ export const saveNightShiftFormDraft = async (
     createdAt: formData.createdAt || serverTimestamp(),
   };
 
+  // Remove potentially undefined fields before saving
+  Object.keys(dataToSave).forEach(key => {
+      const fieldKey = key as keyof WardForm;
+      if (dataToSave[fieldKey] === undefined) {
+          delete dataToSave[fieldKey];
+      }
+  });
+
   try {
     await setDoc(formRef, dataToSave, { merge: true });
     console.log(`Night draft saved with ID: ${customId}`);
@@ -575,7 +568,7 @@ export const finalizeNightShiftForm = async (
     createdAt: formData.createdAt || serverTimestamp(),
   };
 
-  // Use type assertion for the key
+  // Remove potentially undefined fields before saving
   Object.keys(dataToSave).forEach(key => {
       const fieldKey = key as keyof WardForm;
       if (dataToSave[fieldKey] === undefined) {

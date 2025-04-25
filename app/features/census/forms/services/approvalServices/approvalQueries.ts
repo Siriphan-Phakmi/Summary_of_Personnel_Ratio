@@ -13,8 +13,8 @@ import {
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { format } from 'date-fns';
-import { ApprovalRecord, DailySummary } from '@/app/core/types/approval';
-import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_SUMMARIES } from './index';
+import { ApprovalRecord, DailySummary, ApprovalHistoryRecord } from '@/app/core/types/approval';
+import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_SUMMARIES, COLLECTION_HISTORY } from './index';
 
 /**
  * ค้นหาแบบฟอร์มตามเงื่อนไขต่างๆ (รองรับ status filter)
@@ -31,72 +31,49 @@ export const getPendingForms = async (
   } = {}
 ): Promise<WardForm[]> => {
   try {
-    const formsRef = collection(db, COLLECTION_WARDFORMS);
+    const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
+    const queryConstraints: QueryConstraint[] = [];
     
-    // สร้าง conditions สำหรับค้นหาแบบ Dynamic
-    const conditions: QueryConstraint[] = [];
-    
-    // เพิ่มเงื่อนไข status
-    if (typeof filters.status === 'string' && filters.status.length > 0) {
-        // ถ้า status เป็น string และไม่ว่างเปล่า ให้ filter ตามนั้น (ใช้ค่า string โดยตรง)
-        conditions.push(where('status', '==', filters.status));
-    } else if (filters.status === undefined) {
-        // ถ้าไม่ได้ระบุ status มาเลย (undefined) ให้ใช้ 'final' เป็นค่าเริ่มต้น
-        conditions.push(where('status', '==', 'final'));
+    // Normalize wardId to uppercase if provided
+    const normalizedWardId = filters.wardId?.toUpperCase();
+
+    if (filters.startDate) {
+      queryConstraints.push(where('date', '>=', Timestamp.fromDate(filters.startDate)));
     }
-    // ถ้า filters.status เป็นค่าว่าง ('') หรือชนิดข้อมูลอื่น จะไม่เพิ่มเงื่อนไข status (ดึงทุกสถานะ)
-    
-    // เพิ่มเงื่อนไข wardId
-    if (filters.wardId) {
-      conditions.push(where('wardId', '==', filters.wardId));
+    if (filters.endDate) {
+      queryConstraints.push(where('date', '<=', Timestamp.fromDate(filters.endDate)));
     }
-    
-    // เพิ่มเงื่อนไข shift
+    if (normalizedWardId) {
+      queryConstraints.push(where('wardId', '==', normalizedWardId));
+    }
     if (filters.shift) {
-      conditions.push(where('shift', '==', filters.shift));
+      queryConstraints.push(where('shift', '==', filters.shift));
+    }
+    // Handle status filter: only add if status is provided and not an empty string
+    if (typeof filters.status === 'string' && filters.status !== '') {
+      queryConstraints.push(where('status', '==', filters.status as FormStatus));
     }
     
-    // เพิ่มเงื่อนไข dateString
-    if (filters.startDate && filters.endDate) {
-      const startDateString = format(filters.startDate, 'yyyy-MM-dd');
-      const endDateString = format(filters.endDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '>=', startDateString));
-      conditions.push(where('dateString', '<=', endDateString));
-    } else if (filters.startDate) {
-      const startDateString = format(filters.startDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '>=', startDateString));
-    } else if (filters.endDate) {
-      const endDateString = format(filters.endDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '<=', endDateString));
-    }
+    // Add default ordering
+    queryConstraints.push(orderBy('date', 'desc'));
+    queryConstraints.push(orderBy('shift', 'asc'));
     
-    // สร้าง query
-    const formsQuery = query(
-      formsRef,
-      ...conditions,
-      orderBy('dateString', 'desc'),
-      orderBy('wardId', 'asc'),
-      orderBy('shift', 'asc')
-    );
+    console.log('[getPendingForms] Querying with constraints:', queryConstraints.map(c => c.type));
     
-    console.log('[getPendingForms] Executing query with conditions:', conditions.map(c => c.type));
+    const q = query(wardFormsRef, ...queryConstraints);
+    const querySnapshot = await getDocs(q);
     
-    const formDocs = await getDocs(formsQuery);
-    
-    // แปลงข้อมูลเอกสารเป็น objects
-    const forms: WardForm[] = formDocs.docs.map(doc => ({
-      ...(doc.data() as WardForm),
-      id: doc.id
-    }));
-    
-    console.log(`[getPendingForms] Found ${forms.length} forms matching criteria.`);
+    console.log(`[getPendingForms] Found ${querySnapshot.size} documents.`);
+
+    const forms: WardForm[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as Omit<WardForm, 'id'>;
+      forms.push({ ...data, id: doc.id });
+    });
+
     return forms;
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('query requires an index') || error.message.includes('needs an index'))) {
-      console.warn(`[getPendingForms] Firestore index required and might be building or missing: ${error.message}. Returning empty array for now.`);
-      return [];
-    }
-    console.error('Error fetching forms (getPendingForms):', error);
+    console.error('Error fetching pending forms:', error);
     throw error;
   }
 };
@@ -182,44 +159,28 @@ export const getDailySummaries = async (
 ): Promise<DailySummary[]> => {
   try {
     const summariesRef = collection(db, COLLECTION_SUMMARIES);
+    const queryConstraints: QueryConstraint[] = [];
     
-    // สร้าง conditions สำหรับค้นหา
-    const conditions: any[] = [];
-    
-    // เพิ่มเงื่อนไขตามที่ระบุ
+    if (filters.startDate) {
+      queryConstraints.push(where('date', '>=', Timestamp.fromDate(filters.startDate)));
+    }
+    if (filters.endDate) {
+      queryConstraints.push(where('date', '<=', Timestamp.fromDate(filters.endDate)));
+    }
     if (filters.wardId) {
-      conditions.push(where('wardId', '==', filters.wardId));
+      queryConstraints.push(where('wardId', '==', filters.wardId.toUpperCase()));
     }
-    
-    if (filters.startDate && filters.endDate) {
-      // แปลงวันที่เป็น string สำหรับค้นหา
-      const startDateString = format(filters.startDate, 'yyyy-MM-dd');
-      const endDateString = format(filters.endDate, 'yyyy-MM-dd');
-      
-      conditions.push(where('dateString', '>=', startDateString));
-      conditions.push(where('dateString', '<=', endDateString));
-    } else if (filters.startDate) {
-      const startDateString = format(filters.startDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '>=', startDateString));
-    } else if (filters.endDate) {
-      const endDateString = format(filters.endDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '<=', endDateString));
-    }
-    
-    // สร้าง query
-    const summariesQuery = query(
-      summariesRef,
-      ...conditions,
-      orderBy('dateString', 'desc')
-    );
-    
-    const summaryDocs = await getDocs(summariesQuery);
-    
-    // แปลงข้อมูลเอกสารเป็น objects
-    const summaries: DailySummary[] = summaryDocs.docs.map(doc => ({
-      ...(doc.data() as DailySummary),
-      id: doc.id
-    }));
+
+    // Order by date descending by default
+    queryConstraints.push(orderBy('date', 'desc'));
+
+    const q = query(summariesRef, ...queryConstraints);
+    const querySnapshot = await getDocs(q);
+
+    const summaries: DailySummary[] = [];
+    querySnapshot.forEach((doc) => {
+      summaries.push({ ...(doc.data() as DailySummary), id: doc.id });
+    });
     
     return summaries;
   } catch (error) {
@@ -257,6 +218,37 @@ export const getApprovalHistory = async (formId: string): Promise<ApprovalRecord
     return approvals;
   } catch (error) {
     console.error('Error fetching approval history:', error);
+    throw error;
+  }
+};
+
+/**
+ * ดึงประวัติการอนุมัติ/ปฏิเสธของแบบฟอร์มที่ระบุ
+ * @param formId รหัสของ WardForm
+ * @returns รายการประวัติ เรียงตามเวลาล่าสุดก่อน
+ */
+export const getApprovalHistoryByFormId = async (formId: string): Promise<ApprovalHistoryRecord[]> => {
+  if (!formId) {
+    console.warn('[getApprovalHistoryByFormId] formId is required.');
+    return [];
+  }
+  try {
+    const historyRef = collection(db, COLLECTION_HISTORY);
+    const q = query(
+      historyRef,
+      where('formId', '==', formId),
+      orderBy('timestamp', 'desc') // เรียงตามเวลาล่าสุดขึ้นก่อน
+    );
+
+    const querySnapshot = await getDocs(q);
+    const history: ApprovalHistoryRecord[] = [];
+    querySnapshot.forEach((doc) => {
+      history.push({ ...(doc.data() as ApprovalHistoryRecord), id: doc.id });
+    });
+
+    return history;
+  } catch (error) {
+    console.error(`Error fetching approval history for form ${formId}:`, error);
     throw error;
   }
 }; 

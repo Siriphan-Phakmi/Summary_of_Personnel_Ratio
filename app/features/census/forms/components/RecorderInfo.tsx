@@ -39,8 +39,7 @@ const RecorderInfo: React.FC<RecorderInfoProps> = ({
           className={twMerge(
             "form-input", 
             isReadOnly && "bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed",
-            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600",
-             errors.recorderFirstName && "!border-red-500 dark:!border-red-600 !focus:ring-red-500 dark:!focus:ring-red-600 !bg-red-50 dark:!bg-red-900/20" 
+            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600"
           )}
         />
         <Input
@@ -52,11 +51,10 @@ const RecorderInfo: React.FC<RecorderInfoProps> = ({
           error={errors.recorderLastName}
           placeholder="กรอกนามสกุล"
           readOnly={isReadOnly}
-           className={twMerge(
+          className={twMerge(
             "form-input", 
             isReadOnly && "bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed",
-            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600",
-            errors.recorderLastName && "!border-red-500 dark:!border-red-600 !focus:ring-red-500 dark:!focus:ring-red-600 !bg-red-50 dark:!bg-red-900/20" 
+            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600"
           )}
         />
       </div>

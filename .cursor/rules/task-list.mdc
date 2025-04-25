@@ -25,7 +25,7 @@ Workflow แบบละเอียดแต่ละหน้า
 1.เมื่อผู้ใช้งาน login ด้วย role Username ผมสร้าง Database ไว้ใน Firebase อยู่เเล้ว
 - User จะนำทางไปที่ หน้า Form และ จะเห็น Navbar Bar = Form, Approval, Dashboard หรือเห็นตามที่กำหนด Role จากผู้ดูเเลระบบ
 - Admin จะนำทางไปที่ หน้า Approval จะเห็น Navbar Bar = WardForm, Approval, Dashboard, User Management 
-- มี User Developer จะนำทางไปที่ หน้า Approval จะเห็น Navbar Bar = Form, Approval, Dashboard, User Management,Database Management
+- มี User Developer จะนำทางไปที่ หน้า Approval จะเห็น Navbar Bar = Form, Approval, Dashboard, User Management,Database Management, เดี๋ยวเป็นหน้า api ที่ซ้อนไว้ dev-tools 
 - Database Management จะไว้เพื่อ Register ต่างๆ เพิ่ม,แก้ไข,ลบ Database ได้ สำหรับจัดการจาก Developer
 2. เมื่อมีการ Login Username เดียวกัน คนที่ Login ก่อนหน้าจะหลุด Connectc และ logout เด้งออกมาหน้า Login ทันที ,ง่าย Login พร้อมกันไม่ได้เลย
 3. ไม่มีหน้า Register เพราะ Register จาก Admin หรือผู้ดูเเลระบบเท่านั้น

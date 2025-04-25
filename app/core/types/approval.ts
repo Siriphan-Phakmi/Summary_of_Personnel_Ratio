@@ -1,6 +1,7 @@
 import { TimestampField } from './user';
 import { ShiftType } from './user';
 import { Timestamp } from 'firebase/firestore';
+import { ShiftType as WardShiftType } from './ward';
 
 /**
  * สถานะการอนุมัติแบบฟอร์ม
@@ -30,6 +31,23 @@ export interface ApprovalRecord {
   note: string;            // หมายเหตุการอนุมัติ
   createdAt?: TimestampField; // เวลาที่สร้าง
   updatedAt?: TimestampField; // เวลาที่อัพเดทล่าสุด
+}
+
+/**
+ * บันทึกประวัติการอนุมัติ/ปฏิเสธแบบฟอร์ม
+ */
+export interface ApprovalHistoryRecord {
+  id?: string;                // Auto-generated ID
+  formId: string;             // ID ของ WardForm ที่เกี่ยวข้อง
+  wardId: string;
+  wardName: string;
+  date: Timestamp;            // วันที่ของ Form
+  shift: ShiftType;           // กะของ Form
+  action: 'APPROVED' | 'REJECTED'; // การดำเนินการ
+  actorUid: string;           // UID ของผู้อนุมัติ/ปฏิเสธ
+  actorName: string;          // ชื่อผู้อนุมัติ/ปฏิเสธ (เพื่อแสดงผล)
+  timestamp: Timestamp;         // เวลาที่ดำเนินการ
+  reason?: string;            // เหตุผล (กรณี REJECTED)
 }
 
 /**

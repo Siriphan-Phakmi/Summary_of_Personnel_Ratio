@@ -2,9 +2,15 @@
 
 import React, { ChangeEvent } from 'react';
 import Input from '@/app/core/ui/Input'; // Assuming Input component exists
-import { WardForm } from '@/app/core/types/ward';
-import { ShiftType } from '@/app/core/types/user';
+import { WardForm, ShiftType } from '@/app/core/types/ward';
+import { TimestampField } from '@/app/core/types/user';
 import { twMerge } from 'tailwind-merge';
+import { clsx } from 'clsx';
+
+// Use the extended state type from useWardFormData
+type WardFormDataState = Partial<Omit<WardForm, 'patientCensus' | 'nurseManager' | 'rn' | 'pn' | 'wc' | 'newAdmit' | 'transferIn' | 'referIn' | 'transferOut' | 'referOut' | 'discharge' | 'dead' | 'available' | 'unavailable' | 'plannedDischarge'> & {
+    [K in 'patientCensus' | 'nurseManager' | 'rn' | 'pn' | 'wc' | 'newAdmit' | 'transferIn' | 'referIn' | 'transferOut' | 'referOut' | 'discharge' | 'dead' | 'available' | 'unavailable' | 'plannedDischarge']: string | number;
+}>;
 
 interface CensusInputFieldsProps {
   formData: Partial<WardForm>;
@@ -36,7 +42,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     id: fieldName,
     name: fieldName,
     label: label,
-    value: formData[fieldName]?.toString() ?? '',
+    value: (formData[fieldName] as string | number) ?? '',
     onChange: handleChange,
     error: errors[fieldName],
     placeholder: placeholder,
@@ -46,6 +52,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     min: type === 'number' ? "0" : undefined,
     inputMode: type === 'number' ? "numeric" as const : undefined,
     pattern: type === 'number' ? "[0-9]*" : undefined,
+    required: type === 'number', // ทุก field ที่เป็นตัวเลขเป็น required
   });
 
   return (
@@ -60,7 +67,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           className={twMerge(
              "form-input",
              patientCensusReadOnly && "bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed",
-             !patientCensusReadOnly && "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400"
+             !patientCensusReadOnly && "border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400",
            )}
         />
         {/* Display explanation if census is auto-calculated and read-only */}
@@ -115,7 +122,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
 
       {/* Comment */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-        <label htmlFor="comment" className="form-label">Comment (หมายเหตุ)</label>
+        <label htmlFor="comment" className="form-label block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Comment (หมายเหตุ)</label>
         <textarea
           id="comment"
           name="comment"
@@ -124,9 +131,9 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           onChange={handleChange}
           readOnly={isReadOnly}
           placeholder="รายละเอียดเพิ่มเติม"
-          className={`form-input resize-none ${errors.comment ? 'border-red-500' : ''} ${isReadOnly ? 'bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed' : 'border-gray-300 dark:border-gray-600'}`}
+          className={`form-input resize-none ${errors.comment ? 'border-red-500 border-2' : ''} ${isReadOnly ? 'bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed' : 'border-gray-300 dark:border-gray-600'}`}
         />
-        {errors.comment && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.comment}</p>}
+        {errors.comment && <p className="text-sm text-red-600 dark:text-red-400 font-medium mt-1">{errors.comment}</p>}
       </div>
     </>
   );

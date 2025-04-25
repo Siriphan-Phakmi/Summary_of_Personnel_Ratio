@@ -14,7 +14,7 @@ const inputVariants = cva(
         default: "border-input bg-background focus-visible:ring-1 focus-visible:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus-visible:ring-blue-600",
         outline: "border-gray-300 bg-transparent focus-visible:border-blue-600 dark:border-gray-600 dark:text-gray-100",
         ghost: "border-none shadow-none bg-transparent focus-visible:ring-1 focus-visible:ring-blue-500 dark:text-gray-100",
-        error: "border-red-500 bg-red-50 text-red-900 focus-visible:ring-1 focus-visible:ring-red-500 dark:border-red-600 dark:bg-red-900/10 dark:text-red-300",
+        error: "border-red-500 border-2 bg-red-50 text-red-900 focus-visible:ring-1 focus-visible:ring-red-500 dark:border-red-600 dark:bg-red-900/10 dark:text-red-300",
       },
       // Size variations
       inputSize: {
@@ -43,6 +43,7 @@ export interface InputProps
   error?: string;
   label?: string;
   helperText?: string;
+  required?: boolean;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -54,6 +55,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     error, 
     label,
     helperText,
+    required,
     type = "text",
     ...props 
   }, ref) => {
@@ -69,6 +71,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             {label}
+            {required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
         
@@ -82,13 +85,21 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               className 
             })
           )}
+          aria-invalid={error ? "true" : "false"}
+          aria-describedby={error ? `${props.id}-error` : undefined}
           ref={ref}
+          required={required}
           {...props}
         />
         
         {/* Show error message if there's an error */}
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p 
+            id={`${props.id}-error`}
+            className="text-sm text-red-600 dark:text-red-400 font-medium"
+          >
+            {error}
+          </p>
         )}
         
         {/* Show helper text if provided and no error */}

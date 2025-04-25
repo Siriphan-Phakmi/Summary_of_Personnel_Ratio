@@ -93,9 +93,11 @@ export default function DailyCensusForm() {
   const { 
     handleSaveDraft,
     handleFinalizeForm,
-    isConfirmModalOpen,
+    isConfirmModalOpen, 
     handleConfirmSaveDraft,
     handleCloseConfirmModal,
+    isSaveButtonDisabled,
+    isFinalizeButtonDisabled
   } = useFormPersistence({
     formData,
     setFormData,
@@ -117,6 +119,11 @@ export default function DailyCensusForm() {
     setIsNightShiftDisabled: setShiftHookNightDisabled,
     isMorningCensusReadOnly,
   });
+
+  // Wrapper function for handleSaveDraft to match onClick signature
+  const triggerSaveDraft = () => {
+    handleSaveDraft(); // Call without args, isOverwrite defaults to false
+  };
 
   useEffect(() => {
     setIsFormReadOnly(dataFormReadOnly);
@@ -159,9 +166,9 @@ export default function DailyCensusForm() {
             <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 border border-gray-200 dark:border-gray-700">
               {/* Ward and Date Selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
+              <div>
                   <label htmlFor="ward" className="form-label">หอผู้ป่วย (Ward)</label>
-                  <select 
+                <select 
                     id="ward"
                     name="ward"
                     value={selectedWard}
@@ -170,12 +177,12 @@ export default function DailyCensusForm() {
                     disabled={isSaving || isFormReadOnly}
                   >
                     <option value="" disabled>-- เลือกหอผู้ป่วย --</option>
-                    {wards.map((ward) => (
+                  {wards.map((ward) => (
                       <option key={ward.id} value={ward.id}>{ward.wardName}</option>
-                    ))}
-                  </select>
+                  ))}
+                </select>
                 </div>
-                <div>
+                    <div>
                   <label htmlFor="date" className="form-label">วันที่ (Date)</label>
                   <Input
                     type="date"
@@ -226,9 +233,9 @@ export default function DailyCensusForm() {
               <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
                 <Button
                   variant="secondary"
-                  onClick={handleSaveDraft}
+                  onClick={triggerSaveDraft}
                   isLoading={isSaving}
-                  disabled={isFormReadOnly || isSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
+                  disabled={isFormReadOnly || isSaving || isSaveButtonDisabled || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
                   leftIcon={<FiSave />}
                   loadingText="กำลังบันทึกร่าง..."
                   className="w-full sm:w-auto"
@@ -239,7 +246,7 @@ export default function DailyCensusForm() {
                   variant="primary"
                   onClick={handleFinalizeForm}
                   isLoading={isSaving}
-                  disabled={isFormReadOnly || isSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
+                  disabled={isFormReadOnly || isSaving || isFinalizeButtonDisabled || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED}
                   leftIcon={<FiCheckSquare />}
                   loadingText="กำลังบันทึกสมบูรณ์..."
                   className="w-full sm:w-auto"

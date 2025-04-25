@@ -5,7 +5,8 @@
 // ค่าคงที่สำหรับคอลเลกชันใน Firestore
 export const COLLECTION_WARDFORMS = 'wardForms';
 export const COLLECTION_APPROVALS = 'approvals';
-export const COLLECTION_SUMMARIES = 'dailySummaries';
+export const COLLECTION_SUMMARIES = 'summaries';
+export const COLLECTION_HISTORY = 'approvalHistory';
 
 // Export from modules
 export * from './approvalForms';

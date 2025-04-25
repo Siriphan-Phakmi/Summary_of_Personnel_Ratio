@@ -4,12 +4,14 @@ import {
   addDoc,
   updateDoc,
   collection,
-  serverTimestamp
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, FormStatus, FormApproval } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
-import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS } from './index';
+import { ApprovalHistoryRecord } from '@/app/core/types/approval';
+import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_HISTORY } from './index';
 import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
 
 /**
@@ -40,31 +42,51 @@ export const rejectForm = async (
       throw new Error('ไม่สามารถปฏิเสธแบบฟอร์มได้ เนื่องจากแบบฟอร์มยังไม่พร้อมให้อนุมัติ');
     }
     
+    const now = new Date();
+    const serverTime = serverTimestamp();
+
     // ปรับปรุงสถานะของแบบฟอร์มเป็น REJECTED
     await updateDoc(formRef, {
       status: FormStatus.REJECTED,
-      updatedAt: createServerTimestamp()
+      updatedAt: serverTime,
+      rejectedAt: serverTime,
+      rejectedBy: approver.uid,
+      rejectionReason: rejectionReason
     });
     
-    // สร้างข้อมูลการปฏิเสธ
-    const rejectionData: FormApproval = {
-      formId,
-      wardId: formData.wardId,
-      wardName: formData.wardName,
-      date: formData.date,
-      shift: formData.shift,
-      status: 'rejected',
-      approvedBy: approver.uid,
-      approverFirstName: approver.firstName || '',
-      approverLastName: approver.lastName || '',
-      approvedAt: createServerTimestamp(),
-      rejectionReason
+    // บันทึกประวัติการดำเนินการ (Approval History)
+    let formDateForHistory: Timestamp;
+    if (formData.date instanceof Timestamp) {
+        formDateForHistory = formData.date;
+    } else if (formData.date instanceof Date) {
+        formDateForHistory = Timestamp.fromDate(formData.date);
+    } else if (typeof formData.date === 'string') {
+        try {
+            formDateForHistory = Timestamp.fromDate(new Date(formData.date + 'T00:00:00Z'));
+        } catch (e) {
+             console.error('Error parsing date string for history record:', formData.date, e);
+             formDateForHistory = Timestamp.now();
+        }
+    } else {
+        console.warn('Invalid date type for history record, using current time as fallback.');
+        formDateForHistory = Timestamp.now();
+    }
+
+    const historyRecord: ApprovalHistoryRecord = {
+        formId,
+        wardId: formData.wardId,
+        wardName: formData.wardName,
+        date: formDateForHistory,
+        shift: formData.shift,
+        action: 'REJECTED',
+        actorUid: approver.uid,
+        actorName: `${approver.firstName || ''} ${approver.lastName || ''}`.trim(),
+        timestamp: Timestamp.fromDate(now),
+        reason: rejectionReason,
     };
+    await addDoc(collection(db, COLLECTION_HISTORY), historyRecord);
     
-    // บันทึกข้อมูลการปฏิเสธ
-    const rejectionRef = await addDoc(collection(db, COLLECTION_APPROVALS), rejectionData);
-    
-    return rejectionRef.id;
+    return formId;
   } catch (error) {
     console.error('Error rejecting form:', error);
     throw error;
