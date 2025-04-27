@@ -15,7 +15,7 @@ import {
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { DailySummary } from '@/app/core/types/approval';
 import { COLLECTION_WARDFORMS, COLLECTION_SUMMARIES } from './index';
 import { createServerTimestamp } from '@/app/core/utils/dateUtils';
@@ -455,34 +455,137 @@ export const getApprovedSummariesByDateRange = async (
   endDate: Date
 ): Promise<DailySummary[]> => {
   try {
-    // แปลงวันที่เป็น timestamp สำหรับ firestore
-    const startTimestamp = Timestamp.fromDate(new Date(startDate));
-    const endTimestamp = Timestamp.fromDate(new Date(endDate));
-    endTimestamp.toDate().setHours(23, 59, 59, 999); // ตั้งค่าให้เป็นสิ้นสุดวัน
-
-    // สร้าง query เพื่อดึงข้อมูล
+    // ปรับวันให้เป็นวันที่ 00:00:00 และ 23:59:59 ตามลำดับ
+    const startDateTimestamp = startOfDay(startDate);
+    const endDateTimestamp = endOfDay(endDate);
+    
+    console.log(`Fetching approved summaries for ward ${wardId} from ${startDateTimestamp} to ${endDateTimestamp}`);
+    
+    // สร้างเงื่อนไขสำหรับการค้นหา
     const summariesRef = collection(db, COLLECTION_SUMMARIES);
     const q = query(
       summariesRef,
-      where("wardId", "==", wardId),
-      where("approvalStatus", "==", "approved"),
-      where("date", ">=", startTimestamp),
-      where("date", "<=", endTimestamp),
-      orderBy("date", "asc")
+      where('wardId', '==', wardId),
+      where('allFormsApproved', '==', true),
+      where('date', '>=', startDateTimestamp),
+      where('date', '<=', endDateTimestamp),
+      orderBy('date', 'desc')
     );
     
     // ดึงข้อมูลจาก Firestore
     const querySnapshot = await getDocs(q);
     
-    // แปลงข้อมูลเอกสารเป็น DailySummary[]
-    const summaries: DailySummary[] = querySnapshot.docs.map(doc => ({
-      ...(doc.data() as DailySummary),
-      id: doc.id
-    }));
+    // แปลงข้อมูลใน Snapshot เป็น Array ของ DailySummary
+    const summaries: DailySummary[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as DailySummary;
+      
+      // ตรวจสอบรูปแบบของ date และแปลงให้เป็น Timestamp ที่ถูกต้อง
+      let dateField = data.date;
+      if (dateField && !(dateField instanceof Timestamp)) {
+        // แปลงเป็น timestamp อย่างปลอดภัย
+        try {
+          // กรณีเป็น object ที่มี seconds และ nanoseconds
+          if (typeof dateField === 'object' && 'seconds' in dateField && 'nanoseconds' in dateField) {
+            dateField = new Timestamp(dateField.seconds as number, dateField.nanoseconds as number);
+          } 
+          // กรณีเป็น Date object
+          else if (dateField instanceof Date) {
+            dateField = Timestamp.fromDate(dateField);
+          }
+          // กรณีเป็น string (ISO format)
+          else if (typeof dateField === 'string') {
+            dateField = Timestamp.fromDate(new Date(dateField));
+          }
+        } catch (e) {
+          console.warn('Failed to convert date to Timestamp:', e);
+          // ถ้าแปลงไม่ได้ให้ใช้วันที่ปัจจุบัน
+          dateField = Timestamp.fromDate(new Date());
+        }
+      }
+      
+      summaries.push({
+        ...data,
+        id: doc.id,
+        date: dateField
+      });
+    });
     
-    return summaries;
+    console.log(`Found ${summaries.length} approved summaries`);
+    
+    // ถ้าไม่มีผลลัพธ์ให้โหลดด้วยการใช้ dateString แทน
+    if (summaries.length === 0) {
+      // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      
+      console.log(`Trying alternative query with dateString from ${startDateStr} to ${endDateStr}`);
+      
+      // สร้างเงื่อนไขสำหรับการค้นหาด้วย dateString
+      const altQuery = query(
+        summariesRef,
+        where('wardId', '==', wardId),
+        where('allFormsApproved', '==', true),
+        where('dateString', '>=', startDateStr),
+        where('dateString', '<=', endDateStr),
+        orderBy('dateString', 'desc')
+      );
+      
+      // ดึงข้อมูลจาก Firestore
+      const altQuerySnapshot = await getDocs(altQuery);
+      
+      // แปลงข้อมูลใน Snapshot เป็น Array ของ DailySummary
+      altQuerySnapshot.forEach((doc) => {
+        const data = doc.data() as DailySummary;
+        
+        // ตรวจสอบรูปแบบของ date และแปลงให้เป็น Timestamp ที่ถูกต้อง
+        let dateField = data.date;
+        if (dateField && !(dateField instanceof Timestamp)) {
+          // แปลงเป็น timestamp อย่างปลอดภัย
+          try {
+            // กรณีเป็น object ที่มี seconds และ nanoseconds
+            if (typeof dateField === 'object' && 'seconds' in dateField && 'nanoseconds' in dateField) {
+              dateField = new Timestamp(dateField.seconds as number, dateField.nanoseconds as number);
+            } 
+            // กรณีเป็น Date object
+            else if (dateField instanceof Date) {
+              dateField = Timestamp.fromDate(dateField);
+            }
+            // กรณีเป็น string (ISO format)
+            else if (typeof dateField === 'string') {
+              dateField = Timestamp.fromDate(new Date(dateField));
+            }
+          } catch (e) {
+            console.warn('Failed to convert date to Timestamp:', e);
+            // ถ้าแปลงไม่ได้ให้ใช้วันที่ปัจจุบัน
+            dateField = Timestamp.fromDate(new Date());
+          }
+        }
+        
+        summaries.push({
+          ...data,
+          id: doc.id,
+          date: dateField
+        });
+      });
+      
+      console.log(`Found ${summaries.length} approved summaries with alternative query`);
+    }
+    
+    // เรียงลำดับตามวันที่
+    return summaries.sort((a, b) => {
+      const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+      const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+      return dateB.getTime() - dateA.getTime();
+    });
   } catch (error) {
-    console.error('Error fetching approved daily summaries by date range:', error);
+    console.error('Error fetching approved summaries by date range:', error);
+    
+    // ตรวจสอบว่าเป็น error จาก index หรือไม่
+    if (error instanceof Error && error.message.includes('index')) {
+      console.error('Index error detected, may need to create an index for this query');
+    }
+    
     throw error;
   }
 };

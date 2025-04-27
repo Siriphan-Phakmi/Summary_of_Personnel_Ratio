@@ -2,10 +2,13 @@
  * Export all approval services ที่แยกไฟล์ย่อย
  */
 
-// ค่าคงที่สำหรับคอลเลกชันใน Firestore
-export const COLLECTION_WARDFORMS = 'wardForms';
-export const COLLECTION_APPROVALS = 'approvals';
-export const COLLECTION_SUMMARIES = 'summaries';
+// นำเข้าค่าคงที่จาก wardFormService แทนการนิยามซ้ำ
+import { COLLECTION_WARDFORMS, COLLECTION_WARDS, COLLECTION_APPROVALS, COLLECTION_SUMMARIES } from '../wardFormService';
+
+// Export ค่าคงที่เพื่อให้ไฟล์อื่นๆ ใช้งานได้
+export { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_SUMMARIES };
+
+// เพิ่มค่าคงที่ที่ใช้เฉพาะใน approval services
 export const COLLECTION_HISTORY = 'approvalHistory';
 
 // Export from modules

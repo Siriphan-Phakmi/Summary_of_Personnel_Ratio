@@ -3,7 +3,15 @@
 import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
-import { getWardForm, getLatestPreviousNightForm, getLatestDraftForm } from '../services/wardFormService';
+import { 
+  getWardForm, 
+  getLatestPreviousNightForm, 
+  getLatestDraftForm,
+  saveMorningShiftFormDraft,
+  saveNightShiftFormDraft,
+  finalizeMorningShiftForm,
+  finalizeNightShiftForm
+} from '../services/wardFormService';
 import { showInfoToast, showErrorToast, showSafeToast } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -57,14 +65,12 @@ export const useWardFormData = ({
   const [isMorningCensusReadOnly, setIsMorningCensusReadOnly] = useState(false);
   const [isFormReadOnly, setIsFormReadOnly] = useState(false);
   const [isCensusAutoCalculated, setIsCensusAutoCalculated] = useState(false);
-  const toastShownRef = useRef({ morning: false, night: false, error: false, load: false, final: false, draft: false }); // Ref to track toasts, added final/draft
   const [error, setError] = useState<string | null>(null); // General error state
   const [isDraftLoaded, setIsDraftLoaded] = useState(false); // Indicates if CURRENTLY displayed data is a loaded draft
   const [isFinalDataFound, setIsFinalDataFound] = useState(false); // NEW: Indicates if FINAL data exists for the selection
 
   useEffect(() => {
     // Reset states dependent on selection change
-    toastShownRef.current = { morning: false, night: false, error: false, load: false, final: false, draft: false }; // Reset toasts on change
     setError(null);
     setErrors({}); // Clear errors on selection change
 
@@ -140,10 +146,9 @@ export const useWardFormData = ({
                     setIsFinalDataFound(true);
                     setIsFormReadOnly(true); // Read-only if Final/Approved
                     setIsDraftLoaded(false);
-                    if (!toastShownRef.current.final) {
-                       showSafeToast(`ข้อมูลบันทึกสมบูรณ์/อนุมัติสำหรับกะนี้ ถูกโหลดแล้ว (อ่านอย่างเดียว)`, 'info');
-                       toastShownRef.current.final = true;
-                    }
+                    // Use specific ID for toast
+                    showSafeToast(`ข้อมูลบันทึกสมบูรณ์/อนุมัติสำหรับกะนี้ ถูกโหลดแล้ว (อ่านอย่างเดียว)`, 'info', { id: `load-final-${selectedWard}-${selectedDate}-${selectedShift}` });
+                    
                     // For morning shift final data, the census value is already loaded,
                     // determine read-only based on whether it was auto-calculated (though it should match the saved value)
                      if (selectedShift === ShiftType.MORNING) {
@@ -158,10 +163,8 @@ export const useWardFormData = ({
                     setIsFinalDataFound(false);
                     setIsFormReadOnly(false); // Editable if Draft
                     setIsDraftLoaded(true); // Set flag indicating current data is a loaded draft
-                    if (!toastShownRef.current.draft) {
-                       showSafeToast("กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้", 'warning'); // Use warning color for draft
-                       toastShownRef.current.draft = true;
-                    }
+                    // Use specific ID for toast
+                    showSafeToast("กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้", 'warning', { id: `load-draft-${selectedWard}-${selectedDate}-${selectedShift}` }); // Use warning color for draft
                      if (selectedShift === ShiftType.MORNING) {
                         // If draft for morning, it's editable, census not forced read-only from previous night
                         setIsMorningCensusReadOnly(false);
@@ -190,7 +193,8 @@ export const useWardFormData = ({
                        previousNightForm = await getLatestPreviousNightForm(targetDate, selectedWard);
                     } catch (prevNightError) {
                          console.error("Error fetching previous night form:", prevNightError);
-                         showSafeToast('เกิดข้อผิดพลาดในการดึงข้อมูลกะกลางคืนก่อนหน้า', 'error');
+                         // Use specific ID for toast
+                         showSafeToast('เกิดข้อผิดพลาดในการดึงข้อมูลกะกลางคืนก่อนหน้า', 'error', { id: `load-prev-night-error-${selectedWard}-${selectedDate}` });
                     }
 
                     if (previousNightForm?.patientCensus !== undefined) {
@@ -198,30 +202,24 @@ export const useWardFormData = ({
                             initialData.patientCensus = Number(previousNightForm.patientCensus);
                             setIsMorningCensusReadOnly(true);
                             setIsCensusAutoCalculated(true);
-                             if (!toastShownRef.current.morning) {
-                                showSafeToast('Patient Census ถูกดึงจากข้อมูลกะดึก (อนุมัติแล้ว)', 'info');
-                                toastShownRef.current.morning = true;
-                             }
+                            // Use specific ID for toast
+                            showSafeToast('Patient Census ถูกดึงจากข้อมูลกะดึก (อนุมัติแล้ว)', 'info', { id: `load-prev-night-census-${selectedWard}-${selectedDate}` });
                         } else {
                              setIsMorningCensusReadOnly(false);
                              setIsCensusAutoCalculated(false);
-                              if (!toastShownRef.current.morning) {
-                                  const message = previousNightForm.status === FormStatus.FINAL
-                                      ? 'ข้อมูล Save Final กะดึกยังไม่ได้ Approval กรุณาติดต่อฝ่ายการ/Surveyor'
-                                      : previousNightForm.status === FormStatus.DRAFT
-                                          ? 'ข้อมูล Save Draft กะดึกยังไม่สมบูรณ์/อนุมัติ'
-                                          : 'ข้อมูลกะดึกยังไม่สมบูรณ์/อนุมัติ';
-                                  showSafeToast(`${message}. Patient Census จะไม่ถูกโหลดอัตโนมัติ`, 'warning');
-                                  toastShownRef.current.morning = true;
-                              }
+                             // Use specific ID for toast
+                             const message = previousNightForm.status === FormStatus.FINAL
+                                 ? 'ข้อมูล Save Final กะดึกยังไม่ได้ Approval กรุณาติดต่อฝ่ายการ/Surveyor'
+                                 : previousNightForm.status === FormStatus.DRAFT
+                                     ? 'ข้อมูล Save Draft กะดึกยังไม่สมบูรณ์/อนุมัติ'
+                                     : 'ข้อมูลกะดึกยังไม่สมบูรณ์/อนุมัติ';
+                             showSafeToast(`${message}. Patient Census จะไม่ถูกโหลดอัตโนมัติ`, 'warning', { id: `load-prev-night-status-${selectedWard}-${selectedDate}` });
                         }
                     } else {
                          setIsMorningCensusReadOnly(false);
                          setIsCensusAutoCalculated(false);
-                          if (!toastShownRef.current.morning) {
-                             showSafeToast('ไม่พบข้อมูล Patient Census จากกะดึกคืนก่อน', 'warning');
-                             toastShownRef.current.morning = true;
-                          }
+                         // Use specific ID for toast
+                         showSafeToast('ไม่พบข้อมูล Patient Census จากกะดึกคืนก่อน', 'warning', { id: `load-prev-night-missing-${selectedWard}-${selectedDate}` });
                     }
                  } else {
                      // Night shift, no previous night logic needed here
@@ -233,10 +231,8 @@ export const useWardFormData = ({
 
         } catch (err) { // Catch block for the main try
           console.error("Error in loadData:", err);
-          if (!toastShownRef.current.error) {
-            showSafeToast('เกิดข้อผิดพลาดในการโหลดข้อมูลฟอร์ม', 'error');
-            toastShownRef.current.error = true;
-          }
+          // Use specific ID for toast
+          showSafeToast('เกิดข้อผิดพลาดในการโหลดข้อมูลฟอร์ม', 'error', { id: `load-error-${selectedWard}-${selectedDate}-${selectedShift}` });
           setFormData({ // Reset to minimal initial state on error
             ...initialFormStructure,
              recorderFirstName: user?.firstName || '',
@@ -263,18 +259,21 @@ export const useWardFormData = ({
     let processedValue: string | number | undefined;
 
     if (type === 'number') {
+      // Allow empty string to clear the field, store as undefined
       if (value === '') {
-        processedValue = undefined; // Treat empty string as undefined for number state
-      } else if (/^\\d+$/.test(value)) { // Allow only non-negative integers
+        processedValue = undefined;
+      } else if (!isNaN(Number(value)) && Number(value) >= 0) {
+        // Check if it's a non-negative number
+        // Use Number() to handle leading zeros correctly (e.g., "05" becomes 5)
         processedValue = Number(value);
       } else {
-        // If input is invalid number (e.g., contains non-digits, or is negative if min=0)
-        // Do not update state, or show validation message immediately?
-        // For now, let's prevent state update for invalid number input
-        // Or alternatively, set it back to previous valid state? No, just ignore invalid input
-        return; // Prevent update for invalid number sequences like '1e', '1.', '-' etc.
+        // Invalid input (not a number, negative, or other characters)
+        // Prevent updating the state with invalid numeric values
+        console.warn(`[handleChange] Invalid number input ignored for field "${name}":`, value);
+        return; // Stop the update for invalid number input
       }
     } else {
+      // For non-number types, use the value directly
       processedValue = value;
     }
 
@@ -351,93 +350,158 @@ export const useWardFormData = ({
   };
 
   const handleSaveDraft = async () => {
-     if (isFormReadOnly) {
-        showErrorToast('ไม่สามารถบันทึกร่างข้อมูลที่ Finalized แล้วได้');
-        return;
-     }
+    if (isFormReadOnly) {
+      showErrorToast('ไม่สามารถบันทึกร่างข้อมูลที่ Finalized แล้วได้');
+      return;
+    }
 
-     setIsSaving(true);
-     // No strict validation needed for draft? Or basic non-negative check?
-     // Let's enforce non-negative for numbers even in draft
-     if (!validateForm(false)) { // Use validateForm(false) for basic checks
-        showErrorToast('ข้อมูลบางส่วนไม่ถูกต้อง (ค่าต้องไม่ติดลบ)');
-        setIsSaving(false);
-        return;
-     }
+    setIsSaving(true);
+    
+    // *** เปลี่ยนมาใช้ validateForm(true) เพื่อตรวจสอบทุกช่องที่จำเป็น (*) เหมือน Save Final ***
+    if (!validateForm(true)) { 
+      showErrorToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วนและถูกต้องก่อนบันทึกร่าง');
+      setIsSaving(false);
+      return;
+    }
 
-     try {
-       const dataToSave: Partial<WardForm> = {
-         ...formData,
-         date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
-         shift: selectedShift,
-         status: FormStatus.DRAFT,
-         isDraft: true,
-         createdBy: user?.uid || '', // Add user info
-         updatedAt: Timestamp.now(), // Add timestamp
-         // Ensure recorder names are included from state
-         recorderFirstName: formData.recorderFirstName || user?.firstName || '',
-         recorderLastName: formData.recorderLastName || user?.lastName || '',
-       };
+    try {
+      // กรองค่า undefined ออกโดยแปลงเป็น null ก่อนส่งไปบันทึก
+      const cleanFormData = Object.fromEntries(
+        Object.entries(formData).map(([key, value]) => [key, value === undefined ? null : value])
+      );
+      
+      const dataToSave: Partial<WardForm> = {
+        ...cleanFormData,
+        date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
+        shift: selectedShift,
+        status: FormStatus.DRAFT,
+        isDraft: true,
+        createdBy: user?.uid || '', // Add user info
+        updatedAt: Timestamp.now(), // Add timestamp
+        // Ensure recorder names are included from state
+        recorderFirstName: formData.recorderFirstName || user?.firstName || '',
+        recorderLastName: formData.recorderLastName || user?.lastName || '',
+        // ข้อมูลสำหรับการบันทึก
+        wardId: selectedWard,
+        // หาชื่อ Ward จากที่มีอยู่แล้วแนบไปด้วย
+        wardName: formData.wardName || '',
+      };
+      
+      let docId = '';
+      // เลือกใช้ฟังก์ชันตาม shift
+      if (selectedShift === ShiftType.MORNING && user) {
+        docId = await saveMorningShiftFormDraft(dataToSave, user);
+      } else if (selectedShift === ShiftType.NIGHT && user) {
+        docId = await saveNightShiftFormDraft(dataToSave, user);
+      } else {
+        throw new Error('ข้อมูล Shift หรือ User ไม่ถูกต้อง');
+      }
 
-       // Generate a unique ID or use a predictable one for drafts?
-       // Using a predictable one allows overwriting the same draft easily.
-       const docId = `Wards_${selectedWard}_${selectedDate}_${selectedShift}_draft`; // Predictable ID
+      // แสดง notification เฉพาะเมื่อมีข้อมูลจริงๆ
+      showInfoToast('บันทึกฉบับร่างสำเร็จ');
 
-       // Call service function to save/update draft
-       // Assuming your service function handles upsert logic based on docId
-       // await saveWardForm(docId, dataToSave);
-       console.log("Draft save function needs implementation/update"); // Placeholder
-       showInfoToast('บันทึกฉบับร่างสำเร็จ');
-
-     } catch (err) {
-       console.error("Error saving draft:", err);
-       showErrorToast('เกิดข้อผิดพลาดในการบันทึกฉบับร่าง');
-     } finally {
-       setIsSaving(false);
-     }
+    } catch (err) {
+      console.error("Error saving draft:", err);
+      showErrorToast(`เกิดข้อผิดพลาดในการบันทึกฉบับร่าง: ${(err as Error).message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveFinal = async () => {
-     if (isFormReadOnly) {
-        showErrorToast('ข้อมูลนี้ถูกบันทึกสมบูรณ์แล้ว ไม่สามารถแก้ไขได้');
-        return;
-     }
+    if (isFormReadOnly) {
+      showErrorToast('ข้อมูลนี้ถูกบันทึกสมบูรณ์แล้ว ไม่สามารถแก้ไขได้');
+      return;
+    }
 
+    // ตรวจสอบข้อมูลเบื้องต้น
     if (!validateForm(true)) {
       showErrorToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วนและถูกต้อง');
       return;
     }
+    
+    // ตรวจสอบชื่อและนามสกุลผู้บันทึก
+    const recorderFirstName = formData.recorderFirstName || '';
+    const recorderLastName = formData.recorderLastName || '';
+    
+    // ตรวจสอบว่าชื่อและนามสกุลไม่ว่างเปล่า
+    if (recorderFirstName.trim() === '' || recorderLastName.trim() === '') {
+      showErrorToast('กรุณากรอกชื่อและนามสกุลของผู้บันทึกให้ครบถ้วน');
+      return;
+    }
+    
+    // ตรวจสอบว่ามีข้อมูลหลักที่จำเป็นครบถ้วนหรือไม่
+    const requiredNumericFields = ['patientCensus', 'nurseManager', 'rn', 'pn', 'wc'] as const;
+    const hasAllRequiredData = requiredNumericFields.every(field => {
+      const value = formData[field];
+      return value !== undefined && value !== null;
+    });
+    
+    if (!hasAllRequiredData) {
+      showErrorToast('กรุณากรอกข้อมูลหลักทั้งหมดให้ครบถ้วนก่อนบันทึกสมบูรณ์');
+      return;
+    }
+
+    // ตรวจสอบข้อมูลรองที่จำเป็นในการบันทึกสมบูรณ์
+    const otherRequiredFields = ['newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 'discharge', 'dead', 'available', 'unavailable'] as const;
+    const otherFieldsCount = otherRequiredFields.filter(field => {
+      const value = formData[field];
+      return value !== undefined && value !== null;
+    }).length;
+    
+    // ต้องกรอกฟิลด์รองอย่างน้อย 70% (7 จาก 9 ฟิลด์)
+    const minOtherFields = Math.ceil(otherRequiredFields.length * 0.7);
+    
+    if (otherFieldsCount < minOtherFields) {
+      showErrorToast(`กรุณากรอกข้อมูลรองให้ครบถ้วนมากขึ้น (อย่างน้อย ${minOtherFields} รายการจาก ${otherRequiredFields.length} รายการ)`);
+      return;
+    }
+    
     setIsSaving(true);
     try {
-       const dataToSave: Partial<WardForm> = {
-         ...formData,
-         date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
-         shift: selectedShift,
-         status: FormStatus.FINAL, // Set status to FINAL
-         isDraft: false,          // Set isDraft to false
-         createdBy: user?.uid || '', // Add user info
-         updatedAt: Timestamp.now(), // Add timestamp
-         finalizedAt: Timestamp.now(), // Add finalized timestamp
-         // Ensure recorder names are included
-         recorderFirstName: formData.recorderFirstName || '', // Should be validated
-         recorderLastName: formData.recorderLastName || '', // Should be validated
-       };
+      // กรองค่า undefined ออกโดยแปลงเป็น null ก่อนส่งไปบันทึก
+      const cleanFormData = Object.fromEntries(
+        Object.entries(formData).map(([key, value]) => [key, value === undefined ? null : value])
+      );
+      
+      const dataToSave: Partial<WardForm> = {
+        ...cleanFormData,
+        date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
+        shift: selectedShift,
+        status: FormStatus.FINAL, // Set status to FINAL
+        isDraft: false,          // Set isDraft to false
+        createdBy: user?.uid || '', // Add user info
+        updatedAt: Timestamp.now(), // Add timestamp
+        finalizedAt: Timestamp.now(), // Add finalized timestamp
+        // Ensure recorder names are included
+        recorderFirstName: formData.recorderFirstName || '', // Should be validated
+        recorderLastName: formData.recorderLastName || '', // Should be validated
+        // ข้อมูลสำหรับการบันทึก
+        wardId: selectedWard,
+        // หาชื่อ Ward จากที่มีอยู่แล้วแนบไปด้วย
+        wardName: formData.wardName || '',
+      };
 
-       // Generate docId for final save (could be same predictable pattern or different)
-       const docId = `Wards_${selectedWard}_${selectedDate}_${selectedShift}_final`; // Example final ID
+      let docId = '';
+      // เลือกใช้ฟังก์ชันตาม shift
+      if (selectedShift === ShiftType.MORNING && user) {
+        docId = await finalizeMorningShiftForm(dataToSave, user);
+      } else if (selectedShift === ShiftType.NIGHT && user) {
+        docId = await finalizeNightShiftForm(dataToSave, user);
+      } else {
+        throw new Error('ข้อมูล Shift หรือ User ไม่ถูกต้อง');
+      }
+      
+      // แสดง notification เมื่อบันทึกสำเร็จ
+      showSafeToast('บันทึกข้อมูลสมบูรณ์ (Final) สำเร็จ!', 'success');
+      setIsFormReadOnly(true); // Make form read-only after successful final save
 
-       // Call service function to save final data
-       // await saveWardForm(docId, dataToSave); // Assuming service handles saving final
-       console.log("Final save function needs implementation/update"); // Placeholder
-       showSafeToast('บันทึกข้อมูลสมบูรณ์ (Final) สำเร็จ!', 'success');
-       setIsFormReadOnly(true); // Make form read-only after successful final save
-
-     } catch (err) {
-       console.error("Error saving final:", err);
-       showErrorToast('เกิดข้อผิดพลาดในการบันทึกข้อมูลสมบูรณ์');
-     } finally {
-       setIsSaving(false);
-     }
+    } catch (err) {
+      console.error("Error saving final:", err);
+      showErrorToast(`เกิดข้อผิดพลาดในการบันทึกข้อมูลสมบูรณ์: ${(err as Error).message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return {

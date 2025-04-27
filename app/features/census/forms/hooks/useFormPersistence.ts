@@ -12,7 +12,7 @@ import {
   validateFormData,
   getLatestDraftForm // Needed for draft confirmation logic
 } from '../services/wardFormService';
-import { showSuccessToast, showErrorToast, showInfoToast, showSafeToast } from '@/app/core/utils/toastUtils';
+import { showSuccessToast, showErrorToast, showInfoToast, showSafeToast, showWarningToast } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import { logSystemError } from '@/app/core/utils/logUtils';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
@@ -167,7 +167,7 @@ export const useFormPersistence = ({
         const toastMessage = `ข้อมูลไม่ครบถ้วน กรุณากรอก: ${missingFieldNames}`;
         
         // Call showSafeToast with the ID option
-        showSafeToast(toastMessage, 'warning', { id: toastId });
+        showSafeToast(toastMessage, 'warning', { id: `validation-toast-${selectedWard}-${selectedDate}-${selectedShift}` });
 
         // Attempt to focus on the first missing field
         try {
@@ -183,7 +183,7 @@ export const useFormPersistence = ({
         // General validation error
         const toastMessage = 'ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบ';
         // Call showSafeToast with the ID option
-        showSafeToast(toastMessage, 'warning', { id: toastId });
+        showSafeToast(toastMessage, 'warning', { id: `validation-toast-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
       console.error(`Validation failed - errors:`, JSON.stringify(validationResult.errors));
     }
@@ -198,7 +198,8 @@ export const useFormPersistence = ({
     setIsSaveButtonDisabled(true); // Disable ทันที
 
     if (!user || !selectedWard || !selectedDate) {
-      showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
+      // Add ID
+      showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error', { id: `save-draft-selection-error-${selectedWard}-${selectedDate}` });
       setIsSaveButtonDisabled(false); // Re-enable ถ้า check ไม่ผ่าน
       return;
     }
@@ -207,8 +208,9 @@ export const useFormPersistence = ({
     dataToValidate = addBasicInfoForValidation(dataToValidate, selectedWard, selectedDate, selectedShift, wards);
 
     if (!validateFormAndNotify(dataToValidate)) {
-      // ถ้า validation ไม่ผ่าน ให้ re-enable ปุ่มหลังจาก cooldown
-      setTimeout(() => setIsSaveButtonDisabled(false), BUTTON_COOLDOWN_TIME); 
+      // ID is added within validateFormAndNotify
+      // setTimeout(() => setIsSaveButtonDisabled(false), BUTTON_COOLDOWN_TIME); 
+      // We will re-enable the button in the finally block of performSaveDraft or if modal closed without confirm
       return;
     }
 
@@ -219,14 +221,15 @@ export const useFormPersistence = ({
         existingDraftData?.dateString === currentTargetDateString &&
         existingDraftData?.shift === dataToProcess.shift &&
         !isOverwrite) {
-      showSafeToast('พบข้อมูลร่างของวันนี้อยู่แล้ว คุณต้องการบันทึกทับหรือไม่?', 'warning');
+      // Add ID
+      showSafeToast('พบข้อมูลร่างของวันนี้อยู่แล้ว คุณต้องการบันทึกทับหรือไม่?', 'warning', { id: `save-draft-overwrite-confirm-${selectedWard}-${selectedDate}-${selectedShift}` });
       setIsConfirmModalOpen(true);
-      // ไม่ re-enable ปุ่มทันที รอ user action จาก modal
+      // Keep button disabled while modal is open
       return;
     }
 
     await performSaveDraft(dataToProcess, isOverwrite);
-    // การ re-enable ปุ่มจะถูกจัดการใน finally block ของ performSaveDraft
+    // Re-enabling handled in finally block
 
   }, [formData, user, selectedWard, selectedDate, selectedShift, existingDraftData, 
       setErrors, wards, isConfirmModalOpen, validateFormAndNotify, prepareDataForSave,
@@ -257,6 +260,15 @@ export const useFormPersistence = ({
            recorderLastName: String(dataToSave.recorderLastName || '').trim(),
       };
 
+      // เพิ่ม log ข้อมูลที่จะส่งไป save
+      console.log('DATA TO SAVE DRAFT:', {
+        selectedShift,
+        wardId: dataForService.wardId,
+        dateString: dataForService.dateString,
+        isOverwrite,
+        draftId: isOverwrite ? existingDraftData?.id : 'new document'
+      });
+
       if (selectedShift === ShiftType.MORNING) {
         // Pass the prepared data and user to the service function
         savedDocId = await saveMorningShiftFormDraft(dataForService, user);
@@ -265,6 +277,8 @@ export const useFormPersistence = ({
         savedDocId = await saveNightShiftFormDraft(dataForService, user);
         setNightShiftStatus(FormStatus.DRAFT); 
       }
+      
+      console.log('SAVED DRAFT SUCCESSFULLY, DOC ID:', savedDocId);
       
       // After successful save, update local draft state
       if (savedDocId) {
@@ -286,21 +300,30 @@ export const useFormPersistence = ({
           setExistingDraftData(newDraftData);
       }
 
-      showSafeToast('บันทึกข้อมูลร่างสำเร็จ', 'success');
+      // Add IDs
+      showSafeToast('บันทึกข้อมูลร่างสำเร็จ', 'success', { id: `save-draft-success-${selectedWard}-${selectedDate}-${selectedShift}` });
       setIsConfirmModalOpen(false); 
       
     } catch (error) {
       console.error('Error saving draft:', error);
+      // เพิ่ม log แสดงรายละเอียด error เพิ่มเติม
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause
+        });
+      }
       const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกร่าง';
       if (errorMessage.startsWith('Validation failed:')) {
-          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error');
+          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error', { id: `save-draft-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       } else {
-          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error');
+          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error', { id: `save-draft-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
       logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
     } finally {
       setIsSaving(false);
-      // Re-enable ปุ่มหลังจาก cooldown ไม่ว่าจะสำเร็จหรือไม่
       setTimeout(() => {
         setIsSaveButtonDisabled(false);
       }, BUTTON_COOLDOWN_TIME); 
@@ -338,7 +361,8 @@ export const useFormPersistence = ({
     setIsFinalizeButtonDisabled(true);
 
     if (!user || !selectedWard || !selectedDate) {
-        showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
+        // Add ID
+        showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error', { id: `save-final-selection-error-${selectedWard}-${selectedDate}` });
         setIsFinalizeButtonDisabled(false); // Re-enable
         return;
     }
@@ -351,6 +375,7 @@ export const useFormPersistence = ({
 
     // 2. Validate the data
     if (!validateFormAndNotify(dataToValidate)) {
+      // ID is added within validateFormAndNotify
       setTimeout(() => setIsFinalizeButtonDisabled(false), BUTTON_COOLDOWN_TIME);
       return;
     }
@@ -361,7 +386,10 @@ export const useFormPersistence = ({
     // 4. Check morning shift status before finalizing night shift
     if (selectedShift === ShiftType.NIGHT) {
       if (morningShiftStatus !== FormStatus.FINAL && morningShiftStatus !== FormStatus.APPROVED) {
-        showSafeToast('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้บันทึกสมบูรณ์หรืออนุมัติ', 'warning');
+        // Add ID
+        showSafeToast('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้บันทึกสมบูรณ์หรืออนุมัติ', 'warning', { id: `save-final-night-approval-error-${selectedWard}-${selectedDate}` });
+        // Re-enable button since we are returning early
+        setIsFinalizeButtonDisabled(false);
         return;
       }
     }
@@ -389,6 +417,14 @@ export const useFormPersistence = ({
           recorderLastName: String(dataToProcess.recorderLastName || '').trim(),
       };
 
+      // เพิ่ม log ข้อมูลที่จะส่งไป save
+      console.log('DATA TO SAVE FINAL:', {
+        selectedShift,
+        wardId: dataToSave.wardId,
+        dateString: dataToSave.dateString,
+        draftIdToUse
+      });
+
       if (selectedShift === ShiftType.MORNING) {
         finalizedDocId = await finalizeMorningShiftForm(dataToSave, user);
         setMorningShiftStatus(FormStatus.FINAL);
@@ -402,23 +438,38 @@ export const useFormPersistence = ({
         setIsNightShiftDisabled(true); 
       }
       
+      console.log('SAVED FINAL SUCCESSFULLY, DOC ID:', finalizedDocId);
+      
       setExistingDraftData(null); 
-
-      showSafeToast('บันทึกข้อมูลสมบูรณ์สำเร็จ', 'success');
-      showSafeToast('ข้อมูลจะถูกส่งไปรอการอนุมัติ กรุณารอ Supervisor อนุมัติ', 'info');
+      // Add IDs
+      showSafeToast('บันทึกข้อมูลสมบูรณ์สำเร็จ', 'success', { id: `save-final-success-${selectedWard}-${selectedDate}-${selectedShift}` });
+      showSafeToast('ข้อมูลจะถูกส่งไปรอการอนุมัติ กรุณารอ Supervisor อนุมัติ', 'info', { id: `save-final-pending-approval-${selectedWard}-${selectedDate}-${selectedShift}` });
+      
+      // เพิ่มการแจ้งเตือนเกี่ยวกับการสร้าง Daily Summary เมื่อกรอกกะดึกเสร็จสมบูรณ์
+      if (selectedShift === ShiftType.NIGHT) {
+        showSafeToast('ระบบได้สร้างสรุปข้อมูลประจำวันเรียบร้อยแล้ว', 'info', { id: `daily-summary-created-${selectedWard}-${selectedDate}` });
+      }
 
     } catch (error) {
       console.error('Error finalizing form:', error);
+      // เพิ่ม log แสดงรายละเอียด error เพิ่มเติม
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause
+        });
+      }
       const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
       if (errorMessage.startsWith('Validation failed:')) {
-          showSafeToast(`บันทึกไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error');
+          showSafeToast(`บันทึกไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error', { id: `save-final-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       } else {
-          showSafeToast(`บันทึกข้อมูลสมบูรณ์ไม่สำเร็จ: ${errorMessage}`, 'error');
+          showSafeToast(`บันทึกข้อมูลสมบูรณ์ไม่สำเร็จ: ${errorMessage}`, 'error', { id: `save-final-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
       logSystemError(error as Error, 'handleFinalizeForm', user?.uid, user?.username);
     } finally {
       setIsSaving(false);
-      // Re-enable finalize button after cooldown
       setTimeout(() => {
           setIsFinalizeButtonDisabled(false);
       }, BUTTON_COOLDOWN_TIME);

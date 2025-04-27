@@ -6,7 +6,6 @@ import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import CollectionManager from './components/CollectionManager';
 import DatabaseSetup from './components/DatabaseSetup';
-import { Toaster } from 'react-hot-toast';
 
 /**
  * หน้าจัดการฐานข้อมูล Firestore
@@ -16,9 +15,6 @@ export default function DatabaseManagementPage() {
     <ProtectedPage requiredRole={['admin', 'developer']}>
       <NavBar />
       <div className="container mx-auto px-4 py-8">
-        {/* แสดง Toaster สำหรับการแจ้งเตือน */}
-        <Toaster position="top-right" />
-        
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             การจัดการฐานข้อมูล Firebase

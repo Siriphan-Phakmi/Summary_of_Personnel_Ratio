@@ -22,7 +22,7 @@ import { toast } from 'react-hot-toast';
 import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
-import { checkAndCreateDailySummary } from './approvalServices/dailySummary';
+import { checkAndCreateDailySummary, updateDailySummary } from './approvalServices/dailySummary';
 import { isEqual } from 'lodash';
 import { logSystemError } from '@/app/core/utils/logUtils';
 
@@ -83,37 +83,80 @@ export const validateFormData = (formData: Partial<WardForm>): {
       }
   });
 
-  // Check required numeric fields - STRICT CHECK
+  // Check required numeric fields with stricter validation
   requiredNumericFields.forEach(field => {
     const value = formData[field];
-    // **Updated Check:** Explicitly check for undefined and null.
-    // Also ensure it's a valid, non-negative number if it's not undefined/null.
-    if (value === undefined || value === null || isNaN(Number(value)) || Number(value) < 0) {
-        // Removed the check for value === '' here, as empty string for number input
-        // should ideally be handled as undefined by the state management (handleChange).
-        // If it's not undefined/null, it MUST be a valid non-negative number.
-        
-        isValid = false;
-        missingFields.push(field);
-        // Keep the existing error message, as it covers 'must not be empty' and 'non-negative'.
-        errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)'; 
-    }
-  });
-
-  // Check required string fields (allow spaces within names) - STRICT CHECK
-  requiredStringFields.forEach(field => {
-    const value = formData[field];
-    if (!value || typeof value !== 'string' || value.trim() === '') {
+    
+    // Check if value is undefined, null, or not a number
+    if (value === undefined || value === null) {
       isValid = false;
       missingFields.push(field);
-      errors[field] = 'กรุณากรอกข้อมูล';
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
+      return;
+    }
+    
+    // Convert to number for validation
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // Check if it's a valid number
+    if (isNaN(Number(numValue))) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องเป็นตัวเลขเท่านั้น)';
+      return;
+    }
+    
+    // Check if it's negative
+    if (Number(numValue) < 0) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ติดลบ)';
+      return;
+    }
+    
+    // Additional validation for specific fields
+    if (field === 'patientCensus' && Number(numValue) === 0) {
+      // Add a warning but don't invalidate - some wards might truly have 0 patients
+      errors[field] = 'คงพยาบาลมีค่าเป็น 0 โปรดตรวจสอบว่าถูกต้อง';
     }
   });
 
-  // Specific validation logic (examples)
-  // if (formData.patientCensus !== undefined && Number(formData.patientCensus) < 0) { ... }
-  // if (formData.comment && formData.comment.length > 500) { ... }
+  // Check required string fields with better validation
+  requiredStringFields.forEach(field => {
+    const value = formData[field];
+    
+    // Check if exists
+    if (!value || typeof value !== 'string') {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง';
+      return;
+    }
+    
+    // Check if it contains only whitespace
+    if (value.trim() === '') {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ไม่ควรเป็นช่องว่างเท่านั้น)';
+      return;
+    }
+    
+    // Check for minimum length
+    if (value.trim().length < 2) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ต้องมีความยาวอย่างน้อย 2 ตัวอักษร)';
+      return;
+    }
+  });
 
+  // Check if comment is too long (optional field)
+  if (formData.comment && typeof formData.comment === 'string' && formData.comment.length > 500) {
+    isValid = false;
+    errors['comment'] = 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
+  }
+
+  // Return validation result
   return {
     isValid,
     missingFields,
@@ -419,38 +462,57 @@ export const saveMorningShiftFormDraft = async (
   formData: Partial<WardForm>,
   user: User
 ): Promise<string> => {
-  if (!formData.wardId || !formData.shift || !formData.date) {
-    throw new Error('Missing required data for generating document ID');
-  }
-  const customId = generateWardFormId(formData.wardId, formData.shift, FormStatus.DRAFT, formData.date);
-  const formRef = doc(db, COLLECTION_WARDFORMS, customId);
-
-  const dataToSave: Partial<WardForm> = {
-    ...formData,
-    status: FormStatus.DRAFT,
-    isDraft: true,
-    createdBy: user.uid,
-    recorderFirstName: formData.recorderFirstName || user.firstName || '',
-    recorderLastName: formData.recorderLastName || user.lastName || '',
-    updatedAt: serverTimestamp(), // Use Firestore server timestamp
-    createdAt: formData.createdAt || serverTimestamp(), // Set createdAt on first draft save
-  };
-
-  // Remove potentially undefined fields before saving
-  Object.keys(dataToSave).forEach(key => {
-      const fieldKey = key as keyof WardForm;
-      if (dataToSave[fieldKey] === undefined) {
-          delete dataToSave[fieldKey];
-      }
-  });
-
   try {
-    await setDoc(formRef, dataToSave, { merge: true }); // Use setDoc with merge:true to create or update
-    console.log(`Morning draft saved with ID: ${customId}`);
-    return customId; // Return the custom ID
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData.wardId || !formData.shift || !formData.date) {
+      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+    }
+
+    // สร้าง ID สำหรับเอกสาร
+    const customDocId = formData.id || generateWardFormId(
+      formData.wardId, 
+      ShiftType.MORNING, 
+      FormStatus.DRAFT, 
+      formData.date
+    );
+
+    console.log(`Saving morning shift draft with ID: ${customDocId}`);
+
+    // เตรียมข้อมูลสำหรับบันทึก
+    const dataToSave: Partial<WardForm> = {
+      ...formData,
+      status: FormStatus.DRAFT,
+      isDraft: true,
+      createdBy: formData.createdBy || user.uid,
+      updatedAt: createServerTimestamp()
+    };
+
+    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
+    if (!formData.id) {
+      dataToSave.createdAt = createServerTimestamp();
+    }
+
+    // ใช้ Transaction เพื่อป้องกัน race condition
+    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    
+    // ตรวจสอบสถานะปัจจุบันของเอกสาร
+    const docSnap = await getDoc(docRef);
+    
+    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
+    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT) {
+      const currentStatus = docSnap.data().status;
+      throw new Error(`ไม่สามารถบันทึกร่างได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+    }
+
+    // บันทึกข้อมูล - ใช้ setDoc เพื่อให้สามารถกำหนด Document ID เองได้
+    // merge: true เพื่อให้อัปเดตเฉพาะฟิลด์ที่ส่งมา ไม่ลบฟิลด์อื่นที่มีอยู่แล้ว
+    await setDoc(docRef, dataToSave, { merge: true });
+
+    // คืนค่า ID ของเอกสาร
+    return customDocId;
   } catch (error) {
-    console.error("Error saving morning draft:", error);
-    throw error;
+    console.error('Error saving morning shift form draft:', error);
+    throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
   }
 };
 
@@ -462,42 +524,78 @@ export const finalizeMorningShiftForm = async (
   formData: Partial<WardForm>,
   user: User
 ): Promise<string> => {
-  if (!formData.wardId || !formData.shift || !formData.date) {
-    throw new Error('Missing required data for generating document ID');
-  }
-  // Generate ID based on final status
-  const customId = generateWardFormId(formData.wardId, formData.shift, FormStatus.FINAL, formData.date);
-  const formRef = doc(db, COLLECTION_WARDFORMS, customId);
-
-  const dataToSave: Partial<WardForm> = {
-    ...formData,
-    status: FormStatus.FINAL,
-    isDraft: false,
-    createdBy: formData.createdBy || user.uid, // Keep original creator if exists
-    recorderFirstName: formData.recorderFirstName || user.firstName || '',
-    recorderLastName: formData.recorderLastName || user.lastName || '',
-    updatedAt: serverTimestamp(),
-    finalizedAt: serverTimestamp(),
-    // Ensure createdAt exists from draft or set it now
-    createdAt: formData.createdAt || serverTimestamp(), 
-  };
-  
-  // Remove potentially undefined fields before saving
-  Object.keys(dataToSave).forEach(key => {
-      const fieldKey = key as keyof WardForm;
-      if (dataToSave[fieldKey] === undefined) {
-          delete dataToSave[fieldKey];
-      }
-  });
-
   try {
-    await setDoc(formRef, dataToSave, { merge: true }); // Use setDoc with merge:true
-    console.log(`Morning form finalized with ID: ${customId}`);
-    // Optionally delete any old draft document with a different ID format if necessary
-    return customId;
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData.wardId || !formData.shift || !formData.date) {
+      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+    }
+
+    // ตรวจสอบว่าข้อมูลครบถ้วน
+    const validationResult = validateFormData(formData);
+    if (!validationResult.isValid) {
+      throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
+    }
+
+    // สร้าง ID สำหรับเอกสาร
+    const dateStr = formatDateYMD(new Date(formData.date + 'T12:00:00'));
+    const customDocId = formData.id || generateWardFormId(
+      formData.wardId, 
+      ShiftType.MORNING, 
+      FormStatus.FINAL, 
+      formData.date
+    );
+
+    console.log(`Finalizing morning shift form with ID: ${customDocId}`);
+
+    // เตรียมข้อมูลสำหรับบันทึก
+    const dataToSave: Partial<WardForm> = {
+      ...formData,
+      status: FormStatus.FINAL,
+      isDraft: false,
+      dateString: dateStr,
+      createdBy: formData.createdBy || user.uid,
+      updatedAt: createServerTimestamp(),
+      finalizedAt: createServerTimestamp()
+    };
+
+    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
+    if (!formData.id) {
+      dataToSave.createdAt = createServerTimestamp();
+    }
+
+    // ใช้ Transaction เพื่อป้องกัน race condition
+    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    
+    // ตรวจสอบว่าเอกสารมีอยู่หรือไม่
+    const docSnap = await getDoc(docRef);
+    
+    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
+    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT && docSnap.data().status !== FormStatus.FINAL) {
+      const currentStatus = docSnap.data().status;
+      throw new Error(`ไม่สามารถบันทึกได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+    }
+
+    // บันทึกข้อมูล
+    await setDoc(docRef, dataToSave, { merge: true });
+    
+    // สร้างหรืออัพเดท daily summary
+    try {
+      await checkAndCreateDailySummary(
+        new Date(dateStr), 
+        formData.wardId, 
+        formData.wardName || ''
+      );
+      console.log('Daily summary checked/created for morning form');
+    } catch (summaryError) {
+      console.error('Error checking/creating daily summary:', summaryError);
+      // ไม่ throw error เพื่อให้ flow การบันทึกสำเร็จ แม้ว่า summary จะไม่สำเร็จ
+    }
+
+    // คืนค่า ID ของเอกสาร
+    return customDocId;
   } catch (error) {
-    console.error("Error finalizing morning form:", error);
-    throw error;
+    console.error('Error finalizing morning shift form:', error);
+    throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
   }
 };
 
@@ -509,38 +607,65 @@ export const saveNightShiftFormDraft = async (
   formData: Partial<WardForm>,
   user: User
 ): Promise<string> => {
-  if (!formData.wardId || !formData.shift || !formData.date) {
-    throw new Error('Missing required data for generating document ID');
-  }
-  const customId = generateWardFormId(formData.wardId, formData.shift, FormStatus.DRAFT, formData.date);
-  const formRef = doc(db, COLLECTION_WARDFORMS, customId);
-
-  const dataToSave: Partial<WardForm> = {
-    ...formData,
-    status: FormStatus.DRAFT,
-    isDraft: true,
-    createdBy: user.uid,
-    recorderFirstName: formData.recorderFirstName || user.firstName || '',
-    recorderLastName: formData.recorderLastName || user.lastName || '',
-    updatedAt: serverTimestamp(),
-    createdAt: formData.createdAt || serverTimestamp(),
-  };
-
-  // Remove potentially undefined fields before saving
-  Object.keys(dataToSave).forEach(key => {
-      const fieldKey = key as keyof WardForm;
-      if (dataToSave[fieldKey] === undefined) {
-          delete dataToSave[fieldKey];
-      }
-  });
-
   try {
-    await setDoc(formRef, dataToSave, { merge: true });
-    console.log(`Night draft saved with ID: ${customId}`);
-    return customId;
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData.wardId || !formData.shift || !formData.date) {
+      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+    }
+
+    // สร้าง ID สำหรับเอกสาร
+    const customDocId = formData.id || generateWardFormId(
+      formData.wardId, 
+      ShiftType.NIGHT, 
+      FormStatus.DRAFT, 
+      formData.date
+    );
+
+    console.log(`Saving night shift draft with ID: ${customDocId}`);
+
+    // เตรียมข้อมูลสำหรับบันทึก
+    const dataToSave: Partial<WardForm> = {
+      ...formData,
+      status: FormStatus.DRAFT,
+      isDraft: true,
+      createdBy: formData.createdBy || user.uid,
+      updatedAt: createServerTimestamp()
+    };
+
+    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
+    if (!formData.id) {
+      dataToSave.createdAt = createServerTimestamp();
+    }
+
+    // ตรวจสอบว่ามี morning form ที่ FINAL หรือ APPROVED หรือไม่
+    const dateObj = new Date(formData.date + 'T12:00:00');
+    const formattedDate = formatDateYMD(dateObj);
+
+    const morningStatus = await checkMorningShiftFormStatus(dateObj, formData.wardId);
+    if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
+      throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
+    }
+
+    // ใช้ Transaction เพื่อป้องกัน race condition
+    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    
+    // ตรวจสอบสถานะปัจจุบันของเอกสาร
+    const docSnap = await getDoc(docRef);
+    
+    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
+    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT) {
+      const currentStatus = docSnap.data().status;
+      throw new Error(`ไม่สามารถบันทึกร่างได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+    }
+
+    // บันทึกข้อมูล - ใช้ setDoc เพื่อให้สามารถกำหนด Document ID เองได้
+    await setDoc(docRef, dataToSave, { merge: true });
+
+    // คืนค่า ID ของเอกสาร
+    return customDocId;
   } catch (error) {
-    console.error("Error saving night draft:", error);
-    throw error;
+    console.error('Error saving night shift form draft:', error);
+    throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
   }
 };
 
@@ -552,39 +677,105 @@ export const finalizeNightShiftForm = async (
   formData: Partial<WardForm>,
   user: User
 ): Promise<string> => {
-  if (!formData.wardId || !formData.shift || !formData.date) {
-    throw new Error('Missing required data for generating document ID');
-  }
-  const customId = generateWardFormId(formData.wardId, formData.shift, FormStatus.FINAL, formData.date);
-  const formRef = doc(db, COLLECTION_WARDFORMS, customId);
-
-  const dataToSave: Partial<WardForm> = {
-    ...formData,
-    status: FormStatus.FINAL,
-    isDraft: false,
-    createdBy: formData.createdBy || user.uid,
-    recorderFirstName: formData.recorderFirstName || user.firstName || '',
-    recorderLastName: formData.recorderLastName || user.lastName || '',
-    updatedAt: serverTimestamp(),
-    finalizedAt: serverTimestamp(),
-    createdAt: formData.createdAt || serverTimestamp(),
-  };
-
-  // Remove potentially undefined fields before saving
-  Object.keys(dataToSave).forEach(key => {
-      const fieldKey = key as keyof WardForm;
-      if (dataToSave[fieldKey] === undefined) {
-          delete dataToSave[fieldKey];
-      }
-  });
-
   try {
-    await setDoc(formRef, dataToSave, { merge: true });
-    console.log(`Night form finalized with ID: ${customId}`);
-    return customId;
+    // ตรวจสอบข้อมูลที่จำเป็น
+    if (!formData.wardId || !formData.shift || !formData.date) {
+      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+    }
+
+    // ตรวจสอบว่าข้อมูลครบถ้วน
+    const validationResult = validateFormData(formData);
+    if (!validationResult.isValid) {
+      throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
+    }
+
+    // ตรวจสอบว่ามี morning form ที่ FINAL หรือ APPROVED หรือไม่
+    const dateObj = new Date(formData.date + 'T12:00:00');
+    const morningStatus = await checkMorningShiftFormStatus(dateObj, formData.wardId);
+    
+    if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
+      throw new Error('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
+    }
+
+    // สร้าง ID สำหรับเอกสาร
+    const dateStr = formatDateYMD(dateObj);
+    const customDocId = formData.id || generateWardFormId(
+      formData.wardId, 
+      ShiftType.NIGHT, 
+      FormStatus.FINAL, 
+      formData.date
+    );
+
+    console.log(`Finalizing night shift form with ID: ${customDocId}`);
+
+    // เตรียมข้อมูลสำหรับบันทึก
+    const dataToSave: Partial<WardForm> = {
+      ...formData,
+      status: FormStatus.FINAL,
+      isDraft: false,
+      dateString: dateStr,
+      createdBy: formData.createdBy || user.uid,
+      updatedAt: createServerTimestamp(),
+      finalizedAt: createServerTimestamp()
+    };
+
+    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
+    if (!formData.id) {
+      dataToSave.createdAt = createServerTimestamp();
+    }
+
+    // ใช้ Transaction เพื่อป้องกัน race condition
+    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    
+    // ตรวจสอบว่าเอกสารมีอยู่หรือไม่
+    const docSnap = await getDoc(docRef);
+    
+    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT หรือ FINAL
+    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT && docSnap.data().status !== FormStatus.FINAL) {
+      const currentStatus = docSnap.data().status;
+      throw new Error(`ไม่สามารถบันทึกได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+    }
+
+    // บันทึกข้อมูล
+    await setDoc(docRef, dataToSave, { merge: true });
+    
+    // ดึงข้อมูล morning form เพื่อสร้าง daily summary
+    try {
+      // ดึงข้อมูล morning form
+      const morningForm = await getWardForm(dateObj, ShiftType.MORNING, formData.wardId);
+      
+      if (morningForm) {
+        // สร้างหรืออัพเดท daily summary
+        await checkAndCreateDailySummary(
+          dateObj,
+          formData.wardId,
+          formData.wardName || ''
+        );
+        
+        // อัพเดท daily summary ด้วยข้อมูลจาก morning form และ night form
+        await updateDailySummary(
+          dateObj,
+          formData.wardId,
+          morningForm,
+          dataToSave as WardForm,
+          user,
+          undefined
+        );
+        
+        console.log('Daily summary updated with night shift data');
+      } else {
+        console.error('Cannot find morning form for creating daily summary');
+      }
+    } catch (summaryError) {
+      console.error('Error updating daily summary:', summaryError);
+      // ไม่ throw error เพื่อให้ flow การบันทึกสำเร็จ แม้ว่า summary จะไม่สำเร็จ
+    }
+
+    // คืนค่า ID ของเอกสาร
+    return customDocId;
   } catch (error) {
-    console.error("Error finalizing night form:", error);
-    throw error;
+    console.error('Error finalizing night shift form:', error);
+    throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
   }
 };
 

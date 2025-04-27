@@ -11,7 +11,6 @@ import { format } from 'date-fns';
 import { showErrorToast, showSuccessToast, showSafeToast } from '@/app/core/utils/toastUtils';
 import { logUserActivity } from '@/app/core/utils/logUtils';
 import { useLoading } from '@/app/core/hooks/useLoading';
-import { Toaster } from 'react-hot-toast';
 import { FiSave, FiCheckSquare } from 'react-icons/fi';
 
 // Import Hooks
@@ -134,22 +133,6 @@ export default function DailyCensusForm() {
     <ProtectedPage requiredRole={['nurse', 'user', 'admin', 'developer']}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
-        <Toaster
-          position="top-right"
-          gutter={8}
-          toastOptions={{
-            style: {
-              marginBottom: '1rem',
-            },
-            error: {
-              style: {
-                background: 'hsl(var(--destructive))',
-                color: 'hsl(var(--destructive-foreground))',
-                marginBottom: '1rem',
-              },
-            },
-          }}
-        />
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล</h1>
 
@@ -253,18 +236,17 @@ export default function DailyCensusForm() {
                 </Button>
               </div>
 
-              {/* Display validation errors (now from Record) */}
-              {Object.keys(errors).length > 0 && !isFormSaving && (
+              {/* คอมเมนต์ส่วนแสดง Validation Errors ด้านล่างออก */}
+              {/* {Object.keys(errors).length > 0 && !isFormSaving && (
                    <div className="text-red-500 dark:text-red-400 mt-4 text-left space-y-1">
                        <p className="font-semibold">กรุณาแก้ไขข้อผิดพลาด:</p>
                        <ul className="list-disc list-inside">
-                           {/* Iterate over the Record's values */}
                            {Object.values(errors).map((errorMsg, index) => (
                                <li key={index}>{errorMsg}</li>
                            ))}
                        </ul>
                    </div>
-               )}
+               )} */}
             </form>
           )}
 
