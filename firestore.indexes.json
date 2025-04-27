@@ -1,0 +1,119 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dateString", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dateString", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "shift", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "shift", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dateString", "order": "ASCENDING" },
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "shift", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dateString", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "username", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "role", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "active", "order": "ASCENDING" },
+        { "fieldPath": "wardOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "userSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "approvalHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "formId", "order": "ASCENDING" },
+        { "fieldPath": "approvedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardAccess",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "wardId", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+} 

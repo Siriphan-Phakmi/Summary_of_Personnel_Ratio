@@ -6,6 +6,7 @@ import { LoadingProvider } from '@/app/core/components/Loading';
 import { Toaster } from 'react-hot-toast';
 import { ThemeToggle } from '@/app/core/ui';
 import VersionAndTime from '@/app/core/components/VersionAndTime';
+import FirestoreIndexInitializer from '@/app/core/firebase/indexInitializer';
 
 // Configure metadata
 export const metadata: Metadata = {
@@ -35,6 +36,8 @@ export default function RootLayout({
         <ThemeProvider>
           <LoadingProvider>
             <AuthProvider>
+              {/* Initialize Firestore Indexes */}
+              <FirestoreIndexInitializer />
               <div className="fixed bottom-4 right-4 z-50 flex flex-row items-center space-x-2 md:flex-col md:items-end md:space-x-0 md:space-y-1">
                 <ThemeToggle />
                 <VersionAndTime />

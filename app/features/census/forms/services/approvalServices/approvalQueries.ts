@@ -15,6 +15,8 @@ import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { format } from 'date-fns';
 import { ApprovalRecord, DailySummary, ApprovalHistoryRecord } from '@/app/core/types/approval';
 import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_SUMMARIES, COLLECTION_HISTORY } from './index';
+import { safeQuery } from '@/app/core/firebase/firestoreUtils';
+import { handleIndexError } from '@/app/core/firebase/indexDetector';
 
 /**
  * ค้นหาแบบฟอร์มตามเงื่อนไขต่างๆ (รองรับ status filter)
@@ -31,7 +33,6 @@ export const getPendingForms = async (
   } = {}
 ): Promise<WardForm[]> => {
   try {
-    const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
     const queryConstraints: QueryConstraint[] = [];
     
     // Normalize wardId to uppercase if provided
@@ -60,21 +61,31 @@ export const getPendingForms = async (
     
     console.log('[getPendingForms] Querying with constraints:', queryConstraints.map(c => c.type));
     
-    const q = query(wardFormsRef, ...queryConstraints);
-    const querySnapshot = await getDocs(q);
+    // ใช้ safeQuery เพื่อจัดการ index error
+    const forms = await safeQuery<WardForm>(
+      COLLECTION_WARDFORMS, 
+      queryConstraints,
+      'ApprovalQueries.getPendingForms'
+    );
     
-    console.log(`[getPendingForms] Found ${querySnapshot.size} documents.`);
+    if (forms === null) {
+      console.warn('[getPendingForms] Query failed due to missing index. Returning empty array.');
+      return [];
+    }
 
-    const forms: WardForm[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data() as Omit<WardForm, 'id'>;
-      forms.push({ ...data, id: doc.id });
-    });
-
+    console.log(`[getPendingForms] Found ${forms.length} documents.`);
     return forms;
+    
   } catch (error) {
     console.error('Error fetching pending forms:', error);
-    throw error;
+    
+    // ตรวจสอบว่าเป็น index error หรือไม่
+    if (!handleIndexError(error, 'ApprovalQueries.getPendingForms')) {
+      throw error; // ถ้าไม่ใช่ index error ให้ throw error ต่อไป
+    }
+    
+    // ถ้าเป็น index error ให้คืนค่า array ว่าง
+    return [];
   }
 };
 
@@ -92,19 +103,18 @@ export const getApprovedForms = async (
   } = {}
 ): Promise<WardForm[]> => {
   try {
-    const formsRef = collection(db, COLLECTION_WARDFORMS);
-    
     // สร้าง conditions สำหรับค้นหา
-    // ใช้ค่า string โดยตรงเพราะข้อมูลใน DB เป็น lowercase
-    const conditions = [where('status', '==', 'approved')]; // Use lowercase string 'approved'
+    const queryConstraints: QueryConstraint[] = [
+      where('status', '==', 'approved') // Use lowercase string 'approved'
+    ];
     
     // เพิ่มเงื่อนไขตามที่ระบุ
     if (filters.wardId) {
-      conditions.push(where('wardId', '==', filters.wardId));
+      queryConstraints.push(where('wardId', '==', filters.wardId));
     }
     
     if (filters.shift) {
-      conditions.push(where('shift', '==', filters.shift));
+      queryConstraints.push(where('shift', '==', filters.shift));
     }
     
     if (filters.startDate && filters.endDate) {
@@ -112,36 +122,44 @@ export const getApprovedForms = async (
       const startDateString = format(filters.startDate, 'yyyy-MM-dd');
       const endDateString = format(filters.endDate, 'yyyy-MM-dd');
       
-      conditions.push(where('dateString', '>=', startDateString));
-      conditions.push(where('dateString', '<=', endDateString));
+      queryConstraints.push(where('dateString', '>=', startDateString));
+      queryConstraints.push(where('dateString', '<=', endDateString));
     } else if (filters.startDate) {
       const startDateString = format(filters.startDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '>=', startDateString));
+      queryConstraints.push(where('dateString', '>=', startDateString));
     } else if (filters.endDate) {
       const endDateString = format(filters.endDate, 'yyyy-MM-dd');
-      conditions.push(where('dateString', '<=', endDateString));
+      queryConstraints.push(where('dateString', '<=', endDateString));
     }
     
-    // สร้าง query
-    const formsQuery = query(
-      formsRef,
-      ...conditions,
-      orderBy('dateString', 'desc'),
-      orderBy('shift', 'asc')
+    // เพิ่ม ordering
+    queryConstraints.push(orderBy('dateString', 'desc'));
+    queryConstraints.push(orderBy('shift', 'asc'));
+    
+    // ใช้ safeQuery เพื่อจัดการ index error
+    const forms = await safeQuery<WardForm>(
+      COLLECTION_WARDFORMS, 
+      queryConstraints,
+      'ApprovalQueries.getApprovedForms'
     );
     
-    const formDocs = await getDocs(formsQuery);
-    
-    // แปลงข้อมูลเอกสารเป็น objects
-    const forms: WardForm[] = formDocs.docs.map(doc => ({
-      ...(doc.data() as WardForm),
-      id: doc.id
-    }));
+    if (forms === null) {
+      console.warn('[getApprovedForms] Query failed due to missing index. Returning empty array.');
+      return [];
+    }
     
     return forms;
+    
   } catch (error) {
     console.error('Error fetching approved forms:', error);
-    throw error;
+    
+    // ตรวจสอบว่าเป็น index error หรือไม่
+    if (!handleIndexError(error, 'ApprovalQueries.getApprovedForms')) {
+      throw error; // ถ้าไม่ใช่ index error ให้ throw error ต่อไป
+    }
+    
+    // ถ้าเป็น index error ให้คืนค่า array ว่าง
+    return [];
   }
 };
 
@@ -158,7 +176,6 @@ export const getDailySummaries = async (
   } = {}
 ): Promise<DailySummary[]> => {
   try {
-    const summariesRef = collection(db, COLLECTION_SUMMARIES);
     const queryConstraints: QueryConstraint[] = [];
     
     if (filters.startDate) {
@@ -174,18 +191,30 @@ export const getDailySummaries = async (
     // Order by date descending by default
     queryConstraints.push(orderBy('date', 'desc'));
 
-    const q = query(summariesRef, ...queryConstraints);
-    const querySnapshot = await getDocs(q);
-
-    const summaries: DailySummary[] = [];
-    querySnapshot.forEach((doc) => {
-      summaries.push({ ...(doc.data() as DailySummary), id: doc.id });
-    });
+    // ใช้ safeQuery เพื่อจัดการ index error
+    const summaries = await safeQuery<DailySummary>(
+      COLLECTION_SUMMARIES, 
+      queryConstraints,
+      'ApprovalQueries.getDailySummaries'
+    );
+    
+    if (summaries === null) {
+      console.warn('[getDailySummaries] Query failed due to missing index. Returning empty array.');
+      return [];
+    }
     
     return summaries;
+    
   } catch (error) {
     console.error('Error fetching daily summaries:', error);
-    throw error;
+    
+    // ตรวจสอบว่าเป็น index error หรือไม่
+    if (!handleIndexError(error, 'ApprovalQueries.getDailySummaries')) {
+      throw error; // ถ้าไม่ใช่ index error ให้ throw error ต่อไป
+    }
+    
+    // ถ้าเป็น index error ให้คืนค่า array ว่าง
+    return [];
   }
 };
 
@@ -196,29 +225,35 @@ export const getDailySummaries = async (
  */
 export const getApprovalHistory = async (formId: string): Promise<ApprovalRecord[]> => {
   try {
-    const approvalsRef = collection(db, COLLECTION_APPROVALS);
-    const approvalsQuery = query(
-      approvalsRef,
+    const queryConstraints: QueryConstraint[] = [
       where('formId', '==', formId),
       orderBy('approvedAt', 'desc')
+    ];
+    
+    // ใช้ safeQuery เพื่อจัดการ index error
+    const approvals = await safeQuery<ApprovalRecord>(
+      COLLECTION_APPROVALS, 
+      queryConstraints,
+      'ApprovalQueries.getApprovalHistory'
     );
     
-    const approvalDocs = await getDocs(approvalsQuery);
-    
-    if (approvalDocs.empty) {
+    if (approvals === null) {
+      console.warn('[getApprovalHistory] Query failed due to missing index. Returning empty array.');
       return [];
     }
     
-    // แปลงข้อมูลเอกสารเป็น objects
-    const approvals: ApprovalRecord[] = approvalDocs.docs.map(doc => ({
-      ...(doc.data() as ApprovalRecord),
-      id: doc.id
-    }));
-    
     return approvals;
+    
   } catch (error) {
     console.error('Error fetching approval history:', error);
-    throw error;
+    
+    // ตรวจสอบว่าเป็น index error หรือไม่
+    if (!handleIndexError(error, 'ApprovalQueries.getApprovalHistory')) {
+      throw error; // ถ้าไม่ใช่ index error ให้ throw error ต่อไป
+    }
+    
+    // ถ้าเป็น index error ให้คืนค่า array ว่าง
+    return [];
   }
 };
 

@@ -65,7 +65,6 @@ export const useShiftManagement = ({
   }, [selectedWard, selectedDate]); // Only depends on ward and date
 
   // Effect 2: Handle auto-selection based on fetched statuses
-  /*
   useEffect(() => {
     // Don't auto-select while loading statuses
     if (isLoadingStatus) return;
@@ -98,8 +97,7 @@ export const useShiftManagement = ({
     // }
 
   // Remove selectedShift from dependencies here. React only to status changes.
-  }, [morningShiftStatus, nightShiftStatus, isLoadingStatus]); 
-  */
+  }, [morningShiftStatus, nightShiftStatus, isLoadingStatus, selectedShift]); 
 
   // Function to handle manual shift selection by user
   const handleSelectShift = (shift: ShiftType) => {
