@@ -21,7 +21,7 @@ const RecorderInfo: React.FC<RecorderInfoProps> = ({
   isReadOnly,
   isDraftLoaded,
 }) => {
-  const applyDraftStyle = isDraftLoaded && !isReadOnly;
+  // const applyDraftStyle = isDraftLoaded && !isReadOnly; // Temporarily disable draft style logic
 
   return (
     <div className="mt-6 p-4 border-t border-gray-200 dark:border-gray-700">
@@ -36,11 +36,12 @@ const RecorderInfo: React.FC<RecorderInfoProps> = ({
           error={errors.recorderFirstName}
           placeholder="กรอกชื่อ"
           readOnly={isReadOnly}
-          className={twMerge(
-            "form-input", 
-            isReadOnly && "bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed",
-            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600"
-          )}
+          // Temporarily remove className prop to isolate Input component's default/error styling
+          // className={twMerge(
+          //   "form-input", 
+          //   isReadOnly && "...",
+          //   applyDraftStyle && "..."
+          // )}
         />
         <Input
           id="recorderLastName"
@@ -51,11 +52,12 @@ const RecorderInfo: React.FC<RecorderInfoProps> = ({
           error={errors.recorderLastName}
           placeholder="กรอกนามสกุล"
           readOnly={isReadOnly}
-          className={twMerge(
-            "form-input", 
-            isReadOnly && "bg-gray-100 dark:bg-gray-800/50 border-transparent focus:border-transparent focus:ring-0 text-gray-700 dark:text-gray-300 cursor-not-allowed",
-            applyDraftStyle && "bg-yellow-50 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 focus:ring-yellow-500 dark:focus:ring-yellow-600"
-          )}
+          // Temporarily remove className prop to isolate Input component's default/error styling
+          // className={twMerge(
+          //   "form-input", 
+          //   isReadOnly && "...",
+          //   applyDraftStyle && "..."
+          // )}
         />
       </div>
     </div>

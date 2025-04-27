@@ -91,53 +91,58 @@ export const WarningToast = ({ message, t }: { message: string; t: Toast }) => (
 );
 
 // Utility functions for showing toast notifications
-export const showSuccessToast = (message: string) => {
+export const showSuccessToast = (message: string, options?: { id?: string }) => {
   return toast.custom((t) => (
     <SuccessToast message={message} t={t} />
-  ));
+  ), options);
 };
 
-export const showErrorToast = (message: string) => {
+export const showErrorToast = (message: string, options?: { id?: string }) => {
   return toast.custom((t) => (
     <ErrorToast message={message} t={t} />
-  ));
+  ), options);
 };
 
-export const showInfoToast = (message: string) => {
+export const showInfoToast = (message: string, options?: { id?: string }) => {
   return toast.custom((t) => (
     <InfoToast message={message} t={t} />
-  ));
+  ), options);
 };
 
-export const showWarningToast = (message: string) => {
+export const showWarningToast = (message: string, options?: { id?: string }) => {
   return toast.custom((t) => (
     <WarningToast message={message} t={t} />
-  ));
+  ), options);
 };
 
 /**
  * แสดง toast โดยมีระบบป้องกันการแสดงซ้ำในช่วงเวลาใกล้เคียงกัน
  * @param message ข้อความที่ต้องการแสดง
  * @param type ประเภทของ toast
+ * @param options ตัวเลือกเพิ่มเติม เช่น id
  * @returns ID ของ toast หรือ undefined ถ้าไม่ได้แสดง (เนื่องจากถูก throttle)
  */
-export const showSafeToast = (message: string, type: 'success' | 'error' | 'info' | 'warning') => {
+export const showSafeToast = (message: string, type: 'success' | 'error' | 'info' | 'warning', options?: { id?: string }) => {
   const now = Date.now();
-  const key = `${type}:${message}`;
+  // If an ID is provided, use it for throttling, otherwise use type:message
+  const key = options?.id || `${type}:${message}`;
   const lastShown = toastThrottleMap.get(key) || 0;
   
-  // ถ้ายังไม่ถึงเวลาที่กำหนด ไม่แสดง toast
-  if (now - lastShown < TOAST_THROTTLE_MS) {
+  // ถ้ายังไม่ถึงเวลาที่กำหนด ไม่แสดง toast (ยกเว้นกรณีมี ID ซึ่ง react-hot-toast จัดการเอง)
+  if (!options?.id && now - lastShown < TOAST_THROTTLE_MS) {
     return undefined;
   }
   
-  // แสดง toast และบันทึกเวลา
-  toastThrottleMap.set(key, now);
+  // แสดง toast และบันทึกเวลา (ถ้าไม่มี ID หรือ throttle ผ่าน)
+  if (!options?.id || now - lastShown >= TOAST_THROTTLE_MS){
+      toastThrottleMap.set(key, now);
+  }
   
-  if (type === 'success') return showSuccessToast(message);
-  else if (type === 'error') return showErrorToast(message);
-  else if (type === 'warning') return showWarningToast(message);
-  else return showInfoToast(message);
+  // Pass options down to the specific toast function
+  if (type === 'success') return showSuccessToast(message, options);
+  else if (type === 'error') return showErrorToast(message, options);
+  else if (type === 'warning') return showWarningToast(message, options);
+  else return showInfoToast(message, options);
 };
 
 // For simple toast notifications without custom styling

@@ -16,6 +16,8 @@ import { showSuccessToast, showErrorToast, showInfoToast, showSafeToast } from '
 import { Timestamp } from 'firebase/firestore';
 import { logSystemError } from '@/app/core/utils/logUtils';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
+import { toast } from 'react-hot-toast'; // Import toast directly
+import { WarningToast } from '@/app/core/utils/toastUtils'; // Import the specific toast component
 
 interface UseFormPersistenceProps {
   formData: Partial<WardForm>;
@@ -38,6 +40,18 @@ interface UseFormPersistenceProps {
   setIsNightShiftDisabled: React.Dispatch<React.SetStateAction<boolean>>;
   isMorningCensusReadOnly: boolean; // From useWardFormData
 }
+
+// Helper function to add basic info needed for validation
+const addBasicInfoForValidation = (data: Partial<WardForm>, selectedWard: string, selectedDate: string, selectedShift: ShiftType, wards: Ward[]): Partial<WardForm> => {
+    const wardName = wards.find(w => w.id === selectedWard)?.wardName || ''; // Use empty string if not found, validation will catch wardId
+    return {
+        ...data,
+        wardId: selectedWard,
+        wardName: wardName, 
+        date: selectedDate, // Use the string date selected by user
+        shift: selectedShift,
+    };
+};
 
 export const useFormPersistence = ({
   formData,
@@ -67,7 +81,7 @@ export const useFormPersistence = ({
   const [isFinalizeButtonDisabled, setIsFinalizeButtonDisabled] = useState(false);
   
   // กำหนดเวลาที่ปุ่มถูก disable หลังกด (milliseconds)
-  const BUTTON_COOLDOWN_TIME = 1200;
+  const BUTTON_COOLDOWN_TIME = 2500;
 
   // Helper function to prepare data for validation/saving
   // Converts undefined/null/empty string numeric fields to 0 and ensures core fields are present.
@@ -123,7 +137,8 @@ export const useFormPersistence = ({
     setErrors(validationResult.errors);
 
     if (!validationResult.isValid) {
-      // Only show ONE summary toast notification per failed validation attempt.
+      const toastId = 'validation-toast'; // Define the ID
+
       if (validationResult.missingFields.length > 0) {
         const firstMissingField = validationResult.missingFields[0];
         const fieldLabels: Record<string, string> = {
@@ -149,10 +164,10 @@ export const useFormPersistence = ({
           .map(fieldName => fieldLabels[fieldName as keyof typeof fieldLabels] || fieldName)
           .join(', ');
         
-        // Simplified toast message
         const toastMessage = `ข้อมูลไม่ครบถ้วน กรุณากรอก: ${missingFieldNames}`;
         
-        showSafeToast(toastMessage, 'warning');
+        // Call showSafeToast with the ID option
+        showSafeToast(toastMessage, 'warning', { id: toastId });
 
         // Attempt to focus on the first missing field
         try {
@@ -163,12 +178,14 @@ export const useFormPersistence = ({
         } catch (e) {
           console.error("Error focusing on element:", e);
         }
+
       } else {
-        // General validation error (e.g., negative number) without specific missing fields
-        showSafeToast('ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบ', 'warning');
+        // General validation error
+        const toastMessage = 'ข้อมูลบางส่วนไม่ถูกต้อง กรุณาตรวจสอบ';
+        // Call showSafeToast with the ID option
+        showSafeToast(toastMessage, 'warning', { id: toastId });
       }
-       // Log details for debugging
-       console.error(`Validation failed - errors:`, JSON.stringify(validationResult.errors));
+      console.error(`Validation failed - errors:`, JSON.stringify(validationResult.errors));
     }
 
     return validationResult.isValid;
@@ -176,118 +193,118 @@ export const useFormPersistence = ({
 
   // --- Save Draft --- 
   const handleSaveDraft = useCallback(async (isOverwrite: boolean = false) => {
-    // ป้องกันการกดปุ่มซ้ำ
     if (isSaveButtonDisabled) return;
-    
-    setIsSaveButtonDisabled(true);
-    
-    // ตั้งเวลาเพื่อเปิดปุ่มอีกครั้งหลังจากเวลาที่กำหนด
-    setTimeout(() => {
-      setIsSaveButtonDisabled(false);
-    }, BUTTON_COOLDOWN_TIME);
-    
-    if (!user) {
-      showSafeToast('กรุณาเข้าสู่ระบบก่อนบันทึก', 'error');
+
+    setIsSaveButtonDisabled(true); // Disable ทันที
+
+    if (!user || !selectedWard || !selectedDate) {
+      showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
+      setIsSaveButtonDisabled(false); // Re-enable ถ้า check ไม่ผ่าน
       return;
     }
-    if (!selectedWard || !selectedDate) {
-       showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
-       return;
+
+    let dataToValidate: Partial<WardForm> = { ...formData };
+    dataToValidate = addBasicInfoForValidation(dataToValidate, selectedWard, selectedDate, selectedShift, wards);
+
+    if (!validateFormAndNotify(dataToValidate)) {
+      // ถ้า validation ไม่ผ่าน ให้ re-enable ปุ่มหลังจาก cooldown
+      setTimeout(() => setIsSaveButtonDisabled(false), BUTTON_COOLDOWN_TIME); 
+      return;
     }
 
-    const dataToProcess = prepareDataForSave(formData); 
+    const dataToProcess = prepareDataForSave(dataToValidate);
 
-    // Use the updated validation function (no context needed)
-    if (!validateFormAndNotify(dataToProcess)) { 
-        // Toast is already shown by validateFormAndNotify
-        return; 
-    }
-    
-    // ตรวจสอบ draft ที่มีอยู่
-    const currentTargetDateString = dataToProcess.dateString; 
-    if (existingDraftData?.wardId === dataToProcess.wardId && 
-        existingDraftData?.dateString === currentTargetDateString && 
+    const currentTargetDateString = dataToProcess.dateString;
+    if (existingDraftData?.wardId === dataToProcess.wardId &&
+        existingDraftData?.dateString === currentTargetDateString &&
         existingDraftData?.shift === dataToProcess.shift &&
-        !isOverwrite) { 
+        !isOverwrite) {
       showSafeToast('พบข้อมูลร่างของวันนี้อยู่แล้ว คุณต้องการบันทึกทับหรือไม่?', 'warning');
-      setIsConfirmModalOpen(true); 
-      return; 
+      setIsConfirmModalOpen(true);
+      // ไม่ re-enable ปุ่มทันที รอ user action จาก modal
+      return;
     }
 
     await performSaveDraft(dataToProcess, isOverwrite);
+    // การ re-enable ปุ่มจะถูกจัดการใน finally block ของ performSaveDraft
 
   }, [formData, user, selectedWard, selectedDate, selectedShift, existingDraftData, 
       setErrors, wards, isConfirmModalOpen, validateFormAndNotify, prepareDataForSave,
       isSaveButtonDisabled, BUTTON_COOLDOWN_TIME]);
 
   const performSaveDraft = useCallback(async (dataToSave: Partial<WardForm>, isOverwrite: boolean = false) => {
-     if (!user) return; 
-     
-     setIsSaving(true);
-     setErrors({}); // Clear errors before saving attempt
-     
-     try {
-       // Data passed in (dataToSave) is already prepared (undefined -> 0)
-       // Call the appropriate service function
-       let savedDocId: string | null = null;
+    if (!user) {
+        setIsSaveButtonDisabled(false); // Ensure button is enabled if user check fails early
+        return;
+    } 
 
-       // Prepare data specifically for the service (may involve timestamp conversions etc. handled within the service now)
-       const dataForService = {
-            ...dataToSave,
-            // Pass existing draft ID for potential overwrite logic within the service if needed
-            // Or rely on setDoc merge:true within service
-            id: isOverwrite ? existingDraftData?.id : undefined, 
-             // Ensure user details are passed correctly
-            recorderFirstName: dataToSave.recorderFirstName || user.firstName || '',
-            recorderLastName: dataToSave.recorderLastName || user.lastName || '',
-            createdBy: isOverwrite ? (existingDraftData?.createdBy ?? user.uid) : user.uid,
-            // Service will handle timestamps (createdAt, updatedAt)
-       };
+    // isSaveButtonDisabled is already true from handleSaveDraft
+    setIsSaving(true);
+    setErrors({});
 
-       if (selectedShift === ShiftType.MORNING) {
-         // Pass the prepared data and user to the service function
-         savedDocId = await saveMorningShiftFormDraft(dataForService, user);
-         setMorningShiftStatus(FormStatus.DRAFT); 
-       } else {
-         savedDocId = await saveNightShiftFormDraft(dataForService, user);
-         setNightShiftStatus(FormStatus.DRAFT); 
-       }
-       
-       // After successful save, update local draft state
-       if (savedDocId) {
-           // Construct approximate new draft data locally or re-fetch for accuracy
-            const approxDate = dataToSave.date ? new Date(dataToSave.date + 'T00:00:00') : new Date();
-            // Provide a fallback for createdAt if existingDraftData?.createdAt is undefined
-            const approxCreatedAt = isOverwrite ? (existingDraftData?.createdAt ?? new Date()) : new Date(); 
+    try {
+      // Data passed in (dataToSave) should already have names fixed by handleSaveDraft
+      let savedDocId: string | null = null;
 
-           const newDraftData: WardForm = {
-               ...(dataToSave as WardForm), 
-               id: savedDocId, 
-               status: FormStatus.DRAFT,
-               isDraft: true,
-               // Use the fallback value
-               createdAt: approxCreatedAt, 
-               updatedAt: new Date(), // Approximate
-               date: approxDate, // Use the date obj approx
-           }; 
-           setExistingDraftData(newDraftData);
-       }
+      // Prepare data specifically for the service 
+      const dataForService = {
+           ...dataToSave,
+           id: isOverwrite ? existingDraftData?.id : undefined, 
+           // REMOVED redundant name setting here, already handled in handleSaveDraft
+           createdBy: isOverwrite ? (existingDraftData?.createdBy ?? user.uid) : user.uid,
+           // Ensure names passed are trimmed strings
+           recorderFirstName: String(dataToSave.recorderFirstName || '').trim(), 
+           recorderLastName: String(dataToSave.recorderLastName || '').trim(),
+      };
 
-       showSafeToast('บันทึกข้อมูลร่างสำเร็จ', 'success');
-       setIsConfirmModalOpen(false); 
-       
-     } catch (error) {
-       console.error('Error saving draft:', error);
-       const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกร่าง';
-       if (errorMessage.startsWith('Validation failed:')) {
-           showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error');
-       } else {
-           showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error');
-       }
-       logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
-     } finally {
-       setIsSaving(false);
-     }
+      if (selectedShift === ShiftType.MORNING) {
+        // Pass the prepared data and user to the service function
+        savedDocId = await saveMorningShiftFormDraft(dataForService, user);
+        setMorningShiftStatus(FormStatus.DRAFT); 
+      } else {
+        savedDocId = await saveNightShiftFormDraft(dataForService, user);
+        setNightShiftStatus(FormStatus.DRAFT); 
+      }
+      
+      // After successful save, update local draft state
+      if (savedDocId) {
+          // Construct approximate new draft data locally or re-fetch for accuracy
+           const approxDate = dataToSave.date ? new Date(dataToSave.date + 'T00:00:00') : new Date();
+           // Provide a fallback for createdAt if existingDraftData?.createdAt is undefined
+           const approxCreatedAt = isOverwrite ? (existingDraftData?.createdAt ?? new Date()) : new Date(); 
+
+          const newDraftData: WardForm = {
+              ...(dataToSave as WardForm), 
+              id: savedDocId, 
+              status: FormStatus.DRAFT,
+              isDraft: true,
+              // Use the fallback value
+              createdAt: approxCreatedAt, 
+              updatedAt: new Date(), // Approximate
+              date: approxDate, // Use the date obj approx
+          }; 
+          setExistingDraftData(newDraftData);
+      }
+
+      showSafeToast('บันทึกข้อมูลร่างสำเร็จ', 'success');
+      setIsConfirmModalOpen(false); 
+      
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      const errorMessage = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการบันทึกร่าง';
+      if (errorMessage.startsWith('Validation failed:')) {
+          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage.replace('Validation failed: ', '')}`, 'error');
+      } else {
+          showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error');
+      }
+      logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
+    } finally {
+      setIsSaving(false);
+      // Re-enable ปุ่มหลังจาก cooldown ไม่ว่าจะสำเร็จหรือไม่
+      setTimeout(() => {
+        setIsSaveButtonDisabled(false);
+      }, BUTTON_COOLDOWN_TIME); 
+    }
   }, [
       formData, 
       user, 
@@ -305,42 +322,43 @@ export const useFormPersistence = ({
 
    // --- Confirmation Modal Handlers ---
    const handleConfirmSaveDraft = () => {
+     // ไม่ต้อง disable ปุ่มซ้ำ เพราะ performSaveDraft จะจัดการเอง
      performSaveDraft(formData, true); 
    };
  
    const handleCloseConfirmModal = () => {
      setIsConfirmModalOpen(false);
+     // Re-enable ปุ่ม save ถ้า modal ถูกปิดโดยไม่กด Confirm
+     setIsSaveButtonDisabled(false); 
    };
 
   // --- Finalize Form Logic ---
   const handleFinalizeForm = useCallback(async () => {
-    // ป้องกันการกดปุ่มซ้ำ
     if (isFinalizeButtonDisabled) return;
-    
     setIsFinalizeButtonDisabled(true);
-    
-    // ตั้งเวลาเพื่อเปิดปุ่มอีกครั้งหลังจากเวลาที่กำหนด
-    setTimeout(() => {
-      setIsFinalizeButtonDisabled(false);
-    }, BUTTON_COOLDOWN_TIME);
-  
-    if (!user) {
-      showSafeToast('กรุณาเข้าสู่ระบบก่อนบันทึก', 'error');
-      return;
+
+    if (!user || !selectedWard || !selectedDate) {
+        showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
+        setIsFinalizeButtonDisabled(false); // Re-enable
+        return;
     }
-    if (!selectedWard || !selectedDate) {
-      showSafeToast('กรุณาเลือกวอร์ดและวันที่', 'error');
+    
+    // 1. Prepare data for validation (start with raw form data)
+    let dataToValidate: Partial<WardForm> = { ...formData }; 
+
+    // 1a. Add basic info required by validation
+    dataToValidate = addBasicInfoForValidation(dataToValidate, selectedWard, selectedDate, selectedShift, wards);
+
+    // 2. Validate the data
+    if (!validateFormAndNotify(dataToValidate)) {
+      setTimeout(() => setIsFinalizeButtonDisabled(false), BUTTON_COOLDOWN_TIME);
       return;
     }
 
-    const dataToProcess = prepareDataForSave(formData);
+    // 3. If validation passes, THEN prepare data for ACTUAL saving
+    const dataToProcess = prepareDataForSave(dataToValidate);
 
-    // Use the updated validation function (no context needed)
-    if (!validateFormAndNotify(dataToProcess)) { 
-      // Toast is already shown by validateFormAndNotify
-      return;
-    }
-    
+    // 4. Check morning shift status before finalizing night shift
     if (selectedShift === ShiftType.NIGHT) {
       if (morningShiftStatus !== FormStatus.FINAL && morningShiftStatus !== FormStatus.APPROVED) {
         showSafeToast('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้บันทึกสมบูรณ์หรืออนุมัติ', 'warning');
@@ -348,6 +366,7 @@ export const useFormPersistence = ({
       }
     }
 
+    // 5. Proceed with finalization using prepared data
     setIsSaving(true);
     setErrors({}); // ล้าง error
 
@@ -360,10 +379,14 @@ export const useFormPersistence = ({
                           ? existingDraftData.id 
                           : undefined;
       
+      // Ensure data passed to service uses the potentially updated dataToProcess
       const dataToSave = { 
-          ...dataToProcess, 
+          ...dataToProcess, // Use prepared data
           wardName: wardName,
-          id: draftIdToUse 
+          id: draftIdToUse, 
+          // Ensure names passed are trimmed strings
+          recorderFirstName: String(dataToProcess.recorderFirstName || '').trim(),
+          recorderLastName: String(dataToProcess.recorderLastName || '').trim(),
       };
 
       if (selectedShift === ShiftType.MORNING) {
@@ -395,6 +418,10 @@ export const useFormPersistence = ({
       logSystemError(error as Error, 'handleFinalizeForm', user?.uid, user?.username);
     } finally {
       setIsSaving(false);
+      // Re-enable finalize button after cooldown
+      setTimeout(() => {
+          setIsFinalizeButtonDisabled(false);
+      }, BUTTON_COOLDOWN_TIME);
     }
   }, [
       formData, 

@@ -86,12 +86,17 @@ export const validateFormData = (formData: Partial<WardForm>): {
   // Check required numeric fields - STRICT CHECK
   requiredNumericFields.forEach(field => {
     const value = formData[field];
-    // Check for undefined, null, empty string, NaN, or negative numbers
-    // 0 is allowed, but truly empty/undefined values are not.
-    if (value === undefined || value === null || value === '' || isNaN(Number(value)) || Number(value) < 0) {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
+    // **Updated Check:** Explicitly check for undefined and null.
+    // Also ensure it's a valid, non-negative number if it's not undefined/null.
+    if (value === undefined || value === null || isNaN(Number(value)) || Number(value) < 0) {
+        // Removed the check for value === '' here, as empty string for number input
+        // should ideally be handled as undefined by the state management (handleChange).
+        // If it's not undefined/null, it MUST be a valid non-negative number.
+        
+        isValid = false;
+        missingFields.push(field);
+        // Keep the existing error message, as it covers 'must not be empty' and 'non-negative'.
+        errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)'; 
     }
   });
 

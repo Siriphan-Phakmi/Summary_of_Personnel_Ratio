@@ -155,7 +155,22 @@ export const useWardFormData = ({
                 loadedData.patientCensus = Number(previousNightForm.patientCensus);
             }
 
-            setFormData(loadedData);
+            // Set recorder names: Prioritize loaded non-empty name, otherwise use current user's name.
+            // Apply this logic BEFORE setting the state.
+            if (user) { 
+                const isFinalOrApprovedForm = existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED;
+                if (!isFinalOrApprovedForm) {
+                    // If not final/approved, use loaded name if it exists, otherwise use current user's name
+                    loadedData.recorderFirstName = loadedData.recorderFirstName?.trim() ? loadedData.recorderFirstName : (user.firstName || '');
+                    loadedData.recorderLastName = loadedData.recorderLastName?.trim() ? loadedData.recorderLastName : (user.lastName || '');
+                } else {
+                    // If final/approved, just ensure the values are strings (use loaded or empty string)
+                    loadedData.recorderFirstName = loadedData.recorderFirstName || '';
+                    loadedData.recorderLastName = loadedData.recorderLastName || '';
+                }
+            }
+
+            setFormData(loadedData); // Set state with potentially updated recorder names
 
             // Set ReadOnly status
             const isFinalOrApproved = existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED;
@@ -165,24 +180,11 @@ export const useWardFormData = ({
             // The "previous night not found" toast is now handled conditionally above
             const isPastDate = new Date(selectedDate + 'T00:00:00') < new Date(format(new Date(), 'yyyy-MM-dd') + 'T00:00:00');
             if (isFinalOrApproved && isPastDate) {
-                showSafeToast('นี่คือข้อมูลย้อนหลัง...', 'info');
+                showSafeToast('นี่คือข้อมูลย้อนหลัง (บันทึกสมบูรณ์/อนุมัติแล้ว)', 'info');
             } else if (existingForm.status === FormStatus.DRAFT) { // Show draft loaded toast specifically
                 showSafeToast("ข้อมูลร่างสำหรับกะนี้ถูกโหลดแล้ว", 'info');
             } else if (isFinalOrApproved) { // Show final/approved loaded toast
-                 showSafeToast(`โหลดข้อมูลที่บันทึกสมบูรณ์สำหรับกะ...แล้ว`, 'info');
-            }
-
-            // Update recorder names IF:
-            // 1. A user is logged in
-            // 2. We are NOT loading an existing FINAL or APPROVED form
-            // 3. The field wasn't already populated (e.g., from a loaded draft)
-            if (user && !(existingForm && (existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED))) {
-              setFormData(prev => ({
-                ...prev,
-                // Only set if the current value in state is empty/falsy
-                recorderFirstName: prev.recorderFirstName || user.firstName || '',
-                recorderLastName: prev.recorderLastName || user.lastName || '',
-              }));
+                 showSafeToast(`โหลดข้อมูลที่บันทึกสมบูรณ์/อนุมัติสำหรับกะนี้แล้ว`, 'info');
             }
 
           } else {

@@ -35,10 +35,8 @@ export default function DailyCensusForm() {
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isWardLoading, setIsWardLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const [isFormReadOnly, setIsFormReadOnly] = useState(false);
 
   // Load wards once
   useEffect(() => {
@@ -82,12 +80,14 @@ export default function DailyCensusForm() {
     error: dataError,
     setError: setDataError,
     handleChange,
-    isFormReadOnly: dataFormReadOnly,
+    isFormReadOnly,
     isMorningCensusReadOnly,
     isCensusAutoCalculated,
     isDraftLoaded,
-    errors: wardFormErrors,
-    setErrors: setWardFormErrors,
+    errors,
+    setErrors,
+    existingDraftData,
+    setExistingDraftData,
   } = useWardFormData({ selectedWard, selectedDate, selectedShift, user: currentUser, morningShiftStatus, nightShiftStatus });
 
   const { 
@@ -108,8 +108,8 @@ export default function DailyCensusForm() {
     selectedShift,
     user: currentUser,
     wards,
-    existingDraftData: null,
-    setExistingDraftData: () => {},
+    existingDraftData,
+    setExistingDraftData,
     setIsSaving,
     morningShiftStatus,
     setMorningShiftStatus,
@@ -124,10 +124,6 @@ export default function DailyCensusForm() {
   const triggerSaveDraft = () => {
     handleSaveDraft(); // Call without args, isOverwrite defaults to false
   };
-
-  useEffect(() => {
-    setIsFormReadOnly(dataFormReadOnly);
-  }, [dataFormReadOnly]);
 
   const isLoading = isWardLoading || isLoadingStatus;
 
@@ -154,7 +150,22 @@ export default function DailyCensusForm() {
     <ProtectedPage requiredRole={['nurse', 'user', 'admin', 'developer']}> 
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
-        <Toaster position="top-right" />
+        <Toaster
+          position="top-right"
+          gutter={8}
+          toastOptions={{
+            style: {
+              marginBottom: '1rem',
+            },
+            error: {
+              style: {
+                background: 'hsl(var(--destructive))',
+                color: 'hsl(var(--destructive-foreground))',
+                marginBottom: '1rem',
+              },
+            },
+          }}
+        />
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล</h1>
 

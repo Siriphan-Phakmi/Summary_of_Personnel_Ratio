@@ -57,17 +57,52 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     helperText,
     required,
     type = "text",
+    id,
     ...props 
   }, ref) => {
+    
+    // --- DEBUG LOGS --- 
+    if (id === 'recorderFirstName' || id === 'recorderLastName') {
+      console.log(`[Input Debug - ${id}] Received error prop:`, error);
+    }
+    // --- END DEBUG LOGS --- 
+
     // Set variant to error if there's an error message
     const inputVariant = error ? "error" : variant;
+    
+    // --- DEBUG LOGS --- 
+    if (id === 'recorderFirstName' || id === 'recorderLastName') {
+      console.log(`[Input Debug - ${id}] Calculated inputVariant:`, inputVariant);
+    }
+    // --- END DEBUG LOGS ---
+    
+    const calculatedClasses = inputVariants({ 
+      variant: inputVariant, 
+      inputSize,
+      fullWidth,
+      className 
+    });
+
+    // --- DEBUG LOGS --- 
+    if (id === 'recorderFirstName' || id === 'recorderLastName') {
+      console.log(`[Input Debug - ${id}] Classes before twMerge:`, calculatedClasses);
+    }
+    // --- END DEBUG LOGS ---
+
+    const finalClassName = twMerge(calculatedClasses);
+
+    // --- DEBUG LOGS --- 
+    if (id === 'recorderFirstName' || id === 'recorderLastName') {
+      console.log(`[Input Debug - ${id}] Final classes after twMerge:`, finalClassName);
+    }
+    // --- END DEBUG LOGS ---
   
     return (
       <div className="space-y-2">
         {/* Show label if provided */}
         {label && (
           <label 
-            htmlFor={props.id} 
+            htmlFor={id} 
             className="block text-sm font-medium text-gray-700 dark:text-gray-300"
           >
             {label}
@@ -77,16 +112,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         
         <input
           type={type}
-          className={twMerge(
-            inputVariants({ 
-              variant: inputVariant, 
-              inputSize,
-              fullWidth,
-              className 
-            })
-          )}
+          id={id}
+          className={finalClassName}
           aria-invalid={error ? "true" : "false"}
-          aria-describedby={error ? `${props.id}-error` : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           ref={ref}
           required={required}
           {...props}
@@ -94,8 +123,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         
         {/* Show error message if there's an error */}
         {error && (
+             // --- DEBUG LOGS --- 
+            (id === 'recorderFirstName' || id === 'recorderLastName') && console.log(`[Input Debug - ${id}] Rendering error message paragraph.`),
+             // --- END DEBUG LOGS ---
           <p 
-            id={`${props.id}-error`}
+            id={`${id}-error`}
             className="text-sm text-red-600 dark:text-red-400 font-medium"
           >
             {error}
