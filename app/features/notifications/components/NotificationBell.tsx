@@ -10,13 +10,36 @@ import { useAuth } from '@/app/features/auth'; // เปลี่ยนจาก
 import { Timestamp } from 'firebase/firestore';
 
 const NotificationBell: React.FC = () => {
-  const { user, csrfToken } = useAuth(); // Get user and CSRF token
+  const { user } = useAuth(); // Removed csrfToken from here
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [csrfTokenState, setCsrfTokenState] = useState<string | null>(null); // <-- State for CSRF token
+
+  // Fetch CSRF Token on mount if user is logged in
+  useEffect(() => {
+    const fetchCsrf = async () => {
+      if (user && !csrfTokenState) {
+        try {
+          const res = await fetch('/api/auth/csrf');
+          if (res.ok) {
+            const data = await res.json();
+            setCsrfTokenState(data.csrfToken);
+            console.log('[NotificationBell] CSRF Token fetched.');
+          } else {
+             console.error('[NotificationBell] Failed to fetch CSRF token:', res.statusText);
+          }
+        } catch (err) {
+          console.error('[NotificationBell] Error fetching CSRF token:', err);
+        }
+      }
+    };
+    fetchCsrf();
+  }, [user, csrfTokenState]); // Depend on user and if token already exists
+
 
   const fetchNotifications = async () => {
     if (!user || isLoading) return; // Don't fetch if no user or already loading
@@ -61,13 +84,16 @@ const NotificationBell: React.FC = () => {
   };
 
   const handleMarkAsRead = async (notificationId: string) => {
-    if (!csrfToken) return;
+    if (!csrfTokenState) { // <-- Check state instead of context
+       console.error('[NotificationBell] CSRF Token not available for markAsRead.');
+       return;
+    }
     try {
       const response = await fetch('/api/notifications/markAsRead', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken,
+          'X-CSRF-Token': csrfTokenState, // <-- Use token from state
         },
         body: JSON.stringify({ notificationId }),
       });
@@ -80,22 +106,31 @@ const NotificationBell: React.FC = () => {
           );
           setUnreadCount(prev => Math.max(0, prev - 1));
         }
+      } else if (response.status === 403) {
+         setError('เกิดข้อผิดพลาดด้านความปลอดภัย โปรดรีเฟรชหน้าเว็บ'); // Set specific error for CSRF
+         console.error('CSRF token validation failed when marking as read.');
       } else {
-         console.error('Failed to mark notification as read');
+         setError('ไม่สามารถทำเครื่องหมายว่าอ่านแล้วได้'); // Generic error for other failures
+         console.error('Failed to mark notification as read:', response.statusText);
       }
     } catch (err) {
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ'); // Network or other errors
       console.error('Error marking notification as read:', err);
     }
   };
   
   const handleMarkAllAsRead = async () => {
-      if (!csrfToken || unreadCount === 0) return;
+      if (!csrfTokenState || unreadCount === 0) { // <-- Check state
+         console.error('[NotificationBell] CSRF Token not available or no unread messages for markAllAsRead.');
+         return;
+      }
+      setError(null); // Clear previous errors before new attempt
       try {
           const response = await fetch('/api/notifications/markAsRead', {
               method: 'POST',
               headers: {
                   'Content-Type': 'application/json',
-                  'X-CSRF-Token': csrfToken,
+                  'X-CSRF-Token': csrfTokenState, // <-- Use token from state
               },
               body: JSON.stringify({ all: true }),
           });
@@ -106,10 +141,15 @@ const NotificationBell: React.FC = () => {
                   setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
                   setUnreadCount(0);
               }
+          } else if (response.status === 403) {
+              setError('เกิดข้อผิดพลาดด้านความปลอดภัย โปรดรีเฟรชหน้าเว็บ'); // Set specific error for CSRF
+              console.error('CSRF token validation failed when marking all as read.');
           } else {
-              console.error('Failed to mark all notifications as read');
+              setError('ไม่สามารถทำเครื่องหมายทั้งหมดว่าอ่านแล้วได้'); // Generic error
+              console.error('Failed to mark all notifications as read:', response.statusText);
           }
       } catch (err) {
+          setError('เกิดข้อผิดพลาดในการเชื่อมต่อ'); // Network or other errors
           console.error('Error marking all notifications as read:', err);
       }
   };
@@ -225,7 +265,7 @@ const NotificationBell: React.FC = () => {
                     rel={notification.actionUrl?.startsWith('http') ? 'noopener noreferrer' : undefined}
                     onClick={(e) => {
                        if (!notification.isRead) {
-                           handleMarkAsRead(notification.id!);
+                           handleMarkAsRead(notification.id!); // Mark as read when clicked
                        }
                        // Allow default navigation if actionUrl exists
                        if (!notification.actionUrl) e.preventDefault(); 
@@ -242,7 +282,7 @@ const NotificationBell: React.FC = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            handleMarkAsRead(notification.id!);
+                            handleMarkAsRead(notification.id!); // Also allow marking as read via this button
                           }}
                           className="text-xs text-blue-500 hover:underline ml-2 whitespace-nowrap"
                           aria-label="ทำเครื่องหมายว่าอ่านแล้ว"

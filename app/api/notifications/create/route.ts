@@ -1,31 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import notificationService from '@/app/core/services/NotificationService';
-import { validateCsrfToken } from '@/app/core/utils/securityUtils';
-import { verifySession } from '@/app/core/utils/authUtils';
+import { verifyToken } from '@/app/core/utils/authUtils';
 import { NotificationType } from '@/app/core/services/NotificationService';
+import { cookies } from 'next/headers';
 
 /**
  * API Endpoint สำหรับสร้างการแจ้งเตือนใหม่
  */
 export async function POST(req: NextRequest) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้
-    const session = await verifySession(req);
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // --- Authentication Check ---
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth_token')?.value;
+    if (!authToken) {
+      return NextResponse.json({ error: 'Unauthorized - No auth token' }, { status: 401 });
     }
+    const tokenData = await verifyToken(authToken);
+    if (!tokenData || !tokenData.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+    const userId = tokenData.sub as string; // Get userId from token
+    // --- End Authentication Check ---
 
-    // ตรวจสอบ CSRF token
-    const csrfTokenValid = await validateCsrfToken(req);
-    if (!csrfTokenValid) {
-      return NextResponse.json(
-        { error: 'Invalid CSRF token' },
-        { status: 403 }
-      );
+
+    // --- CSRF Check ---
+    const csrfTokenFromHeader = req.headers.get('X-CSRF-Token');
+    const csrfTokenFromCookie = cookieStore.get('csrf_token')?.value;
+
+    if (!csrfTokenFromHeader || !csrfTokenFromCookie || csrfTokenFromHeader !== csrfTokenFromCookie) {
+      console.warn('[API Create Notification] CSRF Token mismatch or missing.', { header: csrfTokenFromHeader, cookie: csrfTokenFromCookie });
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 });
     }
+    // --- End CSRF Check ---
+
 
     // รับข้อมูลจาก request
     const data = await req.json();
@@ -46,8 +53,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // เพิ่ม createdBy จาก session
-    data.createdBy = session.userId;
+    // เพิ่ม createdBy จาก session (tokenData)
+    data.createdBy = userId;
 
     // สร้างการแจ้งเตือนใหม่
     const notificationId = await notificationService.createNotification({
@@ -56,7 +63,7 @@ export async function POST(req: NextRequest) {
       recipientIds: data.recipientIds,
       type: data.type,
       relatedDocId: data.relatedDocId,
-      createdBy: session.userId,
+      createdBy: userId, // Use userId from verified token
       actionUrl: data.actionUrl
     });
 

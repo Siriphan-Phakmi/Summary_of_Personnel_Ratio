@@ -88,7 +88,12 @@ export default function DailyCensusForm() {
     handleSaveDraft, // Save draft function
     handleSaveFinal, // Save final function
     isLoading: isDataLoading, // Loading state from data hook
-    isSaving: isFormSaving // Saving state from data hook
+    isSaving: isFormSaving, // Saving state from data hook
+    isFormDirty, // NEW: Form dirty state to check if form has changes
+    // NEW: Get modal state and functions from hook
+    showConfirmOverwriteModal,
+    setShowConfirmOverwriteModal,
+    proceedToSaveDraft, 
   } = useWardFormData({
       selectedWard,
       selectedDate,
@@ -127,6 +132,7 @@ export default function DailyCensusForm() {
 
   // --- Determine button disabled states based on new logic ---
   const isActionDisabled = isFormReadOnly || isFormSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED;
+  const isSaveDraftDisabled = isActionDisabled || !isFormDirty; // Keep existing logic for button state
 
   // Render UI
   return (
@@ -216,7 +222,7 @@ export default function DailyCensusForm() {
                   variant="secondary"
                   onClick={triggerSaveDraft}
                   isLoading={isFormSaving} // Use saving state from hook
-                  disabled={isActionDisabled} // Use combined disabled state
+                  disabled={isSaveDraftDisabled} // Uses isFormDirty internally
                   leftIcon={<FiSave />}
                   loadingText="กำลังบันทึกร่าง..."
                   className="w-full sm:w-auto"
@@ -251,6 +257,15 @@ export default function DailyCensusForm() {
           )}
 
         </div>
+        
+        {/* NEW: Render the confirmation modal */}
+        <ConfirmSaveModal
+          isOpen={showConfirmOverwriteModal}
+          onClose={() => setShowConfirmOverwriteModal(false)} // Close action
+          onConfirm={proceedToSaveDraft} // Confirm action calls the saving function
+          formData={formData} // Pass current form data to display in modal
+          isSaving={isFormSaving} // Pass saving state for button loading indicator
+        />
       </div>
     </ProtectedPage>
   );

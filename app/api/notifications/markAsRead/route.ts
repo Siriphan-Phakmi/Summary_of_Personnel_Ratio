@@ -1,30 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import notificationService from '@/app/core/services/NotificationService';
-import { validateCsrfToken } from '@/app/core/utils/securityUtils';
-import { verifySession } from '@/app/core/utils/authUtils';
+import { verifyToken } from '@/app/core/utils/authUtils';
+import { cookies } from 'next/headers';
 
 /**
  * API Endpoint สำหรับทำเครื่องหมายว่าอ่านการแจ้งเตือนแล้ว
  */
 export async function POST(req: NextRequest) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้
-    const session = await verifySession(req);
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // --- Authentication Check ---
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth_token')?.value;
+    if (!authToken) {
+      return NextResponse.json({ error: 'Unauthorized - No auth token' }, { status: 401 });
     }
+    const tokenData = await verifyToken(authToken);
+    if (!tokenData || !tokenData.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+    const userId = tokenData.sub as string;
+    // --- End Authentication Check ---
 
-    // ตรวจสอบ CSRF token
-    const csrfTokenValid = await validateCsrfToken(req);
-    if (!csrfTokenValid) {
-      return NextResponse.json(
-        { error: 'Invalid CSRF token' },
-        { status: 403 }
-      );
+    // --- CSRF Check ---
+    const csrfTokenFromHeader = req.headers.get('X-CSRF-Token');
+    const csrfTokenFromCookie = cookieStore.get('csrf_token')?.value;
+
+    if (!csrfTokenFromHeader || !csrfTokenFromCookie || csrfTokenFromHeader !== csrfTokenFromCookie) {
+       console.warn('[API MarkAsRead] CSRF Token mismatch or missing.', { header: csrfTokenFromHeader, cookie: csrfTokenFromCookie });
+      return NextResponse.json({ error: 'Invalid CSRF token' }, { status: 403 });
     }
+    // --- End CSRF Check ---
 
     // รับข้อมูลจาก request
     const data = await req.json();
@@ -32,7 +37,7 @@ export async function POST(req: NextRequest) {
     // ตรวจสอบรูปแบบ request
     if (data.all === true) {
       // ทำเครื่องหมายว่าอ่านทั้งหมดแล้ว
-      const count = await notificationService.markAllAsRead(session.userId);
+      const count = await notificationService.markAllAsRead(userId);
       return NextResponse.json({
         success: true,
         message: `Marked ${count} notifications as read`,

@@ -132,7 +132,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
       className: twMerge(
         "form-input",
         readOnly && "bg-gray-100 dark:bg-gray-700", // Base read-only style
-        isDraftAndEditable && "bg-yellow-100 dark:bg-yellow-900/50", // Draft style
+        isDraftAndEditable && "bg-yellow-100 dark:bg-yellow-900/50", // Draft style - highlight with yellow background
         readOnly && "cursor-not-allowed", // Add cursor style for read-only
         errors[fieldName] && "border-red-500 dark:border-red-400" // Error style
       ),

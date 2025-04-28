@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import notificationService from '@/app/core/services/NotificationService';
-import { verifySession } from '@/app/core/utils/authUtils';
+import { verifyToken } from '@/app/core/utils/authUtils';
+import { cookies } from 'next/headers';
 
 /**
  * API Endpoint สำหรับดึงการแจ้งเตือนของผู้ใช้
  */
 export async function GET(req: NextRequest) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้
-    const session = await verifySession(req);
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // --- Authentication Check ---
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('auth_token')?.value;
+    if (!authToken) {
+      return NextResponse.json({ error: 'Unauthorized - No auth token' }, { status: 401 });
     }
+    const tokenData = await verifyToken(authToken);
+    if (!tokenData || !tokenData.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+    const userId = tokenData.sub as string;
+    // --- End Authentication Check ---
 
     // ดึงพารามิเตอร์จาก URL
     const { searchParams } = new URL(req.url);
@@ -23,9 +28,9 @@ export async function GET(req: NextRequest) {
     // ดึงการแจ้งเตือนตามเงื่อนไข
     let notifications;
     if (unreadOnly) {
-      notifications = await notificationService.getUnreadNotifications(session.userId);
+      notifications = await notificationService.getUnreadNotifications(userId);
     } else {
-      notifications = await notificationService.getUserNotifications(session.userId);
+      notifications = await notificationService.getUserNotifications(userId);
     }
 
     // เรียงลำดับตามเวลาล่าสุด

@@ -468,19 +468,39 @@ export const saveMorningShiftFormDraft = async (
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
 
-    // สร้าง ID สำหรับเอกสาร
+    // *** Normalize wardId to uppercase ***
+    const normalizedWardId = formData.wardId.toUpperCase();
+    
+    // *** Generate dateString (Handle different date types safely) ***
+    let dateObj: Date;
+    if (formData.date instanceof Timestamp) {
+      dateObj = formData.date.toDate();
+    } else if (formData.date instanceof Date) {
+        dateObj = formData.date;
+    } else if (typeof formData.date === 'string') {
+        // Assume 'yyyy-MM-dd' or ISO format from input
+        dateObj = new Date(formData.date);
+    } else {
+        throw new Error('Invalid date type in formData');
+    }
+    const dateString = formatDateYMD(dateObj);
+
+    // สร้าง ID สำหรับเอกสาร (ใช้ normalizedWardId)
     const customDocId = formData.id || generateWardFormId(
-      formData.wardId, 
+      normalizedWardId, // Use normalized ID
       ShiftType.MORNING, 
       FormStatus.DRAFT, 
-      formData.date
+      formData.date // Pass original date value here as generateWardFormId expects TimestampField
     );
 
-    console.log(`Saving morning shift draft with ID: ${customDocId}`);
+    console.log(`Saving morning shift draft with ID: ${customDocId}, WardID: ${normalizedWardId}, DateString: ${dateString}`);
 
-    // เตรียมข้อมูลสำหรับบันทึก
+    // เตรียมข้อมูลสำหรับบันทึก (เพิ่ม wardId และ dateString ที่แปลงแล้ว)
     const dataToSave: Partial<WardForm> = {
       ...formData,
+      wardId: normalizedWardId, // *** Store normalized ID ***
+      date: Timestamp.fromDate(dateObj), // Ensure date is stored as Firestore Timestamp
+      dateString: dateString,   // *** Store dateString ***
       status: FormStatus.DRAFT,
       isDraft: true,
       createdBy: formData.createdBy || user.uid,
@@ -613,19 +633,39 @@ export const saveNightShiftFormDraft = async (
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
 
-    // สร้าง ID สำหรับเอกสาร
+    // *** Normalize wardId to uppercase ***
+    const normalizedWardId = formData.wardId.toUpperCase();
+    
+    // *** Generate dateString (Handle different date types safely) ***
+    let dateObj: Date;
+    if (formData.date instanceof Timestamp) {
+      dateObj = formData.date.toDate();
+    } else if (formData.date instanceof Date) {
+        dateObj = formData.date;
+    } else if (typeof formData.date === 'string') {
+        // Assume 'yyyy-MM-dd' or ISO format from input
+        dateObj = new Date(formData.date);
+    } else {
+        throw new Error('Invalid date type in formData');
+    }
+    const dateString = formatDateYMD(dateObj);
+
+    // สร้าง ID สำหรับเอกสาร (ใช้ normalizedWardId)
     const customDocId = formData.id || generateWardFormId(
-      formData.wardId, 
+      normalizedWardId, // Use normalized ID
       ShiftType.NIGHT, 
       FormStatus.DRAFT, 
-      formData.date
+      formData.date // Pass original date value here as generateWardFormId expects TimestampField
     );
 
-    console.log(`Saving night shift draft with ID: ${customDocId}`);
+    console.log(`Saving night shift draft with ID: ${customDocId}, WardID: ${normalizedWardId}, DateString: ${dateString}`);
 
-    // เตรียมข้อมูลสำหรับบันทึก
+    // เตรียมข้อมูลสำหรับบันทึก (เพิ่ม wardId และ dateString ที่แปลงแล้ว)
     const dataToSave: Partial<WardForm> = {
       ...formData,
+      wardId: normalizedWardId, // *** Store normalized ID ***
+      date: Timestamp.fromDate(dateObj), // Ensure date is stored as Firestore Timestamp
+      dateString: dateString,   // *** Store dateString ***
       status: FormStatus.DRAFT,
       isDraft: true,
       createdBy: formData.createdBy || user.uid,
@@ -638,10 +678,7 @@ export const saveNightShiftFormDraft = async (
     }
 
     // ตรวจสอบว่ามี morning form ที่ FINAL หรือ APPROVED หรือไม่
-    const dateObj = new Date(formData.date + 'T12:00:00');
-    const formattedDate = formatDateYMD(dateObj);
-
-    const morningStatus = await checkMorningShiftFormStatus(dateObj, formData.wardId);
+    const morningStatus = await checkMorningShiftFormStatus(dateObj, normalizedWardId); // Use normalized ID
     if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
       throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
     }

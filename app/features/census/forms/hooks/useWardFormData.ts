@@ -68,32 +68,50 @@ export const useWardFormData = ({
   const [error, setError] = useState<string | null>(null); // General error state
   const [isDraftLoaded, setIsDraftLoaded] = useState(false); // Indicates if CURRENTLY displayed data is a loaded draft
   const [isFinalDataFound, setIsFinalDataFound] = useState(false); // NEW: Indicates if FINAL data exists for the selection
+  const [isFormDirty, setIsFormDirty] = useState(false); // NEW: track if form has been modified
+  const [showConfirmOverwriteModal, setShowConfirmOverwriteModal] = useState(false); // NEW: State for confirmation modal
+
+  // Store previous selection to prevent unnecessary reloads if only shift changes
+  const prevSelectionRef = useRef({ ward: selectedWard, date: selectedDate });
 
   useEffect(() => {
-    // Reset states dependent on selection change
-    setError(null);
-    setErrors({}); // Clear errors on selection change
+    // Determine if the core selection (ward/date) or user has changed
+    const selectionChanged = 
+        prevSelectionRef.current.ward !== selectedWard || 
+        prevSelectionRef.current.date !== selectedDate;
 
-    if (!selectedWard || !selectedDate || !user) {
-        setFormData({});
-        setIsLoading(false);
+    // Only reset form/errors/dirty status if ward/date selection changed, 
+    // not just the shift or user object reference (if user data itself didn't change identity)
+    if (selectionChanged) {
+        setError(null);
+        setErrors({});
+        setIsFormDirty(false);
+        // Reset form data ONLY when ward/date changes significantly
+        setFormData({}); 
+        // Update the ref for the next comparison
+        prevSelectionRef.current = { ward: selectedWard, date: selectedDate };
+    }
+
+    // --- Load data logic --- 
+    const loadData = async () => {
+        // *** CRITICAL CHECK: Ensure all required IDs/data are present before proceeding ***
+        if (!selectedWard || !selectedDate || !user?.uid) {
+            console.log('[useWardFormData] Skipping loadData: Missing selectedWard, selectedDate, or user.uid');
+            setIsLoading(false); // Ensure loading is false if we skip
+            // Consider setting a specific state or error if this persists unexpectedly
+            return; 
+        }
+        
+        console.log(`[useWardFormData] Starting loadData for ${selectedWard}, ${selectedDate}, ${selectedShift}`);
+        setIsLoading(true);
+        // Reset specific states related to loaded data properties before fetch
+        // DO NOT reset formData here, reset happens above only on ward/date change
         setIsMorningCensusReadOnly(false);
         setIsFormReadOnly(false);
         setIsCensusAutoCalculated(false);
         setIsDraftLoaded(false);
         setIsFinalDataFound(false);
-        return;
-    }
-
-    const loadData = async () => {
-        setIsLoading(true);
-        // Reset states before loading new data
-        setFormData({});
-        setIsMorningCensusReadOnly(false);
-        setIsFormReadOnly(false);
-        setIsCensusAutoCalculated(false);
-        setIsDraftLoaded(false);
-        setIsFinalDataFound(false); // Reset new state
+        // Keep isFormDirty as is, reset only on selection change or successful save
 
         try {
             const targetDate = new Date(selectedDate + 'T00:00:00');
@@ -172,6 +190,7 @@ export const useWardFormData = ({
                     }
                 }
                 setFormData(loadedData);
+                setIsFormDirty(false); // Data just loaded is not dirty
 
             } else {
                  console.log('[useWardFormData] No existing form found for this shift.');
@@ -227,6 +246,7 @@ export const useWardFormData = ({
                      setIsCensusAutoCalculated(false);
                  }
                  setFormData(initialData); // Set initial data (possibly with auto-census)
+                 setIsFormDirty(false); // Initial data is not dirty
             }
 
         } catch (err) { // Catch block for the main try
@@ -238,20 +258,23 @@ export const useWardFormData = ({
              recorderFirstName: user?.firstName || '',
              recorderLastName: user?.lastName || '',
           });
+          // Reset all relevant states on error
           setIsMorningCensusReadOnly(false);
           setIsFormReadOnly(false);
           setIsCensusAutoCalculated(false);
           setIsDraftLoaded(false);
           setIsFinalDataFound(false);
+          setIsFormDirty(false); // Ensure dirty is false on load error
           setError((err as Error).message);
         } finally {
           setIsLoading(false);
         }
     };
 
+    // Trigger loadData when dependencies are ready
     loadData();
 
-  }, [selectedWard, selectedDate, selectedShift, user]); // Simplify dependencies - shift status might not be needed directly here anymore
+  }, [selectedWard, selectedDate, selectedShift, user]); // Dependencies remain the same
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -284,6 +307,9 @@ export const useWardFormData = ({
       isDraft: true,
       status: FormStatus.DRAFT, // Ensure status reflects draft when editing
     }));
+
+    // Set form as dirty when user makes changes
+    setIsFormDirty(true);
 
     // Clear the error for the field being changed
     if (errors[name]) {
@@ -349,20 +375,17 @@ export const useWardFormData = ({
     return isValid;
   };
 
-  const handleSaveDraft = async () => {
-    if (isFormReadOnly) {
-      showErrorToast('ไม่สามารถบันทึกร่างข้อมูลที่ Finalized แล้วได้');
-      return;
+  // NEW: Function to actually perform the save draft operation
+  const proceedToSaveDraft = async () => {
+    // Ensure user context is still valid if needed, though handled in handleSaveDraft already
+    if (!user) {
+         showErrorToast('User information is missing.');
+         return;
     }
-
-    setIsSaving(true);
     
-    // *** เปลี่ยนมาใช้ validateForm(true) เพื่อตรวจสอบทุกช่องที่จำเป็น (*) เหมือน Save Final ***
-    if (!validateForm(true)) { 
-      showErrorToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วนและถูกต้องก่อนบันทึกร่าง');
-      setIsSaving(false);
-      return;
-    }
+    // Validation is already done in handleSaveDraft before calling this
+    setIsSaving(true);
+    setError(null); // Clear previous errors
 
     try {
       // กรองค่า undefined ออกโดยแปลงเป็น null ก่อนส่งไปบันทึก
@@ -384,27 +407,55 @@ export const useWardFormData = ({
         // ข้อมูลสำหรับการบันทึก
         wardId: selectedWard,
         // หาชื่อ Ward จากที่มีอยู่แล้วแนบไปด้วย
-        wardName: formData.wardName || '',
+        wardName: formData.wardName || '', // Assuming wardName is populated in formData somehow or fetched elsewhere
       };
       
       let docId = '';
       // เลือกใช้ฟังก์ชันตาม shift
-      if (selectedShift === ShiftType.MORNING && user) {
+      if (selectedShift === ShiftType.MORNING) {
         docId = await saveMorningShiftFormDraft(dataToSave, user);
-      } else if (selectedShift === ShiftType.NIGHT && user) {
+      } else if (selectedShift === ShiftType.NIGHT) {
         docId = await saveNightShiftFormDraft(dataToSave, user);
       } else {
-        throw new Error('ข้อมูล Shift หรือ User ไม่ถูกต้อง');
+        throw new Error('ข้อมูล Shift ไม่ถูกต้อง');
       }
 
       // แสดง notification เฉพาะเมื่อมีข้อมูลจริงๆ
       showInfoToast('บันทึกฉบับร่างสำเร็จ');
+      setIsFormDirty(false); // Reset dirty status after successful save
+      setIsDraftLoaded(true); // Ensure draft loaded status is true after saving draft
+      setShowConfirmOverwriteModal(false); // Close modal on success
 
     } catch (err) {
       console.error("Error saving draft:", err);
       showErrorToast(`เกิดข้อผิดพลาดในการบันทึกฉบับร่าง: ${(err as Error).message}`);
+      // Keep modal open on error? Or close? Let's close it for now.
+      // setShowConfirmOverwriteModal(false); 
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // MODIFIED: handleSaveDraft to include confirmation logic
+  const handleSaveDraft = async () => {
+    if (isFormReadOnly) {
+      showErrorToast('ไม่สามารถบันทึกร่างข้อมูลที่ Finalized แล้วได้');
+      return;
+    }
+
+    // *** ใช้ validateForm(true) เหมือนเดิม เพื่อตรวจสอบความครบถ้วนก่อนเสมอ ***
+    if (!validateForm(true)) { 
+      showErrorToast('กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วนและถูกต้องก่อนบันทึกร่าง');
+      // No need to set isSaving here as we haven't started the async operation
+      return;
+    }
+    
+    // Check if we are overwriting an existing draft that has been modified
+    if (isDraftLoaded && isFormDirty) {
+       setShowConfirmOverwriteModal(true); // Show confirmation modal
+    } else {
+       // If it's a new draft or an existing draft that hasn't been modified (though save button should be disabled), proceed directly
+       await proceedToSaveDraft(); 
     }
   };
 
@@ -495,6 +546,7 @@ export const useWardFormData = ({
       // แสดง notification เมื่อบันทึกสำเร็จ
       showSafeToast('บันทึกข้อมูลสมบูรณ์ (Final) สำเร็จ!', 'success');
       setIsFormReadOnly(true); // Make form read-only after successful final save
+      setIsFormDirty(false); // Reset dirty status after successful final save
 
     } catch (err) {
       console.error("Error saving final:", err);
@@ -513,11 +565,16 @@ export const useWardFormData = ({
     isFormReadOnly, // Use this based on isFinalDataFound
     isCensusAutoCalculated,
     handleChange,
-    handleSaveDraft,
+    handleSaveDraft, // Keep this name for the initial trigger
     handleSaveFinal,
     validateForm,
     error, // Pass general error state
     isDraftLoaded, // Pass flag for draft background styling
     isFinalDataFound, // Pass flag for final notification/read-only
+    isFormDirty, // NEW: Pass form dirty status
+    // NEW exports for modal control
+    showConfirmOverwriteModal,
+    setShowConfirmOverwriteModal,
+    proceedToSaveDraft, // Pass the function to call on confirmation
   };
 }; 

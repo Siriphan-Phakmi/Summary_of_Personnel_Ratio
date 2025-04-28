@@ -39,6 +39,7 @@ interface UseFormPersistenceProps {
   setIsMorningShiftDisabled: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNightShiftDisabled: React.Dispatch<React.SetStateAction<boolean>>;
   isMorningCensusReadOnly: boolean; // From useWardFormData
+  isFormDirty: boolean; // NEW: track if form has been modified
 }
 
 // Helper function to add basic info needed for validation
@@ -72,7 +73,8 @@ export const useFormPersistence = ({
   setNightShiftStatus,
   setIsMorningShiftDisabled,
   setIsNightShiftDisabled,
-  isMorningCensusReadOnly
+  isMorningCensusReadOnly,
+  isFormDirty, // NEW: destructure the isFormDirty prop
 }: UseFormPersistenceProps) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   
@@ -195,6 +197,12 @@ export const useFormPersistence = ({
   const handleSaveDraft = useCallback(async (isOverwrite: boolean = false) => {
     if (isSaveButtonDisabled) return;
 
+    // Check if there are actual changes to save
+    if (!isFormDirty && !isOverwrite) {
+      showSafeToast('ไม่มีการเปลี่ยนแปลงข้อมูล', 'info', { id: `no-changes-${selectedWard}-${selectedDate}-${selectedShift}` });
+      return;
+    }
+
     setIsSaveButtonDisabled(true); // Disable ทันที
 
     if (!user || !selectedWard || !selectedDate) {
@@ -233,7 +241,7 @@ export const useFormPersistence = ({
 
   }, [formData, user, selectedWard, selectedDate, selectedShift, existingDraftData, 
       setErrors, wards, isConfirmModalOpen, validateFormAndNotify, prepareDataForSave,
-      isSaveButtonDisabled, BUTTON_COOLDOWN_TIME]);
+      isSaveButtonDisabled, BUTTON_COOLDOWN_TIME, isFormDirty]); // Added isFormDirty to dependencies
 
   const performSaveDraft = useCallback(async (dataToSave: Partial<WardForm>, isOverwrite: boolean = false) => {
     if (!user) {
