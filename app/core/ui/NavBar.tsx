@@ -8,6 +8,7 @@ import { Button } from '@/app/core/ui';
 import { FiLogOut, FiUser, FiClipboard, FiCheckSquare, FiPieChart, FiUsers, FiMenu, FiX, FiLogIn, FiServer } from 'react-icons/fi';
 import Image from 'next/image';
 import { initializeClientSetup } from '@/app/config/setupDefaultData';
+import NotificationBell from '@/app/features/notifications/components/NotificationBell';
 
 // Placeholder component for loading state
 const NavPlaceholder = ({ className = '' }: { className?: string }) => (
@@ -101,18 +102,21 @@ const NavBar = () => {
       console.log('User is authenticated, showing Logout button for user:', user.firstName);
       return (
         <>
-          <div className="flex flex-col items-end mr-4">
-            <span className="text-base font-medium text-gray-800 dark:text-gray-200">
-              {user?.firstName} {user?.lastName || ''}
-            </span>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span>{user?.role ? `${user.role} ` : ''}</span>
-              <span>{user?.floor || ''}</span>
+          <div className="flex items-center">
+            <NotificationBell />
+            <div className="flex flex-col items-end mr-4 ml-3">
+              <span className="text-base font-medium text-gray-800 dark:text-gray-200">
+                {user?.firstName} {user?.lastName || ''}
+              </span>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span>{user?.role ? `${user.role} ` : ''}</span>
+                <span>{user?.floor || ''}</span>
+              </div>
             </div>
+            <Button variant="ghost" size="sm" onClick={handleLogout} leftIcon={<FiLogOut />} disabled={isLoggingOut}>
+              {isLoggingOut ? "กำลังออกจากระบบ..." : "Logout"}
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} leftIcon={<FiLogOut />} disabled={isLoggingOut}>
-            {isLoggingOut ? "กำลังออกจากระบบ..." : "Logout"}
-          </Button>
         </>
       );
     }
@@ -164,6 +168,9 @@ const NavBar = () => {
                 <span>{user?.role ? `${user.role} ` : ''}</span>
                 <span>{user?.floor || ''}</span>
               </div>
+            </div>
+            <div className="ml-auto">
+              <NotificationBell />
             </div>
           </div>
           <div className="mt-3 px-2 space-y-1">
