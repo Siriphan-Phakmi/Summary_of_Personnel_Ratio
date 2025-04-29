@@ -185,14 +185,18 @@ class NotificationService {
       
       return querySnapshot.docs.map(doc => {
         const data = doc.data() as Omit<Notification, 'id'>;
+        if (!data) {
+          console.warn(`Notification document ${doc.id} has undefined data.`);
+          return null;
+        }
         return {
           id: doc.id,
           ...data
         };
-      });
+      }).filter(Boolean) as Notification[];
     } catch (error) {
       console.error('Error getting user notifications:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -212,14 +216,18 @@ class NotificationService {
       
       return querySnapshot.docs.map(doc => {
         const data = doc.data() as Omit<Notification, 'id'>;
+        if (!data) {
+          console.warn(`Unread notification document ${doc.id} has undefined data.`);
+          return null;
+        }
         return {
           id: doc.id,
           ...data
         };
-      });
+      }).filter(Boolean) as Notification[];
     } catch (error) {
       console.error('Error getting unread notifications:', error);
-      throw error;
+      return [];
     }
   }
 

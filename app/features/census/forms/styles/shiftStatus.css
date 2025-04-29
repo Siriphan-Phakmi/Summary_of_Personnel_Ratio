@@ -1,0 +1,86 @@
+/* Shift Status CSS Classes */
+
+.shift-approved {
+  position: relative;
+  /* ปุ่มที่อนุมัติแล้วจะมีกรอบสีเขียว */
+  border-color: #10b981 !important;
+  /* เพิ่มเงา (shadow) สีเขียวอ่อนเมื่อปุ่มได้รับการอนุมัติ */
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2) !important;
+}
+
+.shift-pending {
+  position: relative;
+  /* ปุ่มที่รออนุมัติจะมีกรอบสีเหลือง */
+  border-color: #f59e0b !important;
+  /* เพิ่มเงา (shadow) สีเหลืองอ่อนเมื่อปุ่มอยู่ในสถานะรออนุมัติ */
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2) !important;
+}
+
+.shift-draft {
+  position: relative;
+  /* ปุ่มที่เป็นร่างจะมีกรอบสีเทา */
+  border-color: #6b7280 !important;
+  /* เพิ่มเงา (shadow) สีเทาอ่อนเมื่อปุ่มอยู่ในสถานะร่าง */
+  box-shadow: 0 0 0 1px rgba(107, 114, 128, 0.2) !important;
+}
+
+.shift-rejected {
+  position: relative;
+  /* ปุ่มที่ถูกปฏิเสธจะมีกรอบสีแดง */
+  border-color: #ef4444 !important;
+  /* เพิ่มเงา (shadow) สีแดงอ่อนเมื่อปุ่มอยู่ในสถานะถูกปฏิเสธ */
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2) !important;
+}
+
+.shift-none {
+  position: relative;
+  /* ปุ่มที่ยังไม่มีสถานะจะใช้กรอบปกติตาม theme */
+}
+
+/* ทำให้ปุ่มที่ไม่สามารถคลิกได้มีความโปร่งใสมากขึ้น */
+button:disabled {
+  opacity: 0.6;
+}
+
+/* ปรับแต่งการแสดงผลไอคอนสถานะ */
+.shift-approved .status-icon,
+.shift-pending .status-icon,
+.shift-draft .status-icon,
+.shift-rejected .status-icon {
+  display: inline-flex;
+  margin-right: 0.5rem;
+}
+
+/* Animation สำหรับสถานะรออนุมัติ */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.shift-pending .status-icon {
+  animation: pulse 2s infinite;
+}
+
+/* Animation สำหรับสถานะถูกปฏิเสธ */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-1px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(1px);
+  }
+}
+
+.shift-rejected:hover .status-icon {
+  animation: shake 0.5s ease-in-out;
+} 

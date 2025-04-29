@@ -1,7 +1,7 @@
 import {
   doc,
   getDoc,
-  addDoc,
+  setDoc,
   updateDoc,
   collection,
   serverTimestamp,
@@ -12,7 +12,8 @@ import { WardForm, FormStatus, FormApproval } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { ApprovalHistoryRecord } from '@/app/core/types/approval';
 import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_HISTORY } from './index';
-import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
+import { createServerTimestamp } from '@/app/core/utils/dateUtils';
+import { format } from 'date-fns';
 
 /**
  * ปฏิเสธแบบฟอร์ม
@@ -72,6 +73,12 @@ export const rejectForm = async (
         formDateForHistory = Timestamp.now();
     }
 
+    // Generate custom history ID
+    const dateStr = format(now, 'yyMMdd');
+    const timeStr = format(now, 'HHmm');
+    const actorRole = approver.role || 'unknown';
+    const customHistoryId = `${actorRole}_${formId}_d${dateStr}_t${timeStr}`;
+
     const historyRecord: ApprovalHistoryRecord = {
         formId,
         wardId: formData.wardId,
@@ -84,7 +91,7 @@ export const rejectForm = async (
         timestamp: Timestamp.fromDate(now),
         reason: rejectionReason,
     };
-    await addDoc(collection(db, COLLECTION_HISTORY), historyRecord);
+    await setDoc(doc(db, COLLECTION_HISTORY, customHistoryId), historyRecord);
     
     return formId;
   } catch (error) {

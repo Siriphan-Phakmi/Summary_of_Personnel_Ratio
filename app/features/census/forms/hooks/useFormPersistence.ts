@@ -5,9 +5,8 @@ import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { logUserActivity } from '@/app/core/utils/logUtils'; // Import logger
 import {
-  saveMorningShiftFormDraft,
+  saveDraftWardForm,
   finalizeMorningShiftForm,
-  saveNightShiftFormDraft,
   finalizeNightShiftForm,
   validateFormData,
   getLatestDraftForm // Needed for draft confirmation logic
@@ -277,13 +276,14 @@ export const useFormPersistence = ({
         draftId: isOverwrite ? existingDraftData?.id : 'new document'
       });
 
+      // Call the single saveDraftWardForm function regardless of shift
+      savedDocId = await saveDraftWardForm(dataForService, user);
+
+      // Update shift status based on the selected shift
       if (selectedShift === ShiftType.MORNING) {
-        // Pass the prepared data and user to the service function
-        savedDocId = await saveMorningShiftFormDraft(dataForService, user);
-        setMorningShiftStatus(FormStatus.DRAFT); 
+        setMorningShiftStatus(FormStatus.DRAFT);
       } else {
-        savedDocId = await saveNightShiftFormDraft(dataForService, user);
-        setNightShiftStatus(FormStatus.DRAFT); 
+        setNightShiftStatus(FormStatus.DRAFT);
       }
       
       console.log('SAVED DRAFT SUCCESSFULLY, DOC ID:', savedDocId);

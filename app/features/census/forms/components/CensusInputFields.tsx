@@ -118,11 +118,24 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     const readOnly = isReadOnly || (fieldName === 'patientCensus' && patientCensusReadOnly);
     const isDraftAndEditable = isDraftLoaded && !readOnly;
 
+    // Properly handle numeric values for display - (null/undefined/0 all become empty string when displayed)
+    let displayValue: string | number = '';
+    // Type assertion to expected number or string type based on field name
+    const rawValue = formData[fieldName] as number | string | undefined | null;
+    
+    if (type === 'number') {
+      // Explicitly convert all falsy number values (0, null, undefined) to empty string for display
+      displayValue = rawValue === 0 || rawValue === null || rawValue === undefined ? '' : rawValue as number | string;
+    } else {
+      // For non-numeric fields, use the nullish coalescing to empty string
+      displayValue = (rawValue as string | null | undefined) ?? '';
+    }
+
     return {
       id: fieldName,
       name: fieldName,
       label: label,
-      value: (formData[fieldName] as string | number) ?? '',
+      value: displayValue, // Use the properly formatted display value
       onChange: handleChange,
       error: errors[fieldName],
       placeholder: placeholder,

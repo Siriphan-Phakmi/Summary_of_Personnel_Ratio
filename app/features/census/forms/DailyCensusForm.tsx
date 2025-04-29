@@ -36,6 +36,7 @@ export default function DailyCensusForm() {
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [isWardLoading, setIsWardLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [reloadDataTrigger, setReloadDataTrigger] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Load wards once
@@ -85,22 +86,20 @@ export default function DailyCensusForm() {
     isDraftLoaded,
     isFinalDataFound,
     errors,
-    handleSaveDraft, // Save draft function
-    handleSaveFinal, // Save final function
-    isLoading: isDataLoading, // Loading state from data hook
-    isSaving: isFormSaving, // Saving state from data hook
-    isFormDirty, // NEW: Form dirty state to check if form has changes
-    // NEW: Get modal state and functions from hook
+    handleSaveDraft,
+    handleSaveFinal,
+    isLoading: isDataLoading,
+    isSaving: isFormSaving,
+    isFormDirty,
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
-    proceedToSaveDraft, 
+    proceedToSaveDraft,
   } = useWardFormData({
       selectedWard,
       selectedDate,
       selectedShift,
       user: currentUser,
-      morningShiftStatus,
-      nightShiftStatus
+      reloadDataTrigger
   });
 
   // Wrapper function for handleSaveDraft to match onClick signature
@@ -131,8 +130,23 @@ export default function DailyCensusForm() {
   const isPageLoading = isLoading || isLoadingStatus;
 
   // --- Determine button disabled states based on new logic ---
-  const isActionDisabled = isFormReadOnly || isFormSaving || morningShiftStatus === FormStatus.APPROVED || nightShiftStatus === FormStatus.APPROVED;
+  // Disable actions if form is read-only (final/approved), saving, or either shift is approved OR if morning shift is FINAL
+  const isActionDisabled = 
+      isFormReadOnly || 
+      isFormSaving || 
+      morningShiftStatus === FormStatus.APPROVED || 
+      nightShiftStatus === FormStatus.APPROVED ||
+      morningShiftStatus === FormStatus.FINAL; // <<< ADDED: Disable if morning is FINAL
+      
   const isSaveDraftDisabled = isActionDisabled || !isFormDirty; // Keep existing logic for button state
+  
+  // Determine if Night Shift button should be disabled more explicitly
+  const finalNightShiftDisabled = 
+      shiftHookNightDisabled || 
+      isFormSaving || 
+      isFormReadOnly || 
+      morningShiftStatus === FormStatus.FINAL || // <<< ADDED: Disable if morning is FINAL
+      morningShiftStatus === FormStatus.APPROVED; // Also disable if morning approved
 
   // Render UI
   return (
@@ -191,7 +205,8 @@ export default function DailyCensusForm() {
                  nightShiftStatus={nightShiftStatus}
                  // Disable based on shift hook, saving state, or if form is read-only
                  isMorningShiftDisabled={shiftHookMorningDisabled || isFormSaving || isFormReadOnly}
-                 isNightShiftDisabled={shiftHookNightDisabled || isFormSaving || isFormReadOnly}
+                 // Pass the more explicit disable state for the night shift
+                 isNightShiftDisabled={finalNightShiftDisabled} // <<< Use the new calculated state
                />
 
               {/* Census Input Fields Component */}
@@ -233,7 +248,7 @@ export default function DailyCensusForm() {
                   variant="primary"
                   onClick={triggerSaveFinal}
                   isLoading={isFormSaving} // Use saving state from hook
-                  disabled={isActionDisabled} // Use combined disabled state
+                  disabled={isActionDisabled} // <<< Use the updated isActionDisabled state
                   leftIcon={<FiCheckSquare />}
                   loadingText="กำลังบันทึกสมบูรณ์..."
                   className="w-full sm:w-auto"

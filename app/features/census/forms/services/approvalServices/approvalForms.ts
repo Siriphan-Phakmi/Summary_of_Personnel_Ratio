@@ -1,7 +1,7 @@
 import {
   doc,
   getDoc,
-  addDoc,
+  setDoc,
   updateDoc,
   collection,
   serverTimestamp,
@@ -14,6 +14,7 @@ import { ApprovalHistoryRecord } from '@/app/core/types/approval';
 import { COLLECTION_WARDFORMS, COLLECTION_APPROVALS, COLLECTION_HISTORY } from './index';
 import { checkAndCreateDailySummary } from './dailySummary';
 import { createServerTimestamp } from '@/app/core/utils/dateUtils';
+import { format } from 'date-fns';
 
 /**
  * อนุมัติแบบฟอร์ม
@@ -72,6 +73,12 @@ export const approveForm = async (
         formDateForHistory = Timestamp.now(); // Fallback
     }
 
+    // Generate custom history ID
+    const dateStr = format(now, 'yyMMdd'); // Format date as YYMMDD
+    const timeStr = format(now, 'HHmm'); // Format time as HHMM
+    const actorRole = approver.role || 'unknown'; // Use approver's role or 'unknown'
+    const customHistoryId = `${actorRole}_${formId}_d${dateStr}_t${timeStr}`; // Combine role, formId, date, and time
+
     const historyRecord: ApprovalHistoryRecord = {
       formId,
       wardId: formData.wardId,
@@ -83,7 +90,8 @@ export const approveForm = async (
         actorName: `${approver.firstName || ''} ${approver.lastName || ''}`.trim(),
         timestamp: Timestamp.fromDate(now), // Use consistent client-side time for history record if needed, or serverTime
     };
-    await addDoc(collection(db, COLLECTION_HISTORY), historyRecord);
+    // Use setDoc with custom ID instead of addDoc
+    await setDoc(doc(db, COLLECTION_HISTORY, customHistoryId), historyRecord);
     
     // ตรวจสอบว่าครบทั้งกะเช้าและกะดึกหรือยัง
     const formDate = formData.date instanceof Timestamp ? formData.date.toDate() : formData.date;

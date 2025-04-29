@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import Button from '@/app/core/ui/Button';
 import Input from '@/app/core/ui/Input';
-import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
+import { showErrorToast, showSuccessToast, showInfoToast } from '@/app/core/utils/toastUtils';
 import { format, addDays } from 'date-fns';
-import { FormStatus, ShiftType } from '@/app/core/types/ward';
+import { FormStatus, ShiftType, Ward } from '@/app/core/types/ward';
+import { getActiveWards } from '@/app/features/census/forms/services/wardService';
 
 // Define type for shift selection
 type TargetShift = ShiftType.MORNING | ShiftType.NIGHT | 'both';
@@ -15,34 +16,60 @@ type TargetShift = ShiftType.MORNING | ShiftType.NIGHT | 'both';
 export default function DevToolsPage() {
   const [startDate, setStartDate] = useState<string>(format(addDays(new Date(), -1), 'yyyy-MM-dd'));
   const [days, setDays] = useState<number>(1);
-  const [wardIdsInput, setWardIdsInput] = useState<string>(''); // Comma or newline separated
+  const [availableWards, setAvailableWards] = useState<Ward[]>([]);
+  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
   const [statusToGenerate, setStatusToGenerate] = useState<FormStatus>(FormStatus.FINAL);
-  const [targetShift, setTargetShift] = useState<TargetShift>('both'); // Add state for target shift, default to both
+  const [targetShift, setTargetShift] = useState<TargetShift>('both');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [errorList, setErrorList] = useState<string[]>([]);
 
+  useEffect(() => {
+    const fetchWards = async () => {
+      setIsLoading(true);
+      try {
+        const wards = await getActiveWards();
+        setAvailableWards(wards);
+      } catch (error) {
+        console.error("Error fetching active wards:", error);
+        showErrorToast('เกิดข้อผิดพลาดในการดึงข้อมูล Ward');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchWards();
+  }, []);
+
+  const handleWardSelectionChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const wardId = event.target.value;
+    const isChecked = event.target.checked;
+
+    setSelectedWardIds(prevSelected => {
+      if (isChecked) {
+        return [...prevSelected, wardId];
+      } else {
+        return prevSelected.filter(id => id !== wardId);
+      }
+    });
+  };
+
   const handleGenerate = async () => {
+    if (selectedWardIds.length === 0) {
+        showInfoToast('กรุณาเลือก Ward อย่างน้อย 1 รายการ');
+        return;
+    }
+
     setIsLoading(true);
     setResultMessage(null);
     setErrorList([]);
-
-    // Parse Ward IDs
-    const wardIds = wardIdsInput
-      .split(/[\n,]+/)
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
 
     const body: any = {
       startDate: startDate,
       days: days,
       statusToGenerate: statusToGenerate,
-      targetShift: targetShift, // Include targetShift in the request body
+      targetShift: targetShift,
+      wardIds: selectedWardIds
     };
-
-    if (wardIds.length > 0) {
-      body.wardIds = wardIds;
-    }
 
     try {
       const response = await fetch('/api/dev/generate-mock-data', {
@@ -57,7 +84,7 @@ export default function DevToolsPage() {
 
       if (response.ok && data.success) {
         showSuccessToast('สร้างข้อมูลจำลองสำเร็จ!');
-        setResultMessage(data.message || `Generated ${data.generatedCount || '?'} forms.`);
+        setResultMessage(data.message || `Generated ${data.generatedCount || '?'} forms for wards: ${selectedWardIds.join(', ')}.`);
         if (data.errors && data.errors.length > 0) {
            setErrorList(data.errors);
         }
@@ -69,14 +96,13 @@ export default function DevToolsPage() {
       const message = error instanceof Error ? error.message : 'Unknown error';
       showErrorToast(`ผิดพลาด: ${message}`);
       setResultMessage(null);
-      setErrorList([message]);
+      setErrorList(prev => [...prev, message]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    // Restrict access to developers only
     <ProtectedPage requiredRole={['developer']}>
       <NavBar />
       <div className="container mx-auto px-4 py-8">
@@ -85,7 +111,6 @@ export default function DevToolsPage() {
         <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 border border-gray-200 dark:border-gray-700 space-y-4">
           <p className="text-sm text-red-500 dark:text-red-400 font-medium">คำเตือน: เครื่องมือนี้ใช้สำหรับ Development เท่านั้น!</p>
 
-          {/* Start Date */}
           <div>
             <label htmlFor="startDate" className="form-label">วันที่เริ่มต้น (Start Date)</label>
             <Input
@@ -98,7 +123,6 @@ export default function DevToolsPage() {
             />
           </div>
 
-          {/* Number of Days */}
           <div>
             <label htmlFor="days" className="form-label">จำนวนวัน (Days)</label>
             <Input
@@ -112,22 +136,31 @@ export default function DevToolsPage() {
             />
           </div>
 
-          {/* Ward IDs (Optional) */}
           <div>
-            <label htmlFor="wardIds" className="form-label">ระบุ Ward IDs (Optional - คั่นด้วย comma หรือขึ้นบรรทัดใหม่)</label>
-            <textarea
-              id="wardIds"
-              rows={3}
-              value={wardIdsInput}
-              onChange={(e) => setWardIdsInput(e.target.value)}
-              placeholder="เช่น WARD6, WARD7, CCU\nWARD11"
-              className="form-input resize-none"
+            <label className="form-label mb-2 block">เลือก Ward ที่ต้องการสร้างข้อมูล</label>
+            {isLoading && availableWards.length === 0 && <p className="text-gray-500 dark:text-gray-400">กำลังโหลดรายชื่อ Ward...</p>}
+            {!isLoading && availableWards.length === 0 && <p className="text-red-500 dark:text-red-400">ไม่พบข้อมูล Ward หรือเกิดข้อผิดพลาดในการโหลด</p>}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-600 p-3 rounded-md">
+              {availableWards.map((ward) => (
+                <div key={ward.id} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`ward-${ward.id}`}
+                    value={ward.id}
+                    checked={selectedWardIds.includes(ward.id)}
+                    onChange={handleWardSelectionChange}
               disabled={isLoading}
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">หากเว้นว่าง จะสร้างข้อมูลสำหรับทุก Ward ที่ Active</p>
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-indigo-500"
+                  />
+                  <label htmlFor={`ward-${ward.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                    {ward.wardName} ({ward.id})
+                  </label>
+                </div>
+              ))}
+            </div>
+             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">หากไม่เลือก จะไม่สามารถกด Generate ได้</p>
           </div>
 
-           {/* Status to Generate */}
            <div>
              <label htmlFor="statusToGenerate" className="form-label">สถานะที่จะสร้าง</label>
              <select
@@ -138,12 +171,10 @@ export default function DevToolsPage() {
                disabled={isLoading}
              >
                <option value={FormStatus.FINAL}>FINAL</option>
-               {/* Add DRAFT option if needed later */}
-               {/* <option value={FormStatus.DRAFT}>DRAFT</option> */}
+              <option value={FormStatus.DRAFT}>DRAFT</option>
              </select>
            </div>
 
-          {/* Shift to Generate - New Dropdown */}
           <div>
             <label htmlFor="targetShift" className="form-label">กะที่จะสร้าง</label>
             <select
@@ -159,17 +190,15 @@ export default function DevToolsPage() {
             </select>
           </div>
 
-          {/* Generate Button */}
           <Button
             onClick={handleGenerate}
             isLoading={isLoading}
-            disabled={isLoading}
-            loadingText="กำลังสร้างข้อมูล..."
+            disabled={isLoading || selectedWardIds.length === 0}
+            loadingText="กำลังทำงาน..."
           >
             Generate Mock Data
           </Button>
 
-          {/* Results Area */}
           {resultMessage && (
             <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-md">
               <p className="font-medium text-green-800 dark:text-green-200">สำเร็จ:</p>

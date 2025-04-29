@@ -3,6 +3,9 @@
 ## การอัปเดตรายการล่าสุด
 
 ### รายการที่แก้ไขไป
+- [x] **(วันนี้)** แก้ไข Main Catch Block ใน API Route `/api/notifications/get` (`route.ts`) ให้คืนค่า Status Code 500 และข้อความ Error ที่ละเอียดขึ้นเมื่อเกิดข้อผิดพลาดร้ายแรง
+- [x] **(วันนี้)** วิเคราะห์ Code ใน API Route `/api/notifications/get` (`route.ts`) เพื่อหาสาเหตุของ 500 Internal Server Error
+- [x] **(วันนี้)** ปรับปรุง Component `NotificationBell.tsx` โดยห่อ `fetchNotifications` ด้วย `useCallback` และอัปเดต dependencies เพื่อป้องกัน Linter Warning
 - [x] ปรับปรุง API Route `/api/notifications/get` ให้จัดการข้อผิดพลาดได้ดีขึ้นและคืนค่า `[]` พร้อม `unreadCount: 0` เมื่อเกิด exception
 - [x] ปรับปรุง Component `NotificationBell` ให้ handle error gracefully, ใช้ CSRF token จาก state, ปรับ `formatTimestamp` รองรับหลายรูปแบบ timestamp, และลด polling interval เหลือ 3 นาที
 - [x] ปรับปรุงฟังก์ชัน `getWardForm` ใน wardFormService ด้วย secondary query และ logging เพิ่มเติมเพื่อเพิ่มโอกาสในการค้นหาแบบฟอร์ม
@@ -134,6 +137,7 @@
        - [x] สร้างและบันทึก field `dateString` ในรูปแบบ 'yyyy-MM-dd' ลงใน Firestore เพื่อให้ตรงกับการ query ในส่วนอื่นๆ
        - [x] แก้ไขการสร้าง Date object จาก `formData.date` ให้รองรับหลากหลายประเภทข้อมูล (Timestamp, Date, string)
        - [x] เพิ่มการบันทึก `date` ในรูปแบบ Firestore Timestamp ที่ถูกต้องโดยใช้ `Timestamp.fromDate(dateObj)`
+   - [x] **แก้ไข Logic การบันทึก Final:** แก้ไข `finalizeMorningShiftForm`/`finalizeNightShiftForm` ใน `wardFormService.ts` ให้ตรวจสอบและอัปเดต Draft เดิมเป็นสถานะ `FINAL` แทนการสร้างเอกสารใหม่เสมอ เพื่อแก้ปัญหาข้อมูล `FINAL` ไม่ถูกบันทึก/แสดงผล
 
 ## งานที่กำลังดำเนินการ
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FiBell, FiCheckCircle, FiAlertTriangle, FiFileText, FiClock, FiInfo } from 'react-icons/fi';
 import { Notification, NotificationType } from '@/app/core/services/NotificationService';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,16 +41,20 @@ const NotificationBell: React.FC = () => {
   }, [user, csrfTokenState]); // Depend on user and if token already exists
 
 
-  const fetchNotifications = async () => {
-    if (!user || isLoading) return; // Don't fetch if no user or already loading
+  // Wrap fetchNotifications with useCallback
+  const fetchNotifications = useCallback(async () => {
+    // Only proceed if user is authenticated
+    if (!user) return;
     setIsLoading(true);
     setError(null);
+    const apiUrl = '/api/notifications/get'; // Store API URL
     try {
-      const response = await fetch('/api/notifications/get'); // Default: get all (including read)
+      const response = await fetch(apiUrl); // Default: get all (including read)
       if (!response.ok && response.status !== 200) {
-        console.error('[NotificationBell] HTTP error:', response.status, response.statusText);
+        // Log more details for server errors
+        console.error(`[NotificationBell] HTTP error calling ${apiUrl}:`, response.status, response.statusText);
         // ไม่ throw error แต่ set error state แทน
-        setError(`ไม่สามารถดึงข้อมูลการแจ้งเตือนได้ (${response.status})`);
+        setError(`ไม่สามารถดึงข้อมูลการแจ้งเตือนได้ (Server Error: ${response.status})`); // Add status code to user message
         setNotifications([]);
         setUnreadCount(0);
         return;
@@ -63,37 +67,31 @@ const NotificationBell: React.FC = () => {
       } else {
         console.error('[NotificationBell] API returned error:', data.error);
         setError(data.error || 'ไม่สามารถดึงข้อมูลการแจ้งเตือนได้');
-        // ใช้ข้อมูลที่ API ส่งกลับมา (แม้ error แต่ API จะส่ง empty array กลับมา)
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       }
     } catch (err) {
       console.error("[NotificationBell] Fetch notifications error:", err);
       setError(err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
-      // กรณีเกิด exception ให้ reset notifications เป็น empty
       setNotifications([]);
       setUnreadCount(0);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
+  // Fetch when dropdown opens and poll while open
   useEffect(() => {
-    if (user) {
-      fetchNotifications(); // Initial fetch
-      // เพิ่มเวลา poll จาก 60 วินาทีเป็น 3 นาที (180,000 ms) เพื่อลด network requests
-      const intervalId = setInterval(fetchNotifications, 180000); 
-      return () => clearInterval(intervalId); // Cleanup on unmount
-    } else {
-      // Clear notifications if user logs out
-      setNotifications([]);
-      setUnreadCount(0);
-      setIsOpen(false);
-    }
-  }, [user]); // Refetch when user changes
+    if (!user || !isOpen) return;
+    // Fetch immediately on open
+    fetchNotifications();
+    // Poll every 3 minutes while open
+    const intervalId = setInterval(fetchNotifications, 180000);
+    return () => clearInterval(intervalId);
+  }, [user, isOpen, fetchNotifications]);
 
   const handleToggleDropdown = () => {
-    setIsOpen(!isOpen);
+    setIsOpen(prev => !prev);
   };
 
   const handleMarkAsRead = async (notificationId: string) => {

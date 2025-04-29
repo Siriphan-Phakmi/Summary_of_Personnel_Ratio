@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@/app/core/types/user';
 import { showErrorToast, dismissAllToasts } from '@/app/core/utils/toastUtils';
@@ -56,13 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authService = AuthService.getInstance();
 
-  // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้
-  const checkRole = (requiredRole?: string | string[]): boolean => {
+  // Wrap checkRole with useCallback
+  const checkRole = useCallback((requiredRole?: string | string[]) => {
     if (!user || authStatus !== 'authenticated') return false;
     if (!requiredRole) return true; // No specific role required
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     return roles.includes(user.role);
-  };
+  }, [user, authStatus]); // Dependencies for checkRole
 
   // --- Helper Functions ---
   const clearTimers = useCallback(() => {
@@ -360,16 +360,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Run only once on mount by having a stable dependency array
   }, [checkSession, handleUserActivity, clearTimers]);
 
-  // Export the auth context provider and hook
-  const contextValue = {
+  // Memoize the context value using useMemo
+  const contextValue = useMemo(() => ({
     user,
-    authStatus, // Provide authStatus instead of isLoading
+    authStatus,
     isLoggingOut,
-    login,
-    logout,
+    login, // Assuming login doesn't need explicit memoization here if its definition is stable
+    logout, // Assuming logout is already memoized with useCallback
     error,
+    checkRole, // Use the memoized checkRole
+  }), [
+    user, 
+    authStatus, 
+    isLoggingOut, 
+    login, 
+    logout, 
+    error, 
     checkRole
-  };
+  ]); // Dependencies for the context value
 
   return (
     <AuthContext.Provider value={contextValue}>

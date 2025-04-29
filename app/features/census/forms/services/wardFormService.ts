@@ -172,101 +172,131 @@ export const validateFormData = (formData: Partial<WardForm>): {
  * @returns ข้อมูลแบบฟอร์ม หรือ null ถ้าไม่พบ
  */
 export const getWardForm = async (
-  date: Date | Timestamp | string, 
-  shift: ShiftType, 
+  date: Timestamp,
+  shift: ShiftType,
   wardId: string
 ): Promise<WardForm | null> => {
   try {
-    // ตรวจสอบและแปลงพารามิเตอร์ date ให้เป็น Date object
-    let dateObj: Date;
-    if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'object' && date && 'toDate' in date && typeof date.toDate === 'function') {
-      // Timestamp object จาก Firestore
-      dateObj = date.toDate();
-    } else if (typeof date === 'string') {
-      // พยายามแปลงจาก ISO string หรือรูปแบบอื่นๆ
-      dateObj = new Date(date);
-    } else {
-      throw new Error('รูปแบบวันที่ไม่ถูกต้อง');
-    }
-    
-    // แปลงวันที่เป็น string ในรูปแบบ YYYY-MM-DD เพื่อใช้ในการค้นหา
-    const dateString = format(dateObj, 'yyyy-MM-dd');
+    // ปรับปรุง log เพื่อตรวจสอบพารามิเตอร์
+    const dateString = format(date.toDate(), 'yyyy-MM-dd');
+    console.log(`[getWardForm] กำลังค้นหาแบบฟอร์ม โดยตรง: date=${dateString}, shift=${shift}, wardId=${wardId}`);
 
-    // Normalize wardId ให้เป็นตัวใหญ่เสมอ
-    const normalizedWardId = wardId.toUpperCase();
-    
-    console.log(`[getWardForm] กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก (original) ${wardId} (normalized) ${normalizedWardId}`);
-    
-    // สร้าง query ใช้ index ที่เหมาะสม (dateString + shift + wardId)
-    const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
-
-    // Verbose logging เพื่อ debug
-    console.log(`[getWardForm] Query parameters: dateString='${dateString}', shift='${shift}', wardId='${normalizedWardId}'`);
-    
-    // ทดลองสร้าง query ที่มี conditions น้อยลงเพื่อตรวจสอบว่ามีเอกสารที่ตรงกับเงื่อนไขเบื้องต้นหรือไม่
-    // Approach 1: ใช้ query ปกติ
-    let q = query(
-      wardFormsRef,
+    // Query ข้อมูลแบบตรง (ทั้ง date+shift+wardId)
+    const q = query(
+      collection(db, 'wardForms'),
       where('dateString', '==', dateString),
       where('shift', '==', shift),
-      where('wardId', '==', normalizedWardId)
+      where('wardId', '==', wardId)
     );
     
+    console.log(`[getWardForm] Query parameters: dateString=${dateString}, shift=${shift}, wardId=${wardId}`);
     const querySnapshot = await getDocs(q);
-    
-    // Log ผลลัพธ์ของ query แบบละเอียด
-    console.log(`[getWardForm] Query snapshot size for normal query: ${querySnapshot.size}`);
+    console.log(`[getWardForm] Query snapshot size for direct query: ${querySnapshot.size}`);
 
-    if (querySnapshot.empty) {
-      console.log(`[getWardForm] ไม่พบข้อมูลด้วย query ปกติ`);
+    // ถ้าพบข้อมูลจาก Query หลัก
+    if (!querySnapshot.empty) {
+      // เรียงลำดับเอกสารตามสถานะที่สำคัญ (APPROVED > FINAL > DRAFT)
+      const docs = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as WardForm));
       
-      // Approach 2: ลองใช้ query ที่ใช้เฉพาะ dateString และ ward เพื่อตรวจสอบว่ามีข้อมูลของวันนี้ในวอร์ดนี้หรือไม่
+      console.log(`[getWardForm] พบเอกสาร ${docs.length} รายการจาก query หลัก`);
+      
+      // ค้นหาเอกสารที่เป็น APPROVED ก่อน
+      const approvedDoc = docs.find(doc => doc.status === FormStatus.APPROVED);
+      if (approvedDoc) {
+        console.log(`[getWardForm] คืนค่าเอกสาร APPROVED ID=${approvedDoc.id}`);
+        console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(approvedDoc, null, 2));
+        return approvedDoc as WardForm;
+      }
+      
+      // ถ้าไม่พบ APPROVED ให้ค้นหา FINAL
+      const finalDoc = docs.find(doc => doc.status === FormStatus.FINAL);
+      if (finalDoc) {
+        console.log(`[getWardForm] คืนค่าเอกสาร FINAL ID=${finalDoc.id}`);
+        console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(finalDoc, null, 2));
+        return finalDoc as WardForm;
+      }
+      
+      // ถ้าไม่พบ FINAL ให้ค้นหา DRAFT
+      const draftDoc = docs.find(doc => doc.status === FormStatus.DRAFT);
+      if (draftDoc) {
+        console.log(`[getWardForm] คืนค่าเอกสาร DRAFT ID=${draftDoc.id}`);
+        console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(draftDoc, null, 2));
+        return draftDoc as WardForm;
+      }
+      
+      // หากไม่พบเอกสารที่มีสถานะที่ระบุ ให้คืนเอกสารแรกที่พบ
+      console.log(`[getWardForm] คืนค่าเอกสารแรกที่พบ ID=${docs[0].id}`);
+      console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(docs[0], null, 2));
+      return docs[0] as WardForm;
+    } 
+    
+    // ถ้าไม่พบข้อมูลจาก Query หลัก ให้ลองค้นหาเพิ่มเติมโดยไม่กรอง shift
+    console.log(`[getWardForm] ไม่พบข้อมูลจาก query หลัก ลองค้นหาเพิ่มเติม...`);
+    
+    try {
+      // Query โดยไม่ระบุ shift เพื่อดึงข้อมูลทั้งหมดของวันและ ward นั้น
       const secondaryQuery = query(
-        wardFormsRef,
+        collection(db, 'wardForms'),
         where('dateString', '==', dateString),
-        where('wardId', '==', normalizedWardId)
+        where('wardId', '==', wardId)
       );
       
       const secondarySnapshot = await getDocs(secondaryQuery);
-      console.log(`[getWardForm] Found ${secondarySnapshot.size} forms for dateString ${dateString} and wardId ${normalizedWardId}`);
+      console.log(`[getWardForm] Query snapshot size for secondary query: ${secondarySnapshot.size}`);
       
-      if (secondarySnapshot.size > 0) {
-        // แสดงรายการเอกสารที่พบเพื่อตรวจสอบ
-        secondarySnapshot.forEach(doc => {
-          const data = doc.data();
-          console.log(`[getWardForm] Found document: id=${doc.id}, shift=${data.shift}, status=${data.status}, isDraft=${data.isDraft}`);
-        });
+      if (!secondarySnapshot.empty) {
+        // จัดรูปแบบข้อมูลทั้งหมด
+        const allDocs = secondarySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as WardForm));
         
-        // หาเอกสารที่ตรงกับ shift ที่ต้องการ
-        const matchingDoc = secondarySnapshot.docs.find(doc => doc.data().shift === shift);
-        if (matchingDoc) {
-          console.log(`[getWardForm] พบเอกสารที่ตรงกับ shift ${shift} จาก query ที่สอง: ${matchingDoc.id}`);
-          const formData = matchingDoc.data() as WardForm;
-          return {
-            ...formData,
-            id: matchingDoc.id
-          };
+        console.log(`[getWardForm] พบเอกสาร ${allDocs.length} รายการจาก query สำรอง`);
+        
+        // ค้นหาเอกสารที่ตรงกับ shift ที่ต้องการและมีสถานะเป็น APPROVED ก่อน
+        const matchingApprovedDoc = allDocs.find(
+          doc => doc.shift === shift && doc.status === FormStatus.APPROVED
+        );
+        if (matchingApprovedDoc) {
+          console.log(`[getWardForm] พบเอกสาร APPROVED ที่ตรงกับ shift จาก query สำรอง ID=${matchingApprovedDoc.id}`);
+          console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(matchingApprovedDoc, null, 2));
+          return matchingApprovedDoc as WardForm;
         }
+        
+        // ค้นหาเอกสารที่ตรงกับ shift ที่ต้องการและมีสถานะเป็น FINAL
+        const matchingFinalDoc = allDocs.find(
+          doc => doc.shift === shift && doc.status === FormStatus.FINAL
+        );
+        if (matchingFinalDoc) {
+          console.log(`[getWardForm] พบเอกสาร FINAL ที่ตรงกับ shift จาก query สำรอง ID=${matchingFinalDoc.id}`);
+          console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(matchingFinalDoc, null, 2));
+          return matchingFinalDoc as WardForm;
+        }
+        
+        // ค้นหาเอกสารที่ตรงกับ shift ที่ต้องการและมีสถานะเป็น DRAFT
+        const matchingDraftDoc = allDocs.find(
+          doc => doc.shift === shift && doc.status === FormStatus.DRAFT
+        );
+        if (matchingDraftDoc) {
+          console.log(`[getWardForm] พบเอกสาร DRAFT ที่ตรงกับ shift จาก query สำรอง ID=${matchingDraftDoc.id}`);
+          console.log(`[getWardForm] DETAILED DATA INSPECTION:`, JSON.stringify(matchingDraftDoc, null, 2));
+          return matchingDraftDoc as WardForm;
+        }
+        
+        // ไม่พบเอกสารที่ตรงกับ shift ที่ต้องการ
+        console.log(`[getWardForm] ไม่พบเอกสารที่ตรงกับ shift ${shift} จาก query สำรอง`);
       }
-      
-      console.log(`[getWardForm] ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
-      return null;
+    } catch (secondaryError) {
+      console.error(`[getWardForm] เกิดข้อผิดพลาดในการค้นหาข้อมูลเพิ่มเติม:`, secondaryError);
     }
     
-    // ใช้เอกสารแรกที่พบ
-    const docSnapshot = querySnapshot.docs[0];
-    const formData = docSnapshot.data() as WardForm;
-    
-    console.log(`[getWardForm] พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id}, Status: ${formData.status})`);
-    
-    return {
-      ...formData,
-      id: docSnapshot.id
-    };
+    console.log(`[getWardForm] ไม่พบข้อมูลใดๆ สำหรับ date=${dateString}, shift=${shift}, wardId=${wardId}`);
+    return null;
   } catch (error) {
-    console.error('[getWardForm] Error getting ward form:', error);
+    console.error('[getWardForm] เกิดข้อผิดพลาดในการค้นหาแบบฟอร์ม:', error);
     throw error;
   }
 };
@@ -359,7 +389,7 @@ export const checkMorningShiftFormStatus = async (
   isDraft?: boolean;
 }> => {
   try {
-    const morningForm = await getWardForm(date, ShiftType.MORNING, wardId);
+    const morningForm = await getWardForm(Timestamp.fromDate(date), ShiftType.MORNING, wardId);
     
     if (!morningForm) {
       return { exists: false };
@@ -489,89 +519,6 @@ const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus
 };
 
 /**
- * Saves a draft of the morning shift form.
- * Uses setDoc with a custom ID.
- */
-export const saveMorningShiftFormDraft = async (
-  formData: Partial<WardForm>,
-  user: User
-): Promise<string> => {
-  try {
-    // ตรวจสอบข้อมูลที่จำเป็น
-    if (!formData.wardId || !formData.shift || !formData.date) {
-      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
-    }
-
-    // *** Normalize wardId to uppercase ***
-    const normalizedWardId = formData.wardId.toUpperCase();
-    
-    // *** Generate dateString (Handle different date types safely) ***
-    let dateObj: Date;
-    if (formData.date instanceof Timestamp) {
-      dateObj = formData.date.toDate();
-    } else if (formData.date instanceof Date) {
-        dateObj = formData.date;
-    } else if (typeof formData.date === 'string') {
-        // Assume 'yyyy-MM-dd' or ISO format from input
-        dateObj = new Date(formData.date);
-    } else {
-        throw new Error('Invalid date type in formData');
-    }
-    const dateString = formatDateYMD(dateObj);
-
-    // สร้าง ID สำหรับเอกสาร (ใช้ normalizedWardId)
-    const customDocId = formData.id || generateWardFormId(
-      normalizedWardId, // Use normalized ID
-      ShiftType.MORNING, 
-      FormStatus.DRAFT, 
-      formData.date // Pass original date value here as generateWardFormId expects TimestampField
-    );
-
-    console.log(`Saving morning shift draft with ID: ${customDocId}, WardID: ${normalizedWardId}, DateString: ${dateString}`);
-
-    // เตรียมข้อมูลสำหรับบันทึก (เพิ่ม wardId และ dateString ที่แปลงแล้ว)
-    const dataToSave: Partial<WardForm> = {
-      ...formData,
-      wardId: normalizedWardId, // Store normalized ID
-      wardName: formData.wardName || '', // Include wardName for validation
-      date: Timestamp.fromDate(dateObj), // Ensure date is stored as Firestore Timestamp
-      dateString: dateString,   // *** Store dateString ***
-      status: FormStatus.DRAFT,
-      isDraft: true,
-      createdBy: formData.createdBy || user.uid,
-      updatedAt: createServerTimestamp()
-    };
-
-    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
-    if (!formData.id) {
-      dataToSave.createdAt = createServerTimestamp();
-    }
-
-    // ใช้ Transaction เพื่อป้องกัน race condition
-    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
-    
-    // ตรวจสอบสถานะปัจจุบันของเอกสาร
-    const docSnap = await getDoc(docRef);
-    
-    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
-    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT) {
-      const currentStatus = docSnap.data().status;
-      throw new Error(`ไม่สามารถบันทึกร่างได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
-    }
-
-    // บันทึกข้อมูล - ใช้ setDoc เพื่อให้สามารถกำหนด Document ID เองได้
-    // merge: true เพื่อให้อัปเดตเฉพาะฟิลด์ที่ส่งมา ไม่ลบฟิลด์อื่นที่มีอยู่แล้ว
-    await setDoc(docRef, dataToSave, { merge: true });
-
-    // คืนค่า ID ของเอกสาร
-    return customDocId;
-  } catch (error) {
-    console.error('Error saving morning shift form draft:', error);
-    throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
-  }
-};
-
-/**
  * Finalizes the morning shift form.
  * Uses setDoc with a custom ID.
  */
@@ -603,7 +550,7 @@ export const finalizeMorningShiftForm = async (
       throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
     }
 
-    // สร้าง ID สำหรับเอกสาร (ปรับปรุงการจัดการ date)
+    // สร้าง Date object สำหรับใช้ในการ query และสร้าง ID
     let dateObjForId: Date;
     if (formData.date instanceof Timestamp) {
       dateObjForId = formData.date.toDate();
@@ -621,14 +568,37 @@ export const finalizeMorningShiftForm = async (
     }
     const dateStr = formatDateYMD(dateObjForId); // ใช้ Date object ที่แปลงแล้ว
 
-    const customDocId = formData.id || generateWardFormId(
+    // 1. พยายามดึง ID ของ Draft ที่มีอยู่ก่อน (ถ้ามี)
+    let documentIdToUse: string | undefined = formData.id; // ใช้ ID จาก formData ถ้ามี (เช่น มาจากการโหลด Draft)
+    if (!documentIdToUse) {
+      // ถ้าไม่มี ID ใน formData, ลองสร้าง ID สำหรับสถานะ DRAFT เพื่อหา draft เดิม
+      const draftDocId = generateWardFormId(
+          formData.wardId, 
+      ShiftType.MORNING, 
+          FormStatus.DRAFT, // <<< ใช้ DRAFT status
+          Timestamp.fromDate(dateObjForId) 
+      );
+      // ตรวจสอบว่า draft document ด้วย ID นี้มีอยู่จริงหรือไม่
+      const draftDocRef = doc(db, COLLECTION_WARDFORMS, draftDocId);
+      const draftDocSnap = await getDoc(draftDocRef);
+      if (draftDocSnap.exists() && draftDocSnap.data().status === FormStatus.DRAFT) {
+          documentIdToUse = draftDocId; // <<< ถ้าเจอ Draft ให้ใช้ ID นี้
+          console.log(`Found existing draft with ID ${draftDocId}, will update.`);
+      }
+    }
+
+    // 2. ถ้ายังไม่มี ID (ไม่เจอ Draft เดิม) ให้สร้าง ID ใหม่สำหรับสถานะ FINAL
+    if (!documentIdToUse) {
+        documentIdToUse = generateWardFormId(
       formData.wardId, 
       ShiftType.MORNING, 
-      FormStatus.FINAL, 
-      Timestamp.fromDate(dateObjForId) // Pass Timestamp consistently
+            FormStatus.FINAL, // <<< ใช้ FINAL status สำหรับเอกสารใหม่
+            Timestamp.fromDate(dateObjForId)
     );
-
-    console.log(`Finalizing morning shift form with ID: ${customDocId}`);
+        console.log(`No existing draft found or ID provided, creating new document with FINAL ID: ${documentIdToUse}`);
+    } else {
+        console.log(`Using existing document ID for finalization: ${documentIdToUse}`);
+    }
 
     // เตรียมข้อมูลสำหรับบันทึก
     const dataToSave: Partial<WardForm> = {
@@ -643,24 +613,22 @@ export const finalizeMorningShiftForm = async (
       finalizedAt: createServerTimestamp()
     };
 
-    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
-    if (!formData.id) {
+    // ถ้าเป็นการสร้างใหม่ (ไม่มี formData.id ตอนเริ่ม และไม่เจอ draft) ให้เพิ่ม createdAt
+    if (!formData.id && documentIdToUse.includes('final')) { // Check if it's a new final doc ID
       dataToSave.createdAt = createServerTimestamp();
     }
 
-    // ใช้ Transaction เพื่อป้องกัน race condition
-    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    // ใช้ Transaction หรือ write ตรงๆ โดยใช้ documentIdToUse ที่ได้มา
+    const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
     
-    // ตรวจสอบว่าเอกสารมีอยู่หรือไม่
+    // ตรวจสอบสถานะปัจจุบันก่อนบันทึก (ป้องกันการเขียนทับสถานะที่ไม่ใช่ DRAFT)
     const docSnap = await getDoc(docRef);
-    
-    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
-    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT && docSnap.data().status !== FormStatus.FINAL) {
+    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT && docSnap.data().status !== FormStatus.FINAL /* Allow overwriting FINAL for idempotency if needed, but maybe safer to prevent */) {
       const currentStatus = docSnap.data().status;
       throw new Error(`ไม่สามารถบันทึกได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
     }
 
-    // บันทึกข้อมูล
+    // บันทึกข้อมูล (ใช้ setDoc + merge:true เพื่ออัพเดทหรือสร้างใหม่)
     await setDoc(docRef, dataToSave, { merge: true });
     
     // สร้างหรืออัพเดท daily summary
@@ -677,7 +645,7 @@ export const finalizeMorningShiftForm = async (
     }
 
     // คืนค่า ID ของเอกสาร
-    return customDocId;
+    return documentIdToUse;
   } catch (error) {
     console.error('Error finalizing morning shift form:', error);
     throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
@@ -685,10 +653,10 @@ export const finalizeMorningShiftForm = async (
 };
 
 /**
- * Saves a draft of the night shift form.
+ * Saves a draft of the ward form (Morning or Night).
  * Uses setDoc with a custom ID.
  */
-export const saveNightShiftFormDraft = async (
+export const saveDraftWardForm = async (
   formData: Partial<WardForm>,
   user: User
 ): Promise<string> => {
@@ -696,6 +664,11 @@ export const saveNightShiftFormDraft = async (
     // ตรวจสอบข้อมูลที่จำเป็น
     if (!formData.wardId || !formData.shift || !formData.date) {
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+    }
+    
+    // Validate the shift type explicitly
+    if (formData.shift !== ShiftType.MORNING && formData.shift !== ShiftType.NIGHT) {
+        throw new Error('Invalid shift type provided for saving draft.');
     }
 
     // *** Normalize wardId to uppercase ***
@@ -710,20 +683,23 @@ export const saveNightShiftFormDraft = async (
     } else if (typeof formData.date === 'string') {
         // Assume 'yyyy-MM-dd' or ISO format from input
         dateObj = new Date(formData.date);
+        if (isNaN(dateObj.getTime())) { // Add check for invalid date string
+             throw new Error('Invalid date string format in formData');
+        }
     } else {
         throw new Error('Invalid date type in formData');
     }
     const dateString = formatDateYMD(dateObj);
 
-    // สร้าง ID สำหรับเอกสาร (ใช้ normalizedWardId)
+    // สร้าง ID สำหรับเอกสาร (ใช้ normalizedWardId and the shift from formData)
     const customDocId = formData.id || generateWardFormId(
       normalizedWardId, // Use normalized ID
-      ShiftType.NIGHT, 
+      formData.shift,   // <<< Use shift from formData
       FormStatus.DRAFT, 
-      formData.date // Pass original date value here as generateWardFormId expects TimestampField
+      Timestamp.fromDate(dateObj) // Pass Timestamp based on validated dateObj
     );
 
-    console.log(`Saving night shift draft with ID: ${customDocId}, WardID: ${normalizedWardId}, DateString: ${dateString}`);
+    console.log(`Saving ${formData.shift} shift draft with ID: ${customDocId}, WardID: ${normalizedWardId}, DateString: ${dateString}`);
 
     // เตรียมข้อมูลสำหรับบันทึก (เพิ่ม wardId และ dateString ที่แปลงแล้ว)
     const dataToSave: Partial<WardForm> = {
@@ -733,7 +709,7 @@ export const saveNightShiftFormDraft = async (
       dateString: dateString,   // *** Store dateString ***
       status: FormStatus.DRAFT,
       isDraft: true,
-      createdBy: formData.createdBy || user.uid,
+      createdBy: formData.createdBy || user?.uid || 'unknown', // Added null check for user
       updatedAt: createServerTimestamp()
     };
 
@@ -742,13 +718,15 @@ export const saveNightShiftFormDraft = async (
       dataToSave.createdAt = createServerTimestamp();
     }
 
-    // ตรวจสอบว่ามี morning form ที่ FINAL หรือ APPROVED หรือไม่
+    // If saving a night shift draft, check if the morning shift is finalized/approved
+    if (formData.shift === ShiftType.NIGHT) {
     const morningStatus = await checkMorningShiftFormStatus(dateObj, normalizedWardId); // Use normalized ID
     if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
       throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
+      }
     }
 
-    // ใช้ Transaction เพื่อป้องกัน race condition
+    // ใช้ Transaction หรือ write ตรงๆ
     const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
     
     // ตรวจสอบสถานะปัจจุบันของเอกสาร
@@ -757,16 +735,17 @@ export const saveNightShiftFormDraft = async (
     // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT
     if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT) {
       const currentStatus = docSnap.data().status;
-      throw new Error(`ไม่สามารถบันทึกร่างได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+      throw new Error(`ไม่สามารถบันทึกร่างทับได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
     }
 
     // บันทึกข้อมูล - ใช้ setDoc เพื่อให้สามารถกำหนด Document ID เองได้
+    // merge: true เพื่อให้อัปเดตเฉพาะฟิลด์ที่ส่งมา ไม่ลบฟิลด์อื่นที่มีอยู่แล้ว
     await setDoc(docRef, dataToSave, { merge: true });
 
     // คืนค่า ID ของเอกสาร
     return customDocId;
   } catch (error) {
-    console.error('Error saving night shift form draft:', error);
+    console.error(`Error saving ${formData.shift || 'unknown'} shift form draft:`, error);
     throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
   }
 };
@@ -792,72 +771,103 @@ export const finalizeNightShiftForm = async (
     }
 
     // ตรวจสอบว่ามี morning form ที่ FINAL หรือ APPROVED หรือไม่
-    const dateObj = new Date(formData.date + 'T12:00:00');
-    const morningStatus = await checkMorningShiftFormStatus(dateObj, formData.wardId);
+    let dateObjForCheck: Date;
+    if (formData.date instanceof Timestamp) {
+      dateObjForCheck = formData.date.toDate();
+    } else if (formData.date instanceof Date) {
+        dateObjForCheck = formData.date;
+    } else if (typeof formData.date === 'string') {
+        dateObjForCheck = new Date(formData.date + 'T00:00:00Z');
+    } else {
+        throw new Error('Invalid date type in formData for morning status check');
+    }
+    const morningStatus = await checkMorningShiftFormStatus(dateObjForCheck, formData.wardId);
     
     if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
       throw new Error('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
     }
 
-    // สร้าง ID สำหรับเอกสาร
-    const dateStr = formatDateYMD(dateObj);
-    const customDocId = formData.id || generateWardFormId(
+    // สร้าง Date object สำหรับใช้ในการ query และสร้าง ID (เหมือนกับ morning)
+    const dateObjForId = dateObjForCheck; // Use the same validated Date object
+    const dateStr = formatDateYMD(dateObjForId);
+
+    // 1. พยายามดึง ID ของ Draft ที่มีอยู่ก่อน (ถ้ามี)
+    let documentIdToUse: string | undefined = formData.id;
+    if (!documentIdToUse) {
+      const draftDocId = generateWardFormId(
       formData.wardId, 
       ShiftType.NIGHT, 
-      FormStatus.FINAL, 
-      formData.date
-    );
+          FormStatus.DRAFT, // <<< ใช้ DRAFT status
+          Timestamp.fromDate(dateObjForId)
+      );
+      const draftDocRef = doc(db, COLLECTION_WARDFORMS, draftDocId);
+      const draftDocSnap = await getDoc(draftDocRef);
+      if (draftDocSnap.exists() && draftDocSnap.data().status === FormStatus.DRAFT) {
+          documentIdToUse = draftDocId;
+          console.log(`Found existing night draft with ID ${draftDocId}, will update.`);
+      }
+    }
 
-    console.log(`Finalizing night shift form with ID: ${customDocId}`);
+    // 2. ถ้ายังไม่มี ID (ไม่เจอ Draft เดิม) ให้สร้าง ID ใหม่สำหรับสถานะ FINAL
+    if (!documentIdToUse) {
+        documentIdToUse = generateWardFormId(
+            formData.wardId,
+            ShiftType.NIGHT,
+            FormStatus.FINAL, // <<< ใช้ FINAL status สำหรับเอกสารใหม่
+            Timestamp.fromDate(dateObjForId)
+        );
+        console.log(`No existing night draft found or ID provided, creating new document with FINAL ID: ${documentIdToUse}`);
+    } else {
+        console.log(`Using existing document ID for night finalization: ${documentIdToUse}`);
+    }
 
     // เตรียมข้อมูลสำหรับบันทึก
     const dataToSave: Partial<WardForm> = {
       ...formData,
-      wardName: formData.wardName || '', // Include wardName for validation
+      wardName: formData.wardName || '', // Include wardName
       status: FormStatus.FINAL,
       isDraft: false,
+      date: Timestamp.fromDate(dateObjForId), // Store as Timestamp
       dateString: dateStr,
       createdBy: formData.createdBy || user.uid,
       updatedAt: createServerTimestamp(),
       finalizedAt: createServerTimestamp()
     };
 
-    // ถ้าเป็นการสร้างใหม่ ให้เพิ่ม createdAt
-    if (!formData.id) {
+    // ถ้าเป็นการสร้างใหม่ (ไม่มี formData.id ตอนเริ่ม และไม่เจอ draft) ให้เพิ่ม createdAt
+    if (!formData.id && documentIdToUse.includes('final')) { // Check if it's a new final doc ID
       dataToSave.createdAt = createServerTimestamp();
     }
 
-    // ใช้ Transaction เพื่อป้องกัน race condition
-    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
+    // ใช้ Transaction หรือ write ตรงๆ โดยใช้ documentIdToUse ที่ได้มา
+    const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
     
-    // ตรวจสอบว่าเอกสารมีอยู่หรือไม่
+    // ตรวจสอบสถานะปัจจุบันก่อนบันทึก (ป้องกันการเขียนทับสถานะที่ไม่ใช่ DRAFT)
     const docSnap = await getDoc(docRef);
-    
-    // ถ้าเอกสารมีอยู่แล้ว และสถานะไม่ใช่ DRAFT หรือ FINAL
     if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT && docSnap.data().status !== FormStatus.FINAL) {
       const currentStatus = docSnap.data().status;
       throw new Error(`ไม่สามารถบันทึกได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
     }
 
-    // บันทึกข้อมูล
+    // บันทึกข้อมูล (ใช้ setDoc + merge:true เพื่ออัพเดทหรือสร้างใหม่)
     await setDoc(docRef, dataToSave, { merge: true });
     
-    // ดึงข้อมูล morning form เพื่อสร้าง daily summary
+    // ดึงข้อมูล morning form เพื่อสร้าง/อัพเดท daily summary
     try {
       // ดึงข้อมูล morning form
-      const morningForm = await getWardForm(dateObj, ShiftType.MORNING, formData.wardId);
+      const morningForm = await getWardForm(Timestamp.fromDate(dateObjForCheck), ShiftType.MORNING, formData.wardId); // Convert Date to Timestamp
       
       if (morningForm) {
         // สร้างหรืออัพเดท daily summary
         await checkAndCreateDailySummary(
-          dateObj,
+          dateObjForCheck,
           formData.wardId,
           formData.wardName || ''
         );
         
         // อัพเดท daily summary ด้วยข้อมูลจาก morning form และ night form
         await updateDailySummary(
-          dateObj,
+          dateObjForCheck,
           formData.wardId,
           morningForm,
           dataToSave as WardForm,
@@ -875,7 +885,7 @@ export const finalizeNightShiftForm = async (
     }
 
     // คืนค่า ID ของเอกสาร
-    return customDocId;
+    return documentIdToUse;
   } catch (error) {
     console.error('Error finalizing night shift form:', error);
     throw error; // ส่งต่อ error ไปให้ผู้เรียกใช้จัดการเอง
@@ -1080,6 +1090,32 @@ export const getPreviousDayLastForm = async (
     };
   } catch (error) {
     console.error('Error getting previous day form:', error);
+    throw error;
+  }
+};
+
+// แก้ไขการเรียกใช้ getWardForm ใน getSummaryForWard
+export const getSummaryForWard = async (date: Date, wardId: string): Promise<{
+  morningForm: WardForm | null;
+  nightForm: WardForm | null;
+}> => {
+  try {
+    const timestamp = Timestamp.fromDate(date);
+    const morningForm = await getWardForm(timestamp, ShiftType.MORNING, wardId);
+    
+    if (!morningForm) {
+      console.log(`[getSummaryForWard] No morning form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
+    }
+    
+    const nightForm = await getWardForm(timestamp, ShiftType.NIGHT, wardId);
+    
+    if (!nightForm) {
+      console.log(`[getSummaryForWard] No night form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
+    }
+    
+    return { morningForm, nightForm };
+  } catch (error) {
+    console.error(`[getSummaryForWard] Error getting summary for ward ${wardId}:`, error);
     throw error;
   }
 }; 

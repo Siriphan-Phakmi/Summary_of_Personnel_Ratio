@@ -15,7 +15,7 @@ const getRandomInt = (min: number, max: number) => {
 const mockGetActiveWards = async (): Promise<Ward[]> => {
   console.warn('[API Mock Data] Using mock getActiveWards function!');
   const now = new Date().toISOString();
-  // Provide mock ward data matching the Ward type
+  // Provide more mock ward data matching the Ward type
   return [
     {
       id: 'WARD6',
@@ -30,6 +30,30 @@ const mockGetActiveWards = async (): Promise<Ward[]> => {
       wardId: 'CCU',
       wardName: 'CCU',
       active: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: 'WARD7', // Added WARD7
+      wardId: 'WARD7',
+      wardName: 'Ward 7',
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+     {
+      id: 'WARD11', // Added WARD11
+      wardId: 'WARD11',
+      wardName: 'Ward 11',
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+     {
+      id: 'INACTIVE', // Example inactive ward
+      wardId: 'INACTIVE',
+      wardName: 'Inactive Ward',
+      active: false,
       createdAt: now,
       updatedAt: now,
     },
@@ -79,11 +103,18 @@ export async function POST(request: Request) {
     // Fetch active wards using the local mock function
     let wardsToProcess: Ward[];
     try {
-       const allActiveWards = await mockGetActiveWards(); // Use local mock function
+       const allMockWards = await mockGetActiveWards(); // Use local mock function
+       // Filter only active wards first
+       const allActiveWards = allMockWards.filter(w => w.active);
+
         if (targetWardIds && targetWardIds.length > 0) {
-            wardsToProcess = allActiveWards.filter((ward: Ward) => targetWardIds.includes(ward.id));
-            console.log(`[API Mock Data] Processing specific wards: ${wardsToProcess.map(w => w.id).join(', ')}`);
+            // Normalize targetWardIds to uppercase for case-insensitive comparison
+            const upperCaseTargetIds = targetWardIds.map((id: string) => id.toUpperCase()); 
+            // Filter active wards based on targetWardIds (case-insensitive)
+            wardsToProcess = allActiveWards.filter((ward: Ward) => upperCaseTargetIds.includes(ward.id.toUpperCase()));
+            console.log(`[API Mock Data] Processing specific wards (case-insensitive): ${wardsToProcess.map(w => w.id).join(', ')}`);
         } else {
+            // If no specific ward IDs are provided, use all *active* wards from mockGetActiveWards
             wardsToProcess = allActiveWards;
             console.log(`[API Mock Data] Processing all active wards (${wardsToProcess.length}).`);
         }
