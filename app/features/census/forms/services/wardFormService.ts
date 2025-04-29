@@ -197,27 +197,61 @@ export const getWardForm = async (
     // Normalize wardId ให้เป็นตัวใหญ่เสมอ
     const normalizedWardId = wardId.toUpperCase();
     
-    console.log(`กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก (original) ${wardId} (normalized) ${normalizedWardId}`);
+    console.log(`[getWardForm] กำลังค้นหาแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก (original) ${wardId} (normalized) ${normalizedWardId}`);
     
     // สร้าง query ใช้ index ที่เหมาะสม (dateString + shift + wardId)
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
-    const q = query(
+
+    // Verbose logging เพื่อ debug
+    console.log(`[getWardForm] Query parameters: dateString='${dateString}', shift='${shift}', wardId='${normalizedWardId}'`);
+    
+    // ทดลองสร้าง query ที่มี conditions น้อยลงเพื่อตรวจสอบว่ามีเอกสารที่ตรงกับเงื่อนไขเบื้องต้นหรือไม่
+    // Approach 1: ใช้ query ปกติ
+    let q = query(
       wardFormsRef,
       where('dateString', '==', dateString),
       where('shift', '==', shift),
       where('wardId', '==', normalizedWardId)
     );
     
-    // Add detailed logging before executing the query
-    console.log(`[getWardForm] Querying with: dateString='${dateString}', shift='${shift}', wardId='${normalizedWardId}'`);
-    
     const querySnapshot = await getDocs(q);
     
-    // Log the size of the result set
-    console.log(`[getWardForm] Query snapshot size: ${querySnapshot.size}`);
+    // Log ผลลัพธ์ของ query แบบละเอียด
+    console.log(`[getWardForm] Query snapshot size for normal query: ${querySnapshot.size}`);
 
     if (querySnapshot.empty) {
-      console.log(`ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
+      console.log(`[getWardForm] ไม่พบข้อมูลด้วย query ปกติ`);
+      
+      // Approach 2: ลองใช้ query ที่ใช้เฉพาะ dateString และ ward เพื่อตรวจสอบว่ามีข้อมูลของวันนี้ในวอร์ดนี้หรือไม่
+      const secondaryQuery = query(
+        wardFormsRef,
+        where('dateString', '==', dateString),
+        where('wardId', '==', normalizedWardId)
+      );
+      
+      const secondarySnapshot = await getDocs(secondaryQuery);
+      console.log(`[getWardForm] Found ${secondarySnapshot.size} forms for dateString ${dateString} and wardId ${normalizedWardId}`);
+      
+      if (secondarySnapshot.size > 0) {
+        // แสดงรายการเอกสารที่พบเพื่อตรวจสอบ
+        secondarySnapshot.forEach(doc => {
+          const data = doc.data();
+          console.log(`[getWardForm] Found document: id=${doc.id}, shift=${data.shift}, status=${data.status}, isDraft=${data.isDraft}`);
+        });
+        
+        // หาเอกสารที่ตรงกับ shift ที่ต้องการ
+        const matchingDoc = secondarySnapshot.docs.find(doc => doc.data().shift === shift);
+        if (matchingDoc) {
+          console.log(`[getWardForm] พบเอกสารที่ตรงกับ shift ${shift} จาก query ที่สอง: ${matchingDoc.id}`);
+          const formData = matchingDoc.data() as WardForm;
+          return {
+            ...formData,
+            id: matchingDoc.id
+          };
+        }
+      }
+      
+      console.log(`[getWardForm] ไม่พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId}`);
       return null;
     }
     
@@ -225,14 +259,14 @@ export const getWardForm = async (
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
     
-    console.log(`พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id})`);
+    console.log(`[getWardForm] พบแบบฟอร์ม ${shift} ของวันที่ ${dateString} สำหรับแผนก ${normalizedWardId} (ID: ${docSnapshot.id}, Status: ${formData.status})`);
     
     return {
       ...formData,
       id: docSnapshot.id
     };
   } catch (error) {
-    console.error('Error getting ward form:', error);
+    console.error('[getWardForm] Error getting ward form:', error);
     throw error;
   }
 };

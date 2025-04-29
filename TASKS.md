@@ -1,5 +1,20 @@
 # งานที่ดำเนินการในโปรเจค Summary of Personnel Ratio
 
+## การอัปเดตรายการล่าสุด
+
+### รายการที่แก้ไขไป
+- [x] ปรับปรุง API Route `/api/notifications/get` ให้จัดการข้อผิดพลาดได้ดีขึ้นและคืนค่า `[]` พร้อม `unreadCount: 0` เมื่อเกิด exception
+- [x] ปรับปรุง Component `NotificationBell` ให้ handle error gracefully, ใช้ CSRF token จาก state, ปรับ `formatTimestamp` รองรับหลายรูปแบบ timestamp, และลด polling interval เหลือ 3 นาที
+- [x] ปรับปรุงฟังก์ชัน `getWardForm` ใน wardFormService ด้วย secondary query และ logging เพิ่มเติมเพื่อเพิ่มโอกาสในการค้นหาแบบฟอร์ม
+- [x] ปรับปรุง Hook `useWardFormData`: เพิ่ม critical checks ก่อน loadData, error handling ด้วย toast, flags (`isFinalDataFound`, `isFormDirty`) และ modal ยืนยัน overwrite สำหรับ draft
+- [x] ปรับปรุง logic การบันทึกร่าง (`saveDraft`/`proceedToSaveDraft`) และ `handleSaveFinal` ใน `useWardFormData` เพื่อเพิ่ม validation และ feedback ให้ชัดเจน
+
+### รายการที่ต้องแก้ไขเพิ่มเติม
+- [ ] เชื่อมต่อระบบแจ้งเตือนเข้ากับเหตุการณ์การอนุมัติ/ปฏิเสธแบบฟอร์มในหน้า Approval
+- [ ] เพิ่มการแจ้งเตือนเมื่อต้องกรอกข้อมูลสรุป 24 ชั่วโมง (หน้า Daily Summary)
+- [ ] ปรับปรุงการแสดง Toast ในมุมมองโมบายให้สวยงามและ responsive
+- [ ] ทดสอบและปรับ UI ของ NotificationBell บนอุปกรณ์และธีมต่าง ๆ
+
 ## สรุปงานที่ได้ดำเนินการแล้ว
 
 1. **ระบบหลังบ้าน**

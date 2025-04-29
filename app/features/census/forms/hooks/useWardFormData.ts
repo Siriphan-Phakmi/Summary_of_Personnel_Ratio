@@ -83,11 +83,11 @@ export const useWardFormData = ({
     // Only reset form/errors/dirty status if ward/date selection changed, 
     // not just the shift or user object reference (if user data itself didn't change identity)
     if (selectionChanged) {
-        setError(null);
+    setError(null);
         setErrors({});
         setIsFormDirty(false);
         // Reset form data ONLY when ward/date changes significantly
-        setFormData({}); 
+        setFormData({});
         // Update the ref for the next comparison
         prevSelectionRef.current = { ward: selectedWard, date: selectedDate };
     }
@@ -119,12 +119,20 @@ export const useWardFormData = ({
             let loadedData: Partial<WardForm> | null = null; // To store the data loaded for the current shift
 
             // 1. Fetch Existing Form Data for the selected date and shift FIRST
-            const existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
+            let existingForm = null;
+            try {
+                existingForm = await getWardForm(dateTimestamp, selectedShift, selectedWard);
             console.log('[useWardFormData] Checked for existing form:', existingForm?.status);
+            } catch (error) {
+                console.error('[useWardFormData] Error fetching form with getWardForm:', error);
+                showErrorToast(`เกิดข้อผิดพลาดในการโหลดแบบฟอร์ม: ${error instanceof Error ? error.message : 'ไม่ทราบสาเหตุ'}`);
+            }
 
             if (existingForm) {
                 const isFinal = existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED;
                 const isDraft = existingForm.status === FormStatus.DRAFT;
+
+                console.log(`[useWardFormData] Found existing form with status: ${existingForm.status}, isFinal: ${isFinal}, isDraft: ${isDraft}`);
 
                 // Prepare base loaded data structure
                 loadedData = {
@@ -190,6 +198,7 @@ export const useWardFormData = ({
                     }
                 }
                 setFormData(loadedData);
+                console.log('[useWardFormData] Set formData with loaded data:', loadedData);
                 setIsFormDirty(false); // Data just loaded is not dirty
 
             } else {
@@ -245,7 +254,56 @@ export const useWardFormData = ({
                      setIsMorningCensusReadOnly(false);
                      setIsCensusAutoCalculated(false);
                  }
-                 setFormData(initialData); // Set initial data (possibly with auto-census)
+                 
+                 // หากยังไม่มีฟอร์มที่มีอยู่ ตรวจสอบว่ามี draft ล่าสุดหรือไม่
+                 if (!loadedData && user) {
+                     try {
+                         console.log('[useWardFormData] Checking for latest draft form');
+                         const latestDraft = await getLatestDraftForm(selectedWard, user);
+                         if (latestDraft && latestDraft.shift === selectedShift && 
+                             latestDraft.dateString && latestDraft.dateString === format(targetDate, 'yyyy-MM-dd')) {
+                             console.log('[useWardFormData] Found latest draft form:', latestDraft);
+                             loadedData = {
+                                 ...latestDraft,
+                                 date: latestDraft.date instanceof Timestamp ? 
+                                     format(latestDraft.date.toDate(), 'yyyy-MM-dd') : latestDraft.date,
+                                 // Ensure numbers are numbers or undefined
+                                 patientCensus: Number(latestDraft.patientCensus ?? undefined),
+                                 nurseManager: Number(latestDraft.nurseManager ?? undefined),
+                                 rn: Number(latestDraft.rn ?? undefined),
+                                 pn: Number(latestDraft.pn ?? undefined),
+                                 wc: Number(latestDraft.wc ?? undefined),
+                                 newAdmit: Number(latestDraft.newAdmit ?? undefined),
+                                 transferIn: Number(latestDraft.transferIn ?? undefined),
+                                 referIn: Number(latestDraft.referIn ?? undefined),
+                                 transferOut: Number(latestDraft.transferOut ?? undefined),
+                                 referOut: Number(latestDraft.referOut ?? undefined),
+                                 discharge: Number(latestDraft.discharge ?? undefined),
+                                 dead: Number(latestDraft.dead ?? undefined),
+                                 available: Number(latestDraft.available ?? undefined),
+                                 unavailable: Number(latestDraft.unavailable ?? undefined),
+                                 plannedDischarge: Number(latestDraft.plannedDischarge ?? undefined),
+                             };
+                             
+                             // Set recorder names
+                             loadedData.recorderFirstName = loadedData.recorderFirstName?.trim() ? 
+                                 loadedData.recorderFirstName : (user.firstName || '');
+                             loadedData.recorderLastName = loadedData.recorderLastName?.trim() ? 
+                                 loadedData.recorderLastName : (user.lastName || '');
+                                 
+                             setIsDraftLoaded(true);
+                             // Use specific ID for toast
+                             showSafeToast("โหลดข้อมูลร่างล่าสุดสำหรับกะนี้", 'warning', 
+                                 { id: `load-latest-draft-${selectedWard}-${selectedDate}-${selectedShift}` });
+                         }
+                     } catch (draftError) {
+                         console.error('[useWardFormData] Error checking for latest draft:', draftError);
+                     }
+                 }
+                 
+                 // ใช้ข้อมูลร่างล่าสุดหากพบ มิฉะนั้นใช้ข้อมูลเริ่มต้น
+                 setFormData(loadedData || initialData);
+                 console.log('[useWardFormData] Set formData with:', loadedData || initialData);
                  setIsFormDirty(false); // Initial data is not dirty
             }
 
@@ -380,9 +438,9 @@ export const useWardFormData = ({
     // Ensure user context is still valid if needed, though handled in handleSaveDraft already
     if (!user) {
          showErrorToast('User information is missing.');
-         return;
+      return;
     }
-    
+
     // Validation is already done in handleSaveDraft before calling this
     setIsSaving(true);
     setError(null); // Clear previous errors

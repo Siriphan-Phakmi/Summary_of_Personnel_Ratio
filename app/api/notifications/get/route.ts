@@ -27,10 +27,29 @@ export async function GET(req: NextRequest) {
     
     // ดึงการแจ้งเตือนตามเงื่อนไข
     let notifications;
-    if (unreadOnly) {
-      notifications = await notificationService.getUnreadNotifications(userId);
-    } else {
-      notifications = await notificationService.getUserNotifications(userId);
+    try {
+      if (unreadOnly) {
+        notifications = await notificationService.getUnreadNotifications(userId);
+      } else {
+        notifications = await notificationService.getUserNotifications(userId);
+      }
+    } catch (serviceError) {
+      console.error('Error accessing notification service:', serviceError);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'ไม่สามารถเข้าถึงข้อมูลการแจ้งเตือนได้ กรุณาลองใหม่อีกครั้ง'
+      }, { status: 503 });
+    }
+
+    // ตรวจสอบว่า notifications เป็น array หรือไม่
+    if (!Array.isArray(notifications)) {
+      console.error('Invalid notifications data format:', notifications);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'รูปแบบข้อมูลการแจ้งเตือนไม่ถูกต้อง', 
+        notifications: [],
+        unreadCount: 0
+      }, { status: 200 }); // Return empty array instead of error
     }
 
     // เรียงลำดับตามเวลาล่าสุด
@@ -58,9 +77,15 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching notifications:', error);
+    // Return empty notifications array instead of error to prevent UI breakage
     return NextResponse.json(
-      { error: 'Failed to fetch notifications' },
-      { status: 500 }
+      { 
+        success: false,
+        error: 'ไม่สามารถดึงข้อมูลการแจ้งเตือนได้',
+        notifications: [],
+        unreadCount: 0
+      },
+      { status: 200 }
     );
   }
 } 

@@ -47,19 +47,32 @@ const NotificationBell: React.FC = () => {
     setError(null);
     try {
       const response = await fetch('/api/notifications/get'); // Default: get all (including read)
-      if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
+      if (!response.ok && response.status !== 200) {
+        console.error('[NotificationBell] HTTP error:', response.status, response.statusText);
+        // ไม่ throw error แต่ set error state แทน
+        setError(`ไม่สามารถดึงข้อมูลการแจ้งเตือนได้ (${response.status})`);
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
       }
+      
       const data = await response.json();
       if (data.success) {
-        setNotifications(data.notifications);
-        setUnreadCount(data.unreadCount);
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
       } else {
-        throw new Error(data.error || 'Failed to fetch notifications');
+        console.error('[NotificationBell] API returned error:', data.error);
+        setError(data.error || 'ไม่สามารถดึงข้อมูลการแจ้งเตือนได้');
+        // ใช้ข้อมูลที่ API ส่งกลับมา (แม้ error แต่ API จะส่ง empty array กลับมา)
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount || 0);
       }
     } catch (err) {
-      console.error("Fetch notifications error:", err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error("[NotificationBell] Fetch notifications error:", err);
+      setError(err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+      // กรณีเกิด exception ให้ reset notifications เป็น empty
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setIsLoading(false);
     }
