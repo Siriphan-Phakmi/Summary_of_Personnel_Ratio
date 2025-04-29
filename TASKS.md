@@ -3,14 +3,22 @@
 ## การอัปเดตรายการล่าสุด
 
 ### รายการที่แก้ไขไป
-- [x] **(วันนี้)** แก้ไข Main Catch Block ใน API Route `/api/notifications/get` (`route.ts`) ให้คืนค่า Status Code 500 และข้อความ Error ที่ละเอียดขึ้นเมื่อเกิดข้อผิดพลาดร้ายแรง
-- [x] **(วันนี้)** วิเคราะห์ Code ใน API Route `/api/notifications/get` (`route.ts`) เพื่อหาสาเหตุของ 500 Internal Server Error
-- [x] **(วันนี้)** ปรับปรุง Component `NotificationBell.tsx` โดยห่อ `fetchNotifications` ด้วย `useCallback` และอัปเดต dependencies เพื่อป้องกัน Linter Warning
-- [x] ปรับปรุง API Route `/api/notifications/get` ให้จัดการข้อผิดพลาดได้ดีขึ้นและคืนค่า `[]` พร้อม `unreadCount: 0` เมื่อเกิด exception
-- [x] ปรับปรุง Component `NotificationBell` ให้ handle error gracefully, ใช้ CSRF token จาก state, ปรับ `formatTimestamp` รองรับหลายรูปแบบ timestamp, และลด polling interval เหลือ 3 นาที
-- [x] ปรับปรุงฟังก์ชัน `getWardForm` ใน wardFormService ด้วย secondary query และ logging เพิ่มเติมเพื่อเพิ่มโอกาสในการค้นหาแบบฟอร์ม
-- [x] ปรับปรุง Hook `useWardFormData`: เพิ่ม critical checks ก่อน loadData, error handling ด้วย toast, flags (`isFinalDataFound`, `isFormDirty`) และ modal ยืนยัน overwrite สำหรับ draft
-- [x] ปรับปรุง logic การบันทึกร่าง (`saveDraft`/`proceedToSaveDraft`) และ `handleSaveFinal` ใน `useWardFormData` เพื่อเพิ่ม validation และ feedback ให้ชัดเจน
+- [x] ปรับปรุง API Route `/api/notifications/get` ให้จัดการ Error ระดับร้ายแรง (main catch) ส่ง Status 500 พร้อมข้อความ Error รายละเอียด
+- [x] วิเคราะห์และแก้ไข Component `NotificationBell.tsx`:
+  - ห่อ `fetchNotifications` ด้วย `useCallback` และอัปเดต dependency ให้เรียกเฉพาะเมื่อ `user` มีค่า
+  - ปรับ polling logic ให้ดึงข้อมูลเฉพาะเมื่อ dropdown เปิด (`isOpen`) และ poll ทุก 3 นาที
+  - เพิ่มการจัดการ CSRF token จาก state และปรับการทำงานของ `markAsRead`/`markAllAsRead`
+  - ปรับ `formatTimestamp` ให้รองรับรูปแบบ Timestamp และ Date หลายประเภท
+- [x] ปรับปรุง `AuthContext.tsx`:
+  - ใช้ `useMemo` ห่อ `contextValue` และ `useCallback` สำหรับ `checkRole` เพื่อให้ Context Reference คงที่
+- [x] แก้ไข Hook `useWardFormData.ts`:
+  - ลบการประกาศซ้ำของ `reloadDataTrigger` และส่งเป็น prop เดียว
+  - เพิ่ม `console.log` เพื่อช่วย debug lifecycle และขั้นตอน `loadData`
+- [x] แก้ไข Component `DailyCensusForm.tsx`:
+  - เพิ่ม state `reloadDataTrigger` และส่งเข้า `useWardFormData`
+  - ลบ props `morningShiftStatus` และ `nightShiftStatus` ที่ไม่ใช้แล้ว
+- [x] อัปเดต Hook `useFormPersistence.ts` ให้ใช้ `saveDraftWardForm` แทน `saveMorningShiftFormDraft`/`saveNightShiftFormDraft` และปรับ logic ใน `performSaveDraft`
+- [x] แก้ไข Import Paths ของ `useStatusStyles` ในหลายไฟล์ (ลบ `.tsx`) เพื่อให้ TypeScript import ถูกต้อง
 
 ### รายการที่ต้องแก้ไขเพิ่มเติม
 - [ ] เชื่อมต่อระบบแจ้งเตือนเข้ากับเหตุการณ์การอนุมัติ/ปฏิเสธแบบฟอร์มในหน้า Approval
@@ -67,7 +75,7 @@
    - [x] **พัฒนาคอมโพเนนต์ NotificationBell:** สร้างคอมโพเนนต์สำหรับแสดงไอคอนระฆังพร้อมจำนวนการแจ้งเตือนที่ยังไม่ได้อ่าน
    - [x] **เพิ่ม NotificationBell เข้าไปใน NavBar:** เพิ่มคอมโพเนนต์ NotificationBell เข้าไปในส่วนของ Desktop และ Mobile ใน NavBar.tsx
 
-3. **การพัฒนา Dashboard**
+3. **การพัฒนาหน้า Dashboard**
    - [x] เพิ่มตัวเลือกกรองเฉพาะข้อมูลที่อนุมัติแล้ว
    - [x] ปรับปรุงหน้า Dashboard ให้แสดงข้อมูลสถิติสรุป
    - [x] เพิ่มตารางแสดงข้อมูลรายวัน
@@ -149,11 +157,14 @@
    - [ ] ปรับปรุงการแสดง Toast ในมุมมองโมบาย
 
 2. **การพัฒนาหน้า Dashboard** (ความสำคัญสูง)
-   - [ ] เพิ่มการแสดงกราฟข้อมูลย้อนหลัง 7 วัน, 30 วัน
-   - [ ] แสดง Ratio สีเปอร์เซ็นต์แนวโน้มการเปลี่ยนแปลง
-   - [ ] พัฒนา UI สำหรับเปรียบเทียบข้อมูลรายวอร์ด
-   - [ ] เพิ่มตัวเลือกการกรองข้อมูลที่ละเอียดขึ้น
-   - [ ] ออกแบบ Dashboard ทั้งหมดใหม่ให้มีความสวยงามและใช้งานง่ายขึ้น
+   - [x] เพิ่มตัวเลือกกรองเฉพาะข้อมูลที่อนุมัติแล้ว
+   - [x] ปรับปรุงหน้า Dashboard ให้แสดงข้อมูลสถิติสรุป
+   - [x] เพิ่มตารางแสดงข้อมูลรายวัน
+   - [x] สร้างฟังก์ชันคำนวณค่าเฉลี่ยและสถิติ
+   - [x] พัฒนาหน้า SummaryDetailPage สำหรับแสดงข้อมูลเชิงลึก
+   - [x] วิเคราะห์ข้อมูลจาก `data/analysis_results.csv`
+   - [x] ใช้/พัฒนาฟังก์ชันสำหรับการวิเคราะห์ข้อมูล (เช่น ค่าเฉลี่ย, ส่วนเบี่ยงเบนมาตรฐาน)
+   - [x] สร้างการแสดงผลข้อมูล (Visualization) สำหรับผลลัพธ์ (เช่น ฮิสโตแกรม, แผนภาพกระจาย)
 
 ## งานที่วางแผนในอนาคต (เรียงตามความสำคัญ)
 
