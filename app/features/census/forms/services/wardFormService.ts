@@ -532,7 +532,8 @@ export const saveMorningShiftFormDraft = async (
     // เตรียมข้อมูลสำหรับบันทึก (เพิ่ม wardId และ dateString ที่แปลงแล้ว)
     const dataToSave: Partial<WardForm> = {
       ...formData,
-      wardId: normalizedWardId, // *** Store normalized ID ***
+      wardId: normalizedWardId, // Store normalized ID
+      wardName: formData.wardName || '', // Include wardName for validation
       date: Timestamp.fromDate(dateObj), // Ensure date is stored as Firestore Timestamp
       dateString: dateString,   // *** Store dateString ***
       status: FormStatus.DRAFT,
@@ -583,20 +584,48 @@ export const finalizeMorningShiftForm = async (
     if (!formData.wardId || !formData.shift || !formData.date) {
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
-
-    // ตรวจสอบว่าข้อมูลครบถ้วน
-    const validationResult = validateFormData(formData);
+    // เตรียมข้อมูลสำหรับตรวจสอบ: รวม wardName ให้ครบถ้วน
+    let dataForValidation: Partial<WardForm> = { ...formData };
+    if (!dataForValidation.wardName && formData.wardId) {
+      try {
+        const wardRef = doc(db, COLLECTION_WARDS, formData.wardId);
+        const wardSnap = await getDoc(wardRef);
+        if (wardSnap.exists()) {
+          dataForValidation.wardName = wardSnap.data().wardName as string;
+        }
+      } catch (err) {
+        console.warn('Cannot fetch wardName for validation:', err);
+      }
+    }
+    // ตรวจสอบว่าข้อมูลครบถ้วนด้วย validateFormData
+    const validationResult = validateFormData(dataForValidation);
     if (!validationResult.isValid) {
       throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
     }
 
-    // สร้าง ID สำหรับเอกสาร
-    const dateStr = formatDateYMD(new Date(formData.date + 'T12:00:00'));
+    // สร้าง ID สำหรับเอกสาร (ปรับปรุงการจัดการ date)
+    let dateObjForId: Date;
+    if (formData.date instanceof Timestamp) {
+      dateObjForId = formData.date.toDate();
+    } else if (formData.date instanceof Date) {
+      dateObjForId = formData.date;
+    } else if (typeof formData.date === 'string') {
+      try {
+        dateObjForId = new Date(formData.date + 'T00:00:00Z'); // Assume date string is YYYY-MM-DD
+        if (isNaN(dateObjForId.getTime())) throw new Error(); 
+      } catch {
+        throw new Error('Invalid date string format in formData for ID generation');
+      }
+    } else {
+      throw new Error('Invalid or missing date in formData for ID generation');
+    }
+    const dateStr = formatDateYMD(dateObjForId); // ใช้ Date object ที่แปลงแล้ว
+
     const customDocId = formData.id || generateWardFormId(
       formData.wardId, 
       ShiftType.MORNING, 
       FormStatus.FINAL, 
-      formData.date
+      Timestamp.fromDate(dateObjForId) // Pass Timestamp consistently
     );
 
     console.log(`Finalizing morning shift form with ID: ${customDocId}`);
@@ -604,9 +633,11 @@ export const finalizeMorningShiftForm = async (
     // เตรียมข้อมูลสำหรับบันทึก
     const dataToSave: Partial<WardForm> = {
       ...formData,
+      wardName: dataForValidation.wardName || '', // Use wardName derived during validation
       status: FormStatus.FINAL,
       isDraft: false,
-      dateString: dateStr,
+      date: Timestamp.fromDate(dateObjForId), // *** Store as Timestamp ***
+      dateString: dateStr, // *** Use formatted string ***
       createdBy: formData.createdBy || user.uid,
       updatedAt: createServerTimestamp(),
       finalizedAt: createServerTimestamp()
@@ -782,6 +813,7 @@ export const finalizeNightShiftForm = async (
     // เตรียมข้อมูลสำหรับบันทึก
     const dataToSave: Partial<WardForm> = {
       ...formData,
+      wardName: formData.wardName || '', // Include wardName for validation
       status: FormStatus.FINAL,
       isDraft: false,
       dateString: dateStr,
