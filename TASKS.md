@@ -21,6 +21,10 @@
 - [x] แก้ไข Import Paths ของ `useStatusStyles` ในหลายไฟล์ (ลบ `.tsx`) เพื่อให้ TypeScript import ถูกต้อง
 
 ### รายการที่ต้องแก้ไขเพิ่มเติม
+- [ ] **แก้ไขปัญหาการแสดงผลข้อมูล:** ข้อมูลสถานะ 'Final'/'Approved' ไม่แสดงในหน้า `DailyCensusForm`
+  - [ ] ตรวจสอบ/แก้ไข `getWardForm` (`wardFormService.ts`) ให้ดึงข้อมูล 'Final'/'Approved' อย่างถูกต้อง
+  - [ ] ตรวจสอบ/แก้ไข `useWardFormData.ts` ให้จัดการข้อมูล 'Final'/'Approved' และตั้งค่า `formData`/`isFormReadOnly` ถูกต้อง
+  - [ ] ตรวจสอบ/แก้ไข `CensusInputFields.tsx` ให้แสดงผลตาม `isFormReadOnly` ถูกต้อง
 - [ ] เชื่อมต่อระบบแจ้งเตือนเข้ากับเหตุการณ์การอนุมัติ/ปฏิเสธแบบฟอร์มในหน้า Approval
 - [ ] เพิ่มการแจ้งเตือนเมื่อต้องกรอกข้อมูลสรุป 24 ชั่วโมง (หน้า Daily Summary)
 - [ ] ปรับปรุงการแสดง Toast ในมุมมองโมบายให้สวยงามและ responsive

@@ -2,125 +2,104 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ShiftType, FormStatus } from '@/app/core/types/ward';
-import { checkMorningShiftFormStatus, getWardForm } from '../services/wardFormService';
-import { Timestamp } from 'firebase/firestore';
+// import { checkMorningShiftFormStatus, getWardForm } from '../services/wardFormService'; // <<< REMOVE Import service functions
+// import { Timestamp } from 'firebase/firestore'; // <<< REMOVE Timestamp if not needed elsewhere
 
 interface UseShiftManagementProps {
-  selectedWard: string;
-  selectedDate: string;
+  // selectedWard: string; // <<< REMOVE - No longer needed for fetching here
+  // selectedDate: string; // <<< REMOVE - No longer needed for fetching here
+  initialShift?: ShiftType; // Optional initial shift
+  morningStatus: FormStatus | null; // <<< ADD Prop for morning status
+  nightStatus: FormStatus | null; // <<< ADD Prop for night status
 }
 
 export const useShiftManagement = ({
-  selectedWard,
-  selectedDate,
+  // selectedWard, // <<< REMOVE
+  // selectedDate, // <<< REMOVE
+  initialShift = ShiftType.MORNING, // Default to morning if not provided
+  morningStatus, // <<< RECEIVE Prop
+  nightStatus, // <<< RECEIVE Prop
 }: UseShiftManagementProps) => {
-  const [selectedShift, setSelectedShift] = useState<ShiftType>(ShiftType.MORNING);
-  const [morningShiftStatus, setMorningShiftStatus] = useState<FormStatus | null>(null);
-  const [nightShiftStatus, setNightShiftStatus] = useState<FormStatus | null>(null);
+  const [selectedShift, setSelectedShift] = useState<ShiftType>(initialShift);
+  // Remove state management for statuses, as they are now props
+  // const [morningShiftStatus, setMorningShiftStatus] = useState<FormStatus | null>(null); 
+  // const [nightShiftStatus, setNightShiftStatus] = useState<FormStatus | null>(null);
   const [isMorningShiftDisabled, setIsMorningShiftDisabled] = useState(false);
-  const [isNightShiftDisabled, setIsNightShiftDisabled] = useState(true); // Night shift initially disabled
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [isNightShiftDisabled, setIsNightShiftDisabled] = useState(true); // Night shift initially disabled?
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false); // Keep loading state? Maybe remove if status loading is handled outside
 
-  // Effect 1: Fetch shift statuses when ward or date changes
+  // <<< REMOVE Effect 1: Fetch shift statuses - This is now handled outside >>>
+  /*
   useEffect(() => {
-    if (!selectedWard || !selectedDate) return;
+    // ... removed fetchStatuses logic ...
+  }, [selectedWard, selectedDate]);
+  */
 
-    const fetchStatuses = async () => {
-      setIsLoadingStatus(true);
-      try {
-        const targetDate = new Date(selectedDate + 'T00:00:00');
-        const dateTimestamp = Timestamp.fromDate(targetDate);
-
-        // Check Morning Shift Status
-        const morningStatusCheck = await checkMorningShiftFormStatus(targetDate, selectedWard);
-        const currentMorningStatus = morningStatusCheck.status ?? null;
-        setMorningShiftStatus(currentMorningStatus);
-        const isMorningFinalOrApproved = currentMorningStatus === FormStatus.FINAL || currentMorningStatus === FormStatus.APPROVED;
-
-        // Check Night Shift Status
-        let currentNightStatus: FormStatus | null = null;
-        if (isMorningFinalOrApproved) {
-          const nightForm = await getWardForm(dateTimestamp, ShiftType.NIGHT, selectedWard);
-          currentNightStatus = nightForm?.status ?? null;
-        }
-        setNightShiftStatus(currentNightStatus);
-        const isNightFinalOrApproved = currentNightStatus === FormStatus.FINAL || currentNightStatus === FormStatus.APPROVED;
-
-        // Determine button disabled states based *only* on fetched statuses
-        setIsMorningShiftDisabled(isMorningFinalOrApproved);
-        setIsNightShiftDisabled(!isMorningFinalOrApproved || isNightFinalOrApproved);
-
-      } catch (error) {
-        console.error("Error fetching shift statuses:", error);
-        setMorningShiftStatus(null);
-        setNightShiftStatus(null);
-        setIsMorningShiftDisabled(false);
-        setIsNightShiftDisabled(true);
-      } finally {
-        setIsLoadingStatus(false);
-      }
-    };
-
-    fetchStatuses();
-  }, [selectedWard, selectedDate]); // Only depends on ward and date
-
-  // Effect 2: Handle auto-selection based on fetched statuses
+  // Effect: Determine disabled states based on props
   useEffect(() => {
-    // Don't auto-select while loading statuses
-    if (isLoadingStatus) return;
+    const isMorningFinalOrApproved = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
+    const isNightFinalOrApproved = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED;
 
-    const isMorningDone = morningShiftStatus === FormStatus.FINAL || morningShiftStatus === FormStatus.APPROVED;
-    const isNightDone = nightShiftStatus === FormStatus.FINAL || nightShiftStatus === FormStatus.APPROVED;
+    setIsMorningShiftDisabled(isMorningFinalOrApproved);
+    // Disable night shift if morning isn't done, OR if night itself is done.
+    setIsNightShiftDisabled(!isMorningFinalOrApproved || isNightFinalOrApproved); 
+
+  }, [morningStatus, nightStatus]); // React to changes in status props
+
+  // Effect: Handle auto-selection based on status props
+  useEffect(() => {
+    // Use props directly
+    const isMorningDone = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
+    const isNightDone = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED;
 
     let targetShift = selectedShift; // Start with current shift
 
     // Determine the target shift based *only* on statuses
     if (isMorningDone && !isNightDone) {
       targetShift = ShiftType.NIGHT;
-      console.log("[ShiftMgmt AutoSelect] Target determined: Night");
+      // console.log("[ShiftMgmt AutoSelect] Target determined: Night");
     } else if (!isMorningDone) {
       targetShift = ShiftType.MORNING;
-      console.log("[ShiftMgmt AutoSelect] Target determined: Morning");
+      // console.log("[ShiftMgmt AutoSelect] Target determined: Morning");
     }
-    // If both done, targetShift implicitly remains the current selectedShift
-    else {
-      console.log("[ShiftMgmt AutoSelect] Target determined: Stick to current (", selectedShift, ")");
-    }
+    // If both done, or morning not done, targetShift logic handles it.
+    // else {
+      // console.log("[ShiftMgmt AutoSelect] Target determined: Stick to current (", selectedShift, ")");
+    // }
 
     // Only call setSelectedShift if the target is different from the current state
     if (targetShift !== selectedShift) {
       console.log(`[ShiftMgmt AutoSelect] Current: ${selectedShift}, Target: ${targetShift}. Updating state.`);
       setSelectedShift(targetShift);
     } 
-    // else {
-      // console.log(`[ShiftMgmt AutoSelect] Current: ${selectedShift}, Target: ${targetShift}. No state update needed.`);
-    // }
-
-  // Remove selectedShift from dependencies here. React only to status changes.
-  }, [morningShiftStatus, nightShiftStatus, isLoadingStatus, selectedShift]); 
+    
+  }, [morningStatus, nightStatus, selectedShift]); // Depend on status props and current shift
 
   // Function to handle manual shift selection by user
-  const handleSelectShift = (shift: ShiftType) => {
-      // Prevent selecting a disabled shift
+  const handleSelectShift = useCallback((shift: ShiftType) => {
+      // Check disabled state based on current state variables
       if ((shift === ShiftType.MORNING && isMorningShiftDisabled) || 
           (shift === ShiftType.NIGHT && isNightShiftDisabled)) {
           console.warn(`Attempted to select disabled shift: ${shift}`);
           return;
       }
       setSelectedShift(shift);
-  };
+  }, [isMorningShiftDisabled, isNightShiftDisabled]); // Dependencies for the check
 
   return {
     selectedShift,
-    morningShiftStatus,
-    nightShiftStatus,
+    // Expose status props directly? Or maybe not needed if consumer already has them.
+    // morningStatus, // Pass through if needed by consumer
+    // nightStatus, // Pass through if needed by consumer
     isMorningShiftDisabled,
     isNightShiftDisabled,
-    isLoadingStatus,
+    // isLoadingStatus, // Maybe remove, loading is handled elsewhere
     handleSelectShift, // Expose the handler for the button component
-    setMorningShiftStatus,
-    setNightShiftStatus,
-    setIsMorningShiftDisabled,
-    setIsNightShiftDisabled,
+    // Remove setters for status, they are controlled by props now
+    // setMorningShiftStatus,
+    // setNightShiftStatus,
+    // Remove setters for disabled? They are derived from props.
+    // setIsMorningShiftDisabled,
+    // setIsNightShiftDisabled,
   };
 }; 
