@@ -309,7 +309,7 @@ export default function DailyCensusForm() {
 
               {/* Action Buttons */} 
               <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8">
-                <Button 
+                <Button
                   variant="outline" 
                   onClick={triggerSaveDraft}
                   disabled={saveDraftDisabled} // <<< Use calculated saveDraftDisabled
@@ -318,8 +318,8 @@ export default function DailyCensusForm() {
                   <FiSave className="mr-2" />
                   บันทึกร่าง (Save Draft)
                 </Button>
-                <Button 
-                  variant="primary" 
+                <Button
+                  variant="primary"
                   onClick={triggerSaveFinal}
                   disabled={saveFinalDisabled} // <<< Use calculated saveFinalDisabled
                   isLoading={isFormSaving}

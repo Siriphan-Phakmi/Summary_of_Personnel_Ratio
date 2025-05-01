@@ -282,7 +282,7 @@ export const getWardForm = async (
       console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`); // <<< Log ผล Query รอง
       
       // ... (ส่วนที่เหลือของการจัดการผล Query รอง) ...
-       if (!secondarySnapshot.empty) {
+      if (!secondarySnapshot.empty) {
         const secondaryDocs = secondarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
         console.log(`[getWardForm ${wardId}/${shift}] Found ${secondaryDocs.length} documents from secondary query.`);
         const matchingShiftDocs = secondaryDocs.filter(doc => doc.shift === shift);
@@ -638,7 +638,7 @@ export const finalizeMorningShiftForm = async (
 
     // Get reference to the document (either existing draft or new final)
     const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
-
+    
     // Check current status before overwriting (allow overwriting DRAFT or FINAL)
     const currentDocSnap = await getDoc(docRef);
     if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL].includes(currentDocSnap.data().status)) {
@@ -689,14 +689,14 @@ export const saveDraftWardForm = async (
     if (formData.date instanceof Timestamp) {
       dateObj = formData.date.toDate();
     } else if (formData.date instanceof Date) {
-      dateObj = formData.date;
+        dateObj = formData.date;
     } else if (typeof formData.date === 'string') {
       dateObj = new Date(formData.date + 'T00:00:00Z');
       if (isNaN(dateObj.getTime())) {
-        throw new Error('Invalid date string format in formData');
-      }
+             throw new Error('Invalid date string format in formData');
+        }
     } else {
-      throw new Error('Invalid date type in formData');
+        throw new Error('Invalid date type in formData');
     }
     const dateString = formatDateYMD(dateObj);
 
@@ -729,8 +729,8 @@ export const saveDraftWardForm = async (
 
     if (formData.shift === ShiftType.NIGHT) {
       const morningStatus = await checkMorningShiftFormStatus(dateObj, wardId);
-      if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
-        throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
+    if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
+      throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
       }
     }
 
@@ -773,9 +773,9 @@ export const finalizeNightShiftForm = async (
     if (formData.date instanceof Timestamp) {
       dateObjForCheck = formData.date.toDate();
     } else if (formData.date instanceof Date) {
-      dateObjForCheck = formData.date;
+        dateObjForCheck = formData.date;
     } else if (typeof formData.date === 'string') {
-      dateObjForCheck = new Date(formData.date + 'T00:00:00Z');
+        dateObjForCheck = new Date(formData.date + 'T00:00:00Z');
        if (isNaN(dateObjForCheck.getTime())) {
         throw new Error('Invalid date string format in formData for ID generation');
       }
@@ -862,7 +862,7 @@ export const finalizeNightShiftForm = async (
     // Save Document
     await setDoc(docRef, dataToSave, { merge: true });
     console.log(`[finalizeNight] Successfully saved document: ${documentIdToUse}`);
-
+    
     // Update Daily Summary
     try {
       const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, wardId);
@@ -1126,21 +1126,21 @@ export const getShiftStatusesForDay = async (
   let morningStatus: FormStatus | null = null;
   let nightStatus: FormStatus | null = null;
 
-  const dateTimestamp = Timestamp.fromDate(date);
+    const dateTimestamp = Timestamp.fromDate(date);
   const dateString = format(date, 'yyyy-MM-dd');
   const wardId = wardIdInput.toUpperCase();
-  
+
   console.log(`[getShiftStatusesForDay] Fetching statuses for ward: ${wardId}, date: ${dateString} (Original: ${wardIdInput})`);
 
   try {
     // ใช้ getWardForm โดยส่ง wardId ตัวพิมพ์ใหญ่
     const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, wardId);
-    morningStatus = morningForm?.status ?? null; 
+    morningStatus = morningForm?.status ?? null;
     console.log(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}`); 
 
     // ดึงสถานะกะดึก โดยส่ง wardId ตัวพิมพ์ใหญ่
     const nightForm = await getWardForm(dateTimestamp, ShiftType.NIGHT, wardId);
-    nightStatus = nightForm?.status ?? null; 
+    nightStatus = nightForm?.status ?? null;
     console.log(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}`); 
 
   } catch (error) {
