@@ -95,10 +95,15 @@ export default function DailyCensusForm() {
       setIsStatusLoading(true);
       try {
         const targetDate = new Date(selectedDate + 'T00:00:00');
+        // Log before calling the service
+        console.log(`[DailyCensusForm FetchStatus] Calling getShiftStatusesForDay with date: ${targetDate.toISOString()}, businessWardId: ${selectedBusinessWardId}`);
         const { morningStatus, nightStatus } = await getShiftStatusesForDay(targetDate, selectedBusinessWardId);
+        // Log the raw result from the service
+        console.log(`[DailyCensusForm FetchStatus] Raw result from getShiftStatusesForDay - Morning: ${morningStatus}, Night: ${nightStatus}`);
         setActualMorningStatus(morningStatus);
         setActualNightStatus(nightStatus);
-        console.log(`[DailyCensusForm FetchStatus] Fetched statuses - Morning: ${morningStatus}, Night: ${nightStatus}`);
+        // Log after attempting to set state (to confirm the values set)
+        console.log(`[DailyCensusForm FetchStatus] State update attempt - Morning: ${morningStatus}, Night: ${nightStatus}`);
       } catch (error) {
         console.error("[DailyCensusForm FetchStatus] Error fetching shift statuses:", error);
         showErrorToast('เกิดข้อผิดพลาดในการโหลดสถานะกะ');
@@ -174,6 +179,9 @@ export default function DailyCensusForm() {
   const isLoading = isWardLoading || isStatusLoading || isDataLoading;
   // const isSaving = isFormSaving; // Directly use isFormSaving
 
+  // Log the value of isFormReadOnly for debugging
+  console.log('[DailyCensusForm] isFormReadOnly =', isFormReadOnly, 'for shift =', selectedShift, 'morning status =', actualMorningStatus, 'night status =', actualNightStatus);
+  
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
   };
@@ -194,7 +202,7 @@ export default function DailyCensusForm() {
       actualMorningStatus === FormStatus.APPROVED || 
       actualNightStatus === FormStatus.APPROVED;
       
-  // Final Save button disabled if: form is read-only (current shift final/approved), saving, OR *either* shift is approved.
+  // Final Save button disabled if: form is read-only (current shift final/approved), saving, OR *either* shift is approved
   const saveFinalDisabled = 
       isFormReadOnly || // Check if the currently loaded form data is read-only
       isFormSaving || 
@@ -266,6 +274,7 @@ export default function DailyCensusForm() {
                  nightShiftStatus={actualNightStatus} // <<< Pass actual status
                  isMorningShiftDisabled={isMorningShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
                  isNightShiftDisabled={isNightShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
+                 isFormFinalReadOnly={isFormReadOnly} // <<< เพิ่ม prop เพื่อบังคับปิดปุ่มเมื่อ form เป็น readonly
                />
 
                {/* Show data loading indicator within the form area */} 

@@ -182,7 +182,7 @@ export const useWardFormData = ({
                     console.log('[useWardFormData] FINAL data found. Setting read-only state.');
                     setIsFinalDataFound(true);
                     setIsFormReadOnly(true); // Read-only if Final/Approved
-                    console.log('[useWardFormData] Setting isFormReadOnly = true'); // Explicit log
+                    console.log('[useWardFormData] Setting isFormReadOnly = true, status = ', existingForm.status, 'form ID =', existingForm.id); // เพิ่ม log
                     setIsDraftLoaded(false);
                     // Use specific ID for toast
                     showSafeToast(`ข้อมูลบันทึกสมบูรณ์/อนุมัติสำหรับกะนี้ ถูกโหลดแล้ว (อ่านอย่างเดียว)`, 'info', { id: `load-final-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` });
@@ -201,7 +201,7 @@ export const useWardFormData = ({
                     console.log('[useWardFormData] DRAFT data found and loaded.');
                     setIsFinalDataFound(false);
                     setIsFormReadOnly(false); // Editable if Draft
-                    console.log('[useWardFormData] Setting isFormReadOnly = false (Draft)'); // Explicit log
+                    console.log('[useWardFormData] Setting isFormReadOnly = false (Draft), status = ', existingForm.status, 'form ID =', existingForm.id); // เพิ่ม log
                     setIsDraftLoaded(true); // Set flag indicating current data is a loaded draft
                     // Use specific ID for toast
                     showSafeToast("กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้", 'warning', { id: `load-draft-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }); // Use warning color for draft
@@ -595,6 +595,7 @@ export const useWardFormData = ({
           setFormData(prev => ({ ...prev, id: savedDocId, status: FormStatus.FINAL, isDraft: false, wardId: selectedBusinessWardId, wardName: dataToSave.wardName })); // Update form state
           setIsFormDirty(false); // Reset dirty state
           setIsFormReadOnly(true); // Make form read-only after final save
+          console.log('[useWardFormData] After final save: Setting isFormReadOnly = true, formData.status =', FormStatus.FINAL, 'form ID =', savedDocId); // เพิ่ม log
           setIsDraftLoaded(false);
 
           // TODO: Trigger reload or update shift status display

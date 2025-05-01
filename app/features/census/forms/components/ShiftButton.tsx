@@ -40,11 +40,38 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
   };
 
   // ฟังก์ชันสร้างข้อความสำหรับปุ่มตามประเภทของกะและสถานะ
-  const getShiftButtonText = (): string => {
+  const getShiftButtonText = (): React.ReactNode => {
     const baseText = shift === ShiftType.MORNING ? 'กะเช้า (Morning)' : 'กะดึก (Night)';
+    
+    // Log สถานะเพื่อตรวจสอบ
+    console.log(`[ShiftButton] shift=${shift}, status=${status}, isDisabled=${isDisabled}`);
+    
+    // เพิ่มข้อความสถานะในกรณีที่มีสถานะ - ดูค่าจาก getStatusText
     if (status) {
-      return `${baseText} (${getStatusText(status)})`;
+      // โดยเฉพาะกรณี FINAL ต้องแสดง "รออนุมัติ" อย่างชัดเจน
+      const statusText = getStatusText(status);
+      console.log(`[ShiftButton] statusText="${statusText}" for status=${status}`);
+      
+      // สร้าง span พิเศษสำหรับ status text โดยเฉพาะกรณี FINAL
+      let statusClass = "";
+      if (status === FormStatus.FINAL) {
+        statusClass = "font-bold text-yellow-400 ml-1"; // เน้นให้เห็นชัดเจน
+      } else if (status === FormStatus.APPROVED) {
+        statusClass = "font-bold text-green-400 ml-1";
+      } else if (status === FormStatus.REJECTED) {
+        statusClass = "font-bold text-red-400 ml-1";
+      } else {
+        statusClass = "text-gray-300 ml-1";
+      }
+      
+      // คืนค่าเป็น JSX
+      return (
+        <>
+          {baseText} <span className={statusClass}>({statusText})</span>
+        </>
+      );
     }
+    
     return baseText;
   };
 
@@ -52,7 +79,7 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
   const getShiftButtonClass = (): string => {
     const baseClasses = 'flex-1 text-lg py-3 items-center justify-center';
     const statusClass = getStatusClass(status);
-    return `${baseClasses} ${statusClass}`;
+    return `${baseClasses} ${statusClass} ${isDisabled ? 'opacity-70' : ''}`;
   };
 
   return (

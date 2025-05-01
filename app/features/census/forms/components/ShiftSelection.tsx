@@ -11,6 +11,7 @@ interface ShiftSelectionProps {
   nightShiftStatus: FormStatus | null;   // Status of the night shift form
   isMorningShiftDisabled: boolean; // Disable morning button (e.g., after morning final save)
   isNightShiftDisabled: boolean;   // Disable night button (e.g., if morning not approved)
+  isFormFinalReadOnly?: boolean;   // NEW: เพิ่ม prop รับสถานะ readonly จาก form เมื่อ Save Final
 }
 
 const ShiftSelection: React.FC<ShiftSelectionProps> = ({
@@ -20,10 +21,19 @@ const ShiftSelection: React.FC<ShiftSelectionProps> = ({
   nightShiftStatus,
   isMorningShiftDisabled,
   isNightShiftDisabled,
+  isFormFinalReadOnly = false,  // NEW: กำหนดค่าเริ่มต้นเป็น false
 }) => {
   // Combine passed disabled props with status-based disabling logic
-  const morningDisabled = isMorningShiftDisabled || morningShiftStatus === FormStatus.FINAL || morningShiftStatus === FormStatus.APPROVED;
-  const nightDisabled = isNightShiftDisabled; // Keep existing logic, might need adjustment based on approval flow
+  const morningDisabled = 
+    isMorningShiftDisabled || 
+    isFormFinalReadOnly ||       // NEW: ปิดปุ่ม morning เมื่อ form เป็น readonly
+    morningShiftStatus === FormStatus.FINAL || 
+    morningShiftStatus === FormStatus.APPROVED;
+    
+  // Night shift should also respect form read-only state
+  const nightDisabled = 
+    isNightShiftDisabled || 
+    isFormFinalReadOnly;         // NEW: ปิดปุ่ม night เมื่อ form เป็น readonly
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-6">

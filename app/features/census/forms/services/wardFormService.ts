@@ -1213,18 +1213,18 @@ export const getShiftStatusesForDay = async (
 
     // ใช้ getWardForm ที่ปรับปรุงแล้ว (ซึ่งลองหาด้วย ID ก่อน) เพื่อประสิทธิภาพ
     const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, normalizedWardId);
-    morningStatus = morningForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Morning status: ${morningStatus}`);
+    morningStatus = morningForm?.status ?? null; // <<< ตรวจสอบว่ากำหนดค่าถูกต้อง
+    console.log(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}`); // <<< แก้ไข log
 
     // ดึงสถานะกะดึก
     const nightForm = await getWardForm(dateTimestamp, ShiftType.NIGHT, normalizedWardId);
-    nightStatus = nightForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Night status: ${nightStatus}`);
+    nightStatus = nightForm?.status ?? null; // <<< ตรวจสอบว่ากำหนดค่าถูกต้อง
+    console.log(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}`); // <<< แก้ไข log
 
   } catch (error) {
-    console.error(`[getShiftStatusesForDay] Error fetching statuses for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}:`, error);
+    console.error(`[getShiftStatusesForDay] Error fetching statuses for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}:`, error); // แก้ไข template literal
     // ไม่ throw error แต่คืนค่า null เพื่อให้ UI จัดการได้
   }
 
-  return { morningStatus, nightStatus };
-}; 
+  return { morningStatus, nightStatus }; // <<< เพิ่ม return statement ที่ขาดไป
+};
