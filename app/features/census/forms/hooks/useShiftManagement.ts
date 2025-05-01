@@ -37,12 +37,14 @@ export const useShiftManagement = ({
 
   // Effect: Determine disabled states based on props
   useEffect(() => {
-    const isMorningFinalOrApproved = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
-    const isNightFinalOrApproved = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED;
+    // Morning disabled when submitted (FINAL) or already approved
+    const isMorningSubmitted = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
+    // Night disabled until morning is approved, or if night shift itself is final, approved, or rejected
+    const isNightComplete = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED || nightStatus === FormStatus.REJECTED;
 
-    setIsMorningShiftDisabled(isMorningFinalOrApproved);
-    // Disable night shift if morning isn't done, OR if night itself is done.
-    setIsNightShiftDisabled(!isMorningFinalOrApproved || isNightFinalOrApproved); 
+    setIsMorningShiftDisabled(isMorningSubmitted);
+    // Night disabled if morning not yet approved, OR if night is already finalized/approved/rejected
+    setIsNightShiftDisabled(morningStatus !== FormStatus.APPROVED || isNightComplete);
 
   }, [morningStatus, nightStatus]); // React to changes in status props
 

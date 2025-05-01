@@ -181,7 +181,7 @@ export default function DailyCensusForm() {
 
   // Log the value of isFormReadOnly for debugging
   console.log('[DailyCensusForm] isFormReadOnly =', isFormReadOnly, 'for shift =', selectedShift, 'morning status =', actualMorningStatus, 'night status =', actualNightStatus);
-  
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
   };
@@ -197,23 +197,24 @@ export default function DailyCensusForm() {
   const isPageLoading = isWardLoading || isStatusLoading; // isDataLoading is handled within the form area
 
   // --- Determine button disabled states based on new logic ---
-  // Disable actions if form is read-only (from useWardFormData), saving, or either actual shift is approved
-  const isActionDisabledBasedOnStatus = 
+  // Combine form read-only state with saving state for general disabling
+  const isFormLocked = isFormReadOnly || isFormSaving;
+
+  // Disable actions if *either* shift is approved
+  const isActionDisabledBasedOnApproval = 
       actualMorningStatus === FormStatus.APPROVED || 
       actualNightStatus === FormStatus.APPROVED;
       
-  // Final Save button disabled if: form is read-only (current shift final/approved), saving, OR *either* shift is approved
+  // Final Save button disabled if: form is locked (read-only/saving), OR *either* shift is approved
   const saveFinalDisabled = 
-      isFormReadOnly || // Check if the currently loaded form data is read-only
-      isFormSaving || 
-      isActionDisabledBasedOnStatus; // Check overall approval status
+      isFormLocked || 
+      isActionDisabledBasedOnApproval; 
 
-  // Save Draft button disabled if: saving, OR *either* shift is approved, OR form isn't dirty.
-  // Allow saving draft even if form is technically read-only (e.g., showing final data) IF the user makes it dirty (requires confirmation modal handled by useWardFormData)
+  // Save Draft button disabled if: form is locked (read-only/saving) AND form is not dirty, OR *either* shift is approved.
+  // We allow saving draft over read-only data IF it's dirty (with confirmation modal).
   const saveDraftDisabled = 
-      isFormSaving || 
-      isActionDisabledBasedOnStatus || // Cannot save draft if anything is approved
-      !isFormDirty;
+      (isFormLocked && !isFormDirty) || // Disabled if locked AND not dirty
+      isActionDisabledBasedOnApproval;   // Always disabled if anything is approved
 
   // Render UI
   return (
@@ -240,12 +241,11 @@ export default function DailyCensusForm() {
                     value={selectedWard}
                     onChange={handleWardChange}
                     className="form-input"
-                    disabled={isFormSaving} // Only disable while actively saving
+                    disabled={isFormLocked} // <<< Disable Ward select when form is locked
                   >
                     <option value="" disabled>-- เลือกหอผู้ป่วย --</option>
                   {wards.map((ward) => (
-                      // Ensure key is unique and value is the document ID
-                      <option key={ward.id} value={ward.id}>{ward.wardName} ({ward.wardId})</option> // Display business ID too
+                      <option key={ward.id} value={ward.id}>{ward.wardName} ({ward.wardId})</option>
                   ))}
                 </select>
                 </div>
@@ -258,7 +258,7 @@ export default function DailyCensusForm() {
                     value={selectedDate}
                     onChange={handleDateChange}
                     className="form-input"
-                    disabled={isFormSaving} // Only disable while actively saving
+                    disabled={isFormSaving} // <<< ONLY disable Date when actively saving
                     max={format(new Date(), 'yyyy-MM-dd')}
                   />
                 </div>
@@ -274,7 +274,7 @@ export default function DailyCensusForm() {
                  nightShiftStatus={actualNightStatus} // <<< Pass actual status
                  isMorningShiftDisabled={isMorningShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
                  isNightShiftDisabled={isNightShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
-                 isFormFinalReadOnly={isFormReadOnly} // <<< เพิ่ม prop เพื่อบังคับปิดปุ่มเมื่อ form เป็น readonly
+                 isFormFinalReadOnly={isFormReadOnly} // <<< Pass isFormReadOnly here to disable shift buttons when needed
                />
 
                {/* Show data loading indicator within the form area */} 
@@ -290,8 +290,7 @@ export default function DailyCensusForm() {
                 formData={formData}
                 handleChange={handleChange}
                 errors={errors}
-                // ReadOnly if the loaded form data says so, OR if actively saving
-                isReadOnly={isFormReadOnly || isFormSaving} 
+                isReadOnly={isFormLocked} // <<< Pass isFormLocked to make inputs read-only
                 selectedShift={selectedShift}
                 isMorningCensusReadOnly={isMorningCensusReadOnly}
                 isCensusAutoCalculated={isCensusAutoCalculated}
@@ -304,33 +303,28 @@ export default function DailyCensusForm() {
                 lastName={formData.recorderLastName || ''}
                 handleChange={handleChange}
                 errors={errors}
-                // ReadOnly if the loaded form data says so, OR if actively saving
-                isReadOnly={isFormReadOnly || isFormSaving} 
+                isReadOnly={isFormLocked} // <<< Pass isFormLocked to make inputs read-only
                 isDraftLoaded={isDraftLoaded}
               />
 
               {/* Action Buttons */} 
-              <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 mt-8">
-                <Button
-                  variant="secondary"
+              <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8">
+                <Button 
+                  variant="outline" 
                   onClick={triggerSaveDraft}
-                  isLoading={isFormSaving && !showConfirmOverwriteModal} // Show loading only if actually saving, not just showing modal
-                  disabled={saveDraftDisabled} // <<< Use new calculated disable state
-                  leftIcon={<FiSave />}
-                  loadingText="กำลังบันทึกร่าง..."
-                  className="w-full sm:w-auto"
+                  disabled={saveDraftDisabled} // <<< Use calculated saveDraftDisabled
+                  isLoading={isFormSaving}
                 >
+                  <FiSave className="mr-2" />
                   บันทึกร่าง (Save Draft)
                 </Button>
-                <Button
-                  variant="primary"
+                <Button 
+                  variant="primary" 
                   onClick={triggerSaveFinal}
-                  isLoading={isFormSaving} // Use saving state from hook
-                  disabled={saveFinalDisabled} // <<< Use new calculated disable state
-                  leftIcon={<FiCheckSquare />}
-                  loadingText="กำลังบันทึกสมบูรณ์..."
-                  className="w-full sm:w-auto"
+                  disabled={saveFinalDisabled} // <<< Use calculated saveFinalDisabled
+                  isLoading={isFormSaving}
                 >
+                  <FiCheckSquare className="mr-2" />
                   บันทึกสมบูรณ์ (Save Final)
                 </Button>
               </div>

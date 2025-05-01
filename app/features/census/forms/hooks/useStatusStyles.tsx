@@ -37,8 +37,8 @@ const useStatusStyles = () => {
   const getStatusText = (status: FormStatus | null): string => {
     if (status === FormStatus.APPROVED) return 'อนุมัติแล้ว';
     if (status === FormStatus.FINAL) return 'รออนุมัติ';
+    if (status === FormStatus.REJECTED) return 'ปฏิเสธ';
     if (status === FormStatus.DRAFT) return 'ร่าง';
-    if (status === FormStatus.REJECTED) return 'ถูกปฏิเสธ';
     return 'ไม่มีข้อมูล';
   };
 

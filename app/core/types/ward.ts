@@ -63,6 +63,7 @@ export interface WardForm {
   recorderFirstName: string;
   recorderLastName: string;
   createdBy: string;
+  updatedBy?: string;
   createdAt: TimestampField; 
   updatedAt: TimestampField;
   status: FormStatus;

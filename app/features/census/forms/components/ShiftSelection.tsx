@@ -24,16 +24,20 @@ const ShiftSelection: React.FC<ShiftSelectionProps> = ({
   isFormFinalReadOnly = false,  // NEW: กำหนดค่าเริ่มต้นเป็น false
 }) => {
   // Combine passed disabled props with status-based disabling logic
-  const morningDisabled = 
-    isMorningShiftDisabled || 
-    isFormFinalReadOnly ||       // NEW: ปิดปุ่ม morning เมื่อ form เป็น readonly
-    morningShiftStatus === FormStatus.FINAL || 
-    morningShiftStatus === FormStatus.APPROVED;
+  const morningDisabled =
+    isMorningShiftDisabled ||
+    isFormFinalReadOnly ||
+    morningShiftStatus === FormStatus.FINAL ||
+    morningShiftStatus === FormStatus.APPROVED ||
+    morningShiftStatus === FormStatus.REJECTED;
     
-  // Night shift should also respect form read-only state
-  const nightDisabled = 
-    isNightShiftDisabled || 
-    isFormFinalReadOnly;         // NEW: ปิดปุ่ม night เมื่อ form เป็น readonly
+  // Night shift should also respect form read-only state and any completed/rejected status
+  const nightDisabled =
+    isNightShiftDisabled ||
+    isFormFinalReadOnly ||
+    nightShiftStatus === FormStatus.FINAL ||
+    nightShiftStatus === FormStatus.APPROVED ||
+    nightShiftStatus === FormStatus.REJECTED;
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 mb-6">

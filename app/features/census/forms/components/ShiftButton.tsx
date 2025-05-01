@@ -42,36 +42,34 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
   // ฟังก์ชันสร้างข้อความสำหรับปุ่มตามประเภทของกะและสถานะ
   const getShiftButtonText = (): React.ReactNode => {
     const baseText = shift === ShiftType.MORNING ? 'กะเช้า (Morning)' : 'กะดึก (Night)';
-    
-    // Log สถานะเพื่อตรวจสอบ
-    console.log(`[ShiftButton] shift=${shift}, status=${status}, isDisabled=${isDisabled}`);
-    
-    // เพิ่มข้อความสถานะในกรณีที่มีสถานะ - ดูค่าจาก getStatusText
-    if (status) {
-      // โดยเฉพาะกรณี FINAL ต้องแสดง "รออนุมัติ" อย่างชัดเจน
+
+    // แสดงสถานะเฉพาะกรณี FINAL, APPROVED, REJECTED
+    if (
+      status === FormStatus.FINAL ||
+      status === FormStatus.APPROVED ||
+      status === FormStatus.REJECTED
+    ) {
       const statusText = getStatusText(status);
-      console.log(`[ShiftButton] statusText="${statusText}" for status=${status}`);
-      
-      // สร้าง span พิเศษสำหรับ status text โดยเฉพาะกรณี FINAL
-      let statusClass = "";
+      // กำหนดคลาสเน้นข้อความตามสถานะ
+      let statusClass = '';
       if (status === FormStatus.FINAL) {
-        statusClass = "font-bold text-yellow-400 ml-1"; // เน้นให้เห็นชัดเจน
+        statusClass = 'font-bold text-yellow-400 ml-1';
       } else if (status === FormStatus.APPROVED) {
-        statusClass = "font-bold text-green-400 ml-1";
+        statusClass = 'font-bold text-green-400 ml-1';
       } else if (status === FormStatus.REJECTED) {
-        statusClass = "font-bold text-red-400 ml-1";
-      } else {
-        statusClass = "text-gray-300 ml-1";
+        statusClass = 'font-bold text-red-400 ml-1';
       }
-      
-      // คืนค่าเป็น JSX
+
+      // คืนค่าเป็น JSX พร้อมข้อความสถานะ
       return (
         <>
-          {baseText} <span className={statusClass}>({statusText})</span>
+          {baseText}
+          <span className={statusClass}>({statusText})</span>
         </>
       );
     }
-    
+
+    // กรณีอื่นๆ แสดงเฉพาะชื่อกะ
     return baseText;
   };
 
