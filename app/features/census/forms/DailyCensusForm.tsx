@@ -245,7 +245,7 @@ export default function DailyCensusForm() {
                   >
                     <option value="" disabled>-- เลือกหอผู้ป่วย --</option>
                   {wards.map((ward) => (
-                      <option key={ward.id} value={ward.id}>{ward.wardName} ({ward.wardId})</option>
+                      <option key={ward.id} value={ward.id}>{ward.wardName}</option>
                   ))}
                 </select>
                 </div>

@@ -11,7 +11,7 @@ import {
   finalizeMorningShiftForm,
   finalizeNightShiftForm
 } from '../services/wardFormService';
-import { showInfoToast, showErrorToast, showSafeToast } from '@/app/core/utils/toastUtils';
+import { showInfoToast, showErrorToast, showSafeToast, dismissAllToasts } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 
@@ -201,15 +201,16 @@ export const useWardFormData = ({
                     console.log('[useWardFormData] DRAFT data found and loaded.');
                     setIsFinalDataFound(false);
                     setIsFormReadOnly(false); // Editable if Draft
-                    console.log('[useWardFormData] Setting isFormReadOnly = false (Draft), status = ', existingForm.status, 'form ID =', existingForm.id); // เพิ่ม log
+                    console.log('[useWardFormData] Setting isFormReadOnly = false (Draft), status = ', existingForm.status, 'form ID =', existingForm.id);
                     setIsDraftLoaded(true); // Set flag indicating current data is a loaded draft
-                    // Use specific ID for toast
-                    showSafeToast("กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้", 'warning', { id: `load-draft-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }); // Use warning color for draft
-                     if (selectedShift === ShiftType.MORNING) {
-                        // If draft for morning, it's editable, census not forced read-only from previous night
-                        setIsMorningCensusReadOnly(false);
-                        setIsCensusAutoCalculated(false); // Don't auto-calculate display if loading draft
-                        console.log('[useWardFormData] Setting isMorningCensusReadOnly = false, isCensusAutoCalculated = false for DRAFT morning shift.');
+                    // Show draft-loading toast only on initial load, not after Save Draft reload
+                    if (reloadDataTrigger === 0) {
+                      dismissAllToasts();
+                      showSafeToast(
+                        'กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้',
+                        'warning',
+                        { id: `load-draft-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
+                      );
                     }
                 }
                 // Log data before setting state
