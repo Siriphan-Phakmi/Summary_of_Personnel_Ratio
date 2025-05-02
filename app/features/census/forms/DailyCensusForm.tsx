@@ -115,20 +115,53 @@ export default function DailyCensusForm() {
     };
 
     fetchStatuses();
-  }, [selectedBusinessWardId, selectedDate, reloadDataTrigger]); // Depend on business ID, date, and reload trigger
+  }, [selectedBusinessWardId, selectedDate, reloadDataTrigger]); // Depend on business ID, date, and reload trigger (only status fetch)
 
-  // --- Use Custom Hooks (Pass actual statuses to useShiftManagement) ---
+  // Determine shift selection and disabled state using current statuses
   const {
     selectedShift,
     isMorningShiftDisabled,
     isNightShiftDisabled,
     handleSelectShift,
   } = useShiftManagement({
-    // Pass the actual statuses fetched by DailyCensusForm
-    morningStatus: actualMorningStatus, 
+    morningStatus: actualMorningStatus,
     nightStatus: actualNightStatus,
-    // Optionally pass initial shift if needed, otherwise defaults to MORNING
   });
+
+  // Auto-refresh shift statuses when window gains focus (e.g., after admin approval in another tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[DailyCensusForm] Window focused, refreshing shift statuses');
+      setReloadDataTrigger(prev => prev + 1);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  // Auto-select shift for rejected form after statuses load
+  useEffect(() => {
+    if (actualMorningStatus === FormStatus.REJECTED && selectedShift !== ShiftType.MORNING) {
+      console.log('[DailyCensusForm] Detected rejected morning shift, auto-switching to MORNING');
+      handleSelectShift(ShiftType.MORNING);
+    } else if (actualNightStatus === FormStatus.REJECTED && selectedShift !== ShiftType.NIGHT) {
+      console.log('[DailyCensusForm] Detected rejected night shift, auto-switching to NIGHT');
+      handleSelectShift(ShiftType.NIGHT);
+    }
+  }, [actualMorningStatus, actualNightStatus, selectedShift, handleSelectShift]);
+
+  // Auto-select night shift after morning is approved
+  useEffect(() => {
+    if (
+      actualMorningStatus === FormStatus.APPROVED &&
+      selectedShift === ShiftType.MORNING &&
+      !isNightShiftDisabled
+    ) {
+      console.log('[DailyCensusForm] Morning approved, auto-switching to night shift');
+      handleSelectShift(ShiftType.NIGHT);
+    }
+  }, [actualMorningStatus, selectedShift, isNightShiftDisabled, handleSelectShift]);
 
   // Get values and functions directly from useWardFormData
   const {
@@ -149,28 +182,72 @@ export default function DailyCensusForm() {
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
     proceedToSaveDraft,
+    setIsFormReadOnly,
   } = useWardFormData({
-      selectedWard, // Still needed to identify the ward document
-      selectedBusinessWardId, // Crucial for loading/saving logic
+      selectedWard,
+      selectedBusinessWardId,
       selectedDate,
       selectedShift,
       user: currentUser,
       reloadDataTrigger
   });
 
-  // Wrapper function for handleSaveDraft to match onClick signature
-  const triggerSaveDraft = () => {
-      handleSaveDraft().then(() => {
-          // Trigger status reload after successful save
-          setReloadDataTrigger(prev => prev + 1); 
-      });
+  // Auto-select shift for a rejected form based on loaded formData.shift
+  useEffect(() => {
+    if (formData.status === FormStatus.REJECTED && formData.shift) {
+      console.log('[DailyCensusForm] Detected rejected form, switching to shift:', formData.shift);
+      handleSelectShift(formData.shift as ShiftType);
+    }
+  }, [formData.status, formData.shift, handleSelectShift]);
+
+  // Wrapper function for handleSaveDraft to match onClick signature; only run when form is dirty
+  const triggerSaveDraft = async () => {
+    if (!isFormDirty) return;
+    // Preview draft save
+    const summaryDraft =
+      `Ward: ${selectedWardObject?.wardName}\nDate: ${selectedDate}\nShift: ${selectedShift}\nPatient Census: ${formData.patientCensus || ''}`;
+    if (!window.confirm(`Preview Save Draft:\n${summaryDraft}\n\nConfirm save draft?`)) return;
+    // Log user activity
+    logUserActivity(
+      currentUser?.uid || '',
+      currentUser?.username || currentUser?.displayName || '',
+      'save_draft',
+      { wardId: selectedWard, date: selectedDate, shift: selectedShift }
+    );
+    // Perform draft save without reloading data (state updated in hook)
+    await handleSaveDraft();
+    // After saving draft, re-trigger data load to populate saved draft
+    setReloadDataTrigger(prev => prev + 1);
   };
 
-  // Wrapper function for handleSaveFinal
+  // Wrapper function for handleSaveFinal; only run when form is dirty
   const triggerSaveFinal = () => {
-      handleSaveFinal().then(() => {
-          // Trigger status reload after successful save
-          setReloadDataTrigger(prev => prev + 1);
+    if (!isFormDirty && !isDraftLoaded) return;
+    // Preview final save
+    const summaryFinal =
+      `Ward: ${selectedWardObject?.wardName}\nDate: ${selectedDate}\nShift: ${selectedShift}\nPatient Census: ${formData.patientCensus || ''}`;
+    if (!window.confirm(`Preview Save Final:\n${summaryFinal}\n\nConfirm save final?`)) return;
+    
+    console.log('[DailyCensusForm] Final Save triggered with form data:', formData);
+    
+    // Log user activity
+    logUserActivity(
+      currentUser?.uid || '',
+      currentUser?.username || currentUser?.displayName || '',
+      'save_final',
+      { wardId: selectedWard, date: selectedDate, shift: selectedShift }
+    );
+    // Perform final save and update shift status without reloading form
+    handleSaveFinal().then((savedDocId) => {
+      console.log('[DailyCensusForm] Final Save completed, document ID:', savedDocId);
+      if (selectedShift === ShiftType.MORNING) {
+        setActualMorningStatus(FormStatus.FINAL);
+        console.log('[DailyCensusForm] Updated Morning shift status to FINAL');
+      } else {
+        setActualNightStatus(FormStatus.FINAL);
+        console.log('[DailyCensusForm] Updated Night shift status to FINAL');
+      }
+      // No automatic reload to preserve displayed final data
       });
   };
 
@@ -200,21 +277,21 @@ export default function DailyCensusForm() {
   // Combine form read-only state with saving state for general disabling
   const isFormLocked = isFormReadOnly || isFormSaving;
 
-  // Disable actions if *either* shift is approved
-  const isActionDisabledBasedOnApproval = 
-      actualMorningStatus === FormStatus.APPROVED || 
-      actualNightStatus === FormStatus.APPROVED;
-      
-  // Final Save button disabled if: form is locked (read-only/saving), OR *either* shift is approved
-  const saveFinalDisabled = 
-      isFormLocked || 
-      isActionDisabledBasedOnApproval; 
+  // Disable actions only if current shift is approved
+  const isActionDisabledBasedOnApproval = selectedShift === ShiftType.MORNING
+      ? actualMorningStatus === FormStatus.APPROVED
+      : actualNightStatus === FormStatus.APPROVED;
 
-  // Save Draft button disabled if: form is locked (read-only/saving) AND form is not dirty, OR *either* shift is approved.
-  // We allow saving draft over read-only data IF it's dirty (with confirmation modal).
+  // Final Save button disabled if no changes and no existing draft, form locked, or *either* shift is approved
+  const saveFinalDisabled = 
+      isFormLocked || // Disable if form is read-only or saving
+      isActionDisabledBasedOnApproval; // Disable if the current shift is already approved
+
+  // Save Draft button disabled if no changes, form locked, or *either* shift is approved.
   const saveDraftDisabled = 
-      (isFormLocked && !isFormDirty) || // Disabled if locked AND not dirty
-      isActionDisabledBasedOnApproval;   // Always disabled if anything is approved
+      !isFormDirty ||
+      isFormLocked ||
+      isActionDisabledBasedOnApproval;
 
   // Render UI
   return (
@@ -270,11 +347,10 @@ export default function DailyCensusForm() {
                <ShiftSelection
                  selectedShift={selectedShift}
                  onSelectShift={handleSelectShift}
-                 morningShiftStatus={actualMorningStatus} // <<< Pass actual status
-                 nightShiftStatus={actualNightStatus} // <<< Pass actual status
-                 isMorningShiftDisabled={isMorningShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
-                 isNightShiftDisabled={isNightShiftDisabled || isFormSaving} // Disable based on hook logic + saving state
-                 isFormFinalReadOnly={isFormReadOnly} // <<< Pass isFormReadOnly here to disable shift buttons when needed
+                 morningShiftStatus={actualMorningStatus}
+                 nightShiftStatus={actualNightStatus}
+                 isMorningShiftDisabled={isMorningShiftDisabled || isFormSaving}
+                 isNightShiftDisabled={isNightShiftDisabled || isFormSaving}
                />
 
                {/* Show data loading indicator within the form area */} 
@@ -310,6 +386,7 @@ export default function DailyCensusForm() {
               {/* Action Buttons */} 
               <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8">
                 <Button
+                  type="button"
                   variant="outline" 
                   onClick={triggerSaveDraft}
                   disabled={saveDraftDisabled} // <<< Use calculated saveDraftDisabled
@@ -319,6 +396,7 @@ export default function DailyCensusForm() {
                   บันทึกร่าง (Save Draft)
                 </Button>
                 <Button
+                  type="button"
                   variant="primary"
                   onClick={triggerSaveFinal}
                   disabled={saveFinalDisabled} // <<< Use calculated saveFinalDisabled

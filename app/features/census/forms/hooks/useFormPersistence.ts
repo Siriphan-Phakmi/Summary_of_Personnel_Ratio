@@ -11,7 +11,7 @@ import {
   validateFormData,
   getLatestDraftForm // Needed for draft confirmation logic
 } from '../services/wardFormService';
-import { showSuccessToast, showErrorToast, showInfoToast, showSafeToast, showWarningToast } from '@/app/core/utils/toastUtils';
+import { showSuccessToast, showErrorToast, showInfoToast, showSafeToast, showWarningToast, dismissAllToasts } from '@/app/core/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import { logSystemError } from '@/app/core/utils/logUtils';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
@@ -199,6 +199,16 @@ export const useFormPersistence = ({
     // Check if there are actual changes to save
     if (!isFormDirty && !isOverwrite) {
       showSafeToast('ไม่มีการเปลี่ยนแปลงข้อมูล', 'info', { id: `no-changes-${selectedWard}-${selectedDate}-${selectedShift}` });
+      console.log('[useFormPersistence] handleSaveDraft aborted: No changes.');
+      return;
+    }
+    // Validate basic form before draft save
+    if (!validateFormAndNotify({
+        ...addBasicInfoForValidation(formData, selectedWard, selectedDate, selectedShift, wards)
+      })) {
+      // Invalid inputs, abort save draft
+      console.log('[useFormPersistence] handleSaveDraft aborted: Initial validation failed.');
+      setIsSaveButtonDisabled(false);
       return;
     }
 
@@ -310,6 +320,13 @@ export const useFormPersistence = ({
 
       // Add IDs
       showSafeToast('บันทึกข้อมูลร่างสำเร็จ', 'success', { id: `save-draft-success-${selectedWard}-${selectedDate}-${selectedShift}` });
+      // Log user activity for draft save success
+      logUserActivity(
+        user.uid,
+        user.username || user.displayName || '',
+        'save_draft_success',
+        { wardId: selectedWard, date: selectedDate, shift: selectedShift }
+      );
       setIsConfirmModalOpen(false); 
       
     } catch (error) {
@@ -330,6 +347,13 @@ export const useFormPersistence = ({
           showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error', { id: `save-draft-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
       logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
+      // Log user activity for draft save error
+      logUserActivity(
+        user?.uid || '',
+        user?.username || user?.displayName || '',
+        'save_draft_error',
+        { wardId: selectedWard, date: selectedDate, shift: selectedShift, error: (error as Error).message }
+      );
     } finally {
       setIsSaving(false);
       setTimeout(() => {
@@ -365,6 +389,13 @@ export const useFormPersistence = ({
 
   // --- Finalize Form Logic ---
   const handleFinalizeForm = useCallback(async () => {
+    // Prevent final save if no changes have been made
+    if (!isFormDirty) {
+      showSafeToast('ไม่มีการเปลี่ยนแปลงข้อมูล', 'info', { id: `no-changes-final-${selectedWard}-${selectedDate}-${selectedShift}` });
+      setIsFinalizeButtonDisabled(false);
+      return;
+    }
+
     if (isFinalizeButtonDisabled) return;
     setIsFinalizeButtonDisabled(true);
 
@@ -381,9 +412,11 @@ export const useFormPersistence = ({
     // 1a. Add basic info required by validation
     dataToValidate = addBasicInfoForValidation(dataToValidate, selectedWard, selectedDate, selectedShift, wards);
 
+    console.log('[useFormPersistence] handleFinalizeForm: Validating data...', dataToValidate);
     // 2. Validate the data
     if (!validateFormAndNotify(dataToValidate)) {
       // ID is added within validateFormAndNotify
+      console.log('[useFormPersistence] handleFinalizeForm aborted: Validation failed.');
       setTimeout(() => setIsFinalizeButtonDisabled(false), BUTTON_COOLDOWN_TIME);
       return;
     }
@@ -396,6 +429,7 @@ export const useFormPersistence = ({
       if (morningShiftStatus !== FormStatus.FINAL && morningShiftStatus !== FormStatus.APPROVED) {
         // Add ID
         showSafeToast('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้บันทึกสมบูรณ์หรืออนุมัติ', 'warning', { id: `save-final-night-approval-error-${selectedWard}-${selectedDate}` });
+        console.log('[useFormPersistence] handleFinalizeForm aborted: Morning shift not finalized/approved.');
         // Re-enable button since we are returning early
         setIsFinalizeButtonDisabled(false);
         return;
@@ -450,7 +484,16 @@ export const useFormPersistence = ({
       
       setExistingDraftData(null); 
       // Add IDs
+      // Clear previous toasts and show final success then pending notice in order
+      dismissAllToasts();
       showSafeToast('บันทึกข้อมูลสมบูรณ์สำเร็จ', 'success', { id: `save-final-success-${selectedWard}-${selectedDate}-${selectedShift}` });
+      // Log user activity for final save success
+      logUserActivity(
+        user.uid,
+        user.username || user.displayName || '',
+        'save_final_success',
+        { wardId: selectedWard, date: selectedDate, shift: selectedShift }
+      );
       showSafeToast('ข้อมูลจะถูกส่งไปรอการอนุมัติ กรุณารอ Supervisor อนุมัติ', 'info', { id: `save-final-pending-approval-${selectedWard}-${selectedDate}-${selectedShift}` });
       
       // เพิ่มการแจ้งเตือนเกี่ยวกับการสร้าง Daily Summary เมื่อกรอกกะดึกเสร็จสมบูรณ์
@@ -501,7 +544,8 @@ export const useFormPersistence = ({
       setExistingDraftData,
       validateFormAndNotify,
       isFinalizeButtonDisabled,
-      BUTTON_COOLDOWN_TIME
+      BUTTON_COOLDOWN_TIME,
+      isFormDirty
   ]);
 
   return {

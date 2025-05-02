@@ -39,43 +39,14 @@ export const useShiftManagement = ({
   useEffect(() => {
     // Morning disabled when submitted (FINAL) or already approved
     const isMorningSubmitted = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
-    // Night disabled until morning is approved, or if night shift itself is final, approved, or rejected
-    const isNightComplete = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED || nightStatus === FormStatus.REJECTED;
+    // Night disabled until morning is approved, or if night shift itself is final or approved (REJECTED remains editable)
+    const isNightComplete = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED;
 
     setIsMorningShiftDisabled(isMorningSubmitted);
-    // Night disabled if morning not yet approved, OR if night is already finalized/approved/rejected
+    // Night disabled if morning not yet approved, OR if night is finalized/approved
     setIsNightShiftDisabled(morningStatus !== FormStatus.APPROVED || isNightComplete);
 
   }, [morningStatus, nightStatus]); // React to changes in status props
-
-  // Effect: Handle auto-selection based on status props
-  useEffect(() => {
-    // Use props directly
-    const isMorningDone = morningStatus === FormStatus.FINAL || morningStatus === FormStatus.APPROVED;
-    const isNightDone = nightStatus === FormStatus.FINAL || nightStatus === FormStatus.APPROVED;
-
-    let targetShift = selectedShift; // Start with current shift
-
-    // Determine the target shift based *only* on statuses
-    if (isMorningDone && !isNightDone) {
-      targetShift = ShiftType.NIGHT;
-      // console.log("[ShiftMgmt AutoSelect] Target determined: Night");
-    } else if (!isMorningDone) {
-      targetShift = ShiftType.MORNING;
-      // console.log("[ShiftMgmt AutoSelect] Target determined: Morning");
-    }
-    // If both done, or morning not done, targetShift logic handles it.
-    // else {
-      // console.log("[ShiftMgmt AutoSelect] Target determined: Stick to current (", selectedShift, ")");
-    // }
-
-    // Only call setSelectedShift if the target is different from the current state
-    if (targetShift !== selectedShift) {
-      console.log(`[ShiftMgmt AutoSelect] Current: ${selectedShift}, Target: ${targetShift}. Updating state.`);
-      setSelectedShift(targetShift);
-    } 
-    
-  }, [morningStatus, nightStatus, selectedShift]); // Depend on status props and current shift
 
   // Function to handle manual shift selection by user
   const handleSelectShift = useCallback((shift: ShiftType) => {

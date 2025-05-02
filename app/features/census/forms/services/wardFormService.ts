@@ -193,42 +193,7 @@ export const getWardForm = async (
     
     console.log(`[getWardForm ${wardId}/${shift}] Checking document IDs:\n- Draft: ${draftDocId}\n- Final: ${finalDocId}\n- Approved: ${approvedDocId}`);
     
-    // Check documents directly by ID instead of querying
-    // Try approved first, then final, then draft
-    try {
-      const approvedDocRef = doc(db, COLLECTION_WARDFORMS, approvedDocId);
-      const approvedDocSnap = await getDoc(approvedDocRef);
-      console.log(`[getWardForm ${wardId}/${shift}] Direct ID Lookup (Approved: ${approvedDocId}): Exists = ${approvedDocSnap.exists()}`); // <<< Log ผล ID Lookup
-      if (approvedDocSnap.exists()) {
-        const approvedDoc = { id: approvedDocSnap.id, ...approvedDocSnap.data() } as WardForm;
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by direct ID: ${approvedDocId}`);
-        return approvedDoc;
-      }
-      
-      const finalDocRef = doc(db, COLLECTION_WARDFORMS, finalDocId);
-      const finalDocSnap = await getDoc(finalDocRef);
-      console.log(`[getWardForm ${wardId}/${shift}] Direct ID Lookup (Final: ${finalDocId}): Exists = ${finalDocSnap.exists()}`); // <<< Log ผล ID Lookup
-      if (finalDocSnap.exists()) {
-        const finalDoc = { id: finalDocSnap.id, ...finalDocSnap.data() } as WardForm;
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by direct ID: ${finalDocId}`);
-        return finalDoc;
-      }
-      
-      const draftDocRef = doc(db, COLLECTION_WARDFORMS, draftDocId);
-      const draftDocSnap = await getDoc(draftDocRef);
-      console.log(`[getWardForm ${wardId}/${shift}] Direct ID Lookup (Draft: ${draftDocId}): Exists = ${draftDocSnap.exists()}`); // <<< Log ผล ID Lookup
-      if (draftDocSnap.exists()) {
-        const draftDoc = { id: draftDocSnap.id, ...draftDocSnap.data() } as WardForm;
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by direct ID: ${draftDocId}`);
-        return draftDoc;
-      }
-      
-      console.log(`[getWardForm ${wardId}/${shift}] No documents found by direct ID lookup, proceeding to query.`);
-    } catch (idLookupError) {
-      console.error(`[getWardForm ${wardId}/${shift}] Error during direct ID lookup:`, idLookupError);
-      // Continue to query-based approach
-    }
-    
+    // Skip direct ID lookup to ensure timestamp-suffixed IDs are found via query
     // Query ข้อมูลแบบตรง (ทั้ง date+shift+wardId)
     const q = query(
       collection(db, 'wardForms'),
@@ -254,16 +219,16 @@ export const getWardForm = async (
       }
       const finalDoc = docs.find(doc => doc.status === FormStatus.FINAL);
       if (finalDoc) {
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by query: ${finalDoc.id}`);
+        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
         return finalDoc;
       }
       const draftDoc = docs.find(doc => doc.status === FormStatus.DRAFT);
       if (draftDoc) {
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by query: ${draftDoc.id}`);
+        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
         return draftDoc;
       }
       // Fallback: return the first doc if specific statuses aren't found
-      console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first document by query (no specific status match): ${docs[0].id}`);
+      console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first document by query (no specific status match): ID=${docs[0].id}, Status=${docs[0].status}`);
       return docs[0];
     } 
     
@@ -295,15 +260,15 @@ export const getWardForm = async (
           }
           const finalDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.FINAL);
           if (finalDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by secondary query: ${finalDoc.id}`);
+            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
             return finalDoc;
           }
           const draftDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.DRAFT);
           if (draftDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by secondary query: ${draftDoc.id}`);
+            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
             return draftDoc;
           }
-          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first matching shift document by secondary query: ${matchingShiftDocs[0].id}`);
+          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first matching shift document by secondary query: ID=${matchingShiftDocs[0].id}, Status=${matchingShiftDocs[0].status}`);
           return matchingShiftDocs[0];
         }
       }
@@ -586,62 +551,39 @@ export const finalizeMorningShiftForm = async (
     }
     const dateStr = formatDateYMD(dateObjForId);
 
-    // --- Logic to determine the document ID to use --- 
-    let documentIdToUse: string;
-    let isUpdatingDraft = false;
-
-    // 1. Check if formData already has an ID (likely from loaded draft)
-    if (formData.id && formData.id.includes('_draft_')) { // Check if the passed ID looks like a draft ID
-      documentIdToUse = formData.id;
-      isUpdatingDraft = true;
-      console.log(`[finalizeMorning] Using existing draft ID from formData: ${documentIdToUse}`);
-    } else {
-      // 2. If no ID in formData, generate potential Draft ID and check Firestore
-      const potentialDraftId = generateWardFormId(wardId, ShiftType.MORNING, FormStatus.DRAFT, Timestamp.fromDate(dateObjForId));
-      const draftDocRef = doc(db, COLLECTION_WARDFORMS, potentialDraftId);
-      const draftDocSnap = await getDoc(draftDocRef);
-
-      if (draftDocSnap.exists() && draftDocSnap.data().status === FormStatus.DRAFT) {
-        // Found an existing Draft document in Firestore
-        documentIdToUse = potentialDraftId;
-        isUpdatingDraft = true;
-        console.log(`[finalizeMorning] Found existing draft document in Firestore: ${documentIdToUse}`);
-      } else {
-        // 3. No existing draft found, generate a new FINAL ID
-        documentIdToUse = generateWardFormId(wardId, ShiftType.MORNING, FormStatus.FINAL, Timestamp.fromDate(dateObjForId));
-        isUpdatingDraft = false;
-        console.log(`[finalizeMorning] No draft found, creating new document with FINAL ID: ${documentIdToUse}`);
-      }
-    }
-    // --- End of ID determination logic --- 
+    // Generate new FINAL document ID with timestamp
+    const baseFinalId = generateWardFormId(
+      wardId,
+      ShiftType.MORNING, 
+      FormStatus.FINAL,
+          Timestamp.fromDate(dateObjForId) 
+      );
+    const timeStrFinal = format(new Date(), 'HHmmss');
+    const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
+    console.log(`[finalizeMorning] Creating new FINAL document with ID: ${documentIdToUse}`);
 
     // Prepare data to save
     const dataToSave: Partial<WardForm> = {
       ...formData,
-      id: documentIdToUse, // Ensure the determined ID is in the data
+      id: documentIdToUse,
       wardId: wardId,
-      wardName: dataForValidation.wardName || '', // dataForValidation should be populated earlier
+      wardName: dataForValidation.wardName || '',
       status: FormStatus.FINAL,
       isDraft: false,
       date: Timestamp.fromDate(dateObjForId),
       dateString: dateStr,
-      createdBy: formData.createdBy || user.uid, // Keep original creator if updating draft
-      updatedBy: user.uid, // Always set updatedBy
+      createdBy: formData.createdBy || user.uid,
+      updatedBy: user.uid,
       updatedAt: createServerTimestamp(),
       finalizedAt: createServerTimestamp()
     };
 
-    // Add createdAt only if creating a new document (not updating a draft)
-    if (!isUpdatingDraft) {
-      dataToSave.createdAt = createServerTimestamp();
-    }
-
-    // Get reference to the document (either existing draft or new final)
+    // Get reference to the document
     const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
     
     // Check current status before overwriting (allow overwriting DRAFT or FINAL)
     const currentDocSnap = await getDoc(docRef);
-    if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL].includes(currentDocSnap.data().status)) {
+    if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL, FormStatus.REJECTED].includes(currentDocSnap.data().status)) {
       const currentStatus = currentDocSnap.data().status;
       throw new Error(`Cannot overwrite form with status ${currentStatus}.`);
     }
@@ -702,11 +644,15 @@ export const saveDraftWardForm = async (
 
     let customDocId: string;
     if (formData.id && formData.id.trim() !== '') {
+      // Reuse existing ID if provided
       customDocId = formData.id;
       console.log(`Using existing document ID: ${customDocId}`);
     } else {
-      customDocId = generateWardFormId(wardId, formData.shift, FormStatus.DRAFT, Timestamp.fromDate(dateObj));
-      console.log(`Generated new document ID: ${customDocId}`);
+      // Generate base ID and append timestamp for uniqueness
+      const baseId = generateWardFormId(wardId, formData.shift, FormStatus.DRAFT, Timestamp.fromDate(dateObj));
+      const timeStr = format(new Date(), 'HHmmss');
+      customDocId = `${baseId}_t${timeStr}`;
+      console.log(`Generated new draft document ID with timestamp: ${customDocId}`);
     }
 
     console.log(`Saving ${formData.shift} shift draft with ID: ${customDocId}, WardID: ${wardId}, DateString: ${dateString}`);
@@ -819,18 +765,12 @@ export const finalizeNightShiftForm = async (
       isUpdatingDraft = true;
       console.log(`[finalizeNight] Using existing draft ID from formData: ${documentIdToUse}`);
     } else {
-      const potentialDraftId = generateWardFormId(wardId, ShiftType.NIGHT, FormStatus.DRAFT, dateTimestamp);
-      const draftDocRef = doc(db, COLLECTION_WARDFORMS, potentialDraftId);
-      const draftDocSnap = await getDoc(draftDocRef);
-      if (draftDocSnap.exists() && draftDocSnap.data().status === FormStatus.DRAFT) {
-        documentIdToUse = potentialDraftId;
-        isUpdatingDraft = true;
-        console.log(`[finalizeNight] Found existing draft document in Firestore: ${documentIdToUse}`);
-      } else {
-        documentIdToUse = generateWardFormId(wardId, ShiftType.NIGHT, FormStatus.FINAL, dateTimestamp);
-        isUpdatingDraft = false;
-        console.log(`[finalizeNight] No draft found, creating new document with FINAL ID: ${documentIdToUse}`);
-      }
+      // Generate new FINAL document ID with timestamp
+      const baseFinalNightId = generateWardFormId(wardId, ShiftType.NIGHT, FormStatus.FINAL, dateTimestamp);
+      const timeStrNight = format(new Date(), 'HHmmss');
+      documentIdToUse = `${baseFinalNightId}_t${timeStrNight}`;
+      isUpdatingDraft = false;
+      console.log(`[finalizeNight] No draft found, created new FINAL document with ID: ${documentIdToUse}`);
     }
 
     // Prepare Data for Saving
@@ -854,7 +794,7 @@ export const finalizeNightShiftForm = async (
     // Check Before Overwriting
     const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
     const currentDocSnap = await getDoc(docRef);
-    if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL].includes(currentDocSnap.data().status)) {
+    if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL, FormStatus.REJECTED].includes(currentDocSnap.data().status)) {
       const currentStatus = currentDocSnap.data().status;
       throw new Error(`Cannot overwrite form with status ${currentStatus}.`);
     }

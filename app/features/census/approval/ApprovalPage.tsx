@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { useAuth } from '@/app/features/auth';
@@ -292,6 +292,9 @@ export default function ApprovalPage() {
   const [processingFormId, setProcessingFormId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Ref for rejection textarea to maintain focus
+  const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  
   /**
    * ดึงข้อมูลแบบฟอร์มที่รอการอนุมัติ
    */
@@ -352,6 +355,14 @@ export default function ApprovalPage() {
     setRejectionReason('');
   };
   
+  // Focus textarea when modal opens
+  useEffect(() => {
+    if (isRejectModalOpen) {
+      // next tick to ensure textarea is rendered
+      setTimeout(() => rejectionTextareaRef.current?.focus(), 0);
+    }
+  }, [isRejectModalOpen]);
+  
   const handleApprove = async () => {
     if (!selectedForm?.id || !user) { 
       showErrorToast('ไม่พบข้อมูลแบบฟอร์มที่เลือก หรือข้อมูลผู้ใช้');
@@ -374,8 +385,8 @@ export default function ApprovalPage() {
   };
   
   const handleReject = async () => {
-    if (!selectedForm?.id || !user) { 
-       showErrorToast('ไม่พบข้อมูลแบบฟอร์มที่เลือก หรือข้อมูลผู้ใช้');
+    if (!selectedForm?.id || !user) {
+      showErrorToast('ไม่พบข้อมูลแบบฟอร์มที่เลือก หรือข้อมูลผู้ใช้');
       return;
     }
     if (!rejectionReason.trim()) {
@@ -388,7 +399,6 @@ export default function ApprovalPage() {
       await rejectWardForm(selectedForm.id, user, rejectionReason);
       showSuccessToast('ปฏิเสธแบบฟอร์มสำเร็จ');
       setIsRejectModalOpen(false);
-      fetchForms();
     } catch (error) {
       console.error('Error rejecting form:', error);
       showErrorToast('ไม่สามารถปฏิเสธแบบฟอร์มได้');
@@ -397,6 +407,13 @@ export default function ApprovalPage() {
       setProcessingFormId(null);
     }
   };
+
+  // เมื่อ modal ปิด ให้เรียก fetchForms ครั้งเดียว
+  useEffect(() => {
+    if (!isRejectModalOpen) {
+      fetchForms();
+    }
+  }, [isRejectModalOpen]);
 
   const wards = React.useMemo(() => {
     const wardSet = new Set<string>();
@@ -420,31 +437,6 @@ export default function ApprovalPage() {
             disabled={isProcessing}
           >
             {isProcessing ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-      );
-
-  const RejectModal = () => (
-    <Modal isOpen={isRejectModalOpen} onClose={() => setIsRejectModalOpen(false)} title="ปฏิเสธแบบฟอร์ม" size="md">
-      <div className="p-4">
-        <p className="mb-2">กรุณาระบุเหตุผลในการปฏิเสธ:</p>
-        <textarea
-          className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 mb-4 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent"
-          rows={4}
-          value={rejectionReason}
-          onChange={(e) => setRejectionReason(e.target.value)}
-          placeholder="ระบุเหตุผลในการปฏิเสธแบบฟอร์มนี้..."
-        />
-        <div className="flex justify-end space-x-3">
-          <Button onClick={() => setIsRejectModalOpen(false)} variant="outline">ยกเลิก</Button>
-          <Button 
-            onClick={handleReject} 
-            variant="destructive"
-            disabled={isProcessing || !rejectionReason.trim()}
-          >
-            {isProcessing ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
           </Button>
         </div>
       </div>
@@ -640,7 +632,33 @@ export default function ApprovalPage() {
         onClose={() => setIsDetailsModalOpen(false)}
       />
       <ApproveModal />
-      <RejectModal />
+      {/* Inline Reject Modal preserves state while open */}
+      {isRejectModalOpen && (
+        <Modal isOpen={true} onClose={() => setIsRejectModalOpen(false)} title="ปฏิเสธแบบฟอร์ม" size="md">
+          <div className="p-4">
+            <p className="mb-2">กรุณาระบุเหตุผลในการปฏิเสธ:</p>
+            <textarea
+              ref={rejectionTextareaRef}
+              autoFocus
+              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 mb-4 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent"
+              rows={4}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="ระบุเหตุผลในการปฏิเสธแบบฟอร์มนี้..."
+            />
+            <div className="flex justify-end space-x-3">
+              <Button onClick={() => setIsRejectModalOpen(false)} variant="outline">ยกเลิก</Button>
+              <Button
+                onClick={handleReject}
+                variant="destructive"
+                disabled={isProcessing || !rejectionReason.trim()}
+              >
+                {isProcessing ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </ProtectedPage>
   );
 }

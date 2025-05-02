@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
+import { useState, useEffect, useCallback, ChangeEvent, useRef, Dispatch, SetStateAction } from 'react';
 import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
 import { 
@@ -12,6 +12,7 @@ import {
   finalizeNightShiftForm
 } from '../services/wardFormService';
 import { showInfoToast, showErrorToast, showSafeToast, dismissAllToasts } from '@/app/core/utils/toastUtils';
+import { logUserActivity } from '@/app/core/utils/logUtils';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 
@@ -49,6 +50,29 @@ interface UseWardFormDataProps {
   reloadDataTrigger: number;
 }
 
+// Return type definition for the hook
+interface UseWardFormDataReturn {
+  formData: Partial<WardForm>;
+  errors: Record<string, string>;
+  isLoading: boolean;
+  isSaving: boolean;
+  isMorningCensusReadOnly: boolean;
+  isFormReadOnly: boolean;
+  isCensusAutoCalculated: boolean;
+  error: string | null;
+  isDraftLoaded: boolean;
+  isFinalDataFound: boolean;
+  isFormDirty: boolean;
+  showConfirmOverwriteModal: boolean;
+  setShowConfirmOverwriteModal: Dispatch<SetStateAction<boolean>>;
+  proceedToSaveDraft: () => Promise<void>;
+  handleChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  validateForm: (finalSave?: boolean) => boolean;
+  handleSaveDraft: () => Promise<void>;
+  handleSaveFinal: () => Promise<void>;
+  setIsFormReadOnly: Dispatch<SetStateAction<boolean>>; // Ensure correct type
+}
+
 export const useWardFormData = ({
   selectedWard, // Keep receiving doc ID
   selectedBusinessWardId, // Receive business ID
@@ -56,7 +80,7 @@ export const useWardFormData = ({
   selectedShift,
   user,
   reloadDataTrigger,
-}: UseWardFormDataProps) => {
+}: UseWardFormDataProps): UseWardFormDataReturn => {
   const [formData, setFormData] = useState<Partial<WardForm>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -74,29 +98,8 @@ export const useWardFormData = ({
   // Store previous selection to prevent unnecessary reloads if only shift changes
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
 
-  useEffect(() => {
-    // Determine if the core selection (ward/date) or user has changed
-    const selectionChanged = 
-        prevSelectionRef.current.ward !== selectedBusinessWardId || // Check business ID change
-        prevSelectionRef.current.date !== selectedDate;
-
-    // Only reset form/errors/dirty status if ward/date selection changed, 
-    // not just the shift or user object reference (if user data itself didn't change identity)
-    if (selectionChanged) {
-    setError(null);
-        setErrors({});
-        setIsFormDirty(false);
-        
-        // *** IMPORTANT CHANGE: Don't reset form data immediately ***
-        // console.log('[useWardFormData] Selection changed (Ward/Date), resetting form data.');
-        // setFormData({});
-        
-        // Update the ref for the next comparison
-        prevSelectionRef.current = { ward: selectedBusinessWardId, date: selectedDate };
-    }
-
     // --- Load data logic --- 
-    const loadData = async () => {
+  const loadData = useCallback(async () => {
         // *** CRITICAL CHECK: Use selectedBusinessWardId for the check ***
         if (!selectedBusinessWardId || !selectedDate || !user?.uid) {
             console.log('[useWardFormData] Skipping loadData: Missing selectedBusinessWardId, selectedDate, or user.uid');
@@ -136,8 +139,21 @@ export const useWardFormData = ({
             if (existingForm) {
                 const isFinal = existingForm.status === FormStatus.FINAL || existingForm.status === FormStatus.APPROVED;
                 const isDraft = existingForm.status === FormStatus.DRAFT;
+                const isRejected = existingForm.status === FormStatus.REJECTED;
 
-                console.log(`[useWardFormData] Processing existing form with status: ${existingForm.status}, isFinal: ${isFinal}, isDraft: ${isDraft}`);
+                console.log(`[useWardFormData] Processing existing form with status: ${existingForm.status}, isFinal: ${isFinal}, isDraft: ${isDraft}, isRejected: ${isRejected}`);
+                console.log(`[useWardFormData] Form rejection info:`, {
+                  status: existingForm.status,
+                  rejectionReason: existingForm.rejectionReason,
+                  existingFormId: existingForm.id
+                });
+
+                // If form is rejected, ensure shift remains consistent
+                if (isRejected) {
+                    console.log('[useWardFormData] Rejected form detected, setting selectedShift to match existing form shift');
+                    // Ideally, we would inform parent to set the shift, but ensure local behavior
+                    // No direct setter here, but parent effect should handle shift consistency
+                }
 
                 // Prepare base loaded data structure
                 loadedData = {
@@ -179,38 +195,85 @@ export const useWardFormData = ({
                 }
 
                 if (isFinal) {
-                    console.log('[useWardFormData] FINAL data found. Setting read-only state.');
+                console.log('[useWardFormData] FINAL/APPROVED data found. Setting read-only state.');
                     setIsFinalDataFound(true);
-                    setIsFormReadOnly(true); // Read-only if Final/Approved
-                    console.log('[useWardFormData] Setting isFormReadOnly = true, status = ', existingForm.status, 'form ID =', existingForm.id); // เพิ่ม log
+                setIsFormReadOnly(true); // Read-only regardless
+                console.log('[useWardFormData] Setting isFormReadOnly = true, status = ', existingForm.status, 'form ID =', existingForm.id);
                     setIsDraftLoaded(false);
-                    // Use specific ID for toast
-                    showSafeToast(`ข้อมูลบันทึกสมบูรณ์/อนุมัติสำหรับกะนี้ ถูกโหลดแล้ว (อ่านอย่างเดียว)`, 'info', { id: `load-final-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` });
-                    
-                    // For morning shift final data, the census value is already loaded,
-                    // determine read-only based on whether it was auto-calculated (though it should match the saved value)
-                     if (selectedShift === ShiftType.MORNING) {
-                         // Check if the loaded value matches what would have been auto-calculated
-                         // This logic might need refinement depending on exact requirements for re-calculating display
-                         setIsMorningCensusReadOnly(true); // If final, it's read-only
-                         setIsCensusAutoCalculated(true); // Assume it was auto-calculated if final/morning? Or check previous night? Keep simple for now.
-                         console.log('[useWardFormData] Setting isMorningCensusReadOnly = true, isCensusAutoCalculated = true for FINAL morning shift.');
+                // Show toast only on initial load
+                if (reloadDataTrigger === 0) {
+                  if (existingForm.status === FormStatus.APPROVED) {
+                    showSafeToast(
+                      'ข้อมูลบันทึกสมบูรณ์และได้รับการอนุมัติแล้ว',
+                      'success',
+                      { id: `load-approved-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
+                    );
+                    logUserActivity(
+                      user?.uid || '',
+                      user?.username || user?.displayName || '',
+                      'load_approved',
+                      { wardId: selectedBusinessWardId, date: selectedDate, shift: selectedShift }
+                    );
+                  } else {
+                    showSafeToast(
+                      'บันทึกข้อมูลสมบูรณ์เสร็จสิ้น รอ Supervisor อนุมัติ',
+                      'info',
+                      { id: `load-pending-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
+                    );
+                    logUserActivity(
+                      user?.uid || '',
+                      user?.username || user?.displayName || '',
+                      'load_pending',
+                      { wardId: selectedBusinessWardId, date: selectedDate, shift: selectedShift }
+                    );
                      }
-
+                }
+                } else if (isRejected) {
+                    // Handle rejected form: unlock for corrections - เพิ่ม debug log ให้ชัดเจนขึ้น
+                    console.log('[useWardFormData] ★★★ REJECTED data found. Unlocking form for user to correct.');
+                    console.log('[useWardFormData] ★★★ Rejection reason:', existingForm.rejectionReason);
+                    console.log('[useWardFormData] ★★★ Setting isFormReadOnly = false, isDraftLoaded = true');
+                    setIsFormReadOnly(false);
+                    setIsFinalDataFound(false);
+                    setIsDraftLoaded(true);
+                    // Notify user of rejection reason
+                    showSafeToast(
+                      `แบบฟอร์มถูกปฏิเสธ: ${existingForm.rejectionReason || 'ไม่มีเหตุผลแจ้ง'} (กรุณาแก้ไขและบันทึกใหม่)`,
+                      'warning',
+                      { id: `load-rejected-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
+                    );
+                    // บันทึก log การโหลดข้อมูลที่ถูกปฏิเสธ
+                    logUserActivity(
+                      user?.uid || '',
+                      user?.username || user?.displayName || '',
+                      'load_rejected_form',
+                      { 
+                        wardId: selectedBusinessWardId, 
+                        date: selectedDate, 
+                        shift: selectedShift,
+                        rejectionReason: existingForm.rejectionReason || 'no reason provided'
+                      }
+                    );
                 } else if (isDraft) {
                     console.log('[useWardFormData] DRAFT data found and loaded.');
                     setIsFinalDataFound(false);
                     setIsFormReadOnly(false); // Editable if Draft
-                    console.log('[useWardFormData] Setting isFormReadOnly = false (Draft), status = ', existingForm.status, 'form ID =', existingForm.id);
+                console.log('[useWardFormData] Setting isFormReadOnly = false (Draft), status = ', existingForm.status, 'form ID =', existingForm.id);
                     setIsDraftLoaded(true); // Set flag indicating current data is a loaded draft
-                    // Show draft-loading toast only on initial load, not after Save Draft reload
-                    if (reloadDataTrigger === 0) {
-                      dismissAllToasts();
-                      showSafeToast(
-                        'กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้',
-                        'warning',
-                        { id: `load-draft-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
-                      );
+                // Show draft-loading toast only on initial load, not after Save Draft reload
+                if (reloadDataTrigger === 0) {
+                  dismissAllToasts();
+                  showSafeToast(
+                    'กำลังแสดงข้อมูลฉบับร่างที่มีอยู่สำหรับกะนี้',
+                    'warning',
+                    { id: `load-draft-${selectedBusinessWardId}-${selectedDate}-${selectedShift}` }
+                  );
+                  logUserActivity(
+                    user?.uid || '',
+                    user?.username || user?.displayName || '',
+                    'load_draft',
+                    { wardId: selectedBusinessWardId, date: selectedDate, shift: selectedShift }
+                  );
                     }
                 }
                 // Log data before setting state
@@ -237,7 +300,6 @@ export const useWardFormData = ({
                  if (selectedShift === ShiftType.MORNING) {
                     let previousNightForm: WardForm | null = null;
                     try {
-                        // Pass business ward id here too
                         previousNightForm = await getLatestPreviousNightForm(targetDate, selectedBusinessWardId);
                     } catch (prevNightError) {
                          console.error("Error fetching previous night form:", prevNightError);
@@ -266,10 +328,44 @@ export const useWardFormData = ({
                          setIsMorningCensusReadOnly(false);
                          setIsCensusAutoCalculated(false);
                          console.log('[useWardFormData] No previous night form found. Morning census editable.');
+                     // Notify user that there is no previous night data
+                     if (reloadDataTrigger === 0) {
+                       showSafeToast('ไม่พบข้อมูลกะดึกก่อนหน้า กรุณาบันทึกข้อมูลใหม่', 'info', { id: `load-no-prev-night-${selectedBusinessWardId}-${selectedDate}` });
+                       logUserActivity(
+                         user?.uid || '',
+                         user?.username || user?.displayName || '',
+                         'NoPreviousNight',
+                         { wardId: selectedBusinessWardId, date: selectedDate }
+                       );
+                     }
                     }
                  } else { // Night shift and no existing form found
-                     setIsCensusAutoCalculated(false);
-                     console.log('[useWardFormData] Initializing empty night shift form.');
+                     // Attempt to fetch previous morning shift's final/approved census for night shift
+                     try {
+                         console.log('[useWardFormData] Fetching previous MORNING form for night shift census');
+                         const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, selectedBusinessWardId);
+                         if (
+                             morningForm &&
+                             (morningForm.status === FormStatus.FINAL || morningForm.status === FormStatus.APPROVED) &&
+                             morningForm.patientCensus !== undefined
+                         ) {
+                             // Prefill night census from morning shift
+                             initialData.patientCensus = Number(morningForm.patientCensus);
+                             setIsCensusAutoCalculated(true);
+                             console.log('[useWardFormData] Setting night census from MORNING FINAL/APPROVED form:', initialData.patientCensus);
+                             showSafeToast(
+                                 `Patient Census (${initialData.patientCensus}) ถูกดึงจากข้อมูลกะเช้า (${morningForm.status})`,
+                                 'info',
+                                 { id: `load-prev-morning-census-${selectedBusinessWardId}-${selectedDate}` }
+                             );
+                         } else {
+                             setIsCensusAutoCalculated(false);
+                             console.log('[useWardFormData] No FINAL/APPROVED morning form found. Night census editable.');
+                         }
+                     } catch (error) {
+                         console.error('[useWardFormData] Error fetching morning form for night shift:', error);
+                         setIsCensusAutoCalculated(false);
+                     }
                  }
 
                 // Log data before setting state
@@ -279,11 +375,11 @@ export const useWardFormData = ({
 
                 // *** IMPORTANT CHANGE: Only reset formData here if no existing data was found ***
                 // This now happens after we attempted to load data
-                if (selectionChanged) {
-                    console.log('[useWardFormData] Selection changed and no existing data found, resetting form data.');
-                    setFormData(initialData);
-                    setIsFormDirty(false);
-                }
+            // if (selectionChanged) {
+            //     console.log('[useWardFormData] Selection changed and no existing data found, resetting form data.');
+            //     setFormData(initialData);
+            //     setIsFormDirty(false);
+            // }
             }
         } catch (err) {
            console.error("[useWardFormData] Error during loadData processing:", err);
@@ -301,28 +397,38 @@ export const useWardFormData = ({
            setIsLoading(false);
            console.log('[useWardFormData] loadData finished.');
         }
-    };
+}, [selectedBusinessWardId, selectedDate, selectedShift, user, reloadDataTrigger, setFormData, setIsLoading, setErrors, setError, setIsFormReadOnly, setIsMorningCensusReadOnly, setIsCensusAutoCalculated, setIsDraftLoaded, setIsFinalDataFound]); // Add all dependencies
 
-    // Trigger loadData if user exists
-    if (user) {
-      console.log('[useWardFormData] User exists, triggering loadData.');
-      loadData();
+  // Effect to load data based on dependencies
+  useEffect(() => {
+    if (user && selectedBusinessWardId) {
+      console.log(`[useWardFormData] Dependencies changed, triggering loadData. reloadTrigger=${reloadDataTrigger}, shift=${selectedShift}, date=${selectedDate}, wardId=${selectedBusinessWardId}`);
+      
+      // <<< เคลียร์ข้อมูลเก่าและตั้ง loading ก่อนโหลด >>>
+      setFormData({}); // เคลียร์ข้อมูลฟอร์มเก่า
+      setErrors({});   // เคลียร์ errors เก่า
+      setError(null);  // เคลียร์ error ทั่วไป
+      setIsLoading(true); // ตั้งสถานะกำลังโหลด
+      setIsDraftLoaded(false); // รีเซ็ตสถานะ draft
+      setIsFinalDataFound(false); // รีเซ็ตสถานะ final data
+      
+      loadData(); // เรียกฟังก์ชันโหลดข้อมูล
     } else {
-      // Handle case where user logs out while viewing the form
-      console.log('[useWardFormData] User does not exist, resetting form.');
-      setFormData({}); // Reset form if user becomes null
+      // Handle case where user logs out or ward is not selected
+      if (!user) console.log('[useWardFormData] User does not exist, resetting form.');
+      if (!selectedBusinessWardId) console.log('[useWardFormData] No Business Ward ID selected, resetting form.');
+      
+      setFormData({}); // Reset form
       setIsLoading(false);
       setError(null);
       setErrors({});
-      // Reset other relevant states
       setIsFormReadOnly(false);
       setIsMorningCensusReadOnly(false);
       setIsCensusAutoCalculated(false);
       setIsDraftLoaded(false);
       setIsFinalDataFound(false);
     }
-
-  }, [selectedBusinessWardId, selectedDate, selectedShift, user, reloadDataTrigger]);
+  }, [selectedBusinessWardId, selectedDate, user, loadData]); // Use loadData callback as dependency, removed shift and reloadDataTrigger as they trigger loadData via useCallback
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -493,29 +599,44 @@ export const useWardFormData = ({
       // *** IMPORTANT: Ensure ID is preserved if it exists ***
       // Log current formData.id for debugging
       console.log("[prepareDataForSave] Current formData.id:", formData.id);
+      console.log("[prepareDataForSave] Form data before prepare:", JSON.stringify(formData, null, 2));
 
+      // สร้างสำเนาข้อมูลปัจจุบันก่อน
+      const currentFormData = { ...formData };
+
+      // ตรวจสอบทุกฟิลด์ตัวเลขว่ามีค่าหรือไม่ ถ้าไม่มีให้เก็บเป็น undefined แทนที่จะเป็น 0
+      const numericFields: (keyof WardForm)[] = [
+        'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+        'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut',
+        'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
+      ];
+
+      // สร้างอ็อบเจ็กต์ข้อมูลที่จะบันทึก
       const data : Partial<WardForm> = {
-          ...formData,
-          id: formData.id, // Include existing document ID if present (for updates)
-          wardId: selectedBusinessWardId, // *** Use Business Ward ID ***
-          wardName: formData.wardName || selectedBusinessWardId, // Use existing or fallback to ID
-          date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')), // Convert date string to Timestamp
+          ...currentFormData,
+          id: currentFormData.id,
+          wardId: selectedBusinessWardId,
+          wardName: currentFormData.wardName || selectedBusinessWardId,
+          date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
           shift: selectedShift,
           status: finalSave ? FormStatus.FINAL : FormStatus.DRAFT,
           isDraft: !finalSave,
-          // recorderFirstName/LastName should be in formData already
-          // createdBy/updatedAt handled by service
+          dateString: selectedDate,
       };
+      
+      // ตรวจสอบฟิลด์ตัวเลขแต่ละตัว และกำหนดค่าให้ถูกต้องตาม type
+      numericFields.forEach(field => {
+          const value = currentFormData[field];
+          const numValue = (value === null || value === undefined || value === '') ? undefined : Number(value);
+          console.log(`[prepareDataForSave] Processing field: ${field}, originalValue: ${value}, numericValue: ${numValue}`); // <<< เพิ่ม Log
+          // แก้ไข type error โดย cast data เป็น any
+          (data as any)[field] = numValue;
+      });
       
       // Log the prepared data for debugging
       console.log("[prepareDataForSave] Prepared data with ID:", data.id);
+      console.log("[prepareDataForSave] FINAL data to save:", JSON.stringify(data, null, 2));
       
-      // Remove undefined fields that might cause issues with Firestore merge
-      Object.keys(data).forEach(key => {
-          if (data[key as keyof WardForm] === undefined) {
-              delete data[key as keyof WardForm];
-          }
-      });
       return data;
   };
 
@@ -562,6 +683,9 @@ export const useWardFormData = ({
     }
       if (isSaving) return;
 
+      // <<< เพิ่ม Log ข้อมูล formData ก่อนเริ่ม Final Save >>>
+      console.log('[useWardFormData] handleSaveFinal - Initial formData:', formData);
+
       // Validate form for final save
     if (!validateForm(true)) {
           showErrorToast("กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องก่อนบันทึกสมบูรณ์");
@@ -574,6 +698,10 @@ export const useWardFormData = ({
       return;
     }
     
+    // สร้างสำเนาข้อมูลปัจจุบันไว้เพื่อใช้ในการอัพเดท state หลังจากบันทึกสำเร็จ
+    const currentFormData = { ...formData };
+    console.log(`[handleSaveFinal] Form data before save:`, currentFormData);
+    
     setIsSaving(true);
     try {
           const dataToSave = await prepareDataForSave(true); // Use Business ID here
@@ -582,6 +710,10 @@ export const useWardFormData = ({
                setIsSaving(false);
                return;
           }
+          
+          // เพิ่ม log เพื่อตรวจสอบข้อมูลที่จะบันทึก
+          console.log(`[handleSaveFinal] Data prepared for saving:`, JSON.stringify(dataToSave, null, 2));
+          
           let savedDocId = '';
 
           console.log(`[useWardFormData] Finalizing ${selectedShift} shift data:`, dataToSave);
@@ -592,14 +724,29 @@ export const useWardFormData = ({
               savedDocId = await finalizeNightShiftForm(dataToSave, user);
           }
 
+          console.log(`[handleSaveFinal] Save completed, document ID: ${savedDocId}`);
           showSafeToast(`บันทึกข้อมูลสมบูรณ์สำเร็จ (ID: ${savedDocId})`, 'success');
-          setFormData(prev => ({ ...prev, id: savedDocId, status: FormStatus.FINAL, isDraft: false, wardId: selectedBusinessWardId, wardName: dataToSave.wardName })); // Update form state
+
+          // *** ปรับปรุงการอัพเดท state หลังจากบันทึกสำเร็จ ***
+          const finalStateData: Partial<WardForm> = {
+            ...currentFormData, // ใช้ข้อมูลที่มีอยู่ในปัจจุบันเป็นฐาน ไม่ใช่ dataToSave ที่อาจมีการแปลงข้อมูล
+            id: savedDocId, // ใช้ ID ใหม่จากการบันทึก Final
+            status: FormStatus.FINAL,
+            isDraft: false,
+            // ส่วนนี้คงไว้เพื่อความแน่ใจว่าวันที่ถูกต้องตาม type
+            date: typeof currentFormData.date === 'string' ? currentFormData.date : selectedDate,
+          };
+          
+          // เพิ่ม log เพื่อตรวจสอบข้อมูลหลังการบันทึก
+          console.log(`[handleSaveFinal] Updated state with final data:`, JSON.stringify(finalStateData, null, 2));
+          
+          setFormData(finalStateData);
           setIsFormDirty(false); // Reset dirty state
           setIsFormReadOnly(true); // Make form read-only after final save
-          console.log('[useWardFormData] After final save: Setting isFormReadOnly = true, formData.status =', FormStatus.FINAL, 'form ID =', savedDocId); // เพิ่ม log
+          console.log('[useWardFormData] After final save: Setting isFormReadOnly = true, formData.status =', FormStatus.FINAL, 'form ID =', savedDocId);
           setIsDraftLoaded(false);
+          setIsFinalDataFound(true); // เพิ่มการตั้งค่า isFinalDataFound เป็น true
 
-          // TODO: Trigger reload or update shift status display
       } catch (error) {
           console.error("[useWardFormData] Error saving final:", error);
           showErrorToast(`เกิดข้อผิดพลาดในการบันทึกสมบูรณ์: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -627,5 +774,6 @@ export const useWardFormData = ({
       validateForm,
       handleSaveDraft,
       handleSaveFinal,
+    setIsFormReadOnly, // เพิ่ม expose setIsFormReadOnly เพื่อใช้ใน DailyCensusForm
   };
 }; 
