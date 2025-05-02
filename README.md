@@ -53,8 +53,9 @@ A comprehensive application for managing ward personnel ratios and patient censu
 ### Approval Process
 1. Supervisors/admins review submitted ward data
 2. Morning and night shifts must be approved separately
-3. Once both shifts are approved, 24-hour summary is entered
-4. Approved data becomes available for dashboard analytics
+3. **Rejection Handling:** If a form is rejected by an admin (with a reason), its status changes to 'REJECTED'. The user can then reload the form, see the rejection reason, edit the data, and resubmit it as 'FINAL' for re-approval.
+4. Once both shifts are approved, 24-hour summary is entered
+5. Approved data becomes available for dashboard analytics
 
 ### User Session Management
 1. Only one active session per user is allowed

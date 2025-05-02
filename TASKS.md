@@ -2,35 +2,31 @@
 
 ## การอัปเดตรายการล่าสุด
 
-### รายการที่แก้ไขไป
-- [x] ปรับปรุง API Route `/api/notifications/get` ให้จัดการ Error ระดับร้ายแรง (main catch) ส่ง Status 500 พร้อมข้อความ Error รายละเอียด
-- [x] วิเคราะห์และแก้ไข Component `NotificationBell.tsx`:
-  - ห่อ `fetchNotifications` ด้วย `useCallback` และอัปเดต dependency ให้เรียกเฉพาะเมื่อ `user` มีค่า
-  - ปรับ polling logic ให้ดึงข้อมูลเฉพาะเมื่อ dropdown เปิด (`isOpen`) และ poll ทุก 3 นาที
-  - เพิ่มการจัดการ CSRF token จาก state และปรับการทำงานของ `markAsRead`/`markAllAsRead`
-  - ปรับ `formatTimestamp` ให้รองรับรูปแบบ Timestamp และ Date หลายประเภท
-- [x] ปรับปรุง `AuthContext.tsx`:
-  - ใช้ `useMemo` ห่อ `contextValue` และ `useCallback` สำหรับ `checkRole` เพื่อให้ Context Reference คงที่
-- [x] แก้ไข Hook `useWardFormData.ts`:
-  - ลบการประกาศซ้ำของ `reloadDataTrigger` และส่งเป็น prop เดียว
-  - เพิ่ม `console.log` เพื่อช่วย debug lifecycle และขั้นตอน `loadData`
-- [x] แก้ไข Component `DailyCensusForm.tsx`:
-  - เพิ่ม state `reloadDataTrigger` และส่งเข้า `useWardFormData`
-  - ลบ props `morningShiftStatus` และ `nightShiftStatus` ที่ไม่ใช้แล้ว
-- [x] อัปเดต Hook `useFormPersistence.ts` ให้ใช้ `saveDraftWardForm` แทน `saveMorningShiftFormDraft`/`saveNightShiftFormDraft` และปรับ logic ใน `performSaveDraft`
-- [x] แก้ไข Import Paths ของ `useStatusStyles` ในหลายไฟล์ (ลบ `.tsx`) เพื่อให้ TypeScript import ถูกต้อง
+### รายการที่แก้ไขไป (เซสชัน 2024-05-03 - โดยประมาณ)
+- [x] **Flow การ Reject:**
+  - [x] แก้ไข `useWardFormData.ts`: เพิ่มการจัดการสถานะ `REJECTED` (ปลดล็อกฟอร์ม, แสดง Toast เหตุผล)
+  - [x] แก้ไข `DailyCensusForm.tsx`: เพิ่ม `useEffect` สลับ `selectedShift` อัตโนมัติเมื่อโหลดข้อมูล `REJECTED`
+  - [x] แก้ไข `useShiftManagement.ts`: ปรับ Logic ไม่ให้ Disable กะกลางคืนเมื่อสถานะเป็น `REJECTED`
+  - [x] แก้ไข `ApprovalPage.tsx`: แก้ปัญหา Modal ปฏิเสธกระพริบ (ย้าย JSX, จัดการ Focus, เลื่อน Fetch)
+  - [x] แก้ไข `wardFormService.ts`: อนุญาตให้ `finalize...ShiftForm` เขียนทับสถานะ `REJECTED` ได้ (แก้ Error `Cannot overwrite form with status rejected.`)
+- [x] **Flow ทั่วไป:**
+  - [x] แก้ไข `useWardFormData.ts`: เพิ่ม Logic ดึง Patient Census กะเช้ามาแสดงเมื่อเริ่มกรอกกะดึก
+  - [x] แก้ไข `DailyCensusForm.tsx`: แก้ไข Logic Disable ปุ่ม Save Draft/Final หลัง Approve กะเช้า, แก้ไขการส่ง Prop ไป `ShiftSelection`, เพิ่ม `reloadDataTrigger` หลัง Save Draft
+  - [x] แก้ไข `DailyCensusForm.tsx`: จัดลำดับ Hook และ Effect แก้ Linter Error และปัญหาการสลับกะ
 
-### รายการที่ต้องแก้ไขเพิ่มเติม
-- [ ] **แก้ไขปัญหาการแสดงผลข้อมูล:** ข้อมูลสถานะ 'Final'/'Approved' ไม่แสดงในหน้า `DailyCensusForm`
+### รายการที่ต้องแก้ไขเพิ่มเติม / ข้อเสนอแนะ
+- [ ] **แก้ไขปัญหาการแสดงผลข้อมูล:** ข้อมูลสถานะ 'Final'/'Approved' ไม่แสดงในหน้า `DailyCensusForm` (ต้องตรวจสอบเพิ่มเติม)
   - [ ] ตรวจสอบ/แก้ไข `getWardForm` (`wardFormService.ts`) ให้ดึงข้อมูล 'Final'/'Approved' อย่างถูกต้อง
   - [ ] ตรวจสอบ/แก้ไข `useWardFormData.ts` ให้จัดการข้อมูล 'Final'/'Approved' และตั้งค่า `formData`/`isFormReadOnly` ถูกต้อง
   - [ ] ตรวจสอบ/แก้ไข `CensusInputFields.tsx` ให้แสดงผลตาม `isFormReadOnly` ถูกต้อง
+- [ ] (Suggestion) เพิ่มการล้างค่า `rejectionReason`, `rejectedBy`, `rejectedAt` ใน `finalize...ShiftForm` เมื่อบันทึกทับข้อมูล `REJECTED`
+- [ ] (Suggestion) เพิ่ม Banner แจ้งเตือนในหน้า Form เมื่อข้อมูลทั้ง 2 กะได้รับการอนุมัติครบแล้ว
 - [ ] เชื่อมต่อระบบแจ้งเตือนเข้ากับเหตุการณ์การอนุมัติ/ปฏิเสธแบบฟอร์มในหน้า Approval
 - [ ] เพิ่มการแจ้งเตือนเมื่อต้องกรอกข้อมูลสรุป 24 ชั่วโมง (หน้า Daily Summary)
 - [ ] ปรับปรุงการแสดง Toast ในมุมมองโมบายให้สวยงามและ responsive
 - [ ] ทดสอบและปรับ UI ของ NotificationBell บนอุปกรณ์และธีมต่าง ๆ
 
-## สรุปงานที่ได้ดำเนินการแล้ว
+## สรุปงานที่ได้ดำเนินการแล้ว (ก่อนหน้า)
 
 1. **ระบบหลังบ้าน**
    - [x] สร้างฟังก์ชัน `validateFormData` สำหรับตรวจสอบข้อมูลก่อนบันทึก
