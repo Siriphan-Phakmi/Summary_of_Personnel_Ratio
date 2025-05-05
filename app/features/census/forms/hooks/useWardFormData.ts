@@ -15,6 +15,7 @@ import { showInfoToast, showErrorToast, showSafeToast, dismissAllToasts } from '
 import { logUserActivity } from '@/app/core/utils/logUtils';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
+import { WardFieldLabels } from './wardFieldLabels'; // Assuming this mapping exists or will be created
 
 // Revert initialFormData to represent the actual data structure (numbers)
 // We'll handle the empty display in the component
@@ -63,14 +64,21 @@ interface UseWardFormDataReturn {
   isDraftLoaded: boolean;
   isFinalDataFound: boolean;
   isFormDirty: boolean;
-  showConfirmOverwriteModal: boolean;
-  setShowConfirmOverwriteModal: Dispatch<SetStateAction<boolean>>;
-  proceedToSaveDraft: () => Promise<void>;
   handleChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  handleBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   validateForm: (finalSave?: boolean) => boolean;
   handleSaveDraft: () => Promise<void>;
   handleSaveFinal: () => Promise<void>;
-  setIsFormReadOnly: Dispatch<SetStateAction<boolean>>; // Ensure correct type
+  setIsFormReadOnly: Dispatch<SetStateAction<boolean>>;
+  // --- Zero Confirmation ---
+  showConfirmZeroModal: boolean;
+  setShowConfirmZeroModal: Dispatch<SetStateAction<boolean>>;
+  fieldsWithValueZero: string[];
+  proceedWithSaveAfterZeroConfirmation: () => Promise<void>;
+  // --- Overwrite Confirmation ---
+  showConfirmOverwriteModal: boolean;
+  setShowConfirmOverwriteModal: Dispatch<SetStateAction<boolean>>;
+  proceedToSaveDraft: () => Promise<void>;
 }
 
 export const useWardFormData = ({
@@ -94,6 +102,11 @@ export const useWardFormData = ({
   const [isFormDirty, setIsFormDirty] = useState(false); // NEW: track if form has been modified
   const [showConfirmOverwriteModal, setShowConfirmOverwriteModal] = useState(false); // NEW: State for confirmation modal
   const [selectedWardObject, setSelectedWardObject] = useState<Ward | null>(null); // Store the selected ward object
+
+  // --- NEW State for Zero Confirmation ---
+  const [showConfirmZeroModal, setShowConfirmZeroModal] = useState(false);
+  const [fieldsWithValueZero, setFieldsWithValueZero] = useState<string[]>([]);
+  const [saveActionType, setSaveActionType] = useState<'draft' | 'final' | null>(null); // To know what to do after confirmation
 
   // Store previous selection to prevent unnecessary reloads if only shift changes
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
@@ -485,295 +498,407 @@ export const useWardFormData = ({
       'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
     ];
 
-     const requiredStringFields: (keyof WardForm)[] = ['recorderFirstName', 'recorderLastName'];
+    const requiredStringFields: (keyof WardForm)[] = ['recorderFirstName', 'recorderLastName'];
 
     // Validate required number fields only if doing a final save
     if (finalSave) {
         requiredNumberFields.forEach(field => {
           const value = formData[field];
-          // Check if undefined, null, or empty string after trimming (though state uses undefined now)
+          // อนุญาตให้เป็น 0 ได้ แต่ต้องไม่เป็น undefined, null, หรือ empty string
           if (value === undefined || value === null || value === '') {
-             // Special case: Allow patientCensus to be 0 even if required
-             if (field === 'patientCensus' && value === 0) {
-               // Valid
-             } else {
-                newErrors[field] = 'กรุณากรอกข้อมูล';
-                isValid = false;
-             }
+            newErrors[field] = 'กรุณากรอกข้อมูลให้ครบถ้วน (กรอก 0 ถ้าไม่มีข้อมูล)';
+            isValid = false;
           } else if (typeof value === 'number' && value < 0) {
-             newErrors[field] = 'ค่าต้องไม่ติดลบ';
-             isValid = false;
-          }
-        });
-
-        requiredStringFields.forEach(field => {
-             const value = formData[field];
-             if (!value || (typeof value === 'string' && value.trim() === '')) {
-                newErrors[field] = 'กรุณากรอกข้อมูล';
-                isValid = false;
-             }
-        });
-    }
-    // For Draft save, we generally don't require all fields, but numbers should still be non-negative if entered
-     else {
-        requiredNumberFields.forEach(field => {
-          const value = formData[field];
-          if (value !== undefined && value !== null && typeof value === 'number' && value < 0) {
             newErrors[field] = 'ค่าต้องไม่ติดลบ';
             isValid = false;
           }
         });
-     }
+
+        requiredStringFields.forEach(field => {
+          const value = formData[field];
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            newErrors[field] = 'กรุณากรอกข้อมูล';
+            isValid = false;
+          }
+        });
+    }
+    // สำหรับการบันทึกร่าง อนุญาตให้มีค่าว่างได้ แต่ถ้ามีค่า ต้องไม่ติดลบ
+    else {
+        requiredNumberFields.forEach(field => {
+          const value = formData[field];
+          if (value !== undefined && value !== null && value !== '' && typeof value === 'number' && value < 0) {
+            newErrors[field] = 'ค่าต้องไม่ติดลบ';
+            isValid = false;
+          }
+        });
+    }
 
     setErrors(newErrors);
     return isValid;
   };
 
-  // Function to actually perform the draft save (called directly or by modal)
-  const proceedToSaveDraft = async () => {
-      if (!user || !selectedBusinessWardId) return; // Guard clause
+  // ฟังก์ชันตรวจสอบข้อมูลแต่ละฟิลด์
+  const validateField = (fieldName: keyof WardForm, value: any): string | null => {
+    const requiredNumberFields: (keyof WardForm)[] = [
+      'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+      'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut',
+      'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
+    ];
+    const requiredStringFields: (keyof WardForm)[] = ['recorderFirstName', 'recorderLastName'];
 
-    setIsSaving(true);
-      setShowConfirmOverwriteModal(false); // Close modal if it was open
+    // ตรวจสอบฟิลด์ตัวเลข
+    if (requiredNumberFields.includes(fieldName)) {
+      // ค่า 0 ถือว่าถูกต้อง แต่ค่า undefined, null, หรือ empty string ถือว่าไม่ถูกต้อง
+      if (value === 0) {
+        return null; // ค่า 0 ถูกต้อง
+      } else if (value === undefined || value === null || value === '') {
+        return 'กรุณากรอกข้อมูลให้ครบถ้วน (กรอก 0 ถ้าไม่มีข้อมูล)';
+      } else if (typeof value === 'number' && value < 0) {
+        return 'ค่าต้องไม่ติดลบ';
+      }
+    } 
+    // ตรวจสอบฟิลด์ข้อความ
+    else if (requiredStringFields.includes(fieldName)) {
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        return 'กรุณากรอกข้อมูล';
+      }
+    }
 
+    return null; // ไม่มี error
+  };
+
+  // จัดการ onBlur event สำหรับการตรวจสอบข้อมูลแบบเรียลไทม์
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    const fieldName = name as keyof WardForm;
+
+    // ตรวจสอบค่าจริงในฟอร์ม
+    const stateValue = formData[fieldName];
+    
+    // เฉพาะเมื่อกำลังจะบันทึกแบบ final จึงจะตรวจสอบว่าข้อมูลครบถ้วนหรือไม่
+    let errorMessage = null;
+    if (saveActionType === 'final') {
+      errorMessage = validateField(fieldName, stateValue);
+    } else {
+      // สำหรับการบันทึกร่าง ตรวจสอบเฉพาะค่าติดลบ
+      if (stateValue !== undefined && stateValue !== null && stateValue !== '' && 
+          typeof stateValue === 'number' && stateValue < 0) {
+        errorMessage = 'ค่าต้องไม่ติดลบ';
+      }
+    }
+
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      if (errorMessage) {
+        newErrors[fieldName] = errorMessage;
+      } else {
+        delete newErrors[fieldName]; // ลบข้อผิดพลาดถ้าไม่มี error
+      }
+      return newErrors;
+    });
+  };
+
+  // --- Function to check for zero values ---
+  const getFieldsWithZeroValue = (data: Partial<WardForm>): string[] => {
+    const zeroFields: string[] = [];
+    const numericFields: (keyof WardForm)[] = [
+      'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+      'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut',
+      'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
+    ];
+    numericFields.forEach(field => {
+      // Check for exactly 0, not null or undefined
+      if (data[field] === 0) {
+        // Use the label from the mapping, fallback to field name
+        zeroFields.push(WardFieldLabels[field] || field);
+      }
+    });
+    return zeroFields;
+  };
+
+  // --- NEW Function to handle the actual save after zero confirmation ---
+  const proceedWithSaveAfterZeroConfirmation = async () => {
+    setShowConfirmZeroModal(false); // Close the zero modal first
+    if (saveActionType === 'draft') {
+      // Check for overwrite again, but execute save directly if needed (bypass second modal)
       try {
-          const dataToSave = await prepareDataForSave(false); // Use Business ID here
+        if (isFormDirty) {
+          const finalCheckDate = Timestamp.fromDate(new Date(selectedDate + 'T00:00:00'));
+          const existingFinal = await getWardForm(finalCheckDate, selectedShift, selectedBusinessWardId);
+          if (existingFinal && (existingFinal.status === FormStatus.FINAL || existingFinal.status === FormStatus.APPROVED)) {
+            console.log("[ZeroConfirm] Overwrite needed, proceeding directly to draft save.");
+            await executeDraftSave(); // Execute save directly, bypassing overwrite modal
+            setSaveActionType(null); // Reset action type after execution
+            return; // Exit after direct execution
+          }
+        }
+        // If no overwrite needed, execute draft save normally
+        await executeDraftSave();
+      } catch (checkError) {
+        console.error("[ZeroConfirm] Error checking overwrite, proceeding to save draft anyway:", checkError);
+        await executeDraftSave(); // Save draft even if check fails
+      }
+    } else if (saveActionType === 'final') {
+      await executeFinalSave();
+    }
+    setSaveActionType(null); // Reset action type
+  };
+
+  // --- Function to prepare data for saving ---
+  const prepareDataForSave = async (finalSave: boolean = false): Promise<Partial<WardForm> | null> => {
+    let wardName = formData.wardName;
+    if (!wardName && selectedBusinessWardId) {
+      // Simplified: Rely on wardName being present or optional for now
+    }
+
+    const currentFormData = { ...formData };
+    const numericFields: (keyof WardForm)[] = [
+      'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+      'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut',
+      'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
+    ];
+
+    const data: Partial<WardForm> = {
+      ...currentFormData,
+      id: currentFormData.id,
+      wardId: selectedBusinessWardId,
+      wardName: currentFormData.wardName || selectedBusinessWardId,
+      date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
+      shift: selectedShift,
+      status: finalSave ? FormStatus.FINAL : FormStatus.DRAFT,
+      isDraft: !finalSave,
+      dateString: selectedDate,
+    };
+
+    // ปรับการจัดการค่าตัวเลข
+    numericFields.forEach(field => {
+      const value = currentFormData[field];
+      
+      if (finalSave) {
+        // สำหรับการบันทึกสมบูรณ์ ทุกฟิลด์ห้ามเป็นค่าว่าง ต้องแปลงเป็นตัวเลขเสมอ (0 ถ้าไม่มีค่า)
+        if (value === undefined || value === null || value === '') {
+          (data as any)[field] = 0; // แปลงเป็น 0 ถ้าไม่มีค่า
+        } else if (value === 0) {
+          (data as any)[field] = 0; // ค่า 0 ยังคงเป็น 0
+        } else if (typeof value === 'string') {
+          // แปลงสตริงเป็นตัวเลข
+          const numValue = parseFloat(value);
+          (data as any)[field] = isNaN(numValue) ? 0 : numValue;
+        } else if (typeof value === 'number') {
+          (data as any)[field] = value; // ค่าตัวเลขคงเดิม
+        }
+      } else {
+        // สำหรับการบันทึกร่าง
+        if (value === undefined || value === null || value === '') {
+          // บันทึกร่างอนุญาตให้เป็นค่าว่างได้ แต่ Firestore ไม่ชอบ undefined จึงใช้ null แทน
+          (data as any)[field] = 0; // แปลงเป็น 0 เสมอเพื่อป้องกันปัญหากับ Firestore
+        } else if (value === 0) {
+          (data as any)[field] = 0; // ค่า 0 ยังคงเป็น 0
+        } else if (typeof value === 'string') {
+          // แปลงสตริงเป็นตัวเลข
+          const numValue = parseFloat(value);
+          (data as any)[field] = isNaN(numValue) ? 0 : numValue;
+        } else if (typeof value === 'number') {
+          (data as any)[field] = value; // ค่าตัวเลขคงเดิม
+        }
+      }
+    });
+
+    console.log("[prepareDataForSave] Prepared data:", JSON.stringify(data, null, 2));
+    return data;
+  };
+
+  // --- Modified proceedToSaveDraft - now just executes the save ---
+  const executeDraftSave = async () => {
+      if (!user || !selectedBusinessWardId) return;
+      setIsSaving(true);
+      let savedDocId = ''; // Declare savedDocId here
+      let dataToSave: Partial<WardForm> | null = null; // Declare dataToSave here
+      try {
+          dataToSave = await prepareDataForSave(false);
           if (!dataToSave) {
                showErrorToast("ไม่สามารถเตรียมข้อมูลสำหรับบันทึกร่างได้");
                setIsSaving(false);
                return;
           }
-          
-          // *** IMPORTANT: Log the data being saved, specifically the ID ***
-          console.log("[useWardFormData] Saving draft data with ID:", dataToSave.id);
-          console.log("[useWardFormData] Draft data details:", JSON.stringify({
-            id: dataToSave.id,
-            wardId: dataToSave.wardId,
-            date: dataToSave.date,
-            shift: dataToSave.shift,
-            status: dataToSave.status,
-            isDraft: dataToSave.isDraft,
-          }, null, 2));
-          
-          const savedDocId = await saveDraftWardForm(dataToSave, user);
+          savedDocId = await saveDraftWardForm(dataToSave, user); // Assign savedDocId
           showSafeToast(`บันทึกร่างสำเร็จ (ID: ${savedDocId})`, 'success');
-          
-          // *** IMPORTANT: Ensure we update the form data with the correct ID ***
-          setFormData(prev => ({
-            ...prev,
-            id: savedDocId,
-            status: FormStatus.DRAFT,
-            isDraft: true,
-            wardId: selectedBusinessWardId,
-            wardName: dataToSave.wardName || ''
-          }));
-          
-          setIsFormDirty(false); // Reset dirty state after successful save
-          setIsDraftLoaded(true); // Indicate that the current state is now a saved draft
 
-    } catch (error) {
+          // <<< FIX: Update state based on successfully saved data >>>
+          if (dataToSave) { // Ensure dataToSave is not null
+            const savedDataForState: Partial<WardForm> = {
+              ...dataToSave, // Use the data that was actually saved
+              id: savedDocId, // Ensure the correct ID is set
+              status: FormStatus.DRAFT, // Confirm status
+              isDraft: true, // Confirm draft status
+              // Convert Timestamp back to string for the date input if necessary
+              date: dataToSave.date instanceof Timestamp ? format(dataToSave.date.toDate(), 'yyyy-MM-dd') : selectedDate,
+            };
+            console.log('[executeDraftSave] Updating state with saved data:', JSON.stringify(savedDataForState, null, 2));
+            setFormData(savedDataForState);
+          } else {
+             console.error("[executeDraftSave] dataToSave was null after successful save, cannot update state accurately.");
+             // Fallback or error handling? For now, just log.
+          }
+
+          setIsFormDirty(false);
+          setIsDraftLoaded(true);
+      } catch (error) {
           console.error("[useWardFormData] Error saving draft:", error);
           showErrorToast(`เกิดข้อผิดพลาดในการบันทึกร่าง: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSaving(false);
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  // --- NEW Function to handle overwrite check (separated from proceedToSaveDraft) ---
+  const checkOverwriteAndProceedWithDraft = async () => {
+    try {
+        // Check if the form is dirty AND if there's existing FINAL/APPROVED data
+        if (isFormDirty) {
+            const finalCheckDate = Timestamp.fromDate(new Date(selectedDate + 'T00:00:00'));
+            const existingFinal = await getWardForm(finalCheckDate, selectedShift, selectedBusinessWardId);
+            if (existingFinal && (existingFinal.status === FormStatus.FINAL || existingFinal.status === FormStatus.APPROVED)) {
+                 console.log("[handleSaveDraft] Final/Approved data exists and form is dirty. Showing overwrite modal.");
+                 setShowConfirmOverwriteModal(true); // Show overwrite modal
+                 return; // Wait for overwrite modal confirmation
+            }
+        }
+        // If no overwrite needed, execute draft save
+        await executeDraftSave();
+    } catch (checkError) {
+        console.error("[handleSaveDraft] Error checking for existing final form:", checkError);
+        // Proceed to save anyway if check fails? Or show warning?
+        await executeDraftSave(); // Proceed with draft save even if check fails for now
     }
   };
 
-  // Prepare data for saving, ensuring necessary fields are present
-  const prepareDataForSave = async (finalSave: boolean = false): Promise<Partial<WardForm> | null> => {
-      // Fetch ward details if needed to get wardName (if not already in formData)
-      let wardName = formData.wardName;
-      if (!wardName && selectedBusinessWardId) {
-         try {
-             // Assuming a function getWardDetailsById exists or similar
-             // This is inefficient, ideally wardName comes from DailyCensusForm prop
-             // Let's adjust to expect wardName in formData or fetch it once
-             console.warn("Ward name missing in formData, attempting fetch - consider passing Ward object or name as prop");
-             // Simplified: For now, let's rely on it being potentially set during load or assume it's optional for save
-         } catch (fetchError) {
-             console.error("Could not fetch ward details for name", fetchError);
-             // Proceed without wardName if fetch fails? Or show error?
-         }
-      }
-
-      // *** IMPORTANT: Ensure ID is preserved if it exists ***
-      // Log current formData.id for debugging
-      console.log("[prepareDataForSave] Current formData.id:", formData.id);
-      console.log("[prepareDataForSave] Form data before prepare:", JSON.stringify(formData, null, 2));
-
-      // สร้างสำเนาข้อมูลปัจจุบันก่อน
-      const currentFormData = { ...formData };
-
-      // ตรวจสอบทุกฟิลด์ตัวเลขว่ามีค่าหรือไม่ ถ้าไม่มีให้เก็บเป็น undefined แทนที่จะเป็น 0
-      const numericFields: (keyof WardForm)[] = [
-        'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
-        'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut',
-        'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
-      ];
-
-      // สร้างอ็อบเจ็กต์ข้อมูลที่จะบันทึก
-      const data : Partial<WardForm> = {
-          ...currentFormData,
-          id: currentFormData.id,
-          wardId: selectedBusinessWardId,
-          wardName: currentFormData.wardName || selectedBusinessWardId,
-          date: Timestamp.fromDate(new Date(selectedDate + 'T00:00:00')),
-          shift: selectedShift,
-          status: finalSave ? FormStatus.FINAL : FormStatus.DRAFT,
-          isDraft: !finalSave,
-          dateString: selectedDate,
-      };
-      
-      // ตรวจสอบฟิลด์ตัวเลขแต่ละตัว และกำหนดค่าให้ถูกต้องตาม type
-      numericFields.forEach(field => {
-          const value = currentFormData[field];
-          const numValue = (value === null || value === undefined || value === '') ? undefined : Number(value);
-          console.log(`[prepareDataForSave] Processing field: ${field}, originalValue: ${value}, numericValue: ${numValue}`); // <<< เพิ่ม Log
-          // แก้ไข type error โดย cast data เป็น any
-          (data as any)[field] = numValue;
-      });
-      
-      // Log the prepared data for debugging
-      console.log("[prepareDataForSave] Prepared data with ID:", data.id);
-      console.log("[prepareDataForSave] FINAL data to save:", JSON.stringify(data, null, 2));
-      
-      return data;
-  };
-
-  // Update handleSaveDraft to handle potential overwrite
+  // --- Modified handleSaveDraft to check for zeros first ---
   const handleSaveDraft = async () => {
-      if (!user || !selectedBusinessWardId) {
-        showErrorToast(user ? "กรุณาเลือกหอผู้ป่วยก่อนบันทึก" : "ไม่พบข้อมูลผู้ใช้");
-      return;
+    if (!user || !selectedBusinessWardId || !selectedDate || !selectedShift || isSaving) return;
+
+    setSaveActionType('draft'); // Set the intended action
+
+    // <<< Check for zero values >>>
+    const zeroFields = getFieldsWithZeroValue(formData);
+    if (zeroFields.length > 0) {
+      console.log('[handleSaveDraft] Fields with zero value found:', zeroFields);
+      setFieldsWithValueZero(zeroFields);
+      setShowConfirmZeroModal(true); // Show zero confirmation modal
+      return; // Wait for confirmation
     }
-       if (!selectedDate || !selectedShift) {
-           showErrorToast("กรุณาเลือกวันที่และกะ");
-      return;
-    }
-       if (isSaving) return;
 
-      // Overwrite check logic
-      try {
-           // Check if the form is dirty AND if there's existing FINAL/APPROVED data
-           if (isFormDirty) {
-                const finalCheckDate = Timestamp.fromDate(new Date(selectedDate + 'T00:00:00'));
-                // Use business ID for the check
-                const existingFinal = await getWardForm(finalCheckDate, selectedShift, selectedBusinessWardId);
-
-                if (existingFinal && (existingFinal.status === FormStatus.FINAL || existingFinal.status === FormStatus.APPROVED)) {
-                     console.log("[handleSaveDraft] Final/Approved data exists and form is dirty. Showing overwrite modal.");
-                     setShowConfirmOverwriteModal(true); // Show modal
-                     return; // Wait for modal confirmation
-                }
-           }
-      } catch (checkError) {
-          console.error("[handleSaveDraft] Error checking for existing final form:", checkError);
-          // Decide how to proceed - maybe allow save but show warning? For now, proceed to save.
-      }
-
-      // If no need for modal, save directly
-       await proceedToSaveDraft(); 
+    // If no zeros, proceed to check overwrite
+    await checkOverwriteAndProceedWithDraft();
   };
 
-  // Update handleSaveFinal
-  const handleSaveFinal = async () => {
-      if (!user || !selectedBusinessWardId) {
-        showErrorToast(user ? "กรุณาเลือกหอผู้ป่วยก่อนบันทึก" : "ไม่พบข้อมูลผู้ใช้");
-      return;
-    }
-      if (isSaving) return;
 
-      // <<< เพิ่ม Log ข้อมูล formData ก่อนเริ่ม Final Save >>>
-      console.log('[useWardFormData] handleSaveFinal - Initial formData:', formData);
+  // --- NEW: Function to execute the final save logic ---
+  const executeFinalSave = async () => {
+    if (!user || !selectedBusinessWardId || isSaving) return;
 
-      // Validate form for final save
+    // Validate form for final save
     if (!validateForm(true)) {
-          showErrorToast("กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องก่อนบันทึกสมบูรณ์");
-          // Find first error field and focus it (optional enhancement)
-          const firstErrorField = Object.keys(errors)[0];
-          if (firstErrorField) {
-              const element = document.getElementById(firstErrorField);
-              element?.focus();
-          }
+      showErrorToast("กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้องก่อนบันทึกสมบูรณ์");
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        const element = document.getElementById(firstErrorField);
+        element?.focus();
+      }
       return;
     }
-    
-    // สร้างสำเนาข้อมูลปัจจุบันไว้เพื่อใช้ในการอัพเดท state หลังจากบันทึกสำเร็จ
+
     const currentFormData = { ...formData };
-    console.log(`[handleSaveFinal] Form data before save:`, currentFormData);
-    
     setIsSaving(true);
     try {
-          const dataToSave = await prepareDataForSave(true); // Use Business ID here
-           if (!dataToSave) {
-               showErrorToast("ไม่สามารถเตรียมข้อมูลสำหรับบันทึกสมบูรณ์ได้");
-               setIsSaving(false);
-               return;
-          }
-          
-          // เพิ่ม log เพื่อตรวจสอบข้อมูลที่จะบันทึก
-          console.log(`[handleSaveFinal] Data prepared for saving:`, JSON.stringify(dataToSave, null, 2));
-          
-          let savedDocId = '';
+      const dataToSave = await prepareDataForSave(true);
+      if (!dataToSave) {
+        showErrorToast("ไม่สามารถเตรียมข้อมูลสำหรับบันทึกสมบูรณ์ได้");
+        setIsSaving(false);
+        return;
+      }
 
-          console.log(`[useWardFormData] Finalizing ${selectedShift} shift data:`, dataToSave);
+      let savedDocId = '';
+      console.log(`[useWardFormData] Finalizing ${selectedShift} shift data:`, dataToSave);
 
-          if (selectedShift === ShiftType.MORNING) {
-              savedDocId = await finalizeMorningShiftForm(dataToSave, user);
-          } else { // Night shift
-              savedDocId = await finalizeNightShiftForm(dataToSave, user);
-          }
+      if (selectedShift === ShiftType.MORNING) {
+        savedDocId = await finalizeMorningShiftForm(dataToSave, user);
+      } else {
+        savedDocId = await finalizeNightShiftForm(dataToSave, user);
+      }
 
-          console.log(`[handleSaveFinal] Save completed, document ID: ${savedDocId}`);
-          showSafeToast(`บันทึกข้อมูลสมบูรณ์สำเร็จ (ID: ${savedDocId})`, 'success');
+      console.log(`[handleSaveFinal] Save completed, document ID: ${savedDocId}`);
+      showSafeToast(`บันทึกข้อมูลสมบูรณ์สำเร็จ (ID: ${savedDocId})`, 'success');
 
-          // *** ปรับปรุงการอัพเดท state หลังจากบันทึกสำเร็จ ***
-          const finalStateData: Partial<WardForm> = {
-            ...currentFormData, // ใช้ข้อมูลที่มีอยู่ในปัจจุบันเป็นฐาน ไม่ใช่ dataToSave ที่อาจมีการแปลงข้อมูล
-            id: savedDocId, // ใช้ ID ใหม่จากการบันทึก Final
-            status: FormStatus.FINAL,
-            isDraft: false,
-            // ส่วนนี้คงไว้เพื่อความแน่ใจว่าวันที่ถูกต้องตาม type
-            date: typeof currentFormData.date === 'string' ? currentFormData.date : selectedDate,
-          };
-          
-          // เพิ่ม log เพื่อตรวจสอบข้อมูลหลังการบันทึก
-          console.log(`[handleSaveFinal] Updated state with final data:`, JSON.stringify(finalStateData, null, 2));
-          
-          setFormData(finalStateData);
-          setIsFormDirty(false); // Reset dirty state
-          setIsFormReadOnly(true); // Make form read-only after final save
-          console.log('[useWardFormData] After final save: Setting isFormReadOnly = true, formData.status =', FormStatus.FINAL, 'form ID =', savedDocId);
-          setIsDraftLoaded(false);
-          setIsFinalDataFound(true); // เพิ่มการตั้งค่า isFinalDataFound เป็น true
+      const finalStateData: Partial<WardForm> = {
+        ...currentFormData,
+        id: savedDocId,
+        status: FormStatus.FINAL,
+        isDraft: false,
+        date: typeof currentFormData.date === 'string' ? currentFormData.date : selectedDate,
+      };
 
-      } catch (error) {
-          console.error("[useWardFormData] Error saving final:", error);
-          showErrorToast(`เกิดข้อผิดพลาดในการบันทึกสมบูรณ์: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setFormData(finalStateData);
+      setIsFormDirty(false);
+      setIsFormReadOnly(true);
+      setIsDraftLoaded(false);
+      setIsFinalDataFound(true);
+
+    } catch (error) {
+      console.error("[useWardFormData] Error saving final:", error);
+      showErrorToast(`เกิดข้อผิดพลาดในการบันทึกสมบูรณ์: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
   };
 
+  // --- Modified handleSaveFinal to check for zeros first ---
+  const handleSaveFinal = async () => {
+    if (!user || !selectedBusinessWardId || isSaving) return;
+
+    setSaveActionType('final'); // Set the intended action
+
+    // <<< Check for zero values >>>
+    const zeroFields = getFieldsWithZeroValue(formData);
+    if (zeroFields.length > 0) {
+      console.log('[handleSaveFinal] Fields with zero value found:', zeroFields);
+      setFieldsWithValueZero(zeroFields);
+      setShowConfirmZeroModal(true); // Show zero confirmation modal
+      return; // Wait for confirmation
+    }
+
+    // If no zeros, proceed directly to final save execution
+    await executeFinalSave();
+  };
+
+
+  // --- Expose new states and functions ---
   return {
     formData,
     errors,
     isLoading,
     isSaving,
     isMorningCensusReadOnly,
-      isFormReadOnly,
+    isFormReadOnly,
     isCensusAutoCalculated,
-      error,
-      isDraftLoaded,
-      isFinalDataFound,
-      isFormDirty,
+    error,
+    isDraftLoaded,
+    isFinalDataFound,
+    isFormDirty,
+    handleChange,
+    handleBlur,
+    validateForm,
+    handleSaveDraft,
+    handleSaveFinal,
+    setIsFormReadOnly,
+    // --- Zero Confirmation ---
+    showConfirmZeroModal,
+    setShowConfirmZeroModal,
+    fieldsWithValueZero,
+    proceedWithSaveAfterZeroConfirmation,
+    // --- Overwrite Confirmation ---
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
-      proceedToSaveDraft, // Expose this for the modal
-      handleChange,
-      validateForm,
-      handleSaveDraft,
-      handleSaveFinal,
-    setIsFormReadOnly, // เพิ่ม expose setIsFormReadOnly เพื่อใช้ใน DailyCensusForm
+    proceedToSaveDraft: executeDraftSave,
   };
 }; 

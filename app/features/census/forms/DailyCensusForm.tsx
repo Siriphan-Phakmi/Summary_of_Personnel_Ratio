@@ -23,6 +23,7 @@ import ShiftSelection from './components/ShiftSelection';
 import CensusInputFields from './components/CensusInputFields';
 import RecorderInfo from './components/RecorderInfo';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
+import ConfirmZeroValuesModal from './components/ConfirmZeroValuesModal';
 import DraftNotification from './components/DraftNotification';
 
 // Import FormStatus correctly
@@ -163,6 +164,9 @@ export default function DailyCensusForm() {
     }
   }, [actualMorningStatus, selectedShift, isNightShiftDisabled, handleSelectShift]);
 
+  // หมายเหตุเกี่ยวกับค่า 0
+  const zeroValueNoteMessage = "หมายเหตุ: สามารถกรอกค่า 0 ได้ แต่ไม่สามารถกรอกค่าว่างได้ เพราะระบบจะบันทึกเป็น 0 อัตโนมัติ";
+
   // Get values and functions directly from useWardFormData
   const {
     formData,
@@ -179,10 +183,15 @@ export default function DailyCensusForm() {
     isLoading: isDataLoading,
     isSaving: isFormSaving,
     isFormDirty,
+    showConfirmZeroModal,
+    setShowConfirmZeroModal,
+    fieldsWithValueZero,
+    proceedWithSaveAfterZeroConfirmation,
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
     proceedToSaveDraft,
     setIsFormReadOnly,
+    handleBlur,
   } = useWardFormData({
       selectedWard,
       selectedBusinessWardId,
@@ -200,64 +209,53 @@ export default function DailyCensusForm() {
     }
   }, [formData.status, formData.shift, handleSelectShift]);
 
-  // Wrapper function for handleSaveDraft to match onClick signature; only run when form is dirty
+  // Simplified access to trigger save functions
   const triggerSaveDraft = async () => {
-    if (!isFormDirty) return;
-    // Preview draft save
-    const summaryDraft =
-      `Ward: ${selectedWardObject?.wardName}\nDate: ${selectedDate}\nShift: ${selectedShift}\nPatient Census: ${formData.patientCensus || ''}`;
-    if (!window.confirm(`Preview Save Draft:\n${summaryDraft}\n\nConfirm save draft?`)) return;
-    // Log user activity
-    logUserActivity(
-      currentUser?.uid || '',
-      currentUser?.username || currentUser?.displayName || '',
-      'save_draft',
-      { wardId: selectedWard, date: selectedDate, shift: selectedShift }
-    );
-    // Perform draft save without reloading data (state updated in hook)
-    await handleSaveDraft();
-    // After saving draft, re-trigger data load to populate saved draft
-    setReloadDataTrigger(prev => prev + 1);
-  };
-
-  // Wrapper function for handleSaveFinal; only run when form is dirty
-  const triggerSaveFinal = () => {
-    if (!isFormDirty && !isDraftLoaded) return;
-    // Preview final save
-    const summaryFinal =
-      `Ward: ${selectedWardObject?.wardName}\nDate: ${selectedDate}\nShift: ${selectedShift}\nPatient Census: ${formData.patientCensus || ''}`;
-    if (!window.confirm(`Preview Save Final:\n${summaryFinal}\n\nConfirm save final?`)) return;
-    
-    console.log('[DailyCensusForm] Final Save triggered with form data:', formData);
-    
-    // Log user activity
-    logUserActivity(
-      currentUser?.uid || '',
-      currentUser?.username || currentUser?.displayName || '',
-      'save_final',
-      { wardId: selectedWard, date: selectedDate, shift: selectedShift }
-    );
-    // Perform final save and update shift status without reloading form
-    handleSaveFinal().then((savedDocId) => {
-      console.log('[DailyCensusForm] Final Save completed, document ID:', savedDocId);
-      if (selectedShift === ShiftType.MORNING) {
-        setActualMorningStatus(FormStatus.FINAL);
-        console.log('[DailyCensusForm] Updated Morning shift status to FINAL');
-      } else {
-        setActualNightStatus(FormStatus.FINAL);
-        console.log('[DailyCensusForm] Updated Night shift status to FINAL');
+    try {
+      if (formRef.current) {
+          if (!formRef.current.reportValidity()) {
+              showErrorToast('กรุณาตรวจสอบข้อมูลและแก้ไขให้ถูกต้อง');
+              return;
+          }
       }
-      // No automatic reload to preserve displayed final data
-      });
+
+      showLoading();
+      await handleSaveDraft();
+    } catch (err) {
+      console.error('Error in save draft handler:', err);
+      showErrorToast('เกิดข้อผิดพลาดในการบันทึกร่าง');
+    } finally {
+      hideLoading();
+    }
   };
 
-  // Combine loading states from different hooks
-  // Now includes status loading
-  const isLoading = isWardLoading || isStatusLoading || isDataLoading;
-  // const isSaving = isFormSaving; // Directly use isFormSaving
+  const triggerSaveFinal = () => {
+    try {
+      if (formRef.current) {
+          if (!formRef.current.reportValidity()) {
+              showErrorToast('กรุณาตรวจสอบข้อมูลและแก้ไขให้ถูกต้อง');
+              return;
+          }
+      }
 
-  // Log the value of isFormReadOnly for debugging
-  console.log('[DailyCensusForm] isFormReadOnly =', isFormReadOnly, 'for shift =', selectedShift, 'morning status =', actualMorningStatus, 'night status =', actualNightStatus);
+      // Show loading without message
+      showLoading();
+      
+      handleSaveFinal().catch(err => {
+        console.error('Error in save final handler:', err);
+        showErrorToast('เกิดข้อผิดพลาดในการบันทึกสมบูรณ์');
+      }).finally(() => {
+        hideLoading();
+      });
+    } catch (err) {
+      console.error('Error in save final logic:', err);
+      showErrorToast('เกิดข้อผิดพลาดในการบันทึกสมบูรณ์');
+      hideLoading();
+    }
+  };
+
+  // กำหนด CSS เพิ่มเติมสำหรับหมายเหตุ
+  const noteStyles = "text-sm bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-md border border-yellow-200 dark:border-yellow-900 text-yellow-700 dark:text-yellow-300 mb-4";
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
@@ -365,6 +363,7 @@ export default function DailyCensusForm() {
               <CensusInputFields
                 formData={formData}
                 handleChange={handleChange}
+                handleBlur={handleBlur}
                 errors={errors}
                 isReadOnly={isFormLocked} // <<< Pass isFormLocked to make inputs read-only
                 selectedShift={selectedShift}
@@ -382,6 +381,11 @@ export default function DailyCensusForm() {
                 isReadOnly={isFormLocked} // <<< Pass isFormLocked to make inputs read-only
                 isDraftLoaded={isDraftLoaded}
               />
+
+              {/* หมายเหตุเกี่ยวกับค่า 0 */}
+              <div className={noteStyles}>
+                <p><strong>หมายเหตุ:</strong> สามารถกรอกค่า 0 ได้ แต่ไม่สามารถปล่อยช่องว่างได้ ถ้าไม่มีข้อมูลให้กรอก 0</p>
+              </div>
 
               {/* Action Buttons */} 
               <div className="flex flex-col sm:flex-row justify-end gap-3 mt-8">
@@ -414,11 +418,20 @@ export default function DailyCensusForm() {
 
         </div>
         
-        {/* Confirmation modal */} 
+        {/* Confirmation modal for zero values */} 
+        <ConfirmZeroValuesModal
+          isOpen={showConfirmZeroModal}
+          onClose={() => setShowConfirmZeroModal(false)}
+          onConfirm={proceedWithSaveAfterZeroConfirmation} // Call the new handler
+          fieldsWithZero={fieldsWithValueZero}
+          isSaving={isFormSaving}
+        />
+
+        {/* Confirmation modal for overwrite */} 
         <ConfirmSaveModal
           isOpen={showConfirmOverwriteModal}
           onClose={() => setShowConfirmOverwriteModal(false)} // Close action
-          onConfirm={proceedToSaveDraft} // Confirm action calls the saving function
+          onConfirm={proceedToSaveDraft} // Confirm action calls the specific saving function for overwrite
           formData={formData} // Pass current form data to display in modal
           isSaving={isFormSaving} // Pass saving state for button loading indicator
         />

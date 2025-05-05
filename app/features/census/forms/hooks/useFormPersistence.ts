@@ -102,17 +102,31 @@ export const useFormPersistence = ({
     // Create a new object for the result
     const resultData: any = { ...currentFormData }; // Start with a copy, use any temporarily
 
+    // ปรับวิธีการจัดการกับค่าตัวเลข
     numericFields.forEach(field => {
         const value = currentFormData[field];
-        // Convert undefined/null/empty string numeric fields to 0
-        if (value === undefined || value === null || value === '') {
-            resultData[field] = 0; 
-        } else if (typeof value === 'string') {
+        
+        // ตรวจสอบค่า 0 ก่อนเป็นพิเศษ
+        if (value === 0) {
+            resultData[field] = 0; // ค่า 0 ยังคงเป็น 0
+        }
+        // กรณีไม่มีค่า (undefined, null, empty string)
+        else if (value === undefined || value === null || value === '') {
+            resultData[field] = 0; // แปลงเป็น 0 เสมอในขั้นตอนการเตรียมข้อมูล (Firestore ไม่ชอบ undefined)
+        } 
+        // กรณีเป็นสตริง ให้แปลงเป็นตัวเลข
+        else if (typeof value === 'string') {
             const num = Number(value);
-            resultData[field] = isNaN(num) ? 0 : num; // Fallback to 0 if conversion fails
-        } else {
-            // Assume it's already a number if not undefined/null/string
+            resultData[field] = isNaN(num) ? 0 : num; // ถ้าแปลงไม่ได้ให้ใช้ 0
+        } 
+        // กรณีเป็นตัวเลขอยู่แล้ว
+        else if (typeof value === 'number') {
             resultData[field] = value;
+        }
+        // กรณีอื่นๆ ที่ไม่คาดคิด
+        else {
+            console.warn(`ประเภทข้อมูลไม่คาดคิดสำหรับฟิลด์ ${field}: ${typeof value}. กำหนดให้เป็น 0`);
+            resultData[field] = 0;
         }
     });
 

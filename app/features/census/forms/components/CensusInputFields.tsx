@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ChangeEvent } from 'react';
+import React, { ChangeEvent, FocusEvent } from 'react';
 import Input from '@/app/core/ui/Input'; // Assuming Input component exists
 import { WardForm, ShiftType } from '@/app/core/types/ward';
 import { TimestampField } from '@/app/core/types/user';
@@ -91,6 +91,7 @@ const PatientCensusDisplay: React.FC<{
 interface CensusInputFieldsProps {
   formData: Partial<WardForm>;
   handleChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  handleBlur: (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   errors: Record<string, string>;
   isReadOnly: boolean; // Make fields read-only (e.g., after final save)
   selectedShift: ShiftType;
@@ -102,6 +103,7 @@ interface CensusInputFieldsProps {
 const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
   formData,
   handleChange,
+  handleBlur,
   errors,
   isReadOnly,
   selectedShift,
@@ -118,16 +120,22 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     const readOnly = isReadOnly || (fieldName === 'patientCensus' && patientCensusReadOnly);
     const isDraftAndEditable = isDraftLoaded && !readOnly;
 
-    // Properly handle numeric values for display - (null/undefined/0 all become empty string when displayed)
+    // ปรับการแสดงผลค่าในฟอร์ม
     let displayValue: string | number = '';
-    // Type assertion to expected number or string type based on field name
     const rawValue = formData[fieldName] as number | string | undefined | null;
     
     if (type === 'number') {
-      // Explicitly convert all falsy number values (0, null, undefined) to empty string for display
-      displayValue = rawValue === 0 || rawValue === null || rawValue === undefined ? '' : rawValue as number | string;
+      // ไม่แปลงค่า null/undefined เป็น 0 อีกต่อไป แต่แสดงเป็นสตริงว่าง
+      // ** สำคัญ: สำหรับค่า 0 ให้แสดง "0" ไม่ใช่สตริงว่าง
+      if (rawValue === 0) {
+        displayValue = "0";
+      } else if (rawValue === null || rawValue === undefined || rawValue === '') {
+        displayValue = '';
+      } else {
+        displayValue = rawValue;
+      }
     } else {
-      // For non-numeric fields, use the nullish coalescing to empty string
+      // Non-numeric values (string) remain unchanged
       displayValue = (rawValue as string | null | undefined) ?? '';
     }
 
@@ -135,12 +143,13 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
       id: fieldName,
       name: fieldName,
       label: label,
-      value: displayValue, // Use the properly formatted display value
+      value: displayValue,
       onChange: handleChange,
+      onBlur: handleBlur,
       error: errors[fieldName],
       placeholder: placeholder,
       type: type,
-      readOnly: readOnly, // Use calculated readOnly
+      readOnly: readOnly,
       // Conditionally apply yellow background for drafts that are editable, and enforce red border on error
       className: twMerge(
         "form-input",
@@ -243,6 +252,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           rows={3}
           value={formData.comment ?? ''}
           onChange={handleChange}
+          onBlur={handleBlur}
           readOnly={isReadOnly}
           placeholder="รายละเอียดเพิ่มเติม"
           className={twMerge(

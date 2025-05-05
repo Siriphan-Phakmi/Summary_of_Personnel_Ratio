@@ -657,8 +657,9 @@ export const saveDraftWardForm = async (
 
     console.log(`Saving ${formData.shift} shift draft with ID: ${customDocId}, WardID: ${wardId}, DateString: ${dateString}`);
 
+    // Initialize dataToSave
     const dataToSave: Partial<WardForm> = {
-      ...formData,
+      ...formData, // Spread initial data
       id: customDocId,
       wardId: wardId,
       date: Timestamp.fromDate(dateObj),
@@ -669,9 +670,34 @@ export const saveDraftWardForm = async (
       updatedAt: createServerTimestamp()
     };
 
+    // Ensure createdAt is set only for new drafts
     if (!formData.id) {
       dataToSave.createdAt = createServerTimestamp();
     }
+
+    // --- Sanitize Numeric Fields ---
+    const numericFields: (keyof WardForm)[] = [
+        'patientCensus', 'nurseManager', 'rn', 'pn', 'wc', 
+        'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 
+        'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
+    ];
+
+    // ตรวจสอบว่าฟิลด์ตัวเลขที่จำเป็นมีครบหรือไม่
+    for (const field of numericFields) {
+        const value = dataToSave[field];
+        
+        // สำหรับ Draft อนุญาตให้เป็นค่าว่างได้ แต่จะบันทึกเป็น 0
+        if (value === undefined || value === null || value === '' || (typeof value === 'number' && isNaN(value))) {
+            // แปลงเป็น 0 สำหรับ Draft เท่านั้น
+            (dataToSave as any)[field] = 0;
+        } else if (typeof value === 'string') {
+            // แปลงจากสตริงเป็นตัวเลข
+            const parsedValue = parseFloat(value);
+            (dataToSave as any)[field] = isNaN(parsedValue) ? 0 : parsedValue;
+        }
+        // ค่าตัวเลขที่ถูกต้องจะคงไว้ตามเดิม
+    }
+    // --- End Sanitize Numeric Fields ---
 
     if (formData.shift === ShiftType.NIGHT) {
       const morningStatus = await checkMorningShiftFormStatus(dateObj, wardId);
