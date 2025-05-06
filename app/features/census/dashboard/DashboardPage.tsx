@@ -11,6 +11,7 @@ import { getDailySummariesByFilters } from '@/app/features/census/forms/services
 import { DailySummary } from '@/app/core/types/approval';
 import { Ward } from '@/app/core/types/ward';
 import { getApprovedSummariesByDateRange } from '@/app/features/census/forms/services/approvalServices/dailySummary';
+import { UserRole } from '@/app/core/types/user';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -32,9 +33,28 @@ export default function DashboardPage() {
         const userWards = await getWardsByUserPermission(user);
         setWards(userWards);
         
-        // ถ้ามีแผนกอย่างน้อย 1 แผนก ให้เลือกแผนกแรกเป็นค่าเริ่มต้น
+        // ถ้ามีแผนกอย่างน้อย 1 แผนก ให้เลือกแผนกตามสิทธิ์
         if (userWards.length > 0) {
-          setSelectedWard(userWards[0].id);
+          // กำหนดการเลือกแผนกตามบทบาทและสิทธิ์
+          if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
+            // Admin และ Developer สามารถเลือกแผนกได้อิสระ เริ่มต้นที่แผนกแรก
+            setSelectedWard(userWards[0].id);
+          } else if (user.role === UserRole.APPROVER && user.approveWardIds && user.approveWardIds.length > 0) {
+            // Approver เริ่มต้นที่แผนกแรกที่ตนมีสิทธิ์อนุมัติ
+            setSelectedWard(user.approveWardIds[0]);
+          } else if ((user.role === UserRole.NURSE || user.role === UserRole.VIEWER) && user.floor) {
+            // Nurse และ Viewer เห็นเฉพาะแผนกที่ตนสังกัด
+            const assignedWard = userWards.find(ward => ward.id === user.floor);
+            if (assignedWard) {
+              setSelectedWard(assignedWard.id);
+            } else {
+              console.warn(`[DashboardPage] User with floor ${user.floor} does not have access to that ward`);
+              setError('คุณไม่มีสิทธิ์ในการเข้าถึงแผนกนี้');
+            }
+          } else {
+            // กรณีอื่นๆ เลือกแผนกแรก
+            setSelectedWard(userWards[0].id);
+          }
         }
       } catch (err) {
         console.error('Error loading wards:', err);
@@ -48,7 +68,25 @@ export default function DashboardPage() {
   // โหลดข้อมูลสรุปเมื่อมีการเลือกแผนกหรือช่วงวันที่
   useEffect(() => {
     const loadSummaries = async () => {
-      if (!selectedWard || !startDate || !endDate) return;
+      if (!selectedWard || !startDate || !endDate || !user) return;
+      
+      // สำหรับ NURSE หรือ VIEWER ตรวจสอบว่าเลือกแผนกตรงกับ user.floor หรือไม่
+      if ((user.role === UserRole.NURSE || user.role === UserRole.VIEWER) && user.floor && selectedWard !== user.floor) {
+        console.warn(`[DashboardPage] User with role ${user.role} attempted to view data from ward ${selectedWard} but is assigned to ${user.floor}`);
+        setSummaries([]);
+        setError('คุณไม่มีสิทธิ์ดูข้อมูลของแผนกนี้');
+        setLoading(false);
+        return;
+      }
+      
+      // สำหรับ APPROVER ตรวจสอบว่าเลือกแผนกที่มีสิทธิ์อนุมัติหรือไม่
+      if (user.role === UserRole.APPROVER && user.approveWardIds && !user.approveWardIds.includes(selectedWard)) {
+        console.warn(`[DashboardPage] Approver attempted to view data from ward ${selectedWard} but has permission for ${user.approveWardIds.join(', ')}`);
+        setSummaries([]);
+        setError('คุณไม่มีสิทธิ์ดูข้อมูลของแผนกนี้');
+        setLoading(false);
+        return;
+      }
       
       setLoading(true);
       setError(null);
@@ -77,7 +115,7 @@ export default function DashboardPage() {
     };
     
     loadSummaries();
-  }, [selectedWard, startDate, endDate, approvedOnly]);
+  }, [selectedWard, startDate, endDate, approvedOnly, user]);
 
   // โหลดเฉพาะข้อมูลที่ได้รับการอนุมัติแล้ว
   const loadApprovedSummaries = async () => {
@@ -145,6 +183,13 @@ export default function DashboardPage() {
     }
   };
 
+  // เพิ่มการตรวจสอบว่าผู้ใช้มีสิทธิ์ในการเปลี่ยนแผนกหรือไม่
+  const canSelectAnyWard = user && (
+    user.role === UserRole.ADMIN || 
+    user.role === UserRole.SUPER_ADMIN || 
+    user.role === UserRole.DEVELOPER
+  );
+
   return (
     <ProtectedPage>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -165,10 +210,15 @@ export default function DashboardPage() {
                   className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm 
                   focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
                   dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  disabled={!canSelectAnyWard}
                 >
                   <option value="">-- เลือกแผนก --</option>
                   {wards.map((ward) => (
-                    <option key={ward.id} value={ward.id}>
+                    <option 
+                      key={ward.id} 
+                      value={ward.id}
+                      disabled={!canSelectAnyWard && ward.id !== (user?.floor || '')}
+                    >
                       {ward.wardName}
                     </option>
                   ))}

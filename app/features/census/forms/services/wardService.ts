@@ -131,12 +131,36 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
       return wards;
     }
     
-    // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย (ปรับ Logic ใหม่)
-    // เดิม: อ้างอิง user.location
-    // ใหม่: User ทั่วไปให้เห็นทุก Ward ที่ Active เพื่อให้เลือกกรอกข้อมูลได้
-    if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) { // Assuming 'nurse' and 'viewer' are standard user roles
-      console.log(`[WardService] User role is ${user.role}, fetching all active wards.`);
-      return getActiveWards();
+    // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย
+    if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) {
+      // ตรวจสอบว่ามีการระบุแผนกสำหรับผู้ใช้นี้หรือไม่
+      if (!user.floor) {
+        console.warn(`[WardService] User ${user.username || user.uid} has role ${user.role} but no ward (floor) assigned.`);
+        return [];
+      }
+      
+      console.log(`[WardService] User role is ${user.role}, fetching ward for floor: ${user.floor}`);
+      
+      // ดึงข้อมูลเฉพาะแผนกที่ระบุใน user.floor
+      const wardDoc = await getDoc(doc(db, COLLECTION_WARDS, user.floor));
+      
+      if (!wardDoc.exists()) {
+        console.warn(`[WardService] Ward with ID ${user.floor} not found for user ${user.username || user.uid}`);
+        return [];
+      }
+      
+      const wardData = wardDoc.data() as Ward;
+      
+      // ตรวจสอบว่าแผนกนี้ active อยู่หรือไม่
+      if (!wardData.active) {
+        console.warn(`[WardService] Ward with ID ${user.floor} is inactive for user ${user.username || user.uid}`);
+        return [];
+      }
+      
+      return [{
+        ...wardData,
+        id: wardDoc.id
+      }];
     }
 
     // กรณี Role อื่นๆ ที่ไม่ได้ระบุไว้ หรือไม่มีสิทธิ์เฉพาะ

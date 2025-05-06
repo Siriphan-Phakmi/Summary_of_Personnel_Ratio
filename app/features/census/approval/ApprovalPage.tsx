@@ -8,7 +8,7 @@ import Button from '@/app/core/ui/Button';
 import { UserRole } from '@/app/core/types/user';
 import { WardForm, FormStatus, ShiftType } from '@/app/core/types/ward';
 import { getPendingForms, getApprovalHistoryByFormId } from '../forms/services/approvalServices/approvalQueries';
-import { approveWardForm, rejectWardForm } from '../forms/services/approvalService';
+import { approveWardForm, rejectWardForm, getApprovalsByUserPermission } from '../forms/services/approvalService';
 import { formatTimestamp } from '@/app/core/utils/dateUtils';
 import { showErrorToast, showSuccessToast } from '@/app/core/utils/toastUtils';
 import Modal from '@/app/core/ui/Modal';
@@ -276,28 +276,35 @@ export default function ApprovalPage() {
   const { user } = useAuth();
   const [searchDate, setSearchDate] = useState('');
   const [wardFilter, setWardFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<FormStatus | ''>(FormStatus.FINAL);
   const [forms, setForms] = useState<WardForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isIndexError, setIsIndexError] = useState(false);
-  
   const [selectedForm, setSelectedForm] = useState<WardForm | null>(null);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const [processingFormId, setProcessingFormId] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  // Ref for rejection textarea to maintain focus
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [reason, setReason] = useState('');
+  const [approveLoading, setApproveLoading] = useState(false);
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string>('final'); // รอการอนุมัติเป็นค่าเริ่มต้น
+  const statusRef = useRef<HTMLSelectElement>(null);
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
   
-  /**
-   * ดึงข้อมูลแบบฟอร์มที่รอการอนุมัติ
-   */
+  // Focus textarea when reject modal opens
+  useEffect(() => {
+    if (showRejectModal) {
+      setTimeout(() => rejectionTextareaRef.current?.focus(), 0);
+    }
+  }, [showRejectModal]);
+
+  useEffect(() => {
+    if (user) {
+      fetchForms();
+    }
+  }, [user, selectedStatus, searchDate, wardFilter]);
+
+  // ปรับปรุงฟังก์ชันดึงข้อมูลเพื่อใช้ตามสิทธิ์ผู้ใช้
   const fetchForms = async () => {
       if (!user) return;
 
@@ -306,115 +313,183 @@ export default function ApprovalPage() {
     setIsIndexError(false);
     
     try {
-      const filters = {
-        date: searchDate ? new Date(searchDate) : undefined,
-        ward: wardFilter || undefined,
-        status: statusFilter || undefined,
+      // สร้าง filter ตามสิทธิ์ของผู้ใช้
+      const filter: any = {
+        status: selectedStatus === 'all' ? undefined : selectedStatus as FormStatus | undefined,
+        startDate: searchDate ? new Date(searchDate) : undefined,
       };
       
-      // หากเป็น role nurse จะเห็นเฉพาะวอร์ดของตนเอง
-      if (user.role === UserRole.NURSE && user.floor) {
-        filters.ward = user.floor;
-          }
+      let fetchedForms: WardForm[] = [];
       
-      const result = await getPendingForms(filters);
-      setForms(result);
-    } catch (err: any) {
+      // ผู้ใช้ระดับ Admin, Super Admin หรือ Developer เห็นทั้งหมด
+      if (
+        user.role === UserRole.ADMIN || 
+        user.role === UserRole.SUPER_ADMIN || 
+        user.role === UserRole.DEVELOPER
+      ) {
+        // Admin เห็นทั้งหมด สามารถกรองตาม wardFilter ได้
+        filter.wardId = wardFilter || undefined;
+        fetchedForms = await getApprovalsByUserPermission(user, filter);
+      }
+      // ผู้อนุมัติเห็นเฉพาะแผนกที่มีสิทธิ์
+      else if (user.role === UserRole.APPROVER) {
+        // Approver ใช้ wardFilter เมื่อกรอง แต่ตัว service จะจำกัดเฉพาะแผนกที่มีสิทธิ์
+        filter.wardId = wardFilter || undefined;
+        fetchedForms = await getApprovalsByUserPermission(user, filter);
+      }
+      // ผู้ใช้ทั่วไป (NURSE/VIEWER) เห็นเฉพาะแบบฟอร์มของตนเองและเฉพาะแผนกของตนเอง
+      else if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) {
+        if (!user.floor) {
+          setError('ไม่พบข้อมูลแผนกที่สังกัด กรุณาติดต่อผู้ดูแลระบบ');
+          setForms([]);
+          setLoading(false);
+          return;
+        }
+        
+        try {
+          // ลดความซับซ้อนของ query โดยใช้ query แบบง่ายที่ไม่ต้องการ complex index
+          // ถึงแม้จะใช้เงื่อนไขหลายเงื่อนไข แต่ Firebase จะใช้ index แบบ single-field
+          
+          // ดึงตาม wardId และ createdBy เพื่อให้เห็นเฉพาะของแผนกตัวเองและสร้างโดยตัวเอง
+          // โดยใช้ IN clause แทนการใช้ compound query เพื่อหลีกเลี่ยงความจำเป็นที่ต้องใช้ complex index
+          const simpleFilter = {
+            wardId: user.floor,
+            createdBy: user.uid // เพิ่มเงื่อนไขให้ดึงเฉพาะฟอร์มที่สร้างโดยผู้ใช้คนปัจจุบัน
+          };
+          
+          let fetchedForms = await getPendingForms(simpleFilter);
+          
+          // ทำการกรองข้อมูลหลังจากดึงมาแล้ว (client-side filtering)
+          if (selectedStatus !== 'all') {
+            fetchedForms = fetchedForms.filter(form => form.status === selectedStatus);
+          }
+          
+          // เรียงข้อมูลหลังจากกรอง
+          fetchedForms.sort((a, b) => {
+            if (!a.dateString || !b.dateString) return 0;
+            return b.dateString.localeCompare(a.dateString); // เรียงจากวันล่าสุด
+          });
+          
+          setForms(fetchedForms);
+        } catch (err) {
+          console.error('Error in simplified query:', err);
+          setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
+          setForms([]);
+        }
+      }
+      
+      setForms(fetchedForms);
+    } catch (err) {
       console.error('Error fetching forms:', err);
       
-      // ตรวจสอบว่าเป็น Index Error หรือไม่
-      if (handleIndexError(err)) {
+      // ตรวจสอบว่าเป็น index error หรือไม่
+      if (handleIndexError(err, 'ApprovalPage')) {
         setIsIndexError(true);
-        setError('ไม่สามารถค้นหาข้อมูลได้เนื่องจากขาด Firebase Index ที่จำเป็น');
+        setError('ไม่สามารถโหลดข้อมูลได้เนื่องจากขาด Firestore Index');
       } else {
-        setError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + (err.message || 'Unknown error'));
+        setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
       }
+      
+      // ในกรณีเกิดข้อผิดพลาด ให้ล้างข้อมูลเก่า
+      setForms([]);
       } finally {
         setLoading(false);
       }
     };
 
-  // โหลดข้อมูลเมื่อ user หรือ filters เปลี่ยนแปลง
-  useEffect(() => {
-    fetchForms();
-  }, [user, searchDate, wardFilter, statusFilter]);
-
   const openDetailsModal = (form: WardForm) => {
     setSelectedForm(form);
-    setIsDetailsModalOpen(true);
+    setShowDetailsModal(true);
   };
   
   const openApproveModal = (form: WardForm) => {
     setSelectedForm(form);
-    setIsApproveModalOpen(true);
+    setShowApproveModal(true);
   };
   
   const openRejectModal = (form: WardForm) => {
     setSelectedForm(form);
-    setIsRejectModalOpen(true);
-    setRejectionReason('');
+    setShowRejectModal(true);
+    setReason('');
   };
   
-  // Focus textarea when modal opens
-  useEffect(() => {
-    if (isRejectModalOpen) {
-      // next tick to ensure textarea is rendered
-      setTimeout(() => rejectionTextareaRef.current?.focus(), 0);
-    }
-  }, [isRejectModalOpen]);
-  
   const handleApprove = async () => {
-    if (!selectedForm?.id || !user) { 
-      showErrorToast('ไม่พบข้อมูลแบบฟอร์มที่เลือก หรือข้อมูลผู้ใช้');
+    if (!selectedForm || !user) {
+      showErrorToast('ไม่พบข้อมูลแบบฟอร์มหรือผู้ใช้');
       return;
     }
-    setIsProcessing(true);
-    setProcessingFormId(selectedForm.id);
+    
+    // ตรวจสอบว่ามี id หรือไม่
+    if (!selectedForm.id) {
+      showErrorToast('ไม่พบรหัสแบบฟอร์ม');
+      return;
+    }
+    
+    setApproveLoading(true);
     try {
       await approveWardForm(selectedForm.id, user); 
       showSuccessToast('อนุมัติแบบฟอร์มสำเร็จ');
-      setIsApproveModalOpen(false);
+      setShowApproveModal(false);
       fetchForms();
     } catch (error) {
       console.error('Error approving form:', error);
       showErrorToast('ไม่สามารถอนุมัติแบบฟอร์มได้');
     } finally {
-      setIsProcessing(false);
-      setProcessingFormId(null);
+      setApproveLoading(false);
     }
   };
   
   const handleReject = async () => {
-    if (!selectedForm?.id || !user) {
-      showErrorToast('ไม่พบข้อมูลแบบฟอร์มที่เลือก หรือข้อมูลผู้ใช้');
+    if (!selectedForm || !user) {
+      showErrorToast('ไม่พบข้อมูลแบบฟอร์มหรือผู้ใช้');
       return;
     }
-    if (!rejectionReason.trim()) {
+    
+    // ตรวจสอบว่ามี id หรือไม่
+    if (!selectedForm.id) {
+      showErrorToast('ไม่พบรหัสแบบฟอร์ม');
+      return;
+    }
+    
+    if (!reason.trim()) {
       showErrorToast('กรุณาระบุเหตุผลในการปฏิเสธ');
       return;
     }
-    setIsProcessing(true);
-    setProcessingFormId(selectedForm.id);
+    
+    setRejectLoading(true);
     try {
-      await rejectWardForm(selectedForm.id, user, rejectionReason);
+      await rejectWardForm(selectedForm.id, user, reason);
       showSuccessToast('ปฏิเสธแบบฟอร์มสำเร็จ');
-      setIsRejectModalOpen(false);
+      setShowRejectModal(false);
+      fetchForms();
     } catch (error) {
       console.error('Error rejecting form:', error);
       showErrorToast('ไม่สามารถปฏิเสธแบบฟอร์มได้');
     } finally {
-      setIsProcessing(false);
-      setProcessingFormId(null);
+      setRejectLoading(false);
     }
   };
 
-  // เมื่อ modal ปิด ให้เรียก fetchForms ครั้งเดียว
-  useEffect(() => {
-    if (!isRejectModalOpen) {
-      fetchForms();
-    }
-  }, [isRejectModalOpen]);
+  // คอมโพเนนต์สำหรับ Modal ยืนยันการอนุมัติ
+  const ApproveModal = () => (
+    <Modal isOpen={showApproveModal} onClose={() => setShowApproveModal(false)} title="ยืนยันการอนุมัติ" size="md">
+      <div className="p-4">
+        <p className="mb-4">คุณต้องการอนุมัติแบบฟอร์มนี้ใช่หรือไม่?</p>
+        <div className="flex justify-end space-x-3">
+          <Button onClick={() => setShowApproveModal(false)} variant="outline">ยกเลิก</Button>
+          <Button 
+            onClick={handleApprove} 
+            variant="primary"
+            disabled={approveLoading}
+          >
+            {approveLoading ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
 
+  // ข้อมูลแผนกที่พบในรายการฟอร์ม
   const wards = React.useMemo(() => {
     const wardSet = new Set<string>();
     forms.forEach(form => {
@@ -425,32 +500,16 @@ export default function ApprovalPage() {
     return Array.from(wardSet).sort();
   }, [forms]);
 
-  const ApproveModal = () => (
-    <Modal isOpen={isApproveModalOpen} onClose={() => setIsApproveModalOpen(false)} title="ยืนยันการอนุมัติ" size="md">
-      <div className="p-4">
-        <p className="mb-4">คุณต้องการอนุมัติแบบฟอร์มนี้ใช่หรือไม่?</p>
-        <div className="flex justify-end space-x-3">
-          <Button onClick={() => setIsApproveModalOpen(false)} variant="outline">ยกเลิก</Button>
-          <Button 
-            onClick={handleApprove} 
-            variant="primary"
-            disabled={isProcessing}
-          >
-            {isProcessing ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-
   if (!user) {
-    return <p>กรุณาเข้าสู่ระบบ</p>;
+    return <div>Loading...</div>;
   }
 
   const canViewApprovals = user.role === UserRole.ADMIN 
     || user.role === UserRole.SUPER_ADMIN 
     || user.role === UserRole.DEVELOPER
-    || user.role === UserRole.NURSE;
+    || user.role === UserRole.APPROVER
+    || user.role === UserRole.NURSE
+    || user.role === UserRole.VIEWER;
 
   if (!canViewApprovals) {
     return <p>คุณไม่มีสิทธิ์ดูหน้านี้</p>;
@@ -458,7 +517,8 @@ export default function ApprovalPage() {
 
   const canApprove = user.role === UserRole.ADMIN 
     || user.role === UserRole.SUPER_ADMIN
-    || user.role === UserRole.DEVELOPER;
+    || user.role === UserRole.DEVELOPER
+    || user.role === UserRole.APPROVER;
 
   return (
     <ProtectedPage requiredRole={[UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DEVELOPER, UserRole.NURSE]}>
@@ -495,7 +555,7 @@ export default function ApprovalPage() {
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
                   value={wardFilter}
                   onChange={(e) => setWardFilter(e.target.value)}
-                  disabled={user.role === UserRole.NURSE && !!user.floor}
+                  disabled={(user.role === UserRole.NURSE || user.role === UserRole.VIEWER)}
                 >
                   <option value="">ทั้งหมด</option>
                   {wards.map((ward) => (
@@ -511,10 +571,10 @@ export default function ApprovalPage() {
                 <select
                   id="status-filter"
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as FormStatus | '')}
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
                 >
-                  <option value="">ทั้งหมด</option>
+                  <option value="all">ทั้งหมด</option>
                   <option value={FormStatus.FINAL}>รออนุมัติ</option>
                   <option value={FormStatus.APPROVED}>อนุมัติแล้ว</option>
                   <option value={FormStatus.REJECTED}>ปฏิเสธ</option>
@@ -600,17 +660,17 @@ export default function ApprovalPage() {
                                 <button
                                   onClick={() => openApproveModal(form)}
                                   className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
-                                  disabled={isProcessing && processingFormId === form.id}
+                                  disabled={approveLoading}
                                 >
-                                  {isProcessing && processingFormId === form.id ? 'กำลังดำเนินการ...' : 'อนุมัติ'}
+                                  {approveLoading ? 'กำลังดำเนินการ...' : 'อนุมัติ'}
                                 </button>
                                 
                                 <button
                                   onClick={() => openRejectModal(form)}
                                   className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                  disabled={isProcessing && processingFormId === form.id}
+                                  disabled={rejectLoading}
                                 >
-                                  {isProcessing && processingFormId === form.id ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
+                                  {rejectLoading ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
                                 </button>
                               </>
                             )}
@@ -628,13 +688,13 @@ export default function ApprovalPage() {
       
       <FormDetailsModal 
         form={selectedForm} 
-        isOpen={isDetailsModalOpen} 
-        onClose={() => setIsDetailsModalOpen(false)}
+        isOpen={showDetailsModal} 
+        onClose={() => setShowDetailsModal(false)}
       />
       <ApproveModal />
       {/* Inline Reject Modal preserves state while open */}
-      {isRejectModalOpen && (
-        <Modal isOpen={true} onClose={() => setIsRejectModalOpen(false)} title="ปฏิเสธแบบฟอร์ม" size="md">
+      {showRejectModal && (
+        <Modal isOpen={true} onClose={() => setShowRejectModal(false)} title="ปฏิเสธแบบฟอร์ม" size="md">
           <div className="p-4">
             <p className="mb-2">กรุณาระบุเหตุผลในการปฏิเสธ:</p>
             <textarea
@@ -642,18 +702,18 @@ export default function ApprovalPage() {
               autoFocus
               className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 mb-4 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent"
               rows={4}
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
               placeholder="ระบุเหตุผลในการปฏิเสธแบบฟอร์มนี้..."
             />
             <div className="flex justify-end space-x-3">
-              <Button onClick={() => setIsRejectModalOpen(false)} variant="outline">ยกเลิก</Button>
+              <Button onClick={() => setShowRejectModal(false)} variant="outline">ยกเลิก</Button>
               <Button
                 onClick={handleReject}
                 variant="destructive"
-                disabled={isProcessing || !rejectionReason.trim()}
+                disabled={rejectLoading || !reason.trim()}
               >
-                {isProcessing ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
+                {rejectLoading ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
               </Button>
             </div>
           </div>

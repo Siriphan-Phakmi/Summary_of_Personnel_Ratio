@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, setDoc, doc, query, where, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { format } from 'date-fns'; // Assuming date-fns is available
 
@@ -15,11 +15,20 @@ export enum LogType {
   SYSTEM_ERROR = 'system.error', // Keep system error logging
 }
 
+// Add new log level enum
+export enum LogLevel {
+  ERROR = 'error',
+  WARN = 'warn',
+  INFO = 'info',
+  DEBUG = 'debug'
+}
+
 // Log entry interface (kept generic, ensure needed fields for ID are present)
 export interface LogEntry {
   type: string; // e.g., 'auth.login', 'page.access', 'delete', 'update'
   userId: string;
   username: string;
+  logLevel?: LogLevel; // Add log level
   action?: string; // Specifically for userActivityLogs ID format
   details?: any;
   createdAt?: any; // Will be replaced by serverTimestamp in the entry data
@@ -61,6 +70,62 @@ const generateCustomLogId = (
 };
 
 /**
+ * ลบ logs เก่าที่เกิน daysToKeep วัน
+ * @param collectionName ชื่อ collection ที่ต้องการลบ logs ('systemLogs' หรือ 'userActivityLogs')
+ * @param daysToKeep จำนวนวันที่ต้องการเก็บ logs (ค่าเริ่มต้น: 90 วัน)
+ * @returns จำนวน logs ที่ถูกลบ
+ */
+export const cleanupOldLogs = async (collectionName: string, daysToKeep: number = 90): Promise<number> => {
+  try {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+    
+    const logsRef = collection(db, collectionName);
+    const q = query(logsRef, where('createdAt', '<', Timestamp.fromDate(cutoffDate)));
+    const snapshot = await getDocs(q);
+    
+    // รองรับการลบมากกว่า 500 รายการ (Firestore batch limit)
+    let count = 0;
+    const batchSize = 450; // ใช้ 450 เพื่อให้มี margin
+    const batches = [];
+    let currentBatch = writeBatch(db);
+    let operationCount = 0;
+    
+    snapshot.forEach(doc => {
+      currentBatch.delete(doc.ref);
+      operationCount++;
+      count++;
+      
+      // แบ่ง batch เมื่อใกล้ถึงขีดจำกัด
+      if (operationCount >= batchSize) {
+        batches.push(currentBatch.commit());
+        currentBatch = writeBatch(db);
+        operationCount = 0;
+      }
+    });
+    
+    // commit batch สุดท้าย ถ้ามีรายการเหลืออยู่
+    if (operationCount > 0) {
+      batches.push(currentBatch.commit());
+    }
+    
+    // รอทุก batches เสร็จสิ้น
+    if (batches.length > 0) {
+      await Promise.all(batches);
+      console.log(`Deleted ${count} old logs from ${collectionName} using ${batches.length} batches`);
+    } else if (count > 0) {
+      await currentBatch.commit();
+      console.log(`Deleted ${count} old logs from ${collectionName}`);
+    }
+    
+    return count;
+  } catch (error) {
+    console.error(`Error cleaning up old logs from ${collectionName}:`, error);
+    return 0;
+    }
+};
+
+/**
  * Add a log entry to the specified collection with a custom ID
  * @param logEntry The log data
  * @param collectionName The target collection ('systemLogs' or 'userActivityLogs')
@@ -68,6 +133,11 @@ const generateCustomLogId = (
 export const addLogEntry = async (logEntry: LogEntry, collectionName: string): Promise<string | null> => {
   try {
     const environment = process.env.NODE_ENV || 'development';
+
+    // Default to INFO level if not specified
+    if (!logEntry.logLevel) {
+      logEntry.logLevel = LogLevel.INFO;
+    }
 
     const sanitizedEntry: Record<string, any> = {};
     Object.entries(logEntry).forEach(([key, value]) => {
@@ -90,6 +160,19 @@ export const addLogEntry = async (logEntry: LogEntry, collectionName: string): P
     const docRef = doc(db, collectionName, customId);
     await setDoc(docRef, entry);
 
+    // In development mode, also log to console for visibility
+    if (process.env.NODE_ENV === 'development') {
+      // Only log to console in dev mode to reduce console noise in production
+      const level = logEntry.logLevel || LogLevel.INFO;
+      if (level === LogLevel.ERROR) {
+        console.error(`[${level.toUpperCase()}][${logEntry.type}] ${JSON.stringify(logEntry.details)}`);
+      } else if (level === LogLevel.WARN) {
+        console.warn(`[${level.toUpperCase()}][${logEntry.type}] ${JSON.stringify(logEntry.details)}`);
+      } else {
+        console.log(`[${level.toUpperCase()}][${logEntry.type}] ${JSON.stringify(logEntry.details)}`);
+      }
+    }
+
     return customId; // Return the generated ID
   } catch (error) {
     console.error(`Error adding log entry to ${collectionName}:`, error);
@@ -99,6 +182,7 @@ export const addLogEntry = async (logEntry: LogEntry, collectionName: string): P
 };
 
 /**
+ * ปรับปรุงฟังก์ชันที่ใช้ navigator object
  * Get browser user agent safely
  */
 export const getSafeUserAgent = (): string => {
@@ -106,7 +190,9 @@ export const getSafeUserAgent = (): string => {
     return 'Server Side Rendering';
   }
   try {
-    return window?.navigator?.userAgent || 'Browser (Unknown UA)';
+    return typeof navigator !== 'undefined' && navigator?.userAgent 
+      ? navigator.userAgent 
+      : 'Browser (Unknown UA)';
   } catch (error) {
     console.error('Error getting user agent:', error);
     return 'Error Getting User Agent';
@@ -122,7 +208,12 @@ export const getDeviceInfo = (): { deviceType: string; browserName: string } => 
       return { deviceType: 'Server', browserName: 'None' };
     }
 
-    const ua = window.navigator.userAgent;
+    // ตรวจสอบการมีอยู่ของ navigator และ userAgent 
+    if (typeof navigator === 'undefined' || !navigator.userAgent) {
+      return { deviceType: 'Unknown', browserName: 'Unknown' };
+    }
+
+    const ua = navigator.userAgent;
     const uaLower = ua.toLowerCase(); // Use lowercase for consistent checks
 
     let browserName = 'Unknown';
@@ -161,6 +252,25 @@ export const getDeviceInfo = (): { deviceType: string; browserName: string } => 
     console.error('Error detecting device:', error);
     return { deviceType: 'Unknown', browserName: 'Unknown' };
   }
+};
+
+/**
+ * Get client IP address if possible (note: may only work in server components/API routes)
+ * 
+ * Note: This function can only reliably get IP in server-side contexts.
+ * Client-side will always return 'Client IP Unavailable'.
+ * 
+ * For accurate IP logging, use a server endpoint that has access to request headers.
+ */
+export const getClientIP = (): string => {
+  if (typeof window === 'undefined') {
+    // Server-side context - ในสภาพแวดล้อมจริงควรดึง IP จาก request headers
+    // เช่น x-forwarded-for, x-real-ip ใน Next.js API routes หรือ middleware
+    return 'Server Side - IP Should Be Obtained From Request';
+  }
+  
+  // Client-side cannot reliably get IP address without a service
+  return 'Client IP Unavailable';
 };
 
 /**
@@ -327,7 +437,6 @@ export const logUserActivity = async (
 };
 
 // Example of logging page access (modify if needed)
-// Assuming logPageAccess exists elsewhere or needs modification
 export const logPageAccess = async (user: any, pagePath: string): Promise<void> => {
     try {
         const deviceInfo = getDeviceInfo();

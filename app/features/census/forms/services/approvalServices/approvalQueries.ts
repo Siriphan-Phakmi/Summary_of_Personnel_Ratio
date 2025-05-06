@@ -30,6 +30,7 @@ export const getPendingForms = async (
     wardId?: string;
     shift?: ShiftType;
     status?: FormStatus | '';
+    createdBy?: string;
   } = {}
 ): Promise<WardForm[]> => {
   try {
@@ -53,6 +54,11 @@ export const getPendingForms = async (
     // Handle status filter: only add if status is provided and not an empty string
     if (typeof filters.status === 'string' && filters.status !== '') {
       queryConstraints.push(where('status', '==', filters.status as FormStatus));
+    }
+    
+    // เพิ่มการกรองตาม createdBy ถ้ามีการส่งค่ามา
+    if (filters.createdBy) {
+      queryConstraints.push(where('createdBy', '==', filters.createdBy));
     }
     
     // Add default ordering

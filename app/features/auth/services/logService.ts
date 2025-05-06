@@ -5,7 +5,10 @@ import {
     addLogEntry as utilsAddLogEntry,
     SYSTEM_LOGS_COLLECTION,
     LogType,
-    getDeviceInfo
+    getDeviceInfo,
+    LogLevel,
+    getSafeUserAgent,
+    getClientIP
 } from '@/app/core/utils/logUtils';
 import { logServerAction } from './logServerAction';
 
@@ -49,24 +52,43 @@ export const logLogin = async (
   }
 
   try {
-    // แสดง log เฉพาะในโหมด development
-    devLog(`[BPK-LOG] User logged in: ${user.username} (${user.uid}) with role: ${user.role}`);
+    // ดึงข้อมูลอุปกรณ์
+    const deviceInfo = getDeviceInfo();
+    const userAgentStr = userAgent || getSafeUserAgent();
+    const ipAddress = getClientIP();
     
+    // สร้าง log details
+    const details = {
+      timestamp: new Date().toISOString(),
+      deviceType: deviceInfo.deviceType,
+      browserName: deviceInfo.browserName,
+      role: user.role,
+      ipAddress: ipAddress,
+      success: true
+    };
+
+    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
+    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
+
     // สร้าง safe user object สำหรับ server action
     const safeUser = createSafeUserObject(user);
     
-    // บันทึก log ในฝั่ง server
+    // บันทึก log ในฝั่ง server (สำหรับ development)
     await logServerAction('login', safeUser, {
-      timestamp: new Date().toISOString(),
-      userAgent: userAgent || navigator.userAgent
+      ...details,
+      userAgent: userAgentStr
     });
     
     // บันทึก log ในฐานข้อมูล
-    await utilsLogLogin(
-      user.uid, 
-      user.username, 
-      userAgent || navigator.userAgent
-    );
+    await utilsAddLogEntry({
+      type: LogType.AUTH_LOGIN,
+      userId: user.uid,
+      username: user.username,
+      details,
+      userAgent: userAgentStr,
+      ipAddress,
+      logLevel: LogLevel.INFO
+    }, SYSTEM_LOGS_COLLECTION);
   } catch (error) {
     console.error('Failed to log login:', error);
   }
@@ -87,24 +109,42 @@ export const logLogout = async (
   }
 
   try {
-    // แสดง log เฉพาะในโหมด development
-    devLog(`[BPK-LOG] User logged out: ${user.username} (${user.uid}) with role: ${user.role}`);
+    // ดึงข้อมูลอุปกรณ์
+    const deviceInfo = getDeviceInfo();
+    const userAgentStr = userAgent || getSafeUserAgent();
+    const ipAddress = getClientIP();
     
+    // สร้าง log details
+    const details = {
+      timestamp: new Date().toISOString(),
+      deviceType: deviceInfo.deviceType,
+      browserName: deviceInfo.browserName,
+      role: user.role,
+      ipAddress: ipAddress
+    };
+
+    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
+    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
+
     // สร้าง safe user object สำหรับ server action
     const safeUser = createSafeUserObject(user);
     
-    // บันทึก log ในฝั่ง server
+    // บันทึก log ในฝั่ง server (สำหรับ development)
     await logServerAction('logout', safeUser, {
-      timestamp: new Date().toISOString(),
-      userAgent: userAgent || navigator.userAgent
+      ...details,
+      userAgent: userAgentStr
     });
     
     // บันทึก log ในฐานข้อมูล
-    await utilsLogLogout(
-      user.uid, 
-      user.username, 
-      userAgent || navigator.userAgent
-    );
+    await utilsAddLogEntry({
+      type: LogType.AUTH_LOGOUT,
+      userId: user.uid,
+      username: user.username,
+      details,
+      userAgent: userAgentStr,
+      ipAddress,
+      logLevel: LogLevel.INFO
+    }, SYSTEM_LOGS_COLLECTION);
   } catch (error) {
     console.error('Failed to log logout:', error);
   }
@@ -133,34 +173,42 @@ export const logPageAccess = async (
   }
 
   try {
-    // แสดง log เฉพาะในโหมด development
-    devLog(`[BPK-LOG] User ${user.username || user.uid} (${user.role}) accessed page: ${page}`);
+    // ดึงข้อมูลอุปกรณ์
+    const deviceInfo = getDeviceInfo();
+    const userAgentStr = userAgent || getSafeUserAgent();
+    const ipAddress = getClientIP();
     
+    // สร้าง log details
+    const details = {
+      page,
+      timestamp: new Date().toISOString(),
+      deviceType: deviceInfo.deviceType,
+      browserName: deviceInfo.browserName,
+      role: user.role,
+      ipAddress: ipAddress
+    };
+
+    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
+    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
+
     // สร้าง safe user object สำหรับ server action
     const safeUser = createSafeUserObject(user);
     
-    // บันทึก log ในฝั่ง server
+    // บันทึก log ในฝั่ง server (สำหรับ development)
     await logServerAction('page_access', safeUser, {
-      page,
-      timestamp: new Date().toISOString(),
-      userAgent: userAgent || navigator.userAgent
+      ...details,
+      userAgent: userAgentStr
     });
     
-    // ใช้ addLogEntry แทนเนื่องจากไม่มีฟังก์ชัน logPageAccess ใน logUtils
-    const deviceInfo = getDeviceInfo();
-
+    // บันทึก log ในฐานข้อมูล
     await utilsAddLogEntry({
-      type: 'page.access', // สร้าง type ใหม่สำหรับการเข้าถึงหน้า
+      type: 'page.access',
       userId: user.uid,
       username: user.username,
-      details: {
-        page,
-        timestamp: new Date().toISOString(),
-        deviceType: deviceInfo.deviceType,
-        browserName: deviceInfo.browserName,
-        role: user.role
-      },
-      userAgent: userAgent || navigator.userAgent
+      details,
+      userAgent: userAgentStr,
+      ipAddress,
+      logLevel: LogLevel.INFO
     }, SYSTEM_LOGS_COLLECTION);
   } catch (error) {
     console.error('Failed to log page access:', error);

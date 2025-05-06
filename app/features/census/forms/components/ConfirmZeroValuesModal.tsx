@@ -25,7 +25,7 @@ const ConfirmZeroValuesModal: React.FC<ConfirmZeroValuesModalProps> = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="ยืนยันการบันทึกข้อมูล" titleIcon={FiInfo}>
+    <Modal isOpen={isOpen} onClose={onClose} title="ยืนยันการบันทึกข้อมูล">
       <div className="p-6 text-center sm:text-left">
         <div className="flex items-center justify-center sm:justify-start mb-4">
           <FiInfo className="h-6 w-6 text-blue-500 mr-2" aria-hidden="true" />

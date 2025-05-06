@@ -29,6 +29,7 @@ import DraftNotification from './components/DraftNotification';
 // Import FormStatus correctly
 import { ShiftType, FormStatus, WardForm } from '@/app/core/types/ward';
 import { getShiftStatusesForDay } from './services/wardFormService';
+import { UserRole } from '@/app/core/types/user';
 
 export default function DailyCensusForm() {
   const { user: currentUser } = useAuth();
@@ -49,23 +50,31 @@ export default function DailyCensusForm() {
   useEffect(() => {
     const loadWards = async () => {
       if (!currentUser) return;
-      setIsWardLoading(true);
+
       try {
+        setIsWardLoading(true);
         const userWards = await getWardsByUserPermission(currentUser);
         setWards(userWards);
-        if (userWards.length > 0 && !selectedWard) {
-          // Find the first ward that has a business wardId and set it
-          const firstValidWard = userWards.find(w => w.wardId);
-          if (firstValidWard) {
-              setSelectedWard(firstValidWard.id);
-              console.log("[DailyCensusForm] Auto-selected first valid ward:", firstValidWard.id, "Business ID:", firstValidWard.wardId);
+
+        // เช็คว่าเป็น NURSE หรือ VIEWER หรือไม่
+        if ((currentUser.role === UserRole.NURSE || currentUser.role === UserRole.VIEWER) && currentUser.floor) {
+          // ค้นหา ward ที่ตรงกับ user.floor
+          const userWard = userWards.find(ward => ward.id === currentUser.floor);
+          if (userWard) {
+            // ตั้งค่า ward และล็อคการเปลี่ยนแปลง
+            setSelectedWard(userWard.id);
+            // ไม่ต้องถามเพิ่มเติม เนื่องจากมีเพียง ward เดียวที่สามารถเข้าถึงได้
           } else {
-              console.warn("[DailyCensusForm] No valid wards with business wardId found.");
+            console.warn(`[DailyCensusForm] User with floor ${currentUser.floor} does not have access to that ward.`);
+            showErrorToast('คุณไม่มีสิทธิ์ในการเข้าถึงแผนกที่กำหนดไว้');
           }
+        } else if (userWards.length > 0) {
+          // สำหรับผู้ใช้อื่นๆ ให้เลือกแผนกแรก
+          setSelectedWard(userWards[0].id);
         }
       } catch (error) {
-        console.error("Error loading wards:", error);
-        showErrorToast('ไม่สามารถโหลดข้อมูลวอร์ดได้');
+        console.error('Error loading wards:', error);
+        showErrorToast('ไม่สามารถโหลดข้อมูลแผนกได้');
       } finally {
         setIsWardLoading(false);
       }
@@ -262,7 +271,15 @@ export default function DailyCensusForm() {
   };
 
   const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedWard(e.target.value);
+    const wardId = e.target.value;
+    
+    // ตรวจสอบสิทธิ์ในการเลือก ward
+    if ((currentUser?.role === UserRole.NURSE || currentUser?.role === UserRole.VIEWER) && currentUser?.floor && wardId !== currentUser.floor) {
+      showErrorToast('คุณสามารถเลือกได้เฉพาะแผนกที่ได้รับมอบหมายเท่านั้น');
+      return;
+    }
+    
+    setSelectedWard(wardId);
     // Reset statuses immediately when ward changes to avoid showing stale status
     setActualMorningStatus(null);
     setActualNightStatus(null);
@@ -316,11 +333,17 @@ export default function DailyCensusForm() {
                     value={selectedWard}
                     onChange={handleWardChange}
                     className="form-input"
-                    disabled={isFormLocked} // <<< Disable Ward select when form is locked
+                    disabled={!!isFormLocked || !!((currentUser?.role === UserRole.NURSE || currentUser?.role === UserRole.VIEWER) && currentUser?.floor)}
                   >
                     <option value="" disabled>-- เลือกหอผู้ป่วย --</option>
                   {wards.map((ward) => (
-                      <option key={ward.id} value={ward.id}>{ward.wardName}</option>
+                      <option 
+                        key={ward.id} 
+                        value={ward.id}
+                        disabled={!!((currentUser?.role === UserRole.NURSE || currentUser?.role === UserRole.VIEWER) && currentUser?.floor && ward.id !== currentUser.floor)}
+                      >
+                        {ward.wardName}
+                      </option>
                   ))}
                 </select>
                 </div>
@@ -384,7 +407,7 @@ export default function DailyCensusForm() {
 
               {/* หมายเหตุเกี่ยวกับค่า 0 */}
               <div className={noteStyles}>
-                <p><strong>หมายเหตุ:</strong> สามารถกรอกค่า 0 ได้ แต่ไม่สามารถปล่อยช่องว่างได้ ถ้าไม่มีข้อมูลให้กรอก 0</p>
+                <p><strong>หมายเหตุ:</strong> สามารถกรอกค่า 0 ได้ แต่ไม่สามารถกรอกค่าว่างได้ ถ้าไม่มีข้อมูลให้กรอก 0</p>
               </div>
 
               {/* Action Buttons */} 
