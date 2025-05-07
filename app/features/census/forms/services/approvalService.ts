@@ -166,7 +166,7 @@ export const saveDailySummary = async (
 
 /**
  * ดึงข้อมูลสรุปประจำวัน
- * @param filters เงื่อนไขในการกรอง (วันที่, แผนก)
+ * @param filters เงื่อนไขในการกรอง (วันที่, แผนก, และสถานะการอนุมัติ)
  * @returns รายการข้อมูลสรุปประจำวัน
  */
 export const getDailySummariesByFilters = async (
@@ -174,6 +174,7 @@ export const getDailySummariesByFilters = async (
     startDate?: Date;
     endDate?: Date;
     wardId?: string;
+    approvedOnly?: boolean;
   } = {}
 ): Promise<DailySummary[]> => {
   try {

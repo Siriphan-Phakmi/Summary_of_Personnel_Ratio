@@ -13,6 +13,14 @@ import { Ward } from '@/app/core/types/ward';
 import { getApprovedSummariesByDateRange } from '@/app/features/census/forms/services/approvalServices/dailySummary';
 import { UserRole } from '@/app/core/types/user';
 
+// สร้าง StatCard component เพื่อใช้ซ้ำ (ถ้ายังไม่มี)
+const StatCard = ({ title, value }: { title: string; value: string | number }) => (
+  <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg shadow">
+    <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h4>
+    <p className="text-xl font-bold text-gray-800 dark:text-white">{value}</p>
+  </div>
+);
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [wards, setWards] = useState<Ward[]>([]);
@@ -28,6 +36,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadWards = async () => {
       if (!user) return;
+      
+      setLoading(true);
+      setError(null);
       
       try {
         const userWards = await getWardsByUserPermission(user);
@@ -92,23 +103,42 @@ export default function DashboardPage() {
       setError(null);
       
       try {
-        if (approvedOnly) {
-          // โหลดเฉพาะข้อมูลที่อนุมัติแล้ว
-          await loadApprovedSummaries();
-        } else {
-          // โหลดข้อมูลทั้งหมด
-          const filters = {
-            wardId: selectedWard,
-            startDate: new Date(startDate),
-            endDate: new Date(endDate)
-          };
+        let data: DailySummary[] = [];
+        
+        // ปรับการเรียก getDailySummariesByFilters
+        const filters = {
+          wardId: selectedWard,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          approvedOnly: approvedOnly // ส่งค่า approvedOnly เข้าไป
+        };
+        
+        data = await getDailySummariesByFilters(filters);
+        
+        // กรณีเป็น NURSE หรือ VIEWER กรองเฉพาะข้อมูลที่ตัวเองมีส่วนเกี่ยวข้อง
+        if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) {
+          // หากเป็นข้อมูลที่ตัวเองสร้างหรือแก้ไขล่าสุดเท่านั้น
+          const filteredData = data.filter(summary => 
+            summary.createdBy === user.uid || 
+            summary.lastUpdatedBy === user.uid ||
+            summary.morningFormId === user.uid ||
+            summary.nightFormId === user.uid
+          );
           
-          const data = await getDailySummariesByFilters(filters);
+          if (filteredData.length === 0 && data.length > 0) {
+            console.log("[DashboardPage] Data filtered from", data.length, "to 0 for NURSE/VIEWER");
+            setError('ไม่พบข้อมูลที่คุณมีส่วนเกี่ยวข้อง');
+          }
+          
+          setSummaries(filteredData);
+        } else {
+          // Admin, Approver หรือบทบาทอื่นๆ เห็นข้อมูลทั้งหมดตามสิทธิ์
           setSummaries(data);
         }
       } catch (err) {
         console.error('Error loading summaries:', err);
         setError('ไม่สามารถโหลดข้อมูลสรุปได้');
+        setSummaries([]); // เคลียร์ข้อมูลเมื่อเกิด error
       } finally {
         setLoading(false);
       }
@@ -116,22 +146,6 @@ export default function DashboardPage() {
     
     loadSummaries();
   }, [selectedWard, startDate, endDate, approvedOnly, user]);
-
-  // โหลดเฉพาะข้อมูลที่ได้รับการอนุมัติแล้ว
-  const loadApprovedSummaries = async () => {
-    try {
-      const approvedData = await getApprovedSummariesByDateRange(
-        selectedWard, 
-        new Date(startDate), 
-        new Date(endDate)
-      );
-      setSummaries(approvedData);
-    } catch (err) {
-      console.error('Error loading approved summaries:', err);
-      setError('ไม่สามารถโหลดข้อมูลที่อนุมัติแล้ว');
-      throw err;
-    }
-  };
 
   // สร้างฟังก์ชันสำหรับคำนวณค่าเฉลี่ย
   const calculateAverage = (values: number[]): number => {
@@ -192,179 +206,224 @@ export default function DashboardPage() {
 
   return (
     <ProtectedPage>
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-        <NavBar />
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">รายงานและแดชบอร์ด</h1>
-          
-          {/* Controls */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <NavBar />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col space-y-6">
+            {/* Page Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between pb-4 border-b dark:border-gray-700">
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  เลือกแผนก
-                </label>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-1">รายงานแผนกและอัตรากำลัง</h1>
+                <p className="text-gray-600 dark:text-gray-400">ข้อมูลสรุปผู้ป่วยและอัตรากำลังพยาบาลตามช่วงวันที่</p>
+              </div>
+            </div>
+            
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm mb-6">
+              <div>
+                <label htmlFor="wardSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">เลือกแผนก</label>
                 <select
+                  id="wardSelect"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                   value={selectedWard}
                   onChange={(e) => setSelectedWard(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm 
-                  focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
-                  dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  disabled={!canSelectAnyWard}
                 >
-                  <option value="">-- เลือกแผนก --</option>
+                  <option value="">เลือกแผนก</option>
                   {wards.map((ward) => (
-                    <option 
-                      key={ward.id} 
-                      value={ward.id}
-                      disabled={!canSelectAnyWard && ward.id !== (user?.floor || '')}
-                    >
-                      {ward.wardName}
-                    </option>
+                    <option key={ward.id} value={ward.id}>{ward.wardName}</option>
                   ))}
                 </select>
               </div>
               
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  วันที่เริ่มต้น
-                </label>
+                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">วันที่เริ่มต้น</label>
                 <input
+                  id="startDate"
                   type="date"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm 
-                  focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
-                  dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
               
               <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  วันที่สิ้นสุด
-                </label>
+                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">วันที่สิ้นสุด</label>
                 <input
+                  id="endDate"
                   type="date"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm 
-                  focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
-                  dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
               </div>
-            </div>
-            <div className="flex items-center mt-2">
-              <label className="inline-flex items-center">
-                <input
-                  type="checkbox"
-                  checked={approvedOnly}
-                  onChange={(e) => setApprovedOnly(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">แสดงเฉพาะข้อมูลที่อนุมัติแล้ว</span>
-              </label>
-            </div>
-          </div>
-          
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">ผู้ป่วยเฉลี่ย/วัน</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgPatientCensus.toFixed(1)}</p>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">พยาบาลเฉลี่ย/วัน</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgNurseTotal.toFixed(1)}</p>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">อัตราส่วนพยาบาล:ผู้ป่วย</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgNurseRatio.toFixed(2)}</p>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">รับใหม่ทั้งหมด</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalAdmissions}</p>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">จำหน่ายทั้งหมด</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalDischarges}</p>
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">OPD เฉลี่ย/วัน</h3>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgOPD.toFixed(1)}</p>
-            </div>
-          </div>
-          
-          {/* Data Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">รายงานสรุปรายวัน</h2>
-            </div>
-            
-            {loading ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-600 dark:text-gray-300">กำลังโหลดข้อมูล...</p>
+              
+              <div className="md:col-span-3 flex items-center mt-2">
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={approvedOnly}
+                    onChange={() => setApprovedOnly(!approvedOnly)}
+                  />
+                  <div className={`w-10 h-5 rounded-full ${approvedOnly ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} relative inline-flex flex-shrink-0 transition-colors duration-200`}>
+                    <span className={`w-4 h-4 rounded-full bg-white absolute top-0.5 left-0.5 transition-transform duration-200 transform ${approvedOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                  <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">แสดงเฉพาะข้อมูลที่อนุมัติแล้ว</span>
+                </label>
               </div>
-            ) : error ? (
-              <div className="p-8 text-center">
-                <p className="text-red-500">{error}</p>
+            </div>
+            
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-blue-500 dark:border-blue-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">ผู้ป่วยเฉลี่ย/วัน</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgPatientCensus.toFixed(1)}</p>
               </div>
-            ) : summaries.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-gray-600 dark:text-gray-300">ไม่พบข้อมูล กรุณาเลือกแผนกและช่วงวันที่อื่น</p>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-green-500 dark:border-green-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">พยาบาลเฉลี่ย/วัน</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgNurseTotal.toFixed(1)}</p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-700">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">วันที่</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ผู้ป่วยกะเช้า</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ผู้ป่วยกะดึก</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">พยาบาลเช้า</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">พยาบาลดึก</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">รับใหม่</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">จำหน่าย</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">อัตราส่วน</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {summaries.map((summary) => (
-                      <tr key={summary.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {formatThaiDate(summary.dateString)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.morningPatientCensus}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.nightPatientCensus}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.morningNurseTotal}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.nightNurseTotal}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.dailyAdmitTotal}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.dailyDischargeAllTotal}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
-                          {summary.dailyNurseRatio ? summary.dailyNurseRatio.toFixed(2) : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-purple-500 dark:border-purple-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">อัตราส่วนพยาบาล:ผู้ป่วย</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgNurseRatio.toFixed(2)}</p>
               </div>
-            )}
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-yellow-500 dark:border-yellow-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">รับใหม่ทั้งหมด</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalAdmissions}</p>
+              </div>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-red-500 dark:border-red-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">จำหน่ายทั้งหมด</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.totalDischarges}</p>
+              </div>
+              
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 border-teal-500 dark:border-teal-600">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">OPD เฉลี่ย/วัน</h3>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white">{stats.avgOPD.toFixed(1)}</p>
+              </div>
+            </div>
+            
+            {/* Data Table and Shift Details */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">รายงานสรุปรายวัน</h2>
+              </div>
+              
+              {/* Results */}
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600 dark:text-gray-400">กำลังโหลดข้อมูล...</p>
+                </div>
+              ) : error ? (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-red-500 dark:text-red-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-700 dark:text-red-300 font-medium mb-2">{error}</p>
+                  <p className="text-red-600 dark:text-red-400 text-sm">โปรดลองเลือกช่วงวันที่และแผนกอีกครั้ง</p>
+                </div>
+              ) : summaries.length === 0 ? (
+                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-8 text-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">ไม่พบข้อมูลในช่วงเวลาที่เลือก</h3>
+                  <p className="text-gray-500 dark:text-gray-400">ลองเลือกช่วงวันที่อื่น หรือ ตรวจสอบว่าได้เลือกแผนกถูกต้องหรือไม่</p>
+                  {approvedOnly && (
+                    <p className="mt-3 text-sm text-blue-600 dark:text-blue-400">
+                      ลองยกเลิกตัวเลือก "แสดงเฉพาะข้อมูลที่อนุมัติแล้ว" เพื่อดูข้อมูลทั้งหมด
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Shift Details Section */}
+                  {summaries.map((summary) => (
+                    <div key={summary.id + '-details'} className="p-6 border-b dark:border-gray-700">
+                      <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-3">
+                        รายละเอียดข้อมูลวันที่: {formatThaiDate(summary.dateString)} ({summary.wardName})
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Morning Shift Data */}
+                        <div className="bg-blue-50 dark:bg-blue-900/30 p-5 rounded-lg shadow">
+                          <h4 className="text-md font-semibold text-blue-800 dark:text-blue-300 mb-4 pb-2 border-b border-blue-200 dark:border-blue-800">กะเช้า (Morning)</h4>
+                          <div className="space-y-3 text-sm">
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำนวนผู้ป่วย:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.morningPatientCensus || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำนวนพยาบาล:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.morningNurseTotal || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">อัตราส่วน:</span> <span className="font-bold text-gray-900 dark:text-white">{(summary.morningNurseRatio || 0).toFixed(2)}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">รับเข้า:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.morningAdmitTotal || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำหน่าย:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.morningDischargeTotal || 0}</span></p>
+                          </div>
+                        </div>
+                        {/* Night Shift Data */}
+                        <div className="bg-indigo-50 dark:bg-indigo-900/30 p-5 rounded-lg shadow">
+                          <h4 className="text-md font-semibold text-indigo-800 dark:text-indigo-300 mb-4 pb-2 border-b border-indigo-200 dark:border-indigo-800">กะดึก (Night)</h4>
+                          <div className="space-y-3 text-sm">
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำนวนผู้ป่วย:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.nightPatientCensus || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำนวนพยาบาล:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.nightNurseTotal || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">อัตราส่วน:</span> <span className="font-bold text-gray-900 dark:text-white">{(summary.nightNurseRatio || 0).toFixed(2)}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">รับเข้า:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.nightAdmitTotal || 0}</span></p>
+                            <p className="flex justify-between"><span className="font-medium text-gray-700 dark:text-gray-300">จำหน่าย:</span> <span className="font-bold text-gray-900 dark:text-white">{summary.nightDischargeTotal || 0}</span></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Existing Data Table (สรุปแบบตาราง) */}
+                  <div className="overflow-x-auto mt-6">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead>
+                        <tr className="bg-gray-100 dark:bg-gray-800">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b dark:border-gray-700">วันที่</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider border-b dark:border-gray-700">ผู้ป่วยกะเช้า</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wider border-b dark:border-gray-700">ผู้ป่วยกะดึก</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider border-b dark:border-gray-700">พยาบาลเช้า</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wider border-b dark:border-gray-700">พยาบาลดึก</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wider border-b dark:border-gray-700">รับใหม่</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wider border-b dark:border-gray-700">จำหน่าย</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wider border-b dark:border-gray-700">อัตราส่วน</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {summaries.map((summary, index) => (
+                          <tr key={summary.id} className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900/50"}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                              {formatThaiDate(summary.dateString)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 dark:text-blue-300 font-medium">
+                              {summary.morningPatientCensus}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-indigo-600 dark:text-indigo-300 font-medium">
+                              {summary.nightPatientCensus}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                              {summary.morningNurseTotal}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                              {summary.nightNurseTotal}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 dark:text-green-400 font-medium">
+                              {summary.dailyAdmitTotal}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 dark:text-red-400 font-medium">
+                              {summary.dailyDischargeAllTotal}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-purple-600 dark:text-purple-300 font-medium">
+                              {summary.dailyNurseRatio ? summary.dailyNurseRatio.toFixed(2) : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

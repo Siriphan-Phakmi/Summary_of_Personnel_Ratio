@@ -102,6 +102,7 @@ export const useWardFormData = ({
   const [isFormDirty, setIsFormDirty] = useState(false); // NEW: track if form has been modified
   const [showConfirmOverwriteModal, setShowConfirmOverwriteModal] = useState(false); // NEW: State for confirmation modal
   const [selectedWardObject, setSelectedWardObject] = useState<Ward | null>(null); // Store the selected ward object
+  const [initialNightCensusFromMorning, setInitialNightCensusFromMorning] = useState<number | null>(null);
 
   // --- NEW State for Zero Confirmation ---
   const [showConfirmZeroModal, setShowConfirmZeroModal] = useState(false);
@@ -129,6 +130,7 @@ export const useWardFormData = ({
         setIsDraftLoaded(false);
         setIsFinalDataFound(false);
         // Keep isFormDirty as is, reset only on selection change or successful save
+        setInitialNightCensusFromMorning(null); // Reset every time data loads
 
         try {
             const targetDate = new Date(selectedDate + 'T00:00:00');
@@ -364,6 +366,7 @@ export const useWardFormData = ({
                          ) {
                              // Prefill night census from morning shift
                              initialData.patientCensus = Number(morningForm.patientCensus);
+                             setInitialNightCensusFromMorning(Number(morningForm.patientCensus));
                              setIsCensusAutoCalculated(true);
                              console.log('[useWardFormData] Setting night census from MORNING FINAL/APPROVED form:', initialData.patientCensus);
                              showSafeToast(
@@ -445,46 +448,103 @@ export const useWardFormData = ({
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-
-    let processedValue: string | number | undefined;
+    let processedValue: string | number | undefined | null = value;
 
     if (type === 'number') {
-      // Allow empty string to clear the field, store as undefined
       if (value === '') {
         processedValue = undefined;
-      } else if (!isNaN(Number(value)) && Number(value) >= 0) {
-        // Check if it's a non-negative number
-        // Use Number() to handle leading zeros correctly (e.g., "05" becomes 5)
-        processedValue = Number(value);
       } else {
-        // Invalid input (not a number, negative, or other characters)
-        // Prevent updating the state with invalid numeric values
-        console.warn(`[handleChange] Invalid number input ignored for field "${name}":`, value);
-        return; // Stop the update for invalid number input
+        const numValue = parseFloat(value);
+        processedValue = isNaN(numValue) ? undefined : numValue;
       }
-    } else {
-      // For non-number types, use the value directly
-      processedValue = value;
     }
 
-    setFormData(prev => ({
-      ...prev,
-      [name]: processedValue,
-      // Automatically update isDraft flag when user edits
-      isDraft: true,
-      status: FormStatus.DRAFT, // Ensure status reflects draft when editing
-    }));
+    // If user directly edits patientCensus for NIGHT shift, clear the auto-filled morning census marker
+    if (name === 'patientCensus' && selectedShift === ShiftType.NIGHT) {
+      setInitialNightCensusFromMorning(null);
+      // Also, potentially mark that census is now manually set if that flag is needed elsewhere
+      // setIsCensusAutoCalculated(false); // Or a more specific flag for night shift manual override
+    }
 
-    // Set form as dirty when user makes changes
-    setIsFormDirty(true);
+    setFormData(prevData => {
+      const newData = {
+        ...prevData,
+        [name]: processedValue,
+      };
 
-    // Clear the error for the field being changed
+      // Auto-recalculate Night Shift Patient Census if an admission/discharge field changed
+      if (selectedShift === ShiftType.NIGHT && 
+          !isFormReadOnly &&
+          [
+            'newAdmit', 'transferIn', 'referIn', 
+            'discharge', 'transferOut', 'referOut', 'dead'
+          ].includes(name) &&
+          newData.patientCensus !== undefined // Ensure there was a patient census to begin with for night shift (use newData here as it's already updated if patientCensus itself was changed)
+      ) {
+        let baseNightCensusForCalculation: number;
+
+        if (initialNightCensusFromMorning !== null && name !== 'patientCensus') {
+          baseNightCensusForCalculation = initialNightCensusFromMorning;
+        } else {
+          // ใช้ค่า patientCensus ก่อนหน้าการเปลี่ยนแปลงครั้งนี้เป็น base
+          baseNightCensusForCalculation = parseFloat(String(prevData.patientCensus)); 
+        }
+        
+        if (isNaN(baseNightCensusForCalculation)) {
+            console.warn("[useWardFormData] Base for night census calculation is NaN. Aborting recalculation for this change.", 
+                         { baseValueSource: name === 'patientCensus' ? processedValue : newData.patientCensus });
+            setIsFormDirty(true);
+            console.log("[handleChange before return in NaN base] Final newData:", JSON.stringify(newData, null, 2));
+            return newData; 
+        }
+
+        // Use values from newData for fields NOT being currently changed, and processedValue for the one that is.
+        const nightAdmissions = 
+          (Number(name === 'newAdmit'    ? processedValue : (newData.newAdmit    ?? 0))) +
+          (Number(name === 'transferIn'  ? processedValue : (newData.transferIn  ?? 0))) +
+          (Number(name === 'referIn'     ? processedValue : (newData.referIn     ?? 0)));
+
+        const nightDischarges = 
+          (Number(name === 'discharge'   ? processedValue : (newData.discharge   ?? 0))) +
+          (Number(name === 'transferOut' ? processedValue : (newData.transferOut ?? 0))) +
+          (Number(name === 'referOut'    ? processedValue : (newData.referOut    ?? 0))) +
+          (Number(name === 'dead'        ? processedValue : (newData.dead        ?? 0)));
+        
+        // If the field being changed is an admission/discharge field, 
+        // the patient census needs to be recalculated based on its *previous* value + delta.
+        // If patientCensus itself was changed, that's the new value already set in newData.
+        if (name !== 'patientCensus') {
+            // ปรับการคำนวณให้ใช้ base ที่ถูกต้อง
+            let actualBaseForCalculation = initialNightCensusFromMorning !== null 
+                                           ? initialNightCensusFromMorning 
+                                           : parseFloat(String(prevData.patientCensus)); // ใช้ค่าก่อนการเปลี่ยนแปลง
+
+            if (isNaN(actualBaseForCalculation)) {
+                console.warn("[useWardFormData] actualBaseForCalculation is NaN.", { prevDataCensus: prevData.patientCensus });
+                actualBaseForCalculation = 0; // Fallback to 0 if NaN
+            }
+
+            const calculatedNightCensus = actualBaseForCalculation + nightAdmissions - nightDischarges;
+            newData.patientCensus = Math.max(0, calculatedNightCensus);
+            console.log(`[useWardFormData] Night census auto-recalculated (adm/disc change): Base=${actualBaseForCalculation}, Adm=${nightAdmissions}, Disc=${nightDischarges}, Result=${newData.patientCensus}`);
+        } else {
+            // If patientCensus itself was changed, `newData.patientCensus` already holds `processedValue`.
+            // No further calculation needed here for patientCensus based on adm/disc.
+            console.log(`[useWardFormData] Night patientCensus changed directly to: ${newData.patientCensus}`);
+        }
+      }
+      setIsFormDirty(true); // Always set form dirty on change
+      console.log("[handleChange before return] Final newData:", JSON.stringify(newData, null, 2));
+      return newData;
+    });
+
+    // Validate on change if there was an error for this field
     if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
+      const fieldError = validateField(name as keyof WardForm, processedValue);
+      setErrors(prevErrors => ({
+        ...prevErrors,
+        [name]: fieldError || '', 
+      }));
     }
   };
 

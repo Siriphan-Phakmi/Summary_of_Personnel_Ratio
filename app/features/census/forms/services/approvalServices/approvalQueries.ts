@@ -171,7 +171,7 @@ export const getApprovedForms = async (
 
 /**
  * ค้นหาข้อมูลสรุปประจำวัน
- * @param filters เงื่อนไขในการค้นหา
+ * @param filters เงื่อนไขในการค้นหา (รวมถึง approvedOnly)
  * @returns ข้อมูลสรุปประจำวัน
  */
 export const getDailySummaries = async (
@@ -179,6 +179,7 @@ export const getDailySummaries = async (
     startDate?: Date;
     endDate?: Date;
     wardId?: string;
+    approvedOnly?: boolean;
   } = {}
 ): Promise<DailySummary[]> => {
   try {
@@ -193,6 +194,11 @@ export const getDailySummaries = async (
     if (filters.wardId) {
       queryConstraints.push(where('wardId', '==', filters.wardId.toUpperCase()));
     }
+    
+    // เพิ่มเงื่อนไขสำหรับ approvedOnly
+    if (filters.approvedOnly === true) {
+      queryConstraints.push(where('allFormsApproved', '==', true));
+    }
 
     // Order by date descending by default
     queryConstraints.push(orderBy('date', 'desc'));
@@ -205,7 +211,7 @@ export const getDailySummaries = async (
     );
     
     if (summaries === null) {
-      console.warn('[getDailySummaries] Query failed due to missing index. Returning empty array.');
+      console.warn('[getDailySummaries] Query failed due to missing index or other issues. Returning empty array.');
       return [];
     }
     
@@ -214,13 +220,13 @@ export const getDailySummaries = async (
   } catch (error) {
     console.error('Error fetching daily summaries:', error);
     
-    // ตรวจสอบว่าเป็น index error หรือไม่
+    // ตรวจสอบว่าเป็น index error หรือไม่ และจัดการตามนั้น
     if (!handleIndexError(error, 'ApprovalQueries.getDailySummaries')) {
-      throw error; // ถ้าไม่ใช่ index error ให้ throw error ต่อไป
+      // ถ้าไม่ใช่ index error ที่จัดการได้ ให้ throw error ต่อไป หรือคืน array ว่างตามความเหมาะสม
+      // ในที่นี้เราจะคืน array ว่างเพื่อไม่ให้หน้าแอปพัง แต่ควรมีการ log ที่ละเอียดกว่านี้
+      console.error('Unhandled error in getDailySummaries:', error);
     }
-    
-    // ถ้าเป็น index error ให้คืนค่า array ว่าง
-    return [];
+    return []; // คืนค่า array ว่างเสมอเมื่อเกิด error เพื่อป้องกันหน้าแอปพัง
   }
 };
 

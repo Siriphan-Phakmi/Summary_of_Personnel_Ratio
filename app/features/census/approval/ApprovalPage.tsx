@@ -330,12 +330,14 @@ export default function ApprovalPage() {
         // Admin เห็นทั้งหมด สามารถกรองตาม wardFilter ได้
         filter.wardId = wardFilter || undefined;
         fetchedForms = await getApprovalsByUserPermission(user, filter);
+        setForms(fetchedForms);
       }
       // ผู้อนุมัติเห็นเฉพาะแผนกที่มีสิทธิ์
       else if (user.role === UserRole.APPROVER) {
         // Approver ใช้ wardFilter เมื่อกรอง แต่ตัว service จะจำกัดเฉพาะแผนกที่มีสิทธิ์
         filter.wardId = wardFilter || undefined;
         fetchedForms = await getApprovalsByUserPermission(user, filter);
+        setForms(fetchedForms);
       }
       // ผู้ใช้ทั่วไป (NURSE/VIEWER) เห็นเฉพาะแบบฟอร์มของตนเองและเฉพาะแผนกของตนเอง
       else if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) {
@@ -357,28 +359,29 @@ export default function ApprovalPage() {
             createdBy: user.uid // เพิ่มเงื่อนไขให้ดึงเฉพาะฟอร์มที่สร้างโดยผู้ใช้คนปัจจุบัน
           };
           
-          let fetchedForms = await getPendingForms(simpleFilter);
+          let userForms = await getPendingForms(simpleFilter);
           
           // ทำการกรองข้อมูลหลังจากดึงมาแล้ว (client-side filtering)
           if (selectedStatus !== 'all') {
-            fetchedForms = fetchedForms.filter(form => form.status === selectedStatus);
+            userForms = userForms.filter(form => form.status === selectedStatus);
           }
           
           // เรียงข้อมูลหลังจากกรอง
-          fetchedForms.sort((a, b) => {
+          userForms.sort((a, b) => {
             if (!a.dateString || !b.dateString) return 0;
             return b.dateString.localeCompare(a.dateString); // เรียงจากวันล่าสุด
           });
           
-          setForms(fetchedForms);
+          setForms(userForms);
         } catch (err) {
           console.error('Error in simplified query:', err);
           setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
           setForms([]);
         }
+      } else {
+        // กรณีอื่นๆ ที่ไม่ได้กำหนดไว้ข้างต้น
+        setForms([]);
       }
-      
-      setForms(fetchedForms);
     } catch (err) {
       console.error('Error fetching forms:', err);
       
