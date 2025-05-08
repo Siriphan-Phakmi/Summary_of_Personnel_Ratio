@@ -72,10 +72,10 @@ const generateCustomLogId = (
 /**
  * ลบ logs เก่าที่เกิน daysToKeep วัน
  * @param collectionName ชื่อ collection ที่ต้องการลบ logs ('systemLogs' หรือ 'userActivityLogs')
- * @param daysToKeep จำนวนวันที่ต้องการเก็บ logs (ค่าเริ่มต้น: 90 วัน)
+ * @param daysToKeep จำนวนวันที่ต้องการเก็บ logs (ค่าเริ่มต้น: 30 วัน)
  * @returns จำนวน logs ที่ถูกลบ
  */
-export const cleanupOldLogs = async (collectionName: string, daysToKeep: number = 90): Promise<number> => {
+export const cleanupOldLogs = async (collectionName: string, daysToKeep: number = 30): Promise<number> => {
   try {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -122,8 +122,37 @@ export const cleanupOldLogs = async (collectionName: string, daysToKeep: number 
   } catch (error) {
     console.error(`Error cleaning up old logs from ${collectionName}:`, error);
     return 0;
-    }
+  }
 };
+
+/**
+ * ทำความสะอาด logs ทั้งหมดโดยลบที่เก่ากว่า 30 วัน
+ * สามารถเรียกใช้เมื่อเริ่มแอปพลิเคชัน
+ */
+export const cleanupAllLogCollections = async (): Promise<void> => {
+  try {
+    if (typeof window !== 'undefined') {
+      // ตรวจสอบว่าเป็นการทำงานในฝั่ง Client (ไม่ใช่ SSR)
+      console.log('Starting log cleanup process...');
+      
+      // ลบ logs เก่ากว่า 30 วันจากทั้งสอง collection
+      const systemLogsDeleted = await cleanupOldLogs(SYSTEM_LOGS_COLLECTION, 30);
+      const userLogsDeleted = await cleanupOldLogs(USER_ACTIVITY_LOGS_COLLECTION, 30);
+      
+      console.log(`Log cleanup completed: Removed ${systemLogsDeleted} system logs and ${userLogsDeleted} user activity logs.`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up logs:', error);
+  }
+};
+
+// ให้เรียกใช้การลบ logs อัตโนมัติเมื่อโหลดไฟล์นี้ในฝั่ง client
+if (typeof window !== 'undefined') {
+  // ดีเลย์การลบ logs เพื่อให้แน่ใจว่าแอปโหลดเสร็จก่อน
+  setTimeout(() => {
+    cleanupAllLogCollections();
+  }, 5000); // รอ 5 วินาทีหลังจากโหลดไฟล์
+}
 
 /**
  * Add a log entry to the specified collection with a custom ID
@@ -137,6 +166,48 @@ export const addLogEntry = async (logEntry: LogEntry, collectionName: string): P
     // Default to INFO level if not specified
     if (!logEntry.logLevel) {
       logEntry.logLevel = LogLevel.INFO;
+    }
+
+    // ตรวจสอบว่าเป็น log ที่ควรบันทึกหรือไม่ (เพื่อลด log ที่ซ้ำซ้อน)
+    // ถ้าเป็น log ระดับ INFO หรือ DEBUG ให้ตรวจสอบ log ที่คล้ายกันในช่วง 5 นาที
+    if (logEntry.logLevel === LogLevel.INFO || logEntry.logLevel === LogLevel.DEBUG) {
+      try {
+        // ถ้าเป็น log ประเภทเดียวกันจากผู้ใช้เดียวกัน ในช่วง 5 นาที ไม่ต้องบันทึกซ้ำ
+        const fiveMinutesAgo = new Date();
+        fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+        
+        const logsRef = collection(db, collectionName);
+        
+        // สร้าง query ที่มีประสิทธิภาพมากขึ้น
+        const conditions = [
+          where('type', '==', logEntry.type),
+          where('userId', '==', logEntry.userId)
+        ];
+        
+        // ถ้ามี action ให้เพิ่มเงื่อนไขเพื่อกรองให้ละเอียดขึ้น
+        if (logEntry.action) {
+          conditions.push(where('action', '==', logEntry.action));
+        }
+        
+        // สร้าง query ที่มีเงื่อนไขทั้งหมด
+        const q = query(
+          logsRef,
+          ...conditions,
+          where('createdAt', '>', Timestamp.fromDate(fiveMinutesAgo)),
+          // จำกัดจำนวนผลลัพธ์เพื่อประสิทธิภาพ
+          // limit(1) // ถ้ามีปัญหาประสิทธิภาพค่อยเปิดใช้
+        );
+        
+        const existingLogs = await getDocs(q);
+        if (!existingLogs.empty) {
+          console.log(`[addLogEntry] Skipping duplicate log: ${logEntry.type} from user ${logEntry.userId}`);
+          return null; // ไม่บันทึก log ที่ซ้ำซ้อน
+        }
+      } catch (error) {
+        // ถ้าการตรวจสอบ log ซ้ำล้มเหลว ให้ทำการบันทึก log ปกติ แต่บันทึก error ไว้
+        console.warn('[addLogEntry] Error checking for duplicate logs:', error);
+        // ไม่ return เพื่อให้ทำการบันทึก log ต่อไป
+      }
     }
 
     const sanitizedEntry: Record<string, any> = {};

@@ -25,6 +25,7 @@ import { formatDateYMD } from '@/app/core/utils/dateUtils';
 import { checkAndCreateDailySummary, updateDailySummary } from './approvalServices/dailySummary';
 import { isEqual } from 'lodash';
 import { logSystemError } from '@/app/core/utils/logUtils';
+import { updateDailySummaryApprovalStatus } from './approvalServices/approvalForms';
 
 /**
  * คอลเลกชันใน Firestore
@@ -181,36 +182,67 @@ export const getWardForm = async (
   
   const callContext = new Error().stack?.split('\n')[2]?.trim() || 'unknown caller'; 
   console.log(`[getWardForm ENTRY] Called by: ${callContext}`);
-  console.log(`[getWardForm PARAMS] date=${date?.toDate().toISOString()}, shift=${shift}, originalWardId=${wardIdInput}, usedWardId=${wardId}`); // <<< Log ทั้ง original และ used
+  console.log(`[getWardForm PARAMS] date=${date?.toDate().toISOString()}, shift=${shift}, originalWardId=${wardIdInput}, usedWardId=${wardId}`);
   
   try {
     const dateString = format(date.toDate(), 'yyyy-MM-dd');
+    const shiftPrefix = shift === ShiftType.MORNING ? 'm' : 'n';
 
-    // *** ใช้ wardId (ตัวพิมพ์ใหญ่) ในการสร้าง ID เสมอ ***
-    const draftDocId = generateWardFormId(wardId, shift, FormStatus.DRAFT, date);
-    const finalDocId = generateWardFormId(wardId, shift, FormStatus.FINAL, date);
-    const approvedDocId = generateWardFormId(wardId, shift, FormStatus.APPROVED, date);
+    // *** ใช้ shiftPrefix ในการสร้าง ID ตามรูปแบบใหม่ ***
+    const draftDocIdPattern = `${wardId}_${shiftPrefix}_draft_d`;
+    const finalDocIdPattern = `${wardId}_${shiftPrefix}_final_d`;
+    const approvedDocIdPattern = `${wardId}_${shiftPrefix}_approved_d`;
     
-    console.log(`[getWardForm ${wardId}/${shift}] Checking document IDs:\n- Draft: ${draftDocId}\n- Final: ${finalDocId}\n- Approved: ${approvedDocId}`);
+    console.log(`[getWardForm ${wardId}/${shift}] Checking document ID patterns:\n- Draft: ${draftDocIdPattern}\n- Final: ${finalDocIdPattern}\n- Approved: ${approvedDocIdPattern}`);
     
-    // Skip direct ID lookup to ensure timestamp-suffixed IDs are found via query
-    // Query ข้อมูลแบบตรง (ทั้ง date+shift+wardId)
+    // Query ข้อมูลตามรูปแบบใหม่ (ใช้ dateString และ wardId ตามปกติ)
     const q = query(
       collection(db, 'wardForms'),
       where('dateString', '==', dateString),
       where('shift', '==', shift),
-      where('wardId', '==', wardId) // <<< ใช้ wardId ตัวพิมพ์ใหญ่
+      where('wardId', '==', wardId)
     );
     
     console.log(`[getWardForm ${wardId}/${shift}] Query parameters: dateString=${dateString}, shift=${shift}, wardId=${wardId}`);
     const querySnapshot = await getDocs(q);
-    console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for direct query: ${querySnapshot.size}`); // <<< Log ผล Query
+    console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for direct query: ${querySnapshot.size}`);
 
     // ถ้าพบข้อมูลจาก Query หลัก
     if (!querySnapshot.empty) {
-      // ... (ส่วนที่เหลือของการจัดการผล Query) ...
       const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
-      console.log(`[getWardForm ${wardId}/${shift}] Found ${docs.length} documents from direct query.`);
+      
+      // เพิ่มการตรวจสอบเพื่อให้แน่ใจว่าเราเลือกเอกสารที่ถูกต้องตามรูปแบบ ID ใหม่
+      // กรองเฉพาะเอกสารที่มี ID ตามรูปแบบใหม่
+      const filteredDocs = docs.filter(doc => {
+        const docId = doc.id || '';
+        return docId.includes(`${wardId}_${shiftPrefix}_`) && docId.includes(`_d${dateString.replace(/-/g, '')}`);
+      });
+
+      // ถ้าพบเอกสารตามรูปแบบใหม่
+      if (filteredDocs.length > 0) {
+        console.log(`[getWardForm ${wardId}/${shift}] Found ${filteredDocs.length} documents matching new ID pattern.`);
+        
+        // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
+        const approvedDoc = filteredDocs.find(doc => doc.status === FormStatus.APPROVED);
+        if (approvedDoc) {
+          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by new pattern: ${approvedDoc.id}`);
+          return approvedDoc;
+        }
+        const finalDoc = filteredDocs.find(doc => doc.status === FormStatus.FINAL);
+        if (finalDoc) {
+          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by new pattern: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+          return finalDoc;
+        }
+        const draftDoc = filteredDocs.find(doc => doc.status === FormStatus.DRAFT);
+        if (draftDoc) {
+          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by new pattern: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+          return draftDoc;
+        }
+      }
+      
+      // ถ้าไม่พบตามรูปแบบใหม่ ให้ใช้รูปแบบเดิมเป็น fallback
+      console.log(`[getWardForm ${wardId}/${shift}] Falling back to original pattern search.`);
+      
       // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
       const approvedDoc = docs.find(doc => doc.status === FormStatus.APPROVED);
       if (approvedDoc) {
@@ -232,7 +264,7 @@ export const getWardForm = async (
       return docs[0];
     } 
     
-    // ถ้าไม่พบข้อมูลจาก Query หลัก ให้ลองค้นหาเพิ่มเติมโดยไม่กรอง shift
+    // หากไม่พบข้อมูลหลัก ลองค้นหาเพิ่มเติม (ไม่จำเป็นต้องปรับส่วนนี้มากนัก เพราะเป็น fallback)
     console.log(`[getWardForm ${wardId}/${shift}] No direct hits from primary query, trying secondary query for date=${dateString}, wardId=${wardId}`);
     
     try {
@@ -240,16 +272,41 @@ export const getWardForm = async (
       const secondaryQuery = query(
         collection(db, 'wardForms'),
         where('dateString', '==', dateString),
-        where('wardId', '==', wardId) // <<< ใช้ wardId ตัวพิมพ์ใหญ่
+        where('wardId', '==', wardId)
       );
       
       const secondarySnapshot = await getDocs(secondaryQuery);
-      console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`); // <<< Log ผล Query รอง
+      console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`);
       
-      // ... (ส่วนที่เหลือของการจัดการผล Query รอง) ...
       if (!secondarySnapshot.empty) {
         const secondaryDocs = secondarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
         console.log(`[getWardForm ${wardId}/${shift}] Found ${secondaryDocs.length} documents from secondary query.`);
+        
+        // กรองเอกสารที่ตรงกับ shift ที่ต้องการและมีรูปแบบ ID ใหม่
+        const matchingShiftWithPattern = secondaryDocs.filter(doc => {
+          return doc.shift === shift && (doc.id || '').includes(`${wardId}_${shiftPrefix}_`);
+        });
+        
+        if (matchingShiftWithPattern.length > 0) {
+          console.log(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftWithPattern.length} matching documents with new ID pattern from secondary query.`);
+          const approvedDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.APPROVED);
+          if (approvedDoc) {
+            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED with new pattern by secondary query: ${approvedDoc.id}`);
+            return approvedDoc;
+          }
+          const finalDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.FINAL);
+          if (finalDoc) {
+            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL with new pattern by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+            return finalDoc;
+          }
+          const draftDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.DRAFT);
+          if (draftDoc) {
+            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT with new pattern by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+            return draftDoc;
+          }
+        }
+        
+        // Fallback to original pattern (ถ้าไม่พบรูปแบบใหม่)
         const matchingShiftDocs = secondaryDocs.filter(doc => doc.shift === shift);
         if (matchingShiftDocs.length > 0) {
           console.log(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftDocs.length} matching shift documents from secondary query.`);
@@ -394,8 +451,8 @@ export const checkMorningShiftFormStatus = async (
 
 /**
  * คำนวณ Patient Census สำหรับกะเช้าโดยอัตโนมัติจากข้อมูลกะดึกของวันก่อนหน้า
- * @param previousNightForm แบบฟอร์มกะดึกของวันก่อนหน้า (ถ้ามี)
- * @param inputData ข้อมูลที่ป้อนเข้ามาสำหรับกะเช้า
+ * @param previousNightForm แบบฟอร์มกะดึกของวันก่อนหน้า
+ * @param inputData ข้อมูลกะเช้าที่ป้อน
  * @returns จำนวนผู้ป่วยที่คำนวณแล้ว
  */
 export const calculateMorningCensus = (
@@ -410,18 +467,26 @@ export const calculateMorningCensus = (
     referOut: number;
     dead: number;
   }
-): number => {
+): {patientCensus: number, calculatedCensus: number} => {
+  let startingValue: number;
+  
   // กรณีไม่มีข้อมูลกะดึกของวันก่อนหน้า ใช้ค่าที่ผู้ใช้ป้อนโดยตรง
   if (!previousNightForm || previousNightForm.patientCensus === undefined) {
-    if (inputData.patientCensus !== undefined) {
-      return inputData.patientCensus;
-    }
-    return 0; // กรณีไม่มีข้อมูลใดๆ เลย
+    startingValue = inputData.patientCensus !== undefined ? inputData.patientCensus : 0;
+  } else {
+    // ถ้ามีข้อมูลกะดึกของวันก่อนหน้า ให้ใช้ค่า patientCensus จากกะดึกของวันก่อนหน้า
+    startingValue = previousNightForm.patientCensus;
   }
   
-  // ถ้ามีข้อมูลกะดึกของวันก่อนหน้า ให้ใช้ค่า patientCensus จากกะดึกของวันก่อนหน้า
-  // เป็นค่าเริ่มต้น และไม่ต้องคำนวณ (จะถูกล็อคไม่ให้แก้ไขตามที่ต้องการในธุรกิจ)
-  return previousNightForm.patientCensus;
+  // คำนวณยอดผู้ป่วยจากการรับเข้า-จำหน่าย
+  const admissions = (inputData.newAdmit || 0) + (inputData.transferIn || 0) + (inputData.referIn || 0);
+  const discharges = (inputData.discharge || 0) + (inputData.transferOut || 0) + (inputData.referOut || 0) + (inputData.dead || 0);
+  const calculatedCensus = Math.max(0, startingValue + admissions - discharges);
+  
+  return {
+    patientCensus: startingValue, // ค่าเริ่มต้นจากกะดึกของวันก่อนหน้าหรือค่าที่ผู้ใช้ป้อน
+    calculatedCensus: calculatedCensus // ค่าที่คำนวณได้จากการรับเข้า-จำหน่าย
+  };
 };
 
 /**
@@ -441,15 +506,17 @@ export const calculateNightShiftCensus = (
     referOut: number;
     dead: number;
   }
-): number => {
+): {patientCensus: number, calculatedCensus: number} => {
   // ตรวจสอบว่ามีข้อมูลที่จำเป็นครบถ้วนหรือไม่
   if (morningForm.patientCensus === undefined) {
     console.error('Missing required data for calculation: morningForm.patientCensus');
-    return 0;
+    return {patientCensus: 0, calculatedCensus: 0};
   }
   
-  // ยอดผู้ป่วยกะเช้า
-  const morningCensus = morningForm.patientCensus;
+  // ใช้ค่าที่คำนวณได้จากกะเช้าหากมี
+  const startingValue = morningForm.calculatedCensus !== undefined 
+    ? morningForm.calculatedCensus 
+    : morningForm.patientCensus;
   
   // ผู้ป่วยเข้ากะดึก (รับใหม่ + ย้ายเข้า + ส่งตัวเข้า)
   const nightAdmissions = 
@@ -466,10 +533,12 @@ export const calculateNightShiftCensus = (
   
   // คำนวณยอดผู้ป่วยกะดึก
   // สูตร: ยอดผู้ป่วยกะเช้า + ผู้ป่วยเข้ากะดึก - ผู้ป่วยออกกะดึก
-  const calculatedCensus = morningCensus + nightAdmissions - nightDischarges;
+  const calculatedCensus = Math.max(0, startingValue + nightAdmissions - nightDischarges);
   
-  // ป้องกันการคำนวณที่ทำให้ค่าติดลบ
-  return Math.max(0, calculatedCensus);
+  return {
+    patientCensus: startingValue, // ค่าเริ่มต้นจากกะเช้า
+    calculatedCensus: calculatedCensus // ค่าที่คำนวณได้จากการรับเข้า-จำหน่าย
+  };
 };
 
 /**
@@ -481,28 +550,29 @@ export const calculateNightShiftCensus = (
  * @returns รหัสแบบฟอร์มที่สร้างขึ้นมา
  */
 const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus, dateInput: TimestampField): string => {
+  // Convert timestamp object to date
   let dateObj: Date;
   if (dateInput instanceof Timestamp) {
     dateObj = dateInput.toDate();
   } else if (dateInput instanceof Date) {
     dateObj = dateInput;
-  } else if (typeof dateInput === 'string') {
-    dateObj = new Date(dateInput);
-  } else if (dateInput && 'seconds' in dateInput && typeof dateInput.seconds === 'number') {
-     dateObj = new Date(dateInput.seconds * 1000);
   } else {
-    console.warn('Unrecognizable date format for ID generation, using current date as fallback.');
-    dateObj = new Date(); 
+    throw new Error('Invalid timestamp format for ID generation');
   }
-
-  // Format date part (YearMonthDay)
-  const datePart = format(dateObj, 'yyMMdd');
   
-  // Simplify status for ID (approved/final are treated the same for ID uniqueness for a given day/shift)
-  const simpleStatus = status === FormStatus.FINAL || status === FormStatus.APPROVED ? 'final' : 'draft';
+  // Format date as YYYYMMDD
+  const dateStr = formatDateYMD(dateObj);
   
-  // Construct ID without time part
-  return `${wardId}_${shift}_${simpleStatus}_d${datePart}`;
+  // Use shift as prefix for distinctions ('m' for morning, 'n' for night)
+  const shiftPrefix = shift === ShiftType.MORNING ? 'm' : 'n';
+  
+  // Create different ID structures for draft vs. final/approved
+  if (status === FormStatus.DRAFT) {
+    return `${wardId}_${shiftPrefix}_draft_d${dateStr}`;
+  } else {
+    // Final, Approved, or Rejected forms
+    return `${wardId}_${shiftPrefix}_${status.toLowerCase()}_d${dateStr}`;
+  }
 };
 
 /**
@@ -562,6 +632,24 @@ export const finalizeMorningShiftForm = async (
     const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
     console.log(`[finalizeMorning] Creating new FINAL document with ID: ${documentIdToUse}`);
 
+    // Try to fetch previous night shift form to calculate census
+    const prevDate = subDays(dateObjForId, 1);
+    const previousNightForm = await getLatestPreviousNightForm(prevDate, wardId);
+    
+    // Calculate census values
+    const inputData = {
+      patientCensus: formData.patientCensus,
+      newAdmit: formData.newAdmit || 0,
+      transferIn: formData.transferIn || 0,
+      referIn: formData.referIn || 0,
+      discharge: formData.discharge || 0,
+      transferOut: formData.transferOut || 0,
+      referOut: formData.referOut || 0,
+      dead: formData.dead || 0
+    };
+    
+    const censusValues = calculateMorningCensus(previousNightForm, inputData);
+
     // Prepare data to save
     const dataToSave: Partial<WardForm> = {
       ...formData,
@@ -572,6 +660,7 @@ export const finalizeMorningShiftForm = async (
       isDraft: false,
       date: Timestamp.fromDate(dateObjForId),
       dateString: dateStr,
+      calculatedCensus: censusValues.calculatedCensus, // บันทึกค่าที่คำนวณได้
       createdBy: formData.createdBy || user.uid,
       updatedBy: user.uid,
       updatedAt: createServerTimestamp(),
@@ -600,9 +689,9 @@ export const finalizeMorningShiftForm = async (
     }
 
     return documentIdToUse;
-
   } catch (error) {
-    console.error('Error finalizing morning shift form:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[finalizeMorningShiftForm] Error:', errorMessage, error);
     throw error;
   }
 };
@@ -618,106 +707,109 @@ export const saveDraftWardForm = async (
   user: User
 ): Promise<string> => {
   try {
+    // Basic validations
     if (!formData.wardId || !formData.shift || !formData.date) {
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
-    if (formData.shift !== ShiftType.MORNING && formData.shift !== ShiftType.NIGHT) {
-        throw new Error('Invalid shift type provided for saving draft.');
-    }
-
     const wardId = formData.wardId.toUpperCase();
-    
+
+    // Convert date to appropriate format
     let dateObj: Date;
     if (formData.date instanceof Timestamp) {
       dateObj = formData.date.toDate();
     } else if (formData.date instanceof Date) {
-        dateObj = formData.date;
+      dateObj = formData.date;
     } else if (typeof formData.date === 'string') {
       dateObj = new Date(formData.date + 'T00:00:00Z');
       if (isNaN(dateObj.getTime())) {
-             throw new Error('Invalid date string format in formData');
-        }
+        throw new Error('Invalid date string format');
+      }
     } else {
-        throw new Error('Invalid date type in formData');
+      throw new Error('Invalid date format');
     }
-    const dateString = formatDateYMD(dateObj);
+    const dateStr = formatDateYMD(dateObj);
 
-    let customDocId: string;
-    if (formData.id && formData.id.trim() !== '') {
-      // Reuse existing ID if provided
-      customDocId = formData.id;
-      console.log(`Using existing document ID: ${customDocId}`);
+    // คำนวณ Patient Census ตามช่วงเวลาของวัน
+    let calculatedCensus: number | undefined;
+    
+    if (formData.shift === ShiftType.MORNING) {
+      // คำนวณ Patient Census สำหรับกะเช้า
+      const prevDate = subDays(dateObj, 1);
+      const previousNightForm = await getLatestPreviousNightForm(prevDate, wardId);
+      
+      const inputData = {
+        patientCensus: formData.patientCensus,
+        newAdmit: formData.newAdmit || 0,
+        transferIn: formData.transferIn || 0,
+        referIn: formData.referIn || 0,
+        discharge: formData.discharge || 0,
+        transferOut: formData.transferOut || 0,
+        referOut: formData.referOut || 0,
+        dead: formData.dead || 0
+      };
+      
+      const censusValues = calculateMorningCensus(previousNightForm, inputData);
+      calculatedCensus = censusValues.calculatedCensus;
     } else {
-      // Generate base ID and append timestamp for uniqueness
-      const baseId = generateWardFormId(wardId, formData.shift, FormStatus.DRAFT, Timestamp.fromDate(dateObj));
-      const timeStr = format(new Date(), 'HHmmss');
-      customDocId = `${baseId}_t${timeStr}`;
-      console.log(`Generated new draft document ID with timestamp: ${customDocId}`);
-    }
-
-    console.log(`Saving ${formData.shift} shift draft with ID: ${customDocId}, WardID: ${wardId}, DateString: ${dateString}`);
-
-    // Initialize dataToSave
-    const dataToSave: Partial<WardForm> = {
-      ...formData, // Spread initial data
-      id: customDocId,
-      wardId: wardId,
-      date: Timestamp.fromDate(dateObj),
-      dateString: dateString,
-      status: FormStatus.DRAFT,
-      isDraft: true,
-      createdBy: formData.createdBy || user?.uid || 'unknown',
-      updatedAt: createServerTimestamp()
-    };
-
-    // Ensure createdAt is set only for new drafts
-    if (!formData.id) {
-      dataToSave.createdAt = createServerTimestamp();
-    }
-
-    // --- Sanitize Numeric Fields ---
-    const numericFields: (keyof WardForm)[] = [
-        'patientCensus', 'nurseManager', 'rn', 'pn', 'wc', 
-        'newAdmit', 'transferIn', 'referIn', 'transferOut', 'referOut', 
-        'discharge', 'dead', 'available', 'unavailable', 'plannedDischarge'
-    ];
-
-    // ตรวจสอบว่าฟิลด์ตัวเลขที่จำเป็นมีครบหรือไม่
-    for (const field of numericFields) {
-        const value = dataToSave[field];
+      // คำนวณ Patient Census สำหรับกะดึก
+      const morningFormTimestamp = Timestamp.fromDate(dateObj);
+      const morningForm = await getWardForm(morningFormTimestamp, ShiftType.MORNING, wardId);
+      
+      if (morningForm) {
+        const nightShiftData = {
+          newAdmit: formData.newAdmit || 0,
+          transferIn: formData.transferIn || 0,
+          referIn: formData.referIn || 0,
+          discharge: formData.discharge || 0,
+          transferOut: formData.transferOut || 0,
+          referOut: formData.referOut || 0,
+          dead: formData.dead || 0
+        };
         
-        // สำหรับ Draft อนุญาตให้เป็นค่าว่างได้ แต่จะบันทึกเป็น 0
-        if (value === undefined || value === null || value === '' || (typeof value === 'number' && isNaN(value))) {
-            // แปลงเป็น 0 สำหรับ Draft เท่านั้น
-            (dataToSave as any)[field] = 0;
-        } else if (typeof value === 'string') {
-            // แปลงจากสตริงเป็นตัวเลข
-            const parsedValue = parseFloat(value);
-            (dataToSave as any)[field] = isNaN(parsedValue) ? 0 : parsedValue;
-        }
-        // ค่าตัวเลขที่ถูกต้องจะคงไว้ตามเดิม
-    }
-    // --- End Sanitize Numeric Fields ---
-
-    if (formData.shift === ShiftType.NIGHT) {
-      const morningStatus = await checkMorningShiftFormStatus(dateObj, wardId);
-    if (!morningStatus.exists || (morningStatus.status !== FormStatus.FINAL && morningStatus.status !== FormStatus.APPROVED)) {
-      throw new Error('ไม่สามารถบันทึกร่างกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
+        const censusValues = calculateNightShiftCensus(morningForm, nightShiftData);
+        calculatedCensus = censusValues.calculatedCensus;
       }
     }
 
-    const docRef = doc(db, COLLECTION_WARDFORMS, customDocId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists() && docSnap.data().status !== FormStatus.DRAFT) {
-      const currentStatus = docSnap.data().status;
-      throw new Error(`ไม่สามารถบันทึกร่างทับได้เนื่องจากแบบฟอร์มมีสถานะ ${currentStatus} แล้ว`);
+    // Determine or create document ID
+    let docId = '';
+    if (formData.id && formData.id.includes('_draft_')) {
+      docId = formData.id;
+    } else {
+      // Generate a unique document ID for the draft
+      docId = generateWardFormId(wardId, formData.shift, FormStatus.DRAFT, formData.date);
+      const currTimestamp = format(new Date(), 'HHmmss');
+      docId = `${docId}_t${currTimestamp}`;
     }
 
-    await setDoc(docRef, dataToSave, { merge: true });
-    return customDocId;
+    // Prepare data to save
+    const dataToSave: Partial<WardForm> = {
+      ...formData,
+      id: docId,
+      wardId: wardId, // always uppercase
+      date: Timestamp.fromDate(dateObj),
+      dateString: dateStr,
+      status: FormStatus.DRAFT,
+      isDraft: true,
+      calculatedCensus: calculatedCensus, // บันทึกค่าที่คำนวณได้
+      updatedBy: user.uid,
+      updatedAt: createServerTimestamp(),
+    };
+    
+    // If this is a new draft (not an update), add createdBy and createdAt
+    if (!formData.id) {
+      dataToSave.createdBy = user.uid;
+      dataToSave.createdAt = createServerTimestamp();
+    }
 
+    // Save to Firestore
+    const docRef = doc(db, COLLECTION_WARDFORMS, docId);
+    await setDoc(docRef, dataToSave, { merge: true });
+    console.log(`Draft saved with ID: ${docId}, shift: ${formData.shift}, date: ${dateStr}`);
+
+    return docId;
   } catch (error) {
-    console.error(`Error saving ${formData.shift || 'unknown'} shift form draft:`, error);
+    console.error('Error saving draft form:', error);
     throw error;
   }
 };
@@ -731,34 +823,54 @@ export const finalizeNightShiftForm = async (
   user: User
 ): Promise<string> => {
   try {
-    // Initial Checks
     if (!formData.wardId || !formData.shift || !formData.date) {
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
-    if (formData.shift !== ShiftType.NIGHT) {
-        throw new Error('Attempting to finalize night shift with incorrect shift type.');
-    }
     const wardId = formData.wardId.toUpperCase();
 
-    // Date Handling
-    let dateObjForCheck: Date;
+    // We need to fetch morning form first for census calculation
+    let dateObjForId: Date;
     if (formData.date instanceof Timestamp) {
-      dateObjForCheck = formData.date.toDate();
+      dateObjForId = formData.date.toDate();
     } else if (formData.date instanceof Date) {
-        dateObjForCheck = formData.date;
+      dateObjForId = formData.date;
     } else if (typeof formData.date === 'string') {
-        dateObjForCheck = new Date(formData.date + 'T00:00:00Z');
-       if (isNaN(dateObjForCheck.getTime())) {
+      dateObjForId = new Date(formData.date + 'T00:00:00Z');
+      if (isNaN(dateObjForId.getTime())) {
         throw new Error('Invalid date string format in formData for ID generation');
       }
     } else {
-      throw new Error('Invalid date type in formData for ID generation');
+      throw new Error('Invalid or missing date in formData for ID generation');
     }
-    const dateStr = formatDateYMD(dateObjForCheck);
-    const dateTimestamp = Timestamp.fromDate(dateObjForCheck);
+    const dateStr = formatDateYMD(dateObjForId);
 
-    // Validation (Fetch wardName if needed)
-    let dataForValidation: Partial<WardForm> = { ...formData, wardId: wardId, date: dateTimestamp, dateString: dateStr }; // Add required fields
+    // Fetch the morning shift form to get starting census
+    const morningFormTimestamp = Timestamp.fromDate(dateObjForId);
+    const morningForm = await getWardForm(morningFormTimestamp, ShiftType.MORNING, wardId);
+    if (!morningForm) {
+      throw new Error(`Morning shift form not found for this date (${dateStr}). Please complete morning shift first.`);
+    }
+    if (morningForm.status !== FormStatus.FINAL && morningForm.status !== FormStatus.APPROVED) {
+      throw new Error(`Morning shift form needs to be finalized first. Current status: ${morningForm.status}`);
+    }
+
+    // Calculate census values using the morning form
+    const censusValues = calculateNightShiftCensus(morningForm, {
+      newAdmit: formData.newAdmit || 0,
+      transferIn: formData.transferIn || 0,
+      referIn: formData.referIn || 0,
+      discharge: formData.discharge || 0,
+      transferOut: formData.transferOut || 0,
+      referOut: formData.referOut || 0,
+      dead: formData.dead || 0
+    });
+    
+    let dataForValidation: Partial<WardForm> = { 
+      ...formData, 
+      wardId: wardId,
+      patientCensus: censusValues.patientCensus // Use calculated patientCensus from morning form
+    };
+    
     if (!dataForValidation.wardName) {
       try {
         const wardDocRef = query(collection(db, COLLECTION_WARDS), where("wardId", "==", wardId));
@@ -767,86 +879,80 @@ export const finalizeNightShiftForm = async (
           dataForValidation.wardName = wardQuerySnap.docs[0].data().wardName as string;
         }
       } catch (err) {
-        console.warn('Cannot fetch wardName for night validation:', err);
+        console.warn('Cannot fetch wardName for validation:', err);
       }
     }
     const validationResult = validateFormData(dataForValidation);
     if (!validationResult.isValid) {
-      // Include specific field errors in the message
-      const errorDetails = Object.entries(validationResult.errors).map(([field, msg]) => `${field}: ${msg}`).join('; ');
-      throw new Error(`Validation failed: ${errorDetails || validationResult.missingFields.join(', ')}`);
+      throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
     }
 
-    // Check Morning Status
-    const morningStatus = await checkMorningShiftFormStatus(dateObjForCheck, wardId);
-    if (!morningStatus.exists || ![FormStatus.FINAL, FormStatus.APPROVED].includes(morningStatus.status!)) {
-      throw new Error('ไม่สามารถบันทึกกะดึกได้ เนื่องจากกะเช้ายังไม่ได้ถูกบันทึกสมบูรณ์หรืออนุมัติ');
-    }
+    // Generate new FINAL document ID with timestamp
+    const baseFinalId = generateWardFormId(
+      wardId,
+      ShiftType.NIGHT, 
+      FormStatus.FINAL,
+      Timestamp.fromDate(dateObjForId) 
+    );
+    const timeStrFinal = format(new Date(), 'HHmmss');
+    const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
+    console.log(`[finalizeNight] Creating new FINAL document with ID: ${documentIdToUse}`);
 
-    // Determine Document ID
-    let documentIdToUse: string;
-    let isUpdatingDraft = false;
-    if (formData.id && formData.id.includes('_draft_')) {
-      documentIdToUse = formData.id;
-      isUpdatingDraft = true;
-      console.log(`[finalizeNight] Using existing draft ID from formData: ${documentIdToUse}`);
-    } else {
-      // Generate new FINAL document ID with timestamp
-      const baseFinalNightId = generateWardFormId(wardId, ShiftType.NIGHT, FormStatus.FINAL, dateTimestamp);
-      const timeStrNight = format(new Date(), 'HHmmss');
-      documentIdToUse = `${baseFinalNightId}_t${timeStrNight}`;
-      isUpdatingDraft = false;
-      console.log(`[finalizeNight] No draft found, created new FINAL document with ID: ${documentIdToUse}`);
-    }
-
-    // Prepare Data for Saving
+    // Prepare data to save
     const dataToSave: Partial<WardForm> = {
-      ...dataForValidation, // Use the validated data which includes wardName etc.
+      ...formData,
       id: documentIdToUse,
+      wardId: wardId,
+      wardName: dataForValidation.wardName || '',
       status: FormStatus.FINAL,
       isDraft: false,
+      date: Timestamp.fromDate(dateObjForId),
+      dateString: dateStr,
+      calculatedCensus: censusValues.calculatedCensus, // ค่าที่คำนวณได้ (อาจต่างจากค่าที่ผู้ใช้กรอก)
+      createdBy: formData.createdBy || user.uid,
       updatedBy: user.uid,
       updatedAt: createServerTimestamp(),
       finalizedAt: createServerTimestamp()
     };
-    // Add createdBy only if it wasn't set before (e.g., from draft)
-    if (!dataToSave.createdBy) {
-        dataToSave.createdBy = user.uid;
-    }
-    if (!isUpdatingDraft) {
-      dataToSave.createdAt = createServerTimestamp();
-    }
 
-    // Check Before Overwriting
+    // Get reference to the document and save
     const docRef = doc(db, COLLECTION_WARDFORMS, documentIdToUse);
+    
+    // Check if the document already exists (status check for safety)
     const currentDocSnap = await getDoc(docRef);
     if (currentDocSnap.exists() && ![FormStatus.DRAFT, FormStatus.FINAL, FormStatus.REJECTED].includes(currentDocSnap.data().status)) {
       const currentStatus = currentDocSnap.data().status;
       throw new Error(`Cannot overwrite form with status ${currentStatus}.`);
     }
 
-    // Save Document
+    // Save the data using setDoc
     await setDoc(docRef, dataToSave, { merge: true });
     console.log(`[finalizeNight] Successfully saved document: ${documentIdToUse}`);
-    
-    // Update Daily Summary
+
     try {
-      const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, wardId);
-      if (morningForm) {
-        await checkAndCreateDailySummary(dateObjForCheck, wardId, morningForm.wardName || '');
-        await updateDailySummary(dateObjForCheck, wardId, morningForm, dataToSave as WardForm, user, undefined);
-        console.log('Daily summary updated with night shift data');
-      } else {
-        console.error('Cannot find morning form for creating daily summary');
+      // ตรวจสอบและสร้าง/อัปเดตข้อมูลสรุปประจำวัน
+      await checkAndCreateDailySummary(dateObjForId, wardId, dataToSave.wardName || '');
+      console.log(`[finalizeNight] Daily summary checked/created for ${documentIdToUse}`);
+      
+      // ตรวจสอบสถานะการอนุมัติของทั้งสองกะ
+      const morningShiftInfo = await checkMorningShiftFormStatus(dateObjForId, wardId);
+      const morningFormStatus = morningShiftInfo?.status;
+      console.log(`[finalizeNight] Morning form status: ${morningFormStatus}`);
+      
+      // ถ้ากะเช้าได้รับการอนุมัติแล้ว ให้อัปเดตสถานะการอนุมัติทั้งหมดเป็น true
+      if (morningFormStatus === FormStatus.APPROVED) {
+        await updateDailySummaryApprovalStatus(dateObjForId, wardId, true);
+        console.log(`[finalizeNight] Both forms are approved, updated daily summary approval status`);
       }
     } catch (summaryError) {
-      console.error('Error updating daily summary:', summaryError);
+      console.error('[finalizeNight] Error checking/creating daily summary:', summaryError);
+      // ไม่ทำ throw เพื่อให้การบันทึกหลักสำเร็จไปก่อน
     }
 
     return documentIdToUse;
-
   } catch (error) {
-    console.error('Error finalizing night shift form:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[finalizeNightShiftForm] Error:', errorMessage, error);
     throw error;
   }
 };
@@ -1092,23 +1198,63 @@ export const getShiftStatusesForDay = async (
   let morningStatus: FormStatus | null = null;
   let nightStatus: FormStatus | null = null;
 
-    const dateTimestamp = Timestamp.fromDate(date);
+  const dateTimestamp = Timestamp.fromDate(date);
   const dateString = format(date, 'yyyy-MM-dd');
   const wardId = wardIdInput.toUpperCase();
+  const morningShiftPrefix = 'm'; // รูปแบบใหม่ใช้ 'm' แทน 'morning'
+  const nightShiftPrefix = 'n';   // รูปแบบใหม่ใช้ 'n' แทน 'night'
 
   console.log(`[getShiftStatusesForDay] Fetching statuses for ward: ${wardId}, date: ${dateString} (Original: ${wardIdInput})`);
 
   try {
-    // ใช้ getWardForm โดยส่ง wardId ตัวพิมพ์ใหญ่
+    // ค้นหาข้อมูลแบบฟอร์มกะเช้า
     const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, wardId);
     morningStatus = morningForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}`); 
+    console.log(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}, Pattern: ${wardId}_${morningShiftPrefix}_`);
 
-    // ดึงสถานะกะดึก โดยส่ง wardId ตัวพิมพ์ใหญ่
+    // ค้นหาข้อมูลแบบฟอร์มกะดึก
     const nightForm = await getWardForm(dateTimestamp, ShiftType.NIGHT, wardId);
     nightStatus = nightForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}`); 
+    console.log(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}, Pattern: ${wardId}_${nightShiftPrefix}_`);
 
+    // ถ้ายังไม่พบแบบฟอร์ม ลองค้นหาโดยตรงด้วย query เพื่อครอบคลุมทั้งรูปแบบเก่าและใหม่
+    if (!morningStatus && !nightStatus) {
+      console.log(`[getShiftStatusesForDay] No forms found with getWardForm, trying direct query`);
+      
+      const formsQuery = query(
+        collection(db, 'wardForms'),
+        where('dateString', '==', dateString),
+        where('wardId', '==', wardId)
+      );
+      
+      const querySnapshot = await getDocs(formsQuery);
+      if (!querySnapshot.empty) {
+        const docs = querySnapshot.docs.map(doc => ({ id: doc.id || '', ...doc.data() } as WardForm));
+        console.log(`[getShiftStatusesForDay] Direct query found ${docs.length} documents`);
+        
+        // กรองเฉพาะฟอร์มกะเช้า
+        const morningDocs = docs.filter(doc => doc.shift === ShiftType.MORNING);
+        if (morningDocs.length > 0) {
+          // เลือกตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
+          const approved = morningDocs.find(doc => doc.status === FormStatus.APPROVED);
+          const final = morningDocs.find(doc => doc.status === FormStatus.FINAL);
+          const draft = morningDocs.find(doc => doc.status === FormStatus.DRAFT);
+          morningStatus = approved?.status || final?.status || draft?.status || null;
+          console.log(`[getShiftStatusesForDay] Morning status from direct query: ${morningStatus}`);
+        }
+        
+        // กรองเฉพาะฟอร์มกะดึก
+        const nightDocs = docs.filter(doc => doc.shift === ShiftType.NIGHT);
+        if (nightDocs.length > 0) {
+          // เลือกตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
+          const approved = nightDocs.find(doc => doc.status === FormStatus.APPROVED);
+          const final = nightDocs.find(doc => doc.status === FormStatus.FINAL);
+          const draft = nightDocs.find(doc => doc.status === FormStatus.DRAFT);
+          nightStatus = approved?.status || final?.status || draft?.status || null;
+          console.log(`[getShiftStatusesForDay] Night status from direct query: ${nightStatus}`);
+        }
+      }
+    }
   } catch (error) {
     // ตรวจสอบว่าเป็น Error object ก่อนส่ง
     const logError = error instanceof Error ? error : new Error(`Unknown error in getShiftStatusesForDay: ${error}`);
@@ -1119,5 +1265,6 @@ export const getShiftStatusesForDay = async (
     nightStatus = null;
   }
 
+  console.log(`[getShiftStatusesForDay] Final statuses - Morning: ${morningStatus}, Night: ${nightStatus}`);
   return { morningStatus, nightStatus };
 }; 

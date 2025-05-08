@@ -287,7 +287,7 @@ export default function ApprovalPage() {
   const [reason, setReason] = useState('');
   const [approveLoading, setApproveLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>('final'); // รอการอนุมัติเป็นค่าเริ่มต้น
+  const [selectedStatus, setSelectedStatus] = useState<string>('all'); // แสดงทั้งหมดเป็นค่าเริ่มต้น
   const statusRef = useRef<HTMLSelectElement>(null);
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -624,6 +624,15 @@ export default function ApprovalPage() {
                         ผู้บันทึก
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        เวลาบันทึก
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        ผู้อนุมัติ
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        เวลาอนุมัติ
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         สถานะ
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -647,9 +656,20 @@ export default function ApprovalPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                             {form.recorderFirstName} {form.recorderLastName}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {form.finalizedAt ? formatTimestamp(form.finalizedAt, 'HH:mm') : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {form.approverFirstName && form.approverLastName 
+                              ? `${form.approverFirstName} ${form.approverLastName}` 
+                              : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {form.approvedAt ? formatTimestamp(form.approvedAt, 'HH:mm') : '-'}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <ApprovalStatusBadge status={form.status} />
-                        </td>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center space-x-3">
                             <button
                               onClick={() => openDetailsModal(form)}

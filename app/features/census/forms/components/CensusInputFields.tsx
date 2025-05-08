@@ -16,7 +16,8 @@ type WardFormDataState = Partial<Omit<WardForm, 'patientCensus' | 'nurseManager'
 const PatientCensusDisplay: React.FC<{
   formData: Partial<WardForm>;
   selectedShift: ShiftType;
-}> = ({ formData, selectedShift }) => {
+  allowUserInput?: boolean;
+}> = ({ formData, selectedShift, allowUserInput = true }) => {
   // Calculate Admissions (newAdmit + transferIn + referIn)
   const admissions = (
     (formData.newAdmit || 0) +
@@ -35,6 +36,15 @@ const PatientCensusDisplay: React.FC<{
   // Calculate expected census based on current input values
   const startingCensus = formData.patientCensus || 0;
   const expectedCensus = startingCensus + admissions - discharges;
+  
+  // ตรวจสอบว่ามีค่าที่คำนวณไว้แล้วหรือไม่
+  const hasCalculatedCensus = formData.calculatedCensus !== undefined;
+  
+  // ใช้ค่าที่คำนวณได้หรือใช้ค่าที่เก็บไว้ใน calculatedCensus
+  const displayCensus = allowUserInput ? expectedCensus : (hasCalculatedCensus ? formData.calculatedCensus : expectedCensus);
+  
+  // ตรวจสอบว่ามีความแตกต่างระหว่างค่าที่ผู้ใช้กรอกกับค่าที่คำนวณได้
+  const hasDifference = hasCalculatedCensus && formData.calculatedCensus !== expectedCensus;
 
   // ข้อความแสดงผลขึ้นอยู่กับกะที่เลือก
   const resultLabel = selectedShift === ShiftType.MORNING ? 'คงเหลือ (กะเช้า):' : 'คงเหลือ (กะดึก):';
@@ -79,10 +89,23 @@ const PatientCensusDisplay: React.FC<{
         <div className="font-medium text-red-600 dark:text-red-400">{discharges > 0 ? `-${discharges}` : '0'}</div>
         
         <div className="font-semibold border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">{resultLabel}</div>
-        <div className="font-semibold text-blue-700 dark:text-blue-300 border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">{expectedCensus}</div>
+        <div className="font-semibold text-blue-700 dark:text-blue-300 border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">{displayCensus}</div>
+        
+        {/* แสดงค่าที่คำนวณได้ถ้ามีความแตกต่าง */}
+        {hasDifference && (
+          <>
+            <div className="text-xs text-amber-600 dark:text-amber-400 pt-1">ค่าที่คำนวณได้:</div>
+            <div className="text-xs text-amber-600 dark:text-amber-400 pt-1">{expectedCensus}</div>
+          </>
+        )}
       </div>
       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic border-t border-gray-200 dark:border-gray-700 pt-1">
         สูตร: เริ่มต้น + รับเข้า - จำหน่าย = คงเหลือ
+        {hasDifference && (
+          <div className="text-amber-600 dark:text-amber-400 mt-1 not-italic">
+            <span className="font-medium">หมายเหตุ:</span> ค่าที่คำนวณได้ต่างจากค่าที่บันทึกไว้ในระบบ
+          </div>
+        )}
       </div>
     </div>
   );

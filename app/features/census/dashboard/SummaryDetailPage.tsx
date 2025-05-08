@@ -157,7 +157,7 @@ export default function SummaryDetailPage({ summaryId }: SummaryDetailPageProps)
                 <div>
                   <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">ยอดผู้ป่วยรวม</h3>
                   <p className="text-xl font-bold text-gray-900 dark:text-gray-200">
-                    {summary.dailyPatientCensus || 0}
+                    {summary.nightCalculatedCensus !== undefined ? summary.nightCalculatedCensus : summary.dailyPatientCensus || 0}
                   </p>
                 </div>
                 <div>
@@ -255,12 +255,25 @@ export default function SummaryDetailPage({ summaryId }: SummaryDetailPageProps)
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">จำนวนผู้ป่วย</h3>
-                    <p className="text-base text-gray-900 dark:text-gray-200">{summary.morningPatientCensus || 0}</p>
+                    <p className="text-base text-gray-900 dark:text-gray-200">
+                      {summary.morningCalculatedCensus !== undefined ? summary.morningCalculatedCensus : summary.morningPatientCensus || 0}
+                    </p>
                   </div>
+                  
+                  {/* แสดงค่าที่ป้อนถ้าแตกต่างจากค่าที่คำนวณได้ */}
+                  {summary.morningCalculatedCensus !== undefined && 
+                   summary.morningCalculatedCensus !== summary.morningPatientCensus && (
+                    <div className="flex justify-between mt-1">
+                      <h3 className="text-xs font-medium text-gray-400 dark:text-gray-500">ค่าที่ป้อน</h3>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{summary.morningPatientCensus || 0}</p>
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">จำนวนพยาบาล</h3>
                     <p className="text-base text-gray-900 dark:text-gray-200">{summary.morningNurseTotal || 0}</p>
                   </div>
+
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">อัตราส่วน</h3>
                     <p className="text-base text-gray-900 dark:text-gray-200">
@@ -279,12 +292,25 @@ export default function SummaryDetailPage({ summaryId }: SummaryDetailPageProps)
                 <div className="space-y-4">
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">จำนวนผู้ป่วย</h3>
-                    <p className="text-base text-gray-900 dark:text-gray-200">{summary.nightPatientCensus || 0}</p>
+                    <p className="text-base text-gray-900 dark:text-gray-200">
+                      {summary.nightCalculatedCensus !== undefined ? summary.nightCalculatedCensus : summary.nightPatientCensus || 0}
+                    </p>
                   </div>
+                  
+                  {/* แสดงค่าที่ป้อนถ้าแตกต่างจากค่าที่คำนวณได้ */}
+                  {summary.nightCalculatedCensus !== undefined && 
+                   summary.nightCalculatedCensus !== summary.nightPatientCensus && (
+                    <div className="flex justify-between mt-1">
+                      <h3 className="text-xs font-medium text-gray-400 dark:text-gray-500">ค่าที่ป้อน</h3>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">{summary.nightPatientCensus || 0}</p>
+                    </div>
+                  )}
+
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">จำนวนพยาบาล</h3>
                     <p className="text-base text-gray-900 dark:text-gray-200">{summary.nightNurseTotal || 0}</p>
                   </div>
+
                   <div className="flex justify-between">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">อัตราส่วน</h3>
                     <p className="text-base text-gray-900 dark:text-gray-200">

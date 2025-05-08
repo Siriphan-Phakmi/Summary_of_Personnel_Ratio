@@ -63,6 +63,7 @@ export interface DailySummary {
   // ข้อมูลกะเช้า
   morningFormId?: string;         // รหัสแบบฟอร์มกะเช้า
   morningPatientCensus: number;   // จำนวนผู้ป่วยกะเช้า
+  morningCalculatedCensus?: number; // จำนวนผู้ป่วยที่คำนวณได้จากกะเช้า (patientCensus + admissions - discharges)
   morningNurseManager: number;    // จำนวนหัวหน้าพยาบาลกะเช้า
   morningRn: number;              // จำนวนพยาบาลวิชาชีพกะเช้า
   morningPn: number;              // จำนวนพยาบาลเทคนิคกะเช้า
@@ -83,6 +84,7 @@ export interface DailySummary {
   // ข้อมูลกะดึก
   nightFormId?: string;           // รหัสแบบฟอร์มกะดึก
   nightPatientCensus: number;     // จำนวนผู้ป่วยกะดึก
+  nightCalculatedCensus?: number; // จำนวนผู้ป่วยที่คำนวณได้จากกะดึก (patientCensus + admissions - discharges)
   nightNurseManager: number;      // จำนวนหัวหน้าพยาบาลกะดึก
   nightRn: number;                // จำนวนพยาบาลวิชาชีพกะดึก
   nightPn: number;                // จำนวนพยาบาลเทคนิคกะดึก

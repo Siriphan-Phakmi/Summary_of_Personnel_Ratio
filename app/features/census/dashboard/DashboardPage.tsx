@@ -6,7 +6,7 @@ import { th } from 'date-fns/locale';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { useAuth } from '@/app/features/auth';
-import { getWardsByUserPermission } from '@/app/features/census/forms/services/wardService';
+import { getWardsByUserPermission, getAllWards } from '@/app/features/census/forms/services/wardService';
 import { getDailySummariesByFilters } from '@/app/features/census/forms/services/approvalService';
 import { DailySummary } from '@/app/core/types/approval';
 import { Ward } from '@/app/core/types/ward';
@@ -24,18 +24,23 @@ const StatCard = ({ title, value }: { title: string; value: string | number }) =
 export default function DashboardPage() {
   const { user } = useAuth();
   const [wards, setWards] = useState<Ward[]>([]);
-  const [selectedWard, setSelectedWard] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedWard, setSelectedWard] = useState('');
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [summaries, setSummaries] = useState<DailySummary[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [approvedOnly, setApprovedOnly] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'details' | 'table'>('details');
+  const [approvedOnly, setApprovedOnly] = useState(false);
 
   // โหลดรายการแผนกตามสิทธิ์ผู้ใช้
   useEffect(() => {
     const loadWards = async () => {
-      if (!user) return;
+      if (!user) {
+        setWards([]); // Clear wards if no user
+        setLoading(false); // Ensure loading is set to false
+        return;
+      }
       
       setLoading(true);
       setError(null);
@@ -48,104 +53,103 @@ export default function DashboardPage() {
         if (userWards.length > 0) {
           // กำหนดการเลือกแผนกตามบทบาทและสิทธิ์
           if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
-            // Admin และ Developer สามารถเลือกแผนกได้อิสระ เริ่มต้นที่แผนกแรก
-            setSelectedWard(userWards[0].id);
+            setSelectedWard(userWards[0].id); // Admin และ Developer สามารถเลือกแผนกได้อิสระ เริ่มต้นที่แผนกแรก
           } else if (user.role === UserRole.APPROVER && user.approveWardIds && user.approveWardIds.length > 0) {
             // Approver เริ่มต้นที่แผนกแรกที่ตนมีสิทธิ์อนุมัติ
-            setSelectedWard(user.approveWardIds[0]);
+            // Ensure user.approveWardIds is treated as an array
+            const approveWards = Array.isArray(user.approveWardIds) ? user.approveWardIds : [];
+            const firstApprovableWard = userWards.find(ward => approveWards.includes(ward.id));
+            if (firstApprovableWard) {
+              setSelectedWard(firstApprovableWard.id);
+            } else {
+              setSelectedWard(userWards[0].id); // Fallback to first ward if no specifically approvable ward is found
+            }
           } else if ((user.role === UserRole.NURSE || user.role === UserRole.VIEWER) && user.floor) {
             // Nurse และ Viewer เห็นเฉพาะแผนกที่ตนสังกัด
             const assignedWard = userWards.find(ward => ward.id === user.floor);
             if (assignedWard) {
               setSelectedWard(assignedWard.id);
             } else {
-              console.warn(`[DashboardPage] User with floor ${user.floor} does not have access to that ward`);
-              setError('คุณไม่มีสิทธิ์ในการเข้าถึงแผนกนี้');
+              console.warn(`[DashboardPage] User ${user.uid} with floor ${user.floor} does not have direct access to that ward or ward list is filtered.`);
+              // อาจจะแสดงข้อความว่าไม่พบแผนกที่กำหนด หรือเลือกแผนกแรกในลิสต์ถ้ามี
+              if(userWards.length > 0) setSelectedWard(userWards[0].id);
+              else setError('ไม่พบแผนกที่ท่านสังกัด หรือ ไม่มีสิทธิ์เข้าถึงแผนกใดๆ');
             }
           } else {
             // กรณีอื่นๆ เลือกแผนกแรก
             setSelectedWard(userWards[0].id);
           }
+        } else {
+          setError('ไม่พบแผนกที่ท่านมีสิทธิ์เข้าถึง');
         }
       } catch (err) {
-        console.error('Error loading wards:', err);
+        console.error('[DashboardPage] Error loading wards:', err);
         setError('ไม่สามารถโหลดข้อมูลแผนกได้');
+        setWards([]); // Clear wards on error
+      } finally {
+        // setLoading(false); // Delay setting loading to false until summaries are also attempted to load
+        // This will be handled by the second useEffect or if selectedWard remains empty
       }
     };
     
-    loadWards();
-  }, [user]);
+    if(user) loadWards(); // Only load wards if user object exists
+    else {
+      setLoading(false); // No user, not loading
+      setWards([]);
+      setSelectedWard('');
+    }
+  }, [user]); // Reload wards only when user object changes
 
   // โหลดข้อมูลสรุปเมื่อมีการเลือกแผนกหรือช่วงวันที่
   useEffect(() => {
-    const loadSummaries = async () => {
-      if (!selectedWard || !startDate || !endDate || !user) return;
-      
-      // สำหรับ NURSE หรือ VIEWER ตรวจสอบว่าเลือกแผนกตรงกับ user.floor หรือไม่
-      if ((user.role === UserRole.NURSE || user.role === UserRole.VIEWER) && user.floor && selectedWard !== user.floor) {
-        console.warn(`[DashboardPage] User with role ${user.role} attempted to view data from ward ${selectedWard} but is assigned to ${user.floor}`);
-        setSummaries([]);
-        setError('คุณไม่มีสิทธิ์ดูข้อมูลของแผนกนี้');
-        setLoading(false);
+    const fetchSummaries = async () => {
+      if (!selectedWard || !startDate || !endDate) {
+        setSummaries([]); // Clear summaries if filters are not set
+        // If selectedWard is not set, it might be because loadWards hasn't finished or found a ward
+        // So, we should ensure loading is false here if we're not going to fetch.
+        if (!selectedWard) setLoading(false);
         return;
       }
-      
-      // สำหรับ APPROVER ตรวจสอบว่าเลือกแผนกที่มีสิทธิ์อนุมัติหรือไม่
-      if (user.role === UserRole.APPROVER && user.approveWardIds && !user.approveWardIds.includes(selectedWard)) {
-        console.warn(`[DashboardPage] Approver attempted to view data from ward ${selectedWard} but has permission for ${user.approveWardIds.join(', ')}`);
-        setSummaries([]);
-        setError('คุณไม่มีสิทธิ์ดูข้อมูลของแผนกนี้');
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      
       try {
-        let data: DailySummary[] = [];
+        setLoading(true); // Set loading true before fetching summaries
+        setError(null);
         
-        // ปรับการเรียก getDailySummariesByFilters
-        const filters = {
-          wardId: selectedWard,
-          startDate: new Date(startDate),
-          endDate: new Date(endDate),
-          approvedOnly: approvedOnly // ส่งค่า approvedOnly เข้าไป
-        };
+        // Log the current state for debugging
+        console.log(`[DashboardPage] Fetching summaries with filters: ward=${selectedWard}, startDate=${startDate}, endDate=${endDate}, approvedOnly=${approvedOnly}`);
         
-        data = await getDailySummariesByFilters(filters);
-        
-        // กรณีเป็น NURSE หรือ VIEWER กรองเฉพาะข้อมูลที่ตัวเองมีส่วนเกี่ยวข้อง
-        if (user.role === UserRole.NURSE || user.role === UserRole.VIEWER) {
-          // หากเป็นข้อมูลที่ตัวเองสร้างหรือแก้ไขล่าสุดเท่านั้น
-          const filteredData = data.filter(summary => 
-            summary.createdBy === user.uid || 
-            summary.lastUpdatedBy === user.uid ||
-            summary.morningFormId === user.uid ||
-            summary.nightFormId === user.uid
+        let result: DailySummary[];
+        if (approvedOnly) {
+          console.log("[DashboardPage] Fetching ONLY APPROVED summaries");
+          result = await getApprovedSummariesByDateRange(
+            selectedWard,
+            new Date(startDate),
+            new Date(endDate)
           );
-          
-          if (filteredData.length === 0 && data.length > 0) {
-            console.log("[DashboardPage] Data filtered from", data.length, "to 0 for NURSE/VIEWER");
-            setError('ไม่พบข้อมูลที่คุณมีส่วนเกี่ยวข้อง');
-          }
-          
-          setSummaries(filteredData);
         } else {
-          // Admin, Approver หรือบทบาทอื่นๆ เห็นข้อมูลทั้งหมดตามสิทธิ์
-          setSummaries(data);
+          console.log("[DashboardPage] Fetching ALL summaries (approved and not)");
+          result = await getDailySummariesByFilters({
+            wardId: selectedWard,
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            approvedOnly: false // Ensure this is explicitly false when fetching all
+          });
         }
-      } catch (err) {
-        console.error('Error loading summaries:', err);
-        setError('ไม่สามารถโหลดข้อมูลสรุปได้');
-        setSummaries([]); // เคลียร์ข้อมูลเมื่อเกิด error
+        
+        // Log the result for debugging
+        console.log(`[DashboardPage] Fetched ${result.length} summaries. Filter: ${approvedOnly ? 'Approved Only' : 'All'}. Ward: ${selectedWard}`);
+        
+        setSummaries(result);
+      } catch (err: any) {
+        console.error('[DashboardPage] Error fetching summaries:', err);
+        setError(err.message || 'ไม่สามารถโหลดข้อมูลได้');
+        setSummaries([]); // Clear summaries on error
       } finally {
-        setLoading(false);
+        setLoading(false); // Set loading false after fetching summaries attempt
       }
     };
     
-    loadSummaries();
-  }, [selectedWard, startDate, endDate, approvedOnly, user]);
+    fetchSummaries();
+  }, [selectedWard, startDate, endDate, approvedOnly]);
 
   // สร้างฟังก์ชันสำหรับคำนวณค่าเฉลี่ย
   const calculateAverage = (values: number[]): number => {
@@ -166,6 +170,17 @@ export default function DashboardPage() {
         avgOPD: 0
       };
     }
+    
+    console.log("[calculateStats] Processing statistics for", summaries.length, "summaries");
+    
+    // แสดงข้อมูลสำหรับดีบัก
+    summaries.forEach((summary, index) => {
+      console.log(`[Summary ${index}] ID: ${summary.id}, Date: ${summary.dateString}`);
+      console.log(`- Morning: patients=${summary.morningPatientCensus}, nurses=${summary.morningNurseTotal}`);
+      console.log(`- Night: patients=${summary.nightPatientCensus}, nurses=${summary.nightNurseTotal}`);
+      console.log(`- Daily: patients=${summary.dailyPatientCensus}, nurses=${summary.dailyNurseTotal}`);
+      console.log(`- Forms: morning=${!!summary.morningFormId}, night=${!!summary.nightFormId}, approved=${summary.allFormsApproved}`);
+    });
     
     const patientCensus = summaries.map(s => s.dailyPatientCensus || 0);
     const nurseTotal = summaries.map(s => s.dailyNurseTotal || 0);

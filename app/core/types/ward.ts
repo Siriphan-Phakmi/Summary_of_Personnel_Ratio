@@ -45,6 +45,7 @@ export interface WardForm {
   shift: ShiftType;
   patientCensus: number;
   totalPatientCensus?: number; // ยอดผู้ป่วยหลังจากคำนวณรับเข้า-จำหน่าย
+  calculatedCensus?: number; // ยอดผู้ป่วยที่คำนวณโดยอัตโนมัติจากข้อมูลรับเข้า-จำหน่าย
   nurseManager: number;
   rn: number;
   pn: number;

@@ -180,19 +180,44 @@ class NotificationService {
    */
   async getUserNotifications(userId: string): Promise<Notification[]> {
     try {
+      if (!userId) {
+        console.warn('getUserNotifications called with empty userId');
+        return [];
+      }
+
       const q = query(this.notificationsRef, where('recipientIds', 'array-contains', userId));
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map(doc => {
-        const data = doc.data() as Omit<Notification, 'id'>;
-        if (!data) {
-          console.warn(`Notification document ${doc.id} has undefined data.`);
+        try {
+          const data = doc.data();
+          if (!data) {
+            console.warn(`Notification document ${doc.id} has undefined data.`);
+            return null;
+          }
+          
+          // ตรวจสอบว่าข้อมูลมีฟิลด์ที่จำเป็นหรือไม่
+          if (!data.title || !data.message || !data.type) {
+            console.warn(`Notification document ${doc.id} is missing required fields.`);
+            return null;
+          }
+          
+          return {
+            id: doc.id,
+            title: data.title || '',
+            message: data.message || '',
+            recipientIds: Array.isArray(data.recipientIds) ? data.recipientIds : [],
+            type: data.type || NotificationType.SYSTEM,
+            relatedDocId: data.relatedDocId || '',
+            isRead: !!data.isRead,
+            createdAt: data.createdAt || null,
+            createdBy: data.createdBy || '',
+            actionUrl: data.actionUrl || ''
+          } as Notification;
+        } catch (err) {
+          console.error(`Error processing notification ${doc.id}:`, err);
           return null;
         }
-        return {
-          id: doc.id,
-          ...data
-        };
       }).filter(Boolean) as Notification[];
     } catch (error) {
       console.error('Error getting user notifications:', error);
@@ -207,23 +232,49 @@ class NotificationService {
    */
   async getUnreadNotifications(userId: string): Promise<Notification[]> {
     try {
+      if (!userId) {
+        console.warn('getUnreadNotifications called with empty userId');
+        return [];
+      }
+
       const q = query(
-        this.notificationsRef, 
+        this.notificationsRef,
         where('recipientIds', 'array-contains', userId),
         where('isRead', '==', false)
       );
+      
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map(doc => {
-        const data = doc.data() as Omit<Notification, 'id'>;
-        if (!data) {
-          console.warn(`Unread notification document ${doc.id} has undefined data.`);
+        try {
+          const data = doc.data();
+          if (!data) {
+            console.warn(`Unread notification document ${doc.id} has undefined data.`);
+            return null;
+          }
+          
+          // ตรวจสอบว่าข้อมูลมีฟิลด์ที่จำเป็นหรือไม่
+          if (!data.title || !data.message || !data.type) {
+            console.warn(`Unread notification document ${doc.id} is missing required fields.`);
+            return null;
+          }
+          
+          return {
+            id: doc.id,
+            title: data.title || '',
+            message: data.message || '',
+            recipientIds: Array.isArray(data.recipientIds) ? data.recipientIds : [],
+            type: data.type || NotificationType.SYSTEM,
+            relatedDocId: data.relatedDocId || '',
+            isRead: false, // เป็น unread แน่นอน
+            createdAt: data.createdAt || null,
+            createdBy: data.createdBy || '',
+            actionUrl: data.actionUrl || ''
+          } as Notification;
+        } catch (err) {
+          console.error(`Error processing unread notification ${doc.id}:`, err);
           return null;
         }
-        return {
-          id: doc.id,
-          ...data
-        };
       }).filter(Boolean) as Notification[];
     } catch (error) {
       console.error('Error getting unread notifications:', error);
