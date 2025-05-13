@@ -4,7 +4,6 @@ import {
   SYSTEM_LOGS_COLLECTION, 
   USER_ACTIVITY_LOGS_COLLECTION 
 } from '@/app/core/utils/logUtils';
-import { getServerSession } from 'next-auth';
 import { cookies, headers } from 'next/headers';
 
 /**

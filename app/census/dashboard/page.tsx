@@ -1,3 +1,3 @@
-import DashboardPage from '@/app/features/census/dashboard/DashboardPage';
+import Dashboard from '@/app/features/dashboard/page';
 
-export default DashboardPage; 
+export default Dashboard; 

@@ -43,9 +43,14 @@ export interface WardForm {
   date: TimestampField; // serverTimestamp หรือ Date
   dateString?: string; // วันที่ในรูปแบบ string (YYYY-MM-DD)
   shift: ShiftType;
+  
+  // ค่าปัจจุบันที่แสดงหลังการคำนวณ (ค่าเก่าในฟิลด์เดิม)
   patientCensus: number;
-  totalPatientCensus?: number; // ยอดผู้ป่วยหลังจากคำนวณรับเข้า-จำหน่าย
-  calculatedCensus?: number; // ยอดผู้ป่วยที่คำนวณโดยอัตโนมัติจากข้อมูลรับเข้า-จำหน่าย
+  // ค่าที่ผู้ใช้กรอกหรือดึงจากวันก่อน (เพิ่มฟิลด์ใหม่)
+  initialPatientCensus?: number; 
+  // ค่าที่คำนวณได้จากสูตร (เพิ่มฟิลด์ใหม่)
+  calculatedCensus?: number;
+  
   nurseManager: number;
   rn: number;
   pn: number;
@@ -75,6 +80,14 @@ export interface WardForm {
   approverLastName?: string;
   approvedAt?: TimestampField;
   rejectionReason?: string;
+  rejectedBy?: string;
+  rejectedAt?: TimestampField;
+  supervisorFirstName?: string;
+  supervisorLastName?: string;
+  opd24hr?: number;
+  oldPatient?: number;
+  newPatient?: number;
+  admit24hr?: number;
 }
 
 /**
@@ -103,6 +116,7 @@ export interface FormApproval {
 export interface CensusCalculation {
   previousNightCensus?: number;
   morningShiftCensus?: number;
+  initialCensus?: number;
   morningAdmissions: number; // newAdmit + transferIn + referIn
   morningDischarges: number; // discharge + transferOut + referOut + dead
   nightShiftCensus?: number;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/app/core/firebase/firebase';
 import notificationService from '@/app/core/services/NotificationService';
 import { verifyToken } from '@/app/core/utils/authUtils';
 import { cookies } from 'next/headers';

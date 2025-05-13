@@ -12,7 +12,7 @@ import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { User } from '@/app/core/types/user';
 import { Ward } from '@/app/core/types/ward';
-import { getActiveWards } from '@/app/features/census/forms/services/wardService';
+import { getActiveWards } from '@/app/features/ward-form/services/wardService';
 import { hashPassword } from '@/app/core/utils/authUtils';
 import { clearAllUserSessions } from '@/app/features/auth/services/sessionService';
 import toast from 'react-hot-toast';

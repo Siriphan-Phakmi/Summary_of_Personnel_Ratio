@@ -122,7 +122,7 @@ export const cleanupOldLogs = async (collectionName: string, daysToKeep: number 
   } catch (error) {
     console.error(`Error cleaning up old logs from ${collectionName}:`, error);
     return 0;
-  }
+    }
 };
 
 /**

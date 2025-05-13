@@ -8,7 +8,7 @@ import Input from '@/app/core/ui/Input';
 import { showErrorToast, showSuccessToast, showInfoToast } from '@/app/core/utils/toastUtils';
 import { format, addDays } from 'date-fns';
 import { FormStatus, ShiftType, Ward } from '@/app/core/types/ward';
-import { getActiveWards } from '@/app/features/census/forms/services/wardService';
+import { getActiveWards } from '@/app/features/ward-form/services/wardService';
 
 // Define type for shift selection
 type TargetShift = ShiftType.MORNING | ShiftType.NIGHT | 'both';

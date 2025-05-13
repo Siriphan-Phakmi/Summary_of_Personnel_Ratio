@@ -133,6 +133,11 @@ export const showSafeToast = (message: string, type: 'success' | 'error' | 'info
     return undefined;
   }
   
+  // ลบ toast เก่าที่มี ID เดียวกันก่อน (ถ้ามี)
+  if (options?.id) {
+    toast.dismiss(options.id);
+  }
+  
   // แสดง toast และบันทึกเวลา (ถ้าไม่มี ID หรือ throttle ผ่าน)
   if (!options?.id || now - lastShown >= TOAST_THROTTLE_MS){
       toastThrottleMap.set(key, now);

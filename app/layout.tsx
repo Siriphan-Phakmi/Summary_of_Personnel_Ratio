@@ -46,6 +46,7 @@ export default function RootLayout({
               <Toaster 
                 position="top-right"
                 gutter={16}
+                reverseOrder={true}
                 toastOptions={{
                   duration: 4000,
                   style: {

@@ -12,6 +12,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
+import { db } from '@/app/core/firebase/firebase';
 
 // Types
 export interface Notification {
@@ -36,8 +37,7 @@ export enum NotificationType {
 }
 
 class NotificationService {
-  private db = getFirestore();
-  private notificationsRef = collection(this.db, 'notifications');
+  private notificationsRef = collection(db, 'notifications');
 
   /**
    * สร้างการแจ้งเตือนใหม่
@@ -191,10 +191,10 @@ class NotificationService {
       return querySnapshot.docs.map(doc => {
         try {
           const data = doc.data();
-          if (!data) {
-            console.warn(`Notification document ${doc.id} has undefined data.`);
-            return null;
-          }
+        if (!data) {
+          console.warn(`Notification document ${doc.id} has undefined data.`);
+          return null;
+        }
           
           // ตรวจสอบว่าข้อมูลมีฟิลด์ที่จำเป็นหรือไม่
           if (!data.title || !data.message || !data.type) {
@@ -202,8 +202,8 @@ class NotificationService {
             return null;
           }
           
-          return {
-            id: doc.id,
+        return {
+          id: doc.id,
             title: data.title || '',
             message: data.message || '',
             recipientIds: Array.isArray(data.recipientIds) ? data.recipientIds : [],
@@ -238,7 +238,7 @@ class NotificationService {
       }
 
       const q = query(
-        this.notificationsRef,
+        this.notificationsRef, 
         where('recipientIds', 'array-contains', userId),
         where('isRead', '==', false)
       );
@@ -248,10 +248,10 @@ class NotificationService {
       return querySnapshot.docs.map(doc => {
         try {
           const data = doc.data();
-          if (!data) {
-            console.warn(`Unread notification document ${doc.id} has undefined data.`);
-            return null;
-          }
+        if (!data) {
+          console.warn(`Unread notification document ${doc.id} has undefined data.`);
+          return null;
+        }
           
           // ตรวจสอบว่าข้อมูลมีฟิลด์ที่จำเป็นหรือไม่
           if (!data.title || !data.message || !data.type) {
@@ -259,8 +259,8 @@ class NotificationService {
             return null;
           }
           
-          return {
-            id: doc.id,
+        return {
+          id: doc.id,
             title: data.title || '',
             message: data.message || '',
             recipientIds: Array.isArray(data.recipientIds) ? data.recipientIds : [],
@@ -289,7 +289,7 @@ class NotificationService {
    */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      const notificationRef = doc(this.db, 'notifications', notificationId);
+      const notificationRef = doc(db, 'notifications', notificationId);
       await updateDoc(notificationRef, {
         isRead: true
       });
@@ -312,7 +312,7 @@ class NotificationService {
       // ทำการอัปเดททีละรายการ
       for (const id of notificationIds) {
         try {
-          const notificationRef = doc(this.db, 'notifications', id);
+          const notificationRef = doc(db, 'notifications', id);
           await updateDoc(notificationRef, {
             isRead: true
           });

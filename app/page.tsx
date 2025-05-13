@@ -13,9 +13,15 @@ export default function RootPage() {
     if (authStatus !== 'loading') {
       if (user && authStatus === 'authenticated') {
         // ป้องกัน redirect loop โดยใช้ replace และ redirect ไปที่ target path โดยตรง
-        const targetPath = (user.role === 'admin' || user.role === 'developer') 
-          ? '/census/approval' 
-          : '/census/form';
+        let targetPath;
+        
+        if (user.role === 'admin' || user.role === 'developer' || user.role === 'super_admin') {
+          // สำหรับ admin/developer นำทางไปที่ dashboard เพื่อดูภาพรวม
+          targetPath = '/features/dashboard';
+        } else {
+          // สำหรับผู้ใช้ทั่วไปไปที่หน้ากรอกฟอร์ม
+          targetPath = '/census/form';
+        }
         
         // ใช้ replace เพื่อไม่ให้มีประวัติการ navigate ไว้ใน history
         router.replace(targetPath);

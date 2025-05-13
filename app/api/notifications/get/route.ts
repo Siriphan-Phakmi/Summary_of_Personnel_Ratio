@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/app/core/firebase/firebase';
 import notificationService from '@/app/core/services/NotificationService';
 import { verifyToken } from '@/app/core/utils/authUtils';
 import { cookies } from 'next/headers';
@@ -62,11 +63,11 @@ export async function GET(req: NextRequest) {
     if (!Array.isArray(notifications)) {
       console.error('[API /notifications/get] Invalid notifications data format:', notifications);
       // Return a successful response with empty array
-      return NextResponse.json({ 
+       return NextResponse.json({ 
         success: true, 
-        notifications: [],
-        unreadCount: 0
-      }, { status: 200 });
+         notifications: [],
+         unreadCount: 0
+       }, { status: 200 }); 
     }
 
     // กรองข้อมูลที่ไม่ถูกต้องออก
@@ -78,7 +79,7 @@ export async function GET(req: NextRequest) {
     // เรียงลำดับตามเวลาล่าสุด
     try {
       validNotifications.sort((a, b) => {
-        // แปลง Timestamp เป็น Date
+          // แปลง Timestamp เป็น Date
         const getTimestamp = (notification: any) => {
           if (!notification.createdAt) return 0;
           
@@ -94,12 +95,12 @@ export async function GET(req: NextRequest) {
         
         const dateA = getTimestamp(a);
         const dateB = getTimestamp(b);
-        
-        // เรียงจากใหม่ไปเก่า
-        return dateB - dateA;
-      });
+          
+          // เรียงจากใหม่ไปเก่า
+          return dateB - dateA;
+        });
     } catch (sortError) {
-      console.error('[API /notifications/get] Error during sorting:', sortError);
+        console.error('[API /notifications/get] Error during sorting:', sortError);
       // ไม่ต้องทำอะไร ใช้ข้อมูลโดยไม่เรียงลำดับ
     }
 
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       notifications: [],
-      unreadCount: 0
+        unreadCount: 0
     }, { status: 200 });
   }
 } 

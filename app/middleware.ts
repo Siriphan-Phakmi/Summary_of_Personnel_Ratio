@@ -17,7 +17,9 @@ const securityHeaders = {
 const protectedRoutes = [
   '/admin',
   '/census',
-  '/home'
+  '/home',
+  '/features/dashboard',
+  '/features'
 ];
 
 // รายการเส้นทางที่ไม่ต้องการการยืนยันตัวตน

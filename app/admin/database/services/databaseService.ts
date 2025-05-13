@@ -99,6 +99,8 @@ export const collectionTemplates: Record<string, CollectionTemplate> = {
       { name: 'dateString', type: 'string', defaultValue: '' },
       { name: 'shift', type: 'string', defaultValue: 'morning', options: ['morning', 'night'] },
       { name: 'patientCensus', type: 'number', defaultValue: 0 },
+      { name: 'initialPatientCensus', type: 'number', defaultValue: 0 },
+      { name: 'calculatedCensus', type: 'number', defaultValue: 0 },
       { name: 'nurseManager', type: 'number', defaultValue: 0 },
       { name: 'rn', type: 'number', defaultValue: 0 },
       { name: 'pn', type: 'number', defaultValue: 0 },

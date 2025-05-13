@@ -24,21 +24,44 @@ A comprehensive application for managing ward personnel ratios and patient censu
 
 ```
 /app
-  /components       # UI components
-    /ui             # Generic UI components
-    /layout         # Layout components
-    /wardForm       # Ward form specific components
-  /contexts         # React contexts
-  /hooks            # Custom React hooks
-  /lib              # Utility libraries
-  /page             # Route pages
-    /approval       # Approval management
-    /dashboard      # Analytics dashboard
-    /user-management # User management
-    /ward-form      # Ward data entry form
-  /services         # API services
-  /types            # TypeScript types
-  /utils            # Utility functions
+  /features             # Feature-based organization
+    /auth               # Authentication system
+    /ward-form          # Ward form data entry
+    /approval           # Approval system
+    /dashboard          # Dashboard and analytics
+    /user-management    # User management
+    /notifications      # Notification system
+      
+  /core                 # Shared code base
+    /ui                 # Core UI components
+    /hooks              # Common React hooks
+    /utils              # Utility functions
+    /firebase           # Firebase connection
+    /types              # Common TypeScript types
+    /constants          # Constants
+    
+  /api                  # Next.js API Routes
+    /ward-form          # Form APIs
+    /approval           # Approval APIs
+    /dashboard          # Dashboard APIs
+    /users              # User APIs
+    /dev-tools          # Development tools APIs
+    
+  /dev-tools            # Developer tools
+    /log-viewer         # Log viewer
+    /database-manager   # Database management tools
+    
+  /docs                 # Project documentation
+
+  # Next.js App Router folders
+  /login                # Login page
+  /census               # Census pages
+    /ward-form          # Ward form page
+    /approval           # Approval page
+    /dashboard          # Dashboard page
+  /admin                # Admin pages
+    /user-management    # User management page
+    /database           # Database management page
 ```
 
 ## Key Workflows
@@ -84,7 +107,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
 NEXT_PUBLIC_FIREBASE_DATABASE_URL=your-database-url
 ```
 
-## Project Status (อัปเดต 2024-05-06)
+## Project Status (อัปเดต 2024-05-10)
 
 ### Recently Completed
 - ✅ ระบบการจัดการแบบฟอร์มและอนุมัติ
@@ -94,12 +117,14 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL=your-database-url
 - ✅ พัฒนาระบบแจ้งเตือนเบื้องต้น (NotificationBell)
 - ✅ ปรับปรุงแบบฟอร์มบันทึกข้อมูลกะเช้า/กะดึก
 - ✅ การจัดการสิทธิ์และการเข้าถึงตาม Role
+- ✅ ปรับโครงสร้างโค้ดใหม่ตามฟีเจอร์ (Feature-based organization)
 
 ### In Progress
 - 🔄 การเชื่อมต่อระบบแจ้งเตือนกับการอนุมัติ/ปฏิเสธแบบฟอร์ม
 - 🔄 การปรับปรุงหน้า Dashboard
 - 🔄 การปรับปรุงประสิทธิภาพและการแสดงผลบนอุปกรณ์มือถือ
 - 🔄 การแก้ไขปัญหาการแสดงสถานะแบบฟอร์มในหน้า DailyCensusForm
+- 🔄 ปรับปรุง imports หลังการปรับโครงสร้างโค้ด
 
 ### Upcoming
 - 📅 ระบบจัดการผู้ใช้งาน
@@ -109,6 +134,8 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL=your-database-url
 
 ## Developer Notes
 
-หากพบปัญหาเกี่ยวกับ Firebase Indexes กรุณาดูไฟล์ `FIRESTORE_INDEXES.md` สำหรับคำแนะนำในการสร้าง Indexes ที่จำเป็น
+หากพบปัญหาเกี่ยวกับ Firebase Indexes กรุณาดูไฟล์ `app/docs/FIRESTORE_INDEXES.md` สำหรับคำแนะนำในการสร้าง Indexes ที่จำเป็น
 
-สำหรับรายละเอียดเพิ่มเติมเกี่ยวกับงานที่ต้องดำเนินการและความคืบหน้าของโครงการ กรุณาดูไฟล์ `TASKS.md`
+สำหรับรายละเอียดเพิ่มเติมเกี่ยวกับงานที่ต้องดำเนินการและความคืบหน้าของโครงการ กรุณาดูไฟล์ `app/docs/TASKS.md`
+
+สำหรับข้อมูลเกี่ยวกับการปรับโครงสร้างโค้ดล่าสุด กรุณาดูไฟล์ `app/docs/RESTRUCTURING.md`

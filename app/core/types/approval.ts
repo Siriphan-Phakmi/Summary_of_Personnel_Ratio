@@ -13,6 +13,18 @@ export enum ApprovalStatus {
 }
 
 /**
+ * บันทึกเหตุการณ์การอนุมัติ (สำหรับเก็บใน approvalHistory array)
+ */
+export interface ApprovalEvent {
+  action: 'approve' | 'reject';
+  timestamp: Timestamp;
+  userId: string;
+  userName: string;
+  userRole: string;
+  reason?: string;
+}
+
+/**
  * บันทึกการอนุมัติแบบฟอร์ม
  */
 export interface ApprovalRecord {

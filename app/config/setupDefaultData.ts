@@ -1,4 +1,4 @@
-import { setupDefaultWards } from '@/app/features/census/forms/services/wardService';
+import { setupDefaultWards } from '@/app/features/ward-form/services/wardService';
 
 /**
  * ฟังก์ชันตั้งค่าข้อมูลเริ่มต้นสำหรับระบบ
