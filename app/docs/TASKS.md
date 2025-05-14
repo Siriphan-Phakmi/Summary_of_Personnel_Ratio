@@ -166,4 +166,19 @@
 - [ ] เพิ่มการช่วยเหลือในการใช้งาน (Tool Tips)
 - [ ] เพิ่มหน้าสำหรับการดาวน์โหลดข้อมูลรายเดือน
 - [ ] เพิ่มความสามารถในการเพิ่ม แก้ไข และลบผู้ใช้
+
+### รายการที่แก้ไขไป (อัปเดตล่าสุด 2024-05-15)
+- [x] **แก้ไขปัญหาการแสดงข้อมูล Dashboard (รอบล่าสุด):**
+  - [x] `dailySummary.ts`: ปรับ `getApprovedSummariesByDateRange` ให้ใช้ `dateString` ในการ query, เพิ่ม fallback logic, และจัดการ `allFormsApproved` เพื่อการแสดงผล
+  - [x] `DashboardPage.tsx`: ปรับ `fetchSummaries` และการประมวลผล `summaries`, ปรับการคำนวณ `wardStats` ให้ใช้ `calculatedCensus` เป็นหลัก, และจัดการ `allFormsApproved`
+  - [x] `approvalForms.ts`: ปรับ `updateDailySummaryApprovalStatus` ให้ตั้ง `allFormsApproved = true` ใน `dailySummaries`
+  - [x] `approval.ts`: อัปเดต interface `DailySummary` ให้มี `calculatedCensus`, `morningCalculatedCensus`, `nightCalculatedCensus`
+  - [x] ตรวจสอบและยืนยันการใช้ `console.log` เพื่อติดตามข้อมูลในส่วนที่เกี่ยวข้องกับการดึงและแสดงผลข้อมูล Dashboard
+
+### รายการที่ยังไม่แก้ไข
+- [ ] ระบบควบคุมเวอร์ชัน (Versioning System)
+- [ ] ปรับปรุงการแสดงรายงานสรุป ให้สามารถเลือกเป็นช่วงเวลาจาก-ถึง
+- [ ] เพิ่มการช่วยเหลือในการใช้งาน (Tool Tips)
+- [ ] เพิ่มหน้าสำหรับการดาวน์โหลดข้อมูลรายเดือน
+- [ ] เพิ่มความสามารถในการเพิ่ม แก้ไข และลบผู้ใช้
  

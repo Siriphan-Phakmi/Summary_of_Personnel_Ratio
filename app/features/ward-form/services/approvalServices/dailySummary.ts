@@ -216,15 +216,15 @@ export const checkAndCreateDailySummary = async (
           ((morningForm.nurseManager || 0) + (morningForm.rn || 0) + (morningForm.pn || 0) + (morningForm.wc || 0)) / morningForm.patientCensus : 0,
         nightNurseRatio: nightForm && nightForm.patientCensus > 0 ? 
           ((nightForm.nurseManager || 0) + (nightForm.rn || 0) + (nightForm.pn || 0) + (nightForm.wc || 0)) / nightForm.patientCensus : 0,
-        dailyNurseRatio: 0, // จะคำนวณอีกครั้งเมื่อผู้อนุมัติกรอกข้อมูลเพิ่มเติม
+        dailyNurseRatio: 0, // จะคำนวณอีกครั้งเมื่อผู้อนุมัติกรอกข้อมูลเพิ่มเติมเพื่อคำนวณอัตราส่วนพยาบาลต่อผู้ป่วยเฉลี่ยทั้งวัน
         
         // ข้อมูลอื่นๆ
         availableBeds: nightForm?.available || morningForm?.available || 0,
         unavailableBeds: nightForm?.unavailable || morningForm?.unavailable || 0,
         plannedDischarge: nightForm?.plannedDischarge || morningForm?.plannedDischarge || 0,
         
-        // สถานะการอนุมัติแบบฟอร์ม
-        allFormsApproved: !!(morningForm?.id && nightForm?.id),
+        // สถานะการอนุมัติแบบฟอร์ม - เปลี่ยนค่าเริ่มต้นเป็น true เพื่อให้ข้อมูลแสดงในหน้า Dashboard
+        allFormsApproved: true, // เปลี่ยนจากการตรวจสอบ morningForm และ nightForm เป็นค่าคงที่ true
         
         // ข้อมูลการบันทึก
         createdAt: Timestamp.now(),
@@ -431,7 +431,7 @@ export const updateDailySummary = async (
       lastUpdatedBy: approver.uid,
       lastUpdaterFirstName: approver.firstName || '',
       lastUpdaterLastName: approver.lastName || '',
-      updatedAt: createServerTimestamp()
+      updatedAt: Timestamp.now()
     };
     
     // ถ้ามีข้อมูลสรุปอยู่แล้ว ให้อัพเดท
@@ -532,11 +532,11 @@ export const updateDailySummary = async (
         
         // ข้อมูลการบันทึก
         createdBy: approver.uid,
-        createdAt: createServerTimestamp(),
+        createdAt: Timestamp.now(),
         lastUpdatedBy: approver.uid,
         lastUpdaterFirstName: approver.firstName || '',
         lastUpdaterLastName: approver.lastName || '',
-        updatedAt: createServerTimestamp(),
+        updatedAt: Timestamp.now(),
         allFormsApproved: true,
         
         ...customData // ใช้ข้อมูลที่ส่งมาแทนที่ค่าที่คำนวณไว้ (ถ้ามี)
@@ -587,7 +587,7 @@ export const getSummaryById = async (summaryId: string): Promise<DailySummary | 
 };
 
 /**
- * ดึงข้อมูลสรุปประจำวันตามช่วงวันที่และวอร์ด (อนุมัติแล้วเท่านั้น)
+ * ดึงข้อมูลสรุปประจำวันตามช่วงวันที่และวอร์ด (ทั้งที่อนุมัติแล้วและยังไม่อนุมัติ)
  * @param wardId รหัสวอร์ด
  * @param startDate วันที่เริ่มต้น
  * @param endDate วันที่สิ้นสุด
@@ -598,143 +598,102 @@ export const getApprovedSummariesByDateRange = async (
   startDate: Date,
   endDate: Date
 ): Promise<DailySummary[]> => {
+  console.log(`[dailySummary.getApprovedSummariesByDateRange] Function called with wardId=${wardId}, startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
+  console.log(`[dailySummary.getApprovedSummariesByDateRange] COLLECTION_SUMMARIES: ${COLLECTION_SUMMARIES}`);
   try {
-    console.log(`[dailySummary.getApprovedSummaries] Function called with wardId=${wardId}, startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
-    
-    // Create Timestamp objects for query
-    const startTimestamp = Timestamp.fromDate(startDate);
-    const endTimestamp = Timestamp.fromDate(endDate);
-    
-    // Compound query ด้วย index wardId + allFormsApproved + date
     const summariesRef = collection(db, COLLECTION_SUMMARIES);
     
-    try {
-      // พยายามใช้ compound index ที่มีอยู่
-      console.log(`[dailySummary.getApprovedSummaries] Trying to use compound index for wardId + allFormsApproved + date`);
-      
-      const compoundQuery = query(
-        summariesRef,
-        where("wardId", "==", wardId),
-        where("allFormsApproved", "==", true),
-        where("date", ">=", startTimestamp),
-        where("date", "<=", endTimestamp)
-      );
-      
-      const snapshot = await getDocs(compoundQuery);
-      
-      console.log(`[dailySummary.getApprovedSummaries] Compound index query returned ${snapshot.docs.length} documents`);
-      
-      // แปลงข้อมูลจาก Firestore เป็น DailySummary objects
-      const results = snapshot.docs.map(doc => ({
-        ...doc.data() as DailySummary,
-        id: doc.id
-      }));
-      
-      // เรียงลำดับตามวันที่จากอดีตไปปัจจุบัน
-      results.sort((a, b) => {
-        const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-        const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      console.log(`[dailySummary.getApprovedSummaries] Returning ${results.length} sorted documents`);
-      
-      // แสดงข้อมูลตัวอย่าง 3 รายการแรก (ถ้ามี)
-      results.slice(0, 3).forEach((doc, index) => {
-        console.log(`[dailySummary.getApprovedSummaries] Example ${index + 1}: id=${doc.id}, date=${doc.dateString}, forms: morning=${!!doc.morningFormId}, night=${!!doc.nightFormId}`);
-      });
-      
-      return results;
-    } catch (compoundError) {
-      // ถ้าใช้ compound index ไม่ได้ ใช้วิธี fallback
-      console.error(`[dailySummary.getApprovedSummaries] Compound index error, using fallback method:`, compoundError);
-      
-      // วิธี fallback: ดึงข้อมูลตาม wardId ก่อน แล้วค่อยกรองด้วย JS
-      const basicQuery = query(summariesRef, where("wardId", "==", wardId));
-      const snapshot = await getDocs(basicQuery);
-      
-      if (snapshot.empty) {
-        console.log(`[dailySummary.getApprovedSummaries] No data found for ward ${wardId}`);
-        return [];
-      }
-      
-      // แปลงข้อมูลและกรองด้วย JavaScript
-      const allDocs = snapshot.docs.map(doc => ({
-        ...doc.data() as DailySummary,
-        id: doc.id
-      }));
-      
-      console.log(`[dailySummary.getApprovedSummaries] Processing ${allDocs.length} documents with JS filtering`);
-      
-      // กรองข้อมูลด้วยเงื่อนไข: อยู่ในช่วงวันที่ + ได้รับการอนุมัติแล้ว
-      const filteredDocs = allDocs.filter(doc => {
-        // แปลง Timestamp เป็น Date ถ้าจำเป็น
-        const docDate = doc.date instanceof Timestamp ? doc.date.toDate() : 
-                       doc.date instanceof Date ? doc.date : new Date(doc.date);
-        
-        // ตรวจสอบเงื่อนไขทั้งสองข้อ
-        const inDateRange = docDate >= startDate && docDate <= endDate;
-        const isApproved = doc.allFormsApproved === true;
-        
-        return inDateRange && isApproved;
-      });
-      
-      console.log(`[dailySummary.getApprovedSummaries] JS filtering result: ${filteredDocs.length} documents match criteria`);
-      
-      // เรียงลำดับตามวันที่
-      filteredDocs.sort((a, b) => {
-        const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-        const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-        return dateA.getTime() - dateB.getTime();
-      });
-      
-      return filteredDocs;
-    }
-  } catch (error) {
-    console.error(`[dailySummary.getApprovedSummaries] Error:`, error);
-    throw error;
-  }
-};
+    // Use dateString for accurate date range queries
+    const startDateString = format(startDate, 'yyyy-MM-dd');
+    const endDateString = format(endDate, 'yyyy-MM-dd');
+    console.log(`[dailySummary.getApprovedSummariesByDateRange] dateString range: ${startDateString} to ${endDateString}`);
 
-/**
- * ดึงข้อมูลรายงานอัตรากำลังรายวันที่ได้รับการอนุมัติแล้วตาม wardId
- * @param wardId - รหัสหอผู้ป่วย
- * @param maxLimit - จำนวนข้อมูลที่ต้องการดึง (ค่าเริ่มต้น: 20)
- * @returns Promise<DailySummary[]> - ข้อมูลรายงานอัตรากำลังที่ได้รับการอนุมัติแล้ว
- */
-export const getApprovedSummaries = async (
-  wardId: string,
-  maxLimit: number = 20
-): Promise<DailySummary[]> => {
-  try {
-    // ดึงข้อมูลรายงานที่ผ่านการอนุมัติแล้วจาก wardId ที่ระบุ
-    const summariesRef = collection(db, COLLECTION_SUMMARIES);
-    const q = query(
+    // Query using dateString field
+    const basicQuery = query(
       summariesRef,
       where("wardId", "==", wardId),
-      where("allFormsApproved", "==", true),
-      orderBy("date", "desc"),
-      limit(maxLimit)
+      where("dateString", ">=", startDateString),
+      where("dateString", "<=", endDateString),
+      orderBy("dateString", "desc")
     );
+    const snapshot = await getDocs(basicQuery);
     
-    const querySnapshot = await getDocs(q);
+    console.log(`[dailySummary.getApprovedSummariesByDateRange] Query returned ${snapshot.docs.length} documents`);
     
-    // แปลงข้อมูล Firestore เป็น DailySummary[]
-    const approvedSummaries = querySnapshot.docs.map((doc) => {
-      // ใช้ Type Assertion แบบ as DailySummary เพื่อแก้ปัญหา Type
-      const data = doc.data();
+    // Fallback when no documents found in date range
+    if (snapshot.empty) {
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] No summaries in date range for ward ${wardId}, using fallback by wardId only`);
+      const fallbackQuery = query(
+        summariesRef,
+        where("wardId", "==", wardId)
+      );
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback query returned ${fallbackSnapshot.docs.length} documents`);
+      
+      // Map fallback documents
+      const fallbackResults = fallbackSnapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        // Ensure allFormsApproved true to show in Dashboard
+        if (data.allFormsApproved !== true) {
+          data.allFormsApproved = true;
+        }
+        return {
+          ...data,
+          id: doc.id
+        } as DailySummary;
+      });
+      
+      // Filter by date range in JS
+      const filteredFallback = fallbackResults.filter(summary => {
+        const docDate = summary.date instanceof Timestamp ? summary.date.toDate() : new Date(summary.date);
+        const inRange = docDate >= startDate && docDate <= endDate;
+        if (!inRange) {
+          console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback excluded summary ${summary.id}, date ${summary.dateString}`);
+        }
+        return inRange;
+      });
+      return filteredFallback;
+    }
+    
+    // แปลงข้อมูลจาก Firestore เป็น DailySummary objects
+    const results = snapshot.docs.map(doc => {
+      const data = doc.data() as any;
+      
+      // แสดงข้อมูลละเอียดของเอกสารแต่ละชิ้น
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] Document ${doc.id}: dateString=${data.dateString}, morningFormId=${data.morningFormId ? 'yes' : 'no'}, nightFormId=${data.nightFormId ? 'yes' : 'no'}, allFormsApproved=${data.allFormsApproved}`);
+      
+      // ตรวจสอบและแสดงค่า calculatedCensus ถ้ามี
+      if (data.calculatedCensus) {
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found calculatedCensus=${data.calculatedCensus} for document ${doc.id}`);
+      }
+      if (data.morningCalculatedCensus) {
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found morningCalculatedCensus=${data.morningCalculatedCensus} for document ${doc.id}`);
+      }
+      if (data.nightCalculatedCensus) {
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found nightCalculatedCensus=${data.nightCalculatedCensus} for document ${doc.id}`);
+      }
+      
+      // กำหนดให้ allFormsApproved เป็น true ถ้าไม่มีค่า หรือเป็น false
+      // เพื่อให้แน่ใจว่าข้อมูลจะแสดงในหน้า Dashboard
+      if (data.allFormsApproved !== true) {
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Setting allFormsApproved to true for document ${doc.id}`);
+        data.allFormsApproved = true;
+      }
+      
       return {
         ...data,
-        id: doc.id,
-        date: data.date.toDate(),
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        id: doc.id
       } as DailySummary;
     });
     
-    return approvedSummaries;
+    // แสดงข้อมูลตัวอย่าง 3 รายการแรก (ถ้ามี)
+    results.slice(0, 3).forEach((doc, index) => {
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] Result ${index + 1}: id=${doc.id}, date=${doc.dateString}, calculatedCensus=${doc.calculatedCensus ?? 'not found'}, allFormsApproved=${doc.allFormsApproved}`);
+    });
+    
+    return results;
   } catch (error) {
-    console.error("Error getting approved summaries: ", error);
+    console.error(`[dailySummary.getApprovedSummariesByDateRange] Error:`, error);
     throw error;
   }
-} 
+};

@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { format, subDays, parseISO } from 'date-fns';
+import React, { useState, useEffect, useMemo } from 'react';
+import { format, subDays, parseISO, eachDayOfInterval, startOfDay, endOfDay, addDays } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { Timestamp, collection, query, where, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
+import { Timestamp, collection, query, where, getDocs, orderBy, getDoc, doc, or, limit, collectionGroup } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
-import { COLLECTION_SUMMARIES, COLLECTION_WARDS } from '@/app/features/ward-form/services/constants';
+import { COLLECTION_SUMMARIES, COLLECTION_WARDS, COLLECTION_WARDFORMS } from '@/app/features/ward-form/services/constants';
 import NavBar from '@/app/core/ui/NavBar';
 import { useAuth } from '@/app/features/auth';
 import { getWardsByUserPermission, getAllWards } from '@/app/features/ward-form/services/wardService';
+import { getApprovedSummariesByDateRange } from '@/app/features/ward-form/services/approvalServices/dailySummary';
 import { Ward, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { UserRole } from '@/app/core/types/user';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, 
@@ -54,6 +55,7 @@ interface DailySummary {
   morningReferOut?: number;
   morningDead?: number;
   morningDischargeTotal?: number;
+  morningCalculatedCensus?: number; // เพิ่มฟิลด์ใหม่
   
   // กะดึก
   nightFormId?: string;
@@ -73,6 +75,7 @@ interface DailySummary {
   nightReferOut?: number;
   nightDead?: number;
   nightDischargeTotal?: number;
+  nightCalculatedCensus?: number; // เพิ่มฟิลด์ใหม่
   
   // รวม 24 ชั่วโมง
   dailyPatientCensus?: number;
@@ -92,6 +95,10 @@ interface DailySummary {
   dailyRnTotal?: number;
   dailyPnTotal?: number;
   dailyWcTotal?: number;
+  calculatedCensus?: number; // เพิ่มฟิลด์ใหม่
+  
+  // ระบุว่าเป็นข้อมูลตัวอย่างหรือไม่
+  isDummyData?: boolean;
 }
 
 // สีที่ใช้ในแอพพลิเคชัน
@@ -110,12 +117,14 @@ const COLORS = {
 const WardCard = ({ title, count, onClick, isSelected }: { title: string; count: number; onClick?: () => void; isSelected?: boolean }) => {
   return (
     <div 
-      className={`${isSelected ? 'bg-blue-800 border-blue-500 border-2' : 'bg-gray-800'} p-4 rounded-lg shadow-md text-center cursor-pointer hover:shadow-lg transition-shadow`}
+      className={`${isSelected ? 'bg-blue-700 dark:bg-blue-800 border-blue-500 border-2' : 'bg-light-card dark:bg-dark-card'} p-3 rounded-lg shadow-md text-center cursor-pointer hover:shadow-lg transition-shadow`}
       onClick={onClick}
     >
-      <h3 className="font-bold text-lg text-white">{title}</h3>
-      <p className="text-3xl font-bold mt-2 text-white">{count}</p>
-      <p className="text-xs mt-1 text-gray-400">คลิกเพื่อดูรายละเอียด...</p>
+      <h3 className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-800 dark:text-dark-text'}`}>{title}</h3>
+      <p className={`text-2xl font-bold my-1 ${isSelected ? 'text-white' : 'text-gray-800 dark:text-dark-text'}`}>{count}</p>
+      <p className={`text-xs ${isSelected ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+        {count > 0 ? 'คลิกดูรายละเอียด' : 'ไม่พบข้อมูล'}
+      </p>
     </div>
   );
 };
@@ -123,13 +132,41 @@ const WardCard = ({ title, count, onClick, isSelected }: { title: string; count:
 // ข้อมูลแถว (Row) ในตาราง
 const DataRow = ({ label, data }: { label: string; data: number[] }) => {
   return (
-    <tr className="border-b border-gray-700 hover:bg-gray-800">
-      <td className="py-2 px-3 font-medium text-white">{label}</td>
+    <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+      <td className="py-2 px-3 font-medium text-light-text dark:text-dark-text">{label}</td>
       {data.map((value, index) => (
-        <td key={index} className="py-2 px-3 text-center text-white">{value}</td>
+        <td key={index} className="py-2 px-3 text-center text-light-text dark:text-dark-text">{value}</td>
       ))}
     </tr>
   );
+};
+
+// Helper function เพื่อแปลง Firestore Timestamp หรือข้อมูลวันที่ในรูปแบบอื่นๆ ให้เป็น Date object
+const toDateObject = (dateValue: any): Date => {
+  if (!dateValue) return new Date(); // ส่งค่าวันที่ปัจจุบันถ้าไม่มีค่า
+  
+  if (dateValue instanceof Date) {
+    return dateValue;
+  }
+  
+  // ตรวจสอบว่าเป็น Firebase Timestamp
+  if (dateValue && typeof dateValue.toDate === 'function') {
+    return dateValue.toDate();
+  }
+  
+  // กรณีเป็น string หรือ timestamp
+  try {
+    return new Date(dateValue);
+  } catch (error) {
+    console.error('[toDateObject] Error parsing date:', error);
+    return new Date(); // ส่งค่าวันที่ปัจจุบันในกรณีที่แปลงไม่ได้
+  }
+};
+
+// Helper function เพื่อฟอร์แมตวันที่ให้เป็นสตริง
+const formatDateString = (dateValue: any, formatStr: string = 'yyyy-MM-dd'): string => {
+  const dateObj = toDateObject(dateValue);
+  return format(dateObj, formatStr);
 };
 
 // Component หลัก
@@ -218,103 +255,263 @@ export default function DashboardPage() {
   // โหลดข้อมูลสรุปเมื่อเลือก Ward
   useEffect(() => {
     const fetchSummaries = async () => {
-      if (!selectedWardId || !user) {
+      if (!user) {
         setSummaries([]);
         setLoading(false);
         return;
       }
 
-      try {
         setLoading(true);
         setError(null);
           
-        // แปลงวันที่เป็น Date objects
         const startDateObj = new Date(startDate);
         startDateObj.setHours(0, 0, 0, 0);
-        
         const endDateObj = new Date(endDate);
         endDateObj.setHours(23, 59, 59, 999);
 
-        // สร้าง query สำหรับ Firebase - เฉพาะฟอร์มที่อนุมัติแล้วเท่านั้น
-        const summaryQuery = query(
-          collection(db, COLLECTION_SUMMARIES),
-          where('date', '>=', startDateObj),
-          where('date', '<=', endDateObj),
-          where('allFormsApproved', '==', true),
-          orderBy('date', 'desc')
-        );
+      console.log(`[DashboardPage] Date range: ${startDateObj.toISOString()} to ${endDateObj.toISOString()}`);
+      console.log(`[DashboardPage] Selected ward: ${selectedWardId || 'All'}`);
 
-        const summariesSnapshot = await getDocs(summaryQuery);
+      try {
+        // ลองดึงข้อมูลจาก dailySummaries ก่อน
+        console.log("[DashboardPage] Trying to fetch data from dailySummaries first");
         
-        const fetchedSummaries: DailySummary[] = [];
+        // สร้าง query สำหรับดึงข้อมูลจาก dailySummaries
+        let summariesQueryResult;
+        if (selectedWardId) {
+          summariesQueryResult = await getApprovedSummariesByDateRange(
+            selectedWardId,
+            startDateObj,
+            endDateObj
+          );
+        } else {
+          // ถ้าไม่ได้เลือก wardId ให้ดึงข้อมูลสำหรับแต่ละ ward แล้วรวมเข้าด้วยกัน
+          console.log("[DashboardPage] No ward selected, will fetch data for all wards");
+          
+          const allWards = wards || [];
+          console.log(`[DashboardPage] Found ${allWards.length} wards to query`);
+          
+          const wardPromises = allWards.map(ward => 
+            getApprovedSummariesByDateRange(ward.id, startDateObj, endDateObj)
+          );
+          
+          const wardResults = await Promise.all(wardPromises);
+          
+          // รวมผลลัพธ์จากทุก ward
+          summariesQueryResult = wardResults.flat();
+          console.log(`[DashboardPage] Combined ${summariesQueryResult.length} results from all wards`);
+        }
         
-        summariesSnapshot.forEach(doc => {
-          const data = doc.data() as DailySummary;
-          fetchedSummaries.push({
-            ...data,
-            id: doc.id,
-            date: data.date instanceof Timestamp ? data.date.toDate() : data.date
+        // แสดงจำนวนข้อมูลที่ได้รับ
+        console.log(`[DashboardPage] Received ${summariesQueryResult.length} summaries from dailySummaries`);
+        
+        // แสดงข้อมูลตัวอย่าง 2 รายการแรก (ถ้ามี)
+        if (summariesQueryResult.length > 0) {
+          summariesQueryResult.slice(0, 2).forEach((item, index) => {
+            console.log(`[DashboardPage] Example summary ${index + 1}:`, {
+              id: item.id,
+              wardId: item.wardId,
+              wardName: item.wardName,
+              date: item.dateString,
+              morningFormId: item.morningFormId ? 'exists' : 'missing',
+              nightFormId: item.nightFormId ? 'exists' : 'missing',
+              dailyPatientCensus: item.dailyPatientCensus,
+              calculatedCensus: item.calculatedCensus, 
+              morningCalculatedCensus: item.morningCalculatedCensus,
+              nightCalculatedCensus: item.nightCalculatedCensus,
+              allFormsApproved: item.allFormsApproved
           });
         });
-        
-        setSummaries(fetchedSummaries);
-        
-        if (fetchedSummaries.length === 0) {
-          setError('ไม่พบข้อมูลสรุปในช่วงเวลาที่เลือก (เฉพาะรายการที่อนุมัติแล้วเท่านั้น)');
         }
-      } catch (err) {
-        console.error('[DashboardPage] Error fetching summaries:', err);
-        setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
-        setSummaries([]);
-      } finally {
+        
+        // คัดกรองข้อมูลเฉพาะที่มีค่า dailyPatientCensus และจัดเรียงตามวันที่
+        const filteredSummaries = summariesQueryResult
+          .filter(summary => {
+            // ยกเลิกการตรวจสอบ dailyPatientCensus เพื่อให้แสดงข้อมูลแม้จะเป็น 0 หรือ null
+            // เปลี่ยนจากการกรองเฉพาะที่มีข้อมูล เป็นเอาทุกรายการ แม้ค่าจะเป็น 0 หรือ null
+            const hasWardInfo = summary.wardId && summary.wardName;
+            
+            // ไม่กรองตามสถานะ allFormsApproved อีกต่อไป
+            // const isApproved = summary.allFormsApproved === true;
+            
+            const result = hasWardInfo; // เอาทั้งหมดที่มีข้อมูลแผนก ไม่จำเป็นต้องมีข้อมูลผู้ป่วย
+            
+            if (!result) {
+              console.log(`[DashboardPage] Filtered out summary ${summary.id}, date ${summary.dateString}, hasWardInfo: ${hasWardInfo}`);
+            } else {
+              console.log(`[DashboardPage] Keeping summary ${summary.id}, date ${summary.dateString}, wardName: ${summary.wardName}, dailyPatientCensus: ${summary.dailyPatientCensus || 0}`);
+            }
+            
+            return result;
+          })
+          .sort((a, b) => {
+            // จัดเรียงตามวันที่จากเก่าไปใหม่
+            const dateA = new Date(a.dateString);
+            const dateB = new Date(b.dateString);
+            return dateA.getTime() - dateB.getTime();
+          })
+          .map(summary => {
+            // แปลงข้อมูลให้ตรงกับ interface DailySummary
+            return {
+              ...summary,
+              // ถ้า dailyPatientCensus เป็น undefined หรือ null ให้แทนค่าด้วย 0
+              dailyPatientCensus: summary.dailyPatientCensus ?? 0,
+              morningPatientCensus: summary.morningPatientCensus ?? 0,
+              nightPatientCensus: summary.nightPatientCensus ?? 0,
+              // ตรวจสอบและเก็บค่า calculatedCensus (ถ้ามี)
+              calculatedCensus: (summary as any).calculatedCensus ?? 0,
+              morningCalculatedCensus: (summary as any).morningCalculatedCensus ?? 0,
+              nightCalculatedCensus: (summary as any).nightCalculatedCensus ?? 0,
+              // แปลงเป็น boolean เสมอ
+              allFormsApproved: summary.allFormsApproved === true, 
+              date: summary.date instanceof Date ? summary.date : new Date(summary.dateString),
+            } as DailySummary;
+          });
+        
+        console.log(`[DashboardPage] After filtering: ${filteredSummaries.length} summaries remaining`);
+        
+        // แม้ไม่มีข้อมูล ก็ไม่ throw error แล้ว
+        console.log(filteredSummaries.length > 0 
+          ? "[DashboardPage] Successfully fetched daily summaries" 
+          : "[DashboardPage] No valid dailySummaries found, but continuing anyway");
+        
+        // ถึงไม่มีข้อมูลก็ยังตั้งค่า summaries เป็นอาร์เรย์ว่าง
+        setSummaries(filteredSummaries);
+        
+        // ตรวจสอบว่ามี calculatedCensus ใน summaries หรือไม่
+        const hasSummaryWithCalculatedCensus = filteredSummaries.some(summary => 
+          summary.calculatedCensus !== undefined && summary.calculatedCensus !== null
+        );
+        
+        console.log(`[DashboardPage] Has calculatedCensus in summaries: ${hasSummaryWithCalculatedCensus}`);
+        
+        if (hasSummaryWithCalculatedCensus) {
+          console.log('[DashboardPage] Samples of calculatedCensus:',
+            filteredSummaries.filter(s => s.calculatedCensus !== undefined)
+              .slice(0, 3)
+              .map(s => ({
+                wardId: s.wardId,
+                wardName: s.wardName,
+                calculatedCensus: s.calculatedCensus,
+                morningCalculatedCensus: s.morningCalculatedCensus,
+                nightCalculatedCensus: s.nightCalculatedCensus
+              }))
+          );
+        }
+        
+        setLoading(false);
+        
+      } catch (error) {
+        console.error("[DashboardPage] Error fetching daily summaries:", error);
+        setError("เกิดข้อผิดพลาดในการดึงข้อมูลสรุปประจำวัน กรุณาลองใหม่อีกครั้ง");
+        setSummaries([]); // ตั้งค่าเป็นอาร์เรย์ว่างเมื่อเกิด error
         setLoading(false);
       }
     };
     
+    if (user && wards) {
     fetchSummaries();
-  }, [selectedWardId, startDate, endDate, user]);
+    }
+  }, [user, wards, startDate, endDate, selectedWardId]);
 
   // เตรียมข้อมูลแสดงจำนวนผู้ป่วยแต่ละ Ward
   const wardStats = wards.map(ward => {
     // หาข้อมูลล่าสุดของแต่ละ ward
-    const wardSummary = summaries.find(s => s.wardId === ward.id);
+    const wardSummaries = summaries
+      .filter(s => s.wardId === ward.id)
+      .sort((a, b) => {
+        const dateA = toDateObject(a.date);
+        const dateB = toDateObject(b.date);
+        return dateB.getTime() - dateA.getTime(); // เรียงจากใหม่ไปเก่า
+      });
+    
+    // ใช้ข้อมูลล่าสุด
+    const wardSummary = wardSummaries.length > 0 ? wardSummaries[0] : null;
+    
+    // เลือกค่า census ที่มีค่ามากที่สุดจากข้อมูลที่มี
+    let count = 0;
+    if (wardSummary) {
+      // ตรวจสอบฟิลด์ calculateCensus ก่อน (ค่าที่ถูกคำนวณและบันทึกโดยผู้อนุมัติ)
+      const calculatedCensus = (wardSummary as any).calculatedCensus;
+      const dailyCensus = wardSummary.dailyPatientCensus;
+      const morningCensus = wardSummary.morningPatientCensus;
+      const nightCensus = wardSummary.nightPatientCensus;
+      // ตรวจสอบค่า morningCalculatedCensus และ nightCalculatedCensus ด้วย
+      const morningCalculatedCensus = (wardSummary as any).morningCalculatedCensus;
+      const nightCalculatedCensus = (wardSummary as any).nightCalculatedCensus;
+      
+      // ลองใช้ค่าที่มีตามลำดับความสำคัญ
+      if (typeof calculatedCensus === 'number' && calculatedCensus > 0) {
+        count = calculatedCensus;
+      } else if (typeof nightCalculatedCensus === 'number' && nightCalculatedCensus > 0) {
+        count = nightCalculatedCensus;  // ใช้ค่าจากกะดึกซึ่งเป็นค่าล่าสุด
+      } else if (typeof morningCalculatedCensus === 'number' && morningCalculatedCensus > 0) {
+        count = morningCalculatedCensus;
+      } else if (typeof dailyCensus === 'number' && dailyCensus > 0) {
+        count = dailyCensus;
+      } else if (typeof nightCensus === 'number' && nightCensus > 0) {
+        count = nightCensus;
+      } else if (typeof morningCensus === 'number' && morningCensus > 0) {
+        count = morningCensus;
+      }
+      
+      console.log(`[DashboardPage] Ward ${ward.wardName} census values:`, {
+        calculatedCensus,
+        morningCalculatedCensus,
+        nightCalculatedCensus,
+        dailyCensus, 
+        morningCensus, 
+        nightCensus, 
+        selectedValue: count
+      });
+    }
+    
     return {
       id: ward.id,
       name: ward.wardName,
-      count: wardSummary?.dailyPatientCensus || 0
+      count: count
     };
   });
   
-  // กรองเฉพาะ wards ที่อนุมัติแล้วและมีในระบบ
+  // เพิ่ม console.log เพื่อตรวจสอบ wardStats
+  console.log('[DashboardPage] wardStats:', wardStats);
+  
+  // กรองเฉพาะ wards ที่มีในระบบ (ไม่ใช้เงื่อนไข allFormsApproved)
   const approvedWards = wards.filter(ward => {
     const wardSummary = summaries.find(s => s.wardId === ward.id);
-    return wardSummary?.allFormsApproved === true;
+    return !!wardSummary;
   });
   
   // เตรียมข้อมูลสำหรับกราฟวงกลม (สัดส่วนผู้ป่วย)
   const preparePieChartData = () => {
     if (summaries.length === 0) return [];
     
-    return approvedWards.map(ward => {
-      const wardSummary = summaries.find(s => s.wardId === ward.id);
-      return {
-        name: ward.wardName,
-        value: wardSummary?.dailyPatientCensus || 0,
-      };
-    }).filter(item => item.value > 0);
+    // สร้างข้อมูลจาก tableData ที่มีการเรียงลำดับและเลือกข้อมูลล่าสุดแล้ว
+    const pieData = tableData
+      .filter(item => item.patientCensus > 0)
+      .map(item => ({
+        name: item.ward,
+        value: item.patientCensus
+      }));
+      
+    console.log('[DashboardPage] Pie chart data:', pieData);
+    return pieData;
   };
   
   // เตรียมข้อมูลสำหรับกราฟแท่ง (การกระจายผู้ป่วย)
   const prepareBarChartData = () => {
     if (summaries.length === 0) return [];
     
-    return approvedWards.map(ward => {
-      const wardSummary = summaries.find(s => s.wardId === ward.id);
-      return {
-        name: ward.wardName,
-        patients: wardSummary?.dailyPatientCensus || 0,
-      };
-    }).filter(item => item.patients > 0);
+    // สร้างข้อมูลจาก tableData
+    const barData = tableData
+      .filter(item => item.patientCensus > 0)
+      .map(item => ({
+        name: item.ward,
+        patients: item.patientCensus
+      }));
+      
+    console.log('[DashboardPage] Bar chart data:', barData);
+    return barData;
   };
 
   // สีสำหรับกราฟวงกลม
@@ -325,19 +522,294 @@ export default function DashboardPage() {
     ? summaries.find(s => s.wardId === selectedWardId)
     : null;
 
+  // ส่วนแสดงข้อมูลตาราง
+  const tableData = wards.map(ward => {
+    // หาข้อมูลล่าสุดของแต่ละ ward
+    const wardSummaries = summaries
+      .filter(s => s.wardId === ward.id)
+      .sort((a, b) => {
+        const dateA = toDateObject(a.date);
+        const dateB = toDateObject(b.date);
+        return dateB.getTime() - dateA.getTime(); // เรียงจากใหม่ไปเก่า
+      });
+    
+    const wardSummary = wardSummaries.length > 0 ? wardSummaries[0] : null;
+    
+    // Debug log
+    console.log(`[DashboardPage] Table data for ward ${ward.id} (${ward.wardName}):`, 
+      wardSummary ? {
+        found: true,
+        id: wardSummary.id,
+        date: wardSummary.dateString,
+        patientCensus: wardSummary.dailyPatientCensus,
+        nurseTotal: wardSummary.dailyNurseTotal,
+        morningCensus: wardSummary.morningPatientCensus, 
+        nightCensus: wardSummary.nightPatientCensus,
+        rawData: { 
+          allKeys: Object.keys(wardSummary),
+          morningKeys: Object.keys(wardSummary).filter(k => k.startsWith('morning')),
+          nightKeys: Object.keys(wardSummary).filter(k => k.startsWith('night'))
+        }
+      } : {
+        found: false,
+        reason: summaries.length > 0 ? "No matching ward ID" : "No summaries available" 
+      }
+    );
+    
+    return {
+      ward: ward.wardName,
+      patientCensus: wardSummary?.dailyPatientCensus || 0,
+      nurseManager: wardSummary?.dailyNurseManagerTotal || 0,
+      rn: wardSummary?.dailyRnTotal || 0,
+      pn: wardSummary?.dailyPnTotal || 0,
+      wc: wardSummary?.dailyWcTotal || 0,
+      nurseTotal: wardSummary?.dailyNurseTotal || 0, 
+      nurseRatio: wardSummary?.dailyNurseRatio || 0
+    };
+  });
+
+  // เพิ่มข้อมูลยอดรวม
+  const totalRow = {
+    ward: 'Total',
+    patientCensus: tableData.reduce((sum, row) => sum + (row.patientCensus || 0), 0),
+    nurseManager: tableData.reduce((sum, row) => sum + (row.nurseManager || 0), 0),
+    rn: tableData.reduce((sum, row) => sum + (row.rn || 0), 0),
+    pn: tableData.reduce((sum, row) => sum + (row.pn || 0), 0),
+    wc: tableData.reduce((sum, row) => sum + (row.wc || 0), 0),
+    nurseTotal: tableData.reduce((sum, row) => sum + (row.nurseTotal || 0), 0),
+    nurseRatio: calculateTotalRatio(tableData)
+  };
+
+  // ฟังก์ชันสำหรับคำนวณอัตราส่วนทั้งหมด
+  function calculateTotalRatio(data: any[]): number {
+    const totalPatients = data.reduce((sum, row) => sum + (row.patientCensus || 0), 0);
+    const totalNurses = data.reduce((sum, row) => sum + (row.nurseTotal || 0), 0);
+    
+    if (totalNurses === 0) return 0;
+    return +(totalPatients / totalNurses).toFixed(2);
+  }
+
+  // Log data for debugging
+  console.log('[DashboardPage] Table data summary:', {
+    rows: tableData.length,
+    totalRow: {
+      patientCensus: totalRow.patientCensus,
+      nurseTotal: totalRow.nurseTotal,
+      nurseRatio: totalRow.nurseRatio
+    }
+  });
+
+  // ฟังก์ชันสำหรับสร้างข้อมูลตัวอย่างเพื่อแสดงในกราฟ
+  const createDummySummariesIfNeeded = () => {
+    // ถ้ามีข้อมูลจริงอยู่แล้ว ไม่ต้องสร้างข้อมูลตัวอย่าง
+    if (summaries && summaries.length > 0) {
+      return summaries;
+    }
+
+    console.log("[DashboardPage] Creating dummy summaries for visualization");
+    
+    // สร้างช่วงวันที่สำหรับข้อมูลตัวอย่าง
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    
+    // คำนวณจำนวนวันในช่วงเวลาที่เลือก
+    const days = eachDayOfInterval({
+      start: startDateObj,
+      end: endDateObj
+    });
+    
+    // สร้างข้อมูลตัวอย่างสำหรับแต่ละวัน
+    const dummyData = days.map((day, index) => {
+      // สุ่มค่าข้อมูลสำหรับแสดงในกราฟ
+      const patientCensus = Math.floor(Math.random() * 20) + 10; // สุ่มค่าระหว่าง 10-30
+      const nurseTotal = Math.floor(Math.random() * 5) + 5;      // สุ่มค่าระหว่าง 5-10
+      
+      // กำหนดค่าสัดส่วนพยาบาลต่อผู้ป่วย
+      const ratio = nurseTotal / patientCensus;
+      
+      // สร้างข้อมูลตัวอย่าง
+      return {
+        id: `dummy_${format(day, 'yyyyMMdd')}`,
+        wardId: selectedWardId || 'dummy',
+        wardName: wards?.find(w => w.id === selectedWardId)?.wardName || 'ข้อมูลตัวอย่าง',
+        date: day,
+        dateString: format(day, 'yyyy-MM-dd'),
+        
+        // ข้อมูลกะเช้า
+        morningPatientCensus: patientCensus,
+        morningNurseTotal: nurseTotal,
+        morningNurseRatio: ratio,
+        
+        // ข้อมูลกะดึก
+        nightPatientCensus: patientCensus,
+        nightNurseTotal: nurseTotal,
+        nightNurseRatio: ratio,
+        
+        // ข้อมูลรวม 24 ชั่วโมง
+        dailyPatientCensus: patientCensus,
+        dailyNurseTotal: nurseTotal * 2, // รวมทั้ง 2 กะ
+        dailyNurseRatio: ratio,
+        
+        // ข้อมูลผู้ป่วย admission
+        dailyNewAdmitTotal: Math.floor(Math.random() * 5),
+        dailyDischargeTotal: Math.floor(Math.random() * 5),
+        
+        // สถานะการอนุมัติ
+        allFormsApproved: true,
+        
+        // ระบุว่าเป็นข้อมูลตัวอย่าง
+        isDummyData: true
+      } as DailySummary;
+    });
+    
+    console.log(`[DashboardPage] Created ${dummyData.length} dummy summaries`);
+    return dummyData;
+  };
+
+  // แก้ไขฟังก์ชันที่ใช้สำหรับแสดงกราฟ
+  // กราฟเส้นแสดงความเปลี่ยนแปลงรายวัน
+  const { patientCensusSeries, nursePatientRatioSeries } = useMemo(() => {
+    // ใช้ข้อมูลจริงหรือข้อมูลตัวอย่าง (ถ้าไม่มีข้อมูลจริง)
+    const dataToUse = summaries.length > 0 ? summaries : createDummySummariesIfNeeded();
+    
+    // ข้อมูลสำหรับกราฟจำนวนผู้ป่วย
+    const patientData = dataToUse.map(summary => ({
+      x: format(summary.date instanceof Date ? summary.date : new Date(summary.dateString), 'dd/MM'),
+      y: summary.dailyPatientCensus || 0
+    }));
+    
+    // ข้อมูลสำหรับกราฟอัตราส่วนพยาบาลต่อผู้ป่วย
+    const ratioData = dataToUse.map(summary => ({
+      x: format(summary.date instanceof Date ? summary.date : new Date(summary.dateString), 'dd/MM'),
+      y: Number((summary.dailyNurseRatio || 0).toFixed(2))
+    }));
+    
+    return {
+      patientCensusSeries: [{ name: 'จำนวนผู้ป่วย', data: patientData }],
+      nursePatientRatioSeries: [{ name: 'อัตราส่วนพยาบาลต่อผู้ป่วย', data: ratioData }]
+    };
+  }, [summaries, startDate, endDate, selectedWardId, wards]);
+
+  // ฟังก์ชันสำหรับแสดงตารางข้อมูลสรุป
+  const renderSummaryTable = () => {
+    // ใช้ข้อมูลจริงหรือข้อมูลตัวอย่าง (ถ้าไม่มีข้อมูลจริง)
+    const dataToRender = summaries.length > 0 ? summaries : createDummySummariesIfNeeded();
+    
+    // ถ้าไม่มีข้อมูลใดๆ เลยให้แสดงข้อความ
+    if (!dataToRender || dataToRender.length === 0) {
   return (
-    <div className="min-h-screen bg-gray-900 print-container">
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">ไม่พบข้อมูลสำหรับช่วงเวลาที่เลือก</p>
+        </div>
+      );
+    }
+
+    // ถ้าเป็นข้อมูลตัวอย่าง ให้แสดงป้ายกำกับ
+    const showDummyAlert = dataToRender.some(item => item.isDummyData);
+    
+    return (
+      <div className="overflow-x-auto">
+        {showDummyAlert && (
+          <div className="bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100 p-3 mb-4 rounded-md">
+            <p className="text-sm font-medium">
+              <span className="mr-2">⚠️</span> 
+              กำลังแสดงข้อมูลตัวอย่าง เนื่องจากไม่พบข้อมูลจริงในระบบสำหรับช่วงเวลาที่เลือก
+            </p>
+          </div>
+        )}
+        
+        <table className="min-w-full table-auto border-collapse">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                วันที่
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                วอร์ด
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                จำนวนผู้ป่วย
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                จำนวนพยาบาล (เช้า)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                จำนวนพยาบาล (ดึก)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                จำนวนพยาบาล (รวม)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                พยาบาล:ผู้ป่วย (เช้า)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                พยาบาล:ผู้ป่วย (ดึก)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                พยาบาล:ผู้ป่วย (เฉลี่ย)
+              </th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {dataToRender.map((summary, index) => (
+              <tr key={summary.id || index} className={summary.isDummyData ? "bg-yellow-50 dark:bg-yellow-900/20" : ""}>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {format(summary.date instanceof Date ? summary.date : new Date(summary.dateString), 'dd/MM/yyyy')}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.wardName}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.dailyPatientCensus || 0}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.morningNurseTotal || 0}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.nightNurseTotal || 0}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.dailyNurseTotal || 0}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.morningNurseRatio ? summary.morningNurseRatio.toFixed(2) : '0.00'}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.nightNurseRatio ? summary.nightNurseRatio.toFixed(2) : '0.00'}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {summary.dailyNurseRatio ? summary.dailyNurseRatio.toFixed(2) : '0.00'}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600">
+                  {(summary.dailyPatientCensus || 0) + (summary.dailyNurseTotal || 0)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // เพิ่ม console.log เพื่อตรวจสอบ wardStats
+  console.log('[DashboardPage] Complete wardStats:', wardStats);
+  
+  return (
+    <div className="min-h-screen bg-light-bg dark:bg-dark-bg print-container">
       <style>{printStyles}</style>
       <NavBar />
       
       <div className="container mx-auto px-4 py-6">
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-white">จำนวนผู้ป่วยแยกตามแผนก</h1>
+            <h1 className="text-3xl font-bold text-light-text dark:text-dark-text">จำนวนผู้ป่วยแยกตามแผนก</h1>
             
             <div className="flex space-x-2 no-print">
               <button 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
+                className="bg-btn-primary hover:bg-btn-primary-hover text-white px-4 py-2 rounded-lg flex items-center"
                 onClick={() => window.print()}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -347,7 +819,7 @@ export default function DashboardPage() {
               </button>
               
               <button 
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center"
+                className="bg-btn-success hover:bg-btn-success-hover text-white px-4 py-2 rounded-lg flex items-center"
                 onClick={() => {
                   alert('ฟังก์ชันส่งออกเป็น Excel จะถูกพัฒนาในอนาคต');
                 }}
@@ -362,32 +834,41 @@ export default function DashboardPage() {
           
           {/* ตัวกรองและเลือก Ward */}
           <div className="flex flex-wrap gap-4 mb-6 no-print">
+            {/* แสดง dropdown เฉพาะกรณีที่เป็น Admin หรือมีสิทธิ์ดูหลาย Ward */}
+            {(isAdmin || wards.length > 1) && (
+              <div className="flex flex-col">
+                <label className="text-sm text-gray-500 dark:text-gray-400">
+                  เลือกแผนก {isAdmin && <span className="text-xs text-gray-400 dark:text-gray-500">(สำหรับกรองข้อมูลเฉพาะ Ward)</span>}
+                </label>
             <select 
-              className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2"
+                  className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded px-3 py-2 h-10 w-48"
               value={selectedWardId || ''}
               onChange={(e) => setSelectedWardId(e.target.value)}
             >
-              <option value="">เลือกแผนก</option>
+                  {isAdmin && <option value="" className="text-gray-900 dark:text-white">ทุกแผนก</option>}
+                  {!isAdmin && <option value="" className="text-gray-900 dark:text-white">เลือกแผนก</option>}
               {wards.map(ward => (
-                <option key={ward.id} value={ward.id}>{ward.wardName}</option>
+                    <option key={ward.id} value={ward.id} className="text-gray-900 dark:text-white">{ward.wardName}</option>
               ))}
             </select>
+              </div>
+            )}
             
             <div className="flex flex-col">
-              <label className="text-sm text-gray-400">วันที่เริ่มต้น</label>
+              <label className="text-sm text-gray-500 dark:text-gray-400">วันที่เริ่มต้น</label>
               <input
                 type="date"
-                className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2"
+                className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded px-3 py-2 h-10 w-48"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
 
             <div className="flex flex-col">
-              <label className="text-sm text-gray-400">วันที่สิ้นสุด</label>
+              <label className="text-sm text-gray-500 dark:text-gray-400">วันที่สิ้นสุด</label>
               <input
                 type="date"
-                className="border border-gray-700 bg-gray-800 text-white rounded px-3 py-2"
+                className="border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded px-3 py-2 h-10 w-48"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -396,12 +877,12 @@ export default function DashboardPage() {
           
           {/* แสดงวันที่ข้อมูลล่าสุด */}
           {summaries.length > 0 && (
-            <div className="bg-blue-900 border-l-4 border-blue-500 p-4 mb-6">
+            <div className="bg-blue-100 dark:bg-blue-900 border-l-4 border-blue-500 p-4 mb-6">
               <div className="flex items-center">
-                <svg className="h-6 w-6 text-blue-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm text-blue-300">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
                   แสดงข้อมูลล่าสุด ณ วันที่ {format(summaries[0].date instanceof Date ? summaries[0].date : new Date(), 'dd MMMM yyyy', { locale: th })}
                 </p>
               </div>
@@ -409,14 +890,14 @@ export default function DashboardPage() {
           )}
           
           {/* แสดงผลจำนวนผู้ป่วยแยกตาม Ward */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3 mb-6">
             {loading ? (
-              <div className="col-span-full flex justify-center items-center py-10 text-white">
+              <div className="col-span-full flex justify-center items-center py-10 text-light-text dark:text-dark-text">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
                 <span className="ml-3">กำลังโหลดข้อมูล...</span>
               </div>
             ) : error ? (
-              <div className="col-span-full bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded">
+              <div className="col-span-full bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-600 text-red-800 dark:text-red-300 px-4 py-3 rounded">
                 <p>{error}</p>
               </div>
             ) : (
@@ -432,135 +913,201 @@ export default function DashboardPage() {
             )}
           </div>
           
+          {/* กราฟเส้นแสดงสถิติย้อนหลัง - ย้ายขึ้นมาอยู่ก่อนตาราง */}
+          <div className="bg-light-card dark:bg-dark-card rounded-lg shadow-md p-4 mb-8">
+            <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">จำนวนผู้ป่วยรายวัน</h2>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={summaries.map(s => ({
+                    date: format(s.date instanceof Date ? s.date : new Date(), 'dd/MM'),
+                    morning: s.morningPatientCensus || 0,
+                    night: s.nightPatientCensus || 0,
+                    total: s.dailyPatientCensus || 0
+                  }))}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                  <XAxis dataKey="date" stroke="var(--text-color)" />
+                  <YAxis stroke="var(--text-color)" />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-color)' }} />
+                  <Legend formatter={(value) => <span style={{ color: 'var(--text-color)' }}>{value}</span>} />
+                  <Line type="monotone" dataKey="morning" name="กะเช้า" stroke="#8884d8" />
+                  <Line type="monotone" dataKey="night" name="กะดึก" stroke="#82ca9d" />
+                  <Line type="monotone" dataKey="total" name="รวม" stroke="#ffc658" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          
           {/* ตาราง Patient Census By Nurse Manager */}
-          <div className="bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+          <div className="bg-light-card dark:bg-dark-card rounded-lg shadow-md p-4 mb-8">
             <div className="overflow-x-auto">
               <table className="min-w-full">
-                <thead className="bg-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="py-2 px-3 text-left text-white">หัวข้อ</th>
+                    <th className="py-2 px-3 text-left text-light-text dark:text-dark-text">หัวข้อ</th>
                     {wards.map(ward => (
-                      <th key={ward.id} className="py-2 px-3 text-center text-white">{ward.wardName}</th>
+                      <th key={ward.id} className="py-2 px-3 text-center text-light-text dark:text-dark-text">{ward.wardName}</th>
                     ))}
+                    {/* เพิ่มคอลัมน์ Total สำหรับแสดงผลรวม */}
+                    <th className="py-2 px-3 text-center text-light-text dark:text-dark-text">Total</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white dark:bg-gray-900">
                   {loading ? (
                     <tr>
-                      <td colSpan={wards.length + 1} className="py-4 text-center text-white">กำลังโหลดข้อมูล...</td>
+                      <td colSpan={wards.length + 2} className="py-4 text-center text-light-text dark:text-dark-text">กำลังโหลดข้อมูล...</td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={wards.length + 2} className="py-4 text-center text-red-500 dark:text-red-400">{error}</td>
+                    </tr>
+                  ) : tableData.length === 0 ? (
+                    <tr>
+                      <td colSpan={wards.length + 2} className="py-4 text-center text-light-text dark:text-dark-text">ไม่พบข้อมูล กรุณาเลือกช่วงเวลาอื่น</td>
                     </tr>
                   ) : (
                     <>
                       <DataRow 
                         label="Patient Census" 
-                        data={wards.map(ward => {
-                          const wardSummary = summaries.find(s => s.wardId === ward.id);
-                          return wardSummary?.dailyPatientCensus || 0;
-                        })} 
+                        data={[...tableData.map(row => row.patientCensus), totalRow.patientCensus]} 
                       />
                       <DataRow 
                         label="Nurse Manager" 
-                        data={wards.map(ward => {
-                          const wardSummary = summaries.find(s => s.wardId === ward.id);
-                          return wardSummary?.dailyNurseManagerTotal || 0;
-                        })} 
+                        data={[...tableData.map(row => row.nurseManager), totalRow.nurseManager]} 
                       />
                       <DataRow 
                         label="RN" 
-                        data={wards.map(ward => {
-                          const wardSummary = summaries.find(s => s.wardId === ward.id);
-                          return wardSummary?.dailyRnTotal || 0;
-                        })} 
+                        data={[...tableData.map(row => row.rn), totalRow.rn]} 
                       />
                       <DataRow 
                         label="PN" 
-                        data={wards.map(ward => {
-                          const wardSummary = summaries.find(s => s.wardId === ward.id);
-                          return wardSummary?.dailyPnTotal || 0;
-                        })} 
+                        data={[...tableData.map(row => row.pn), totalRow.pn]} 
                       />
                       <DataRow 
                         label="WC" 
-                        data={wards.map(ward => {
-                          const wardSummary = summaries.find(s => s.wardId === ward.id);
-                          return wardSummary?.dailyWcTotal || 0;
-                        })} 
+                        data={[...tableData.map(row => row.wc), totalRow.wc]} 
+                      />
+                      <DataRow 
+                        label="Nurse Total" 
+                        data={[...tableData.map(row => row.nurseTotal), totalRow.nurseTotal]} 
+                      />
+                      <DataRow 
+                        label="Nurse Ratio" 
+                        data={[...tableData.map(row => row.nurseRatio), totalRow.nurseRatio]} 
                       />
                       <DataRow 
                         label="New Admit" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.dailyNewAdmitTotal || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.dailyNewAdmitTotal || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Transfer In" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           const morningTransfer = wardSummary?.morningTransferIn || 0;
                           const nightTransfer = wardSummary?.nightTransferIn || 0;
                           return morningTransfer + nightTransfer;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          const morningTransfer = wardSummary?.morningTransferIn || 0;
+                          const nightTransfer = wardSummary?.nightTransferIn || 0;
+                          return sum + morningTransfer + nightTransfer;
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Refer In" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.dailyReferInTotal || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.dailyReferInTotal || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Transfer Out" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           const morningTransfer = wardSummary?.morningTransferOut || 0;
                           const nightTransfer = wardSummary?.nightTransferOut || 0;
                           return morningTransfer + nightTransfer;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          const morningTransfer = wardSummary?.morningTransferOut || 0;
+                          const nightTransfer = wardSummary?.nightTransferOut || 0;
+                          return sum + morningTransfer + nightTransfer;
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Refer Out" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.dailyReferOutTotal || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.dailyReferOutTotal || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Discharge" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           const morningDischarge = wardSummary?.morningDischarge || 0;
                           const nightDischarge = wardSummary?.nightDischarge || 0;
                           return morningDischarge + nightDischarge;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          const morningDischarge = wardSummary?.morningDischarge || 0;
+                          const nightDischarge = wardSummary?.nightDischarge || 0;
+                          return sum + morningDischarge + nightDischarge;
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Dead" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.dailyDeadTotal || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.dailyDeadTotal || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Available" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.availableBeds || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.availableBeds || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Unavailable" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.unavailableBeds || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.unavailableBeds || 0);
+                        }, 0)]} 
                       />
                       <DataRow 
                         label="Planned Discharge" 
-                        data={wards.map(ward => {
+                        data={[...wards.map(ward => {
                           const wardSummary = summaries.find(s => s.wardId === ward.id);
                           return wardSummary?.plannedDischarge || 0;
-                        })} 
+                        }), wards.reduce((sum, ward) => {
+                          const wardSummary = summaries.find(s => s.wardId === ward.id);
+                          return sum + (wardSummary?.plannedDischarge || 0);
+                        }, 0)]} 
                       />
                     </>
                   )}
@@ -571,9 +1118,19 @@ export default function DashboardPage() {
           
           {/* กราฟวงกลมและกราฟแท่ง */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className="bg-gray-800 rounded-lg shadow-md p-4">
-              <h2 className="text-xl font-semibold mb-4 text-white">การกระจายผู้ป่วย (แผนภูมิวงกลม)</h2>
+            <div className="bg-light-card dark:bg-dark-card rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">การกระจายผู้ป่วย (แผนภูมิวงกลม)</h2>
               <div className="h-64">
+                {loading ? (
+                  <div className="h-full flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-light-text dark:text-dark-text">กำลังโหลดข้อมูล...</span>
+                  </div>
+                ) : preparePieChartData().length === 0 ? (
+                  <div className="h-full flex justify-center items-center text-gray-500 dark:text-gray-400">
+                    ไม่มีข้อมูลการกระจายผู้ป่วยสำหรับช่วงเวลาที่เลือก
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -590,69 +1147,54 @@ export default function DashboardPage() {
                         <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }} />
-                    <Legend formatter={(value) => <span style={{ color: 'white' }}>{value}</span>} />
+                      <Tooltip contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-color)' }} />
+                      <Legend formatter={(value) => <span style={{ color: 'var(--text-color)' }}>{value}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </div>
             
-            <div className="bg-gray-800 rounded-lg shadow-md p-4">
-              <h2 className="text-xl font-semibold mb-4 text-white">การกระจายผู้ป่วย (แผนภูมิแท่ง)</h2>
+            <div className="bg-light-card dark:bg-dark-card rounded-lg shadow-md p-4">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">การกระจายผู้ป่วย (แผนภูมิแท่ง)</h2>
               <div className="h-64">
+                {loading ? (
+                  <div className="h-full flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-light-text dark:text-dark-text">กำลังโหลดข้อมูล...</span>
+                  </div>
+                ) : prepareBarChartData().length === 0 ? (
+                  <div className="h-full flex justify-center items-center text-gray-500 dark:text-gray-400">
+                    ไม่มีข้อมูลการกระจายผู้ป่วยสำหรับช่วงเวลาที่เลือก
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={prepareBarChartData()}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="name" stroke="#E5E7EB" />
-                    <YAxis stroke="#E5E7EB" />
-                    <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }} />
-                    <Legend formatter={(value) => <span style={{ color: 'white' }}>{value}</span>} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                      <XAxis dataKey="name" stroke="var(--text-color)" />
+                      <YAxis stroke="var(--text-color)" />
+                      <Tooltip contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-color)' }} />
+                      <Legend formatter={(value) => <span style={{ color: 'var(--text-color)' }}>{value}</span>} />
                     <Bar dataKey="patients" name="จำนวนผู้ป่วย" fill="#8884d8" />
                   </BarChart>
                 </ResponsiveContainer>
+                )}
               </div>
-            </div>
-          </div>
-          
-          {/* กราฟเส้นแสดงสถิติย้อนหลัง */}
-          <div className="bg-gray-800 rounded-lg shadow-md p-4 mb-8">
-            <h2 className="text-xl font-semibold mb-4 text-white">จำนวนผู้ป่วยรายวัน</h2>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={summaries.map(s => ({
-                    date: format(s.date instanceof Date ? s.date : new Date(), 'dd/MM'),
-                    morning: s.morningPatientCensus || 0,
-                    night: s.nightPatientCensus || 0,
-                    total: s.dailyPatientCensus || 0
-                  }))}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="date" stroke="#E5E7EB" />
-                  <YAxis stroke="#E5E7EB" />
-                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }} />
-                  <Legend formatter={(value) => <span style={{ color: 'white' }}>{value}</span>} />
-                  <Line type="monotone" dataKey="morning" name="กะเช้า" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="night" name="กะดึก" stroke="#82ca9d" />
-                  <Line type="monotone" dataKey="total" name="รวม" stroke="#ffc658" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
             </div>
           </div>
           
           {/* รายละเอียดเพิ่มเติมของ Ward ที่เลือก */}
           {selectedWardSummary && (
-            <div className="bg-gray-800 rounded-lg shadow-md p-6 mb-8">
-              <h2 className="text-xl font-semibold mb-4 text-white">รายละเอียดแผนก {selectedWardSummary.wardName}</h2>
+            <div className="bg-light-card dark:bg-dark-card rounded-lg shadow-md p-6 mb-8">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-dark-text">รายละเอียดแผนก {selectedWardSummary.wardName}</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-900 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-white">ข้อมูลกะเช้า</h3>
-                  <div className="space-y-1 text-gray-200">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                  <h3 className="font-semibold mb-2 text-blue-800 dark:text-blue-200">ข้อมูลกะเช้า</h3>
+                  <div className="space-y-1 text-gray-800 dark:text-gray-200">
                     <div className="flex justify-between">
                       <span>จำนวนผู้ป่วย:</span>
                       <span className="font-bold">{selectedWardSummary.morningPatientCensus || 0}</span>
@@ -676,9 +1218,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 
-                <div className="bg-purple-900 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-white">ข้อมูลกะดึก</h3>
-                  <div className="space-y-1 text-gray-200">
+                <div className="bg-purple-50 dark:bg-purple-900/30 p-4 rounded-lg border border-purple-100 dark:border-purple-800">
+                  <h3 className="font-semibold mb-2 text-purple-800 dark:text-purple-200">ข้อมูลกะดึก</h3>
+                  <div className="space-y-1 text-gray-800 dark:text-gray-200">
                     <div className="flex justify-between">
                       <span>จำนวนผู้ป่วย:</span>
                       <span className="font-bold">{selectedWardSummary.nightPatientCensus || 0}</span>
@@ -702,9 +1244,9 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 
-                <div className="bg-green-900 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-white">สรุปรวม 24 ชั่วโมง</h3>
-                  <div className="space-y-1 text-gray-200">
+                <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg border border-green-100 dark:border-green-800">
+                  <h3 className="font-semibold mb-2 text-green-800 dark:text-green-200">สรุปรวม 24 ชั่วโมง</h3>
+                  <div className="space-y-1 text-gray-800 dark:text-gray-200">
                     <div className="flex justify-between">
                       <span>จำนวนผู้ป่วยรวม:</span>
                       <span className="font-bold">{selectedWardSummary.dailyPatientCensus || 0}</span>
@@ -731,7 +1273,7 @@ export default function DashboardPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="font-semibold mb-3 text-white">สัดส่วนบุคลากรพยาบาล</h3>
+                  <h3 className="font-semibold mb-3 text-light-text dark:text-dark-text">สัดส่วนบุคลากรพยาบาล</h3>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -754,15 +1296,15 @@ export default function DashboardPage() {
                           <Cell fill="#2ECC71" />
                           <Cell fill="#9B59B6" />
                         </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }} />
-                        <Legend formatter={(value) => <span style={{ color: 'white' }}>{value}</span>} />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-color)' }} />
+                        <Legend formatter={(value) => <span style={{ color: 'var(--text-color)' }}>{value}</span>} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
                 
                 <div>
-                  <h3 className="font-semibold mb-3 text-white">เปรียบเทียบกะเช้า/กะดึก</h3>
+                  <h3 className="font-semibold mb-3 text-light-text dark:text-dark-text">เปรียบเทียบกะเช้า/กะดึก</h3>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
@@ -774,11 +1316,11 @@ export default function DashboardPage() {
                         ]}
                         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis dataKey="name" stroke="#E5E7EB" />
-                        <YAxis stroke="#E5E7EB" />
-                        <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: 'white' }} />
-                        <Legend formatter={(value) => <span style={{ color: 'white' }}>{value}</span>} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+                        <XAxis dataKey="name" stroke="var(--text-color)" />
+                        <YAxis stroke="var(--text-color)" />
+                        <Tooltip contentStyle={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)', color: 'var(--text-color)' }} />
+                        <Legend formatter={(value) => <span style={{ color: 'var(--text-color)' }}>{value}</span>} />
                         <Bar dataKey="morning" name="กะเช้า" fill="#8884d8" />
                         <Bar dataKey="night" name="กะดึก" fill="#82ca9d" />
                       </BarChart>

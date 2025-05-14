@@ -31,6 +31,7 @@
     --button-bg-primary: #2563eb;
     --button-text-primary: #ffffff;
     --button-bg-danger: #ef4444;
+    --button-bg-success: #10b981;
   }
 
   .dark {
@@ -51,6 +52,7 @@
     --table-row-hover: #2d3748;
     --button-bg-primary: #3b82f6;
     --button-bg-danger: #f87171;
+    --button-bg-success: #34d399;
   }
 
   body {
@@ -168,6 +170,10 @@ input:checked + .toggle-slider:before {
   
   .btn-danger {
     @apply bg-btn-danger hover:bg-btn-danger-hover text-white py-2 px-4 rounded transition-colors font-medium text-button;
+  }
+  
+  .btn-success {
+    @apply bg-btn-success hover:bg-green-600 dark:hover:bg-green-500 text-white py-2 px-4 rounded transition-colors font-medium text-button;
   }
   
   .form-input {

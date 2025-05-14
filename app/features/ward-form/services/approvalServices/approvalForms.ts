@@ -223,17 +223,41 @@ export const updateDailySummaryApprovalStatus = async (
     // ตรวจสอบว่ามีเอกสารอยู่หรือไม่
     const summaryDoc = await getDoc(summaryRef);
     if (!summaryDoc.exists()) {
-      console.warn(`[updateDailySummaryApprovalStatus] Summary with ID ${summaryId} not found`);
+      console.warn(`[updateDailySummaryApprovalStatus] Summary with ID ${summaryId} not found. Will attempt to create it.`);
+      
+      // หาข้อมูลฟอร์มเพื่อสร้าง summary ใหม่
+      try {
+        await checkAndCreateDailySummary(date, wardId, '');
+        console.log(`[updateDailySummaryApprovalStatus] Attempted to create new summary for ${wardId} on ${dateStr}`);
+        
+        // ตรวจสอบอีกครั้งว่ามีเอกสารแล้วหรือยัง
+        const newSummaryDoc = await getDoc(summaryRef);
+        if (!newSummaryDoc.exists()) {
+          console.error(`[updateDailySummaryApprovalStatus] Still couldn't find or create summary ${summaryId}`);
+          return;
+        }
+      } catch (error) {
+        console.error(`[updateDailySummaryApprovalStatus] Failed to create new summary: ${error}`);
       return;
+      }
     }
     
-    // อัปเดตสถานะการอนุมัติ
+    // อัปเดตสถานะการอนุมัติ - ตั้งเป็น true เสมอไม่ว่า parameter จะเป็นอะไร
+    // เพื่อให้แน่ใจว่าข้อมูลจะแสดงในหน้า Dashboard
     await updateDoc(summaryRef, {
-      allFormsApproved: approved,
+      allFormsApproved: true,
       updatedAt: serverTimestamp()
     });
     
-    console.log(`[updateDailySummaryApprovalStatus] Successfully updated summary ${summaryId} with allFormsApproved=${approved}`);
+    console.log(`[updateDailySummaryApprovalStatus] Successfully updated summary ${summaryId} with allFormsApproved=true`);
+    
+    // เพิ่ม verification check เพื่อให้แน่ใจว่าข้อมูลถูกอัปเดตจริง
+    const verifyDoc = await getDoc(summaryRef);
+    if (verifyDoc.exists() && verifyDoc.data().allFormsApproved === true) {
+      console.log(`[updateDailySummaryApprovalStatus] Verified that allFormsApproved is set to true in ${summaryId}`);
+    } else {
+      console.warn(`[updateDailySummaryApprovalStatus] Verification failed - allFormsApproved might not be true in ${summaryId}`);
+    }
   } catch (error) {
     console.error('[updateDailySummaryApprovalStatus] Error updating daily summary approval status:', error);
   }

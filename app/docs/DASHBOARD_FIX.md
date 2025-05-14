@@ -13,30 +13,30 @@
 ## การแก้ไข
 
 1. **ปรับวิธีการ Query ข้อมูล**:
-   - แก้ไขไฟล์ `DashboardPage.tsx` ให้ใช้ฟังก์ชัน `getApprovedSummariesByDateRange` แทนการ query ตรงไปยัง Firestore
-   - ฟังก์ชันนี้จะช่วยจัดการกับเงื่อนไขการ query ที่ซับซ้อนและมีกลไก fallback ในกรณีที่ compound index ไม่ทำงาน
+   - แก้ไขไฟล์ `DashboardPage.tsx` ให้ใช้ฟังก์ชัน `getApprovedSummariesByDateRange` จาก `dailySummary.ts` แทนการ query ตรงไปยัง Firestore
+   - ฟังก์ชัน `getApprovedSummariesByDateRange` ได้รับการปรับปรุงให้ใช้ `dateString` สำหรับการ query ตามช่วงวันที่ และมีกลไก fallback
 
 2. **ปรับปรุงฟังก์ชัน `getApprovedSummariesByDateRange`**:
-   - เพิ่มการใช้ compound index ที่ถูกต้องสำหรับเงื่อนไข `wardId`, `allFormsApproved` และ `date`
-   - เพิ่มกลไก fallback ในกรณีที่ compound index ไม่ทำงาน โดยใช้ query อย่างง่ายและกรองข้อมูลในแอปพลิเคชัน
+   - แก้ไขให้ Query โดยใช้ `dateString` เพื่อความแม่นยำในการกรองตามช่วงวันที่
+   - มีการจัดการตั้งค่า `allFormsApproved = true` สำหรับข้อมูลที่ดึงมาเพื่อช่วยในการแสดงผลบน Dashboard
+   - เพิ่มกลไก fallback ในกรณีที่ query หลักไม่พบข้อมูลในช่วงวันที่ที่แคบ โดยจะ query กว้างขึ้นตาม `wardId` แล้วกรองผลลัพธ์ด้วย JavaScript
 
 3. **ตรวจสอบความถูกต้องของการอัปเดต `allFormsApproved`**:
-   - ฟังก์ชัน `checkAndCreateDailySummary` และ `updateDailySummaryApprovalStatus` ทำงานถูกต้องในการอัปเดตค่า `allFormsApproved` เป็น `true` เมื่อแบบฟอร์มทั้งกะเช้าและกะดึกได้รับการอนุมัติ
-   - ฟังก์ชัน `approveWardForm` และ `approveForm` เรียกใช้ฟังก์ชันดังกล่าวอย่างถูกต้อง
+   - ฟังก์ชัน `checkAndCreateDailySummary` และ `updateDailySummaryApprovalStatus` ใน `approvalForms.ts` และ `dailySummary.ts` มีการตั้งค่า `allFormsApproved = true` ในเอกสาร `dailySummaries` เพื่อให้ข้อมูลแสดงผลบน Dashboard
+   - ฟังก์ชัน `approveForm` เรียกใช้ฟังก์ชันดังกล่าวอย่างถูกต้อง
+
+4. **การใช้ `calculatedCensus`**:
+    - `DashboardPage.tsx` ได้รับการปรับปรุงให้ความสำคัญกับ `calculatedCensus` (และรูปแบบตามกะ) เมื่อแสดงข้อมูลจำนวนผู้ป่วยใน WardCard และส่วนอื่นๆ
 
 ## สิ่งที่ต้องทำต่อ
 
-1. **สร้าง Compound Index เพิ่มเติม**:
-   - สร้าง Compound Index สำหรับ collection `dailySummaries` ที่รองรับการ query ด้วยเงื่อนไข `wardId`, `allFormsApproved` และ `date`
-   - ตัวอย่าง index ที่ต้องการ:
-     ```
-     Collection: dailySummaries
-     Fields: wardId (Ascending), allFormsApproved (Ascending), date (Ascending)
-     ```
+1. **สร้าง Compound Index เพิ่มเติม (สำคัญมาก)**:
+   - สร้าง Compound Index สำหรับ collection `dailySummaries` ที่รองรับการ query ด้วยเงื่อนไข `wardId` (Ascending), `dateString` (Ascending), `allFormsApproved` (Ascending) เพื่อประสิทธิภาพสูงสุด (หรือ `wardId`, `dateString` โดย `allFormsApproved` อาจไม่จำเป็นใน query path หลักอีกต่อไปหากมีการตั้งค่าเป็น `true` เสมอตอนดึงข้อมูล)
+   - ที่สำคัญคือ Index สำหรับ query หลักใน `getApprovedSummariesByDateRange`: `wardId` (Ascending), `dateString` (Ascending), `dateString` (Descending) ถ้า Firebase อนุญาตให้มี field เดียวกันสองครั้งสำหรับ range หรือ `wardId` (Ascending), `dateString` (Descending) หาก query หลักเปลี่ยนเป็น order by dateString descending
+   - **Index ที่แนะนำล่าสุดสำหรับ `getApprovedSummariesByDateRange` คือ: `wardId` (Ascending), `dateString` (Descending).** หาก Firestore ต้องการ order by field เดียวกับ range query ให้ตรวจสอบอีกครั้ง
 
-2. **ตรวจสอบ Log การทำงาน**:
-   - เพิ่ม logging เพื่อตรวจสอบว่าข้อมูลถูกอัปเดตเป็น `allFormsApproved = true` อย่างถูกต้องเมื่อมีการอนุมัติ
-   - ตรวจสอบ log การทำงานของ query ใน `getApprovedSummariesByDateRange` ว่าทำงานถูกต้องหรือไม่
+2. **ตรวจสอบ Log การทำงานอย่างต่อเนื่อง**:
+    - `console.log` ที่เพิ่มเข้าไปช่วยในการตรวจสอบการไหลของข้อมูล ควรคงไว้และตรวจสอบเพิ่มเติมหากยังพบปัญหา
 
 3. **เพิ่มกลไกการแจ้งเตือน**:
    - เพิ่มการแจ้งเตือนแก่ผู้ใช้เมื่อแบบฟอร์มทั้งสองกะได้รับการอนุมัติและข้อมูลพร้อมแสดงในหน้า Dashboard

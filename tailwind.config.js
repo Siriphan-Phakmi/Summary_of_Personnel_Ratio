@@ -43,6 +43,8 @@ module.exports = {
         'btn-primary-hover': '#1d4ed8',
         'btn-danger': '#ef4444',
         'btn-danger-hover': '#dc2626',
+        'btn-success': '#10b981',
+        'btn-success-hover': '#059669',
         'gray-750': '#323945',
       },
       backgroundColor: {

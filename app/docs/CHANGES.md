@@ -39,6 +39,21 @@
 - [x] ปรับปรุงกฎการเข้าถึงข้อมูลใน collection wardForms ให้รองรับกรณีที่แบบฟอร์มถูกปฏิเสธ
 - [x] กำหนดให้ไม่สามารถแก้ไขหรือลบบันทึกใน collection systemLogs
 
+### การแก้ไขล่าสุด (Dashboard Data Display - พฤษภาคม 2024)
+
+- [x] **ปรับปรุง Logic การดึงข้อมูลใน `app/features/ward-form/services/approvalServices/dailySummary.ts`**:
+  - [x] แก้ไขฟังก์ชัน `getApprovedSummariesByDateRange` ให้ Query ข้อมูลโดยใช้ `dateString` เพื่อแก้ไขปัญหา Timestamp mismatch
+  - [x] เพิ่ม Fallback logic ในกรณีที่ไม่พบข้อมูลในช่วงวันที่ที่กำหนด โดยจะค้นหาจาก `wardId` แล้วกรองผลลัพธ์
+  - [x] ตั้งค่า `allFormsApproved = true` สำหรับข้อมูลที่ดึงมาได้ เพื่อให้แสดงผลบน Dashboard ตามความต้องการปัจจุบัน
+- [x] **ปรับปรุงการแสดงผลใน `app/features/dashboard/components/DashboardPage.tsx`**:
+  - [x] อัปเดตฟังก์ชัน `fetchSummaries` ให้ประมวลผลข้อมูล `summaries` ที่ได้รับจาก `getApprovedSummariesByDateRange` อย่างถูกต้อง
+  - [x] ปรับ Logic การคำนวณ `wardStats` (สำหรับ WardCard) ให้จัดลำดับความสำคัญของค่า Census (ใช้ `calculatedCensus` และรูปแบบตามกะ) เพื่อความแม่นยำ
+  - [x] จัดการการตั้งค่า `allFormsApproved = true` ในข้อมูล `summaries` เพื่อให้สอดคล้องกับการแสดงผล
+- [x] **ปรับปรุง Logic การอนุมัติใน `app/features/ward-form/services/approvalServices/approvalForms.ts`**:
+  - [x] แก้ไขฟังก์ชัน `updateDailySummaryApprovalStatus` ให้ตั้งค่า `allFormsApproved = true` ในเอกสาร `dailySummaries` เมื่อมีการอัปเดตสถานะ
+- [x] **อัปเดต Interface ใน `app/core/types/approval.ts`**:
+  - [x] เพิ่มฟิลด์ `calculatedCensus`, `morningCalculatedCensus`, และ `nightCalculatedCensus` ใน Interface `DailySummary`
+
 ## งานที่ต้องทำต่อ
 
 ### การปรับปรุงเส้นทางการนำเข้า (Import Paths)

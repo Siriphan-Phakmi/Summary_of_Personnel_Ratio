@@ -66,93 +66,99 @@ export interface ApprovalHistoryRecord {
  * ข้อมูลสรุปประจำวัน (24 ชั่วโมง)
  */
 export interface DailySummary {
-  id?: string;                    // รหัสข้อมูลสรุป
-  wardId: string;                 // รหัสวอร์ด
-  wardName: string;               // ชื่อวอร์ด
-  date: Timestamp | Date;         // วันที่
-  dateString: string;             // วันที่ในรูปแบบ string (YYYY-MM-DD)
+  id?: string;
+  wardId: string;
+  wardName: string;
+  date: Date | Timestamp;
+  dateString: string;
   
   // ข้อมูลกะเช้า
-  morningFormId?: string;         // รหัสแบบฟอร์มกะเช้า
-  morningPatientCensus: number;   // จำนวนผู้ป่วยกะเช้า
-  morningCalculatedCensus?: number; // จำนวนผู้ป่วยที่คำนวณได้จากกะเช้า (patientCensus + admissions - discharges)
-  morningNurseManager: number;    // จำนวนหัวหน้าพยาบาลกะเช้า
-  morningRn: number;              // จำนวนพยาบาลวิชาชีพกะเช้า
-  morningPn: number;              // จำนวนพยาบาลเทคนิคกะเช้า
-  morningWc: number;              // จำนวนผู้ช่วยพยาบาลกะเช้า
-  morningNurseTotal: number;      // รวมจำนวนพยาบาลกะเช้าทั้งหมด
+  morningFormId?: string;
+  morningPatientCensus: number;
+  morningCalculatedCensus?: number;
+  morningNurseManager?: number;
+  morningRn?: number;
+  morningPn?: number;
+  morningWc?: number;
+  morningNurseTotal: number;
   
-  morningNewAdmit: number;        // จำนวนรับใหม่กะเช้า
-  morningTransferIn: number;      // จำนวนย้ายเข้ากะเช้า
-  morningReferIn: number;         // จำนวนส่งตัวมารักษาต่อกะเช้า
-  morningAdmitTotal: number;      // รวมจำนวนผู้ป่วยเข้ากะเช้า
+  morningNewAdmit?: number;
+  morningTransferIn?: number;
+  morningReferIn?: number;
+  morningAdmitTotal?: number;
   
-  morningDischarge: number;       // จำนวนจำหน่ายกะเช้า
-  morningTransferOut: number;     // จำนวนย้ายออกกะเช้า
-  morningReferOut: number;        // จำนวนส่งตัวไปรักษาต่อกะเช้า
-  morningDead: number;            // จำนวนเสียชีวิตกะเช้า
-  morningDischargeTotal: number;  // รวมจำนวนผู้ป่วยออกกะเช้า
+  morningDischarge?: number;
+  morningTransferOut?: number;
+  morningReferOut?: number;
+  morningDead?: number;
+  morningDischargeTotal?: number;
   
   // ข้อมูลกะดึก
-  nightFormId?: string;           // รหัสแบบฟอร์มกะดึก
-  nightPatientCensus: number;     // จำนวนผู้ป่วยกะดึก
-  nightCalculatedCensus?: number; // จำนวนผู้ป่วยที่คำนวณได้จากกะดึก (patientCensus + admissions - discharges)
-  nightNurseManager: number;      // จำนวนหัวหน้าพยาบาลกะดึก
-  nightRn: number;                // จำนวนพยาบาลวิชาชีพกะดึก
-  nightPn: number;                // จำนวนพยาบาลเทคนิคกะดึก
-  nightWc: number;                // จำนวนผู้ช่วยพยาบาลกะดึก
-  nightNurseTotal: number;        // รวมจำนวนพยาบาลกะดึกทั้งหมด
+  nightFormId?: string;
+  nightPatientCensus: number;
+  nightCalculatedCensus?: number;
+  nightNurseManager?: number;
+  nightRn?: number;
+  nightPn?: number;
+  nightWc?: number;
+  nightNurseTotal: number;
   
-  nightNewAdmit: number;          // จำนวนรับใหม่กะดึก
-  nightTransferIn: number;        // จำนวนย้ายเข้ากะดึก
-  nightReferIn: number;           // จำนวนส่งตัวมารักษาต่อกะดึก
-  nightAdmitTotal: number;        // รวมจำนวนผู้ป่วยเข้ากะดึก
+  nightNewAdmit?: number;
+  nightTransferIn?: number;
+  nightReferIn?: number;
+  nightAdmitTotal?: number;
   
-  nightDischarge: number;         // จำนวนจำหน่ายกะดึก
-  nightTransferOut: number;       // จำนวนย้ายออกกะดึก
-  nightReferOut: number;          // จำนวนส่งตัวไปรักษาต่อกะดึก
-  nightDead: number;              // จำนวนเสียชีวิตกะดึก
-  nightDischargeTotal: number;    // รวมจำนวนผู้ป่วยออกกะดึก
+  nightDischarge?: number;
+  nightTransferOut?: number;
+  nightReferOut?: number;
+  nightDead?: number;
+  nightDischargeTotal?: number;
   
-  // ข้อมูลสรุป 24 ชั่วโมง
-  dailyPatientCensus: number;      // จำนวนผู้ป่วยคงเหลือปัจจุบัน (ยอดสุดท้ายของวัน)
-  dailyNurseManagerTotal: number;  // จำนวนหัวหน้าพยาบาลทั้งวัน
-  dailyRnTotal: number;            // จำนวนพยาบาลวิชาชีพทั้งวัน
-  dailyPnTotal: number;            // จำนวนพยาบาลเทคนิคทั้งวัน
-  dailyWcTotal: number;            // จำนวนผู้ช่วยพยาบาลทั้งวัน
-  dailyNurseTotal: number;         // รวมจำนวนพยาบาลทั้งวัน
+  // ข้อมูลรวม 24 ชั่วโมง
+  dailyPatientCensus: number;
+  calculatedCensus?: number;
+  dailyNurseManagerTotal?: number;
+  dailyRnTotal?: number;
+  dailyPnTotal?: number;
+  dailyWcTotal?: number;
+  dailyNurseTotal: number;
   
-  dailyNewAdmitTotal: number;      // รวมจำนวนรับใหม่ทั้งวัน
-  dailyTransferInTotal: number;    // รวมจำนวนย้ายเข้าทั้งวัน
-  dailyReferInTotal: number;       // รวมจำนวนส่งตัวมารักษาต่อทั้งวัน
-  dailyAdmitTotal: number;         // รวมจำนวนผู้ป่วยเข้าทั้งวัน
+  dailyNewAdmitTotal?: number;
+  dailyTransferInTotal?: number;
+  dailyReferInTotal?: number;
+  dailyAdmitTotal?: number;
   
-  dailyDischargeTotal: number;     // รวมจำนวนจำหน่ายทั้งวัน
-  dailyTransferOutTotal: number;   // รวมจำนวนย้ายออกทั้งวัน
-  dailyReferOutTotal: number;      // รวมจำนวนส่งตัวไปรักษาต่อทั้งวัน
-  dailyDeadTotal: number;          // รวมจำนวนเสียชีวิตทั้งวัน
-  dailyDischargeAllTotal: number;  // รวมจำนวนผู้ป่วยออกทั้งวัน
+  dailyDischargeTotal?: number;
+  dailyTransferOutTotal?: number;
+  dailyReferOutTotal?: number;
+  dailyDeadTotal?: number;
+  dailyDischargeAllTotal?: number;
   
   // อัตราส่วนพยาบาลต่อผู้ป่วย
-  morningNurseRatio: number;       // อัตราส่วนพยาบาลต่อผู้ป่วยกะเช้า
-  nightNurseRatio: number;         // อัตราส่วนพยาบาลต่อผู้ป่วยกะดึก
-  dailyNurseRatio: number;         // อัตราส่วนพยาบาลต่อผู้ป่วยเฉลี่ยทั้งวัน
+  morningNurseRatio?: number;
+  nightNurseRatio?: number;
+  dailyNurseRatio?: number;
   
   // ข้อมูลอื่นๆ
-  availableBeds: number;           // จำนวนเตียงว่าง
-  unavailableBeds: number;         // จำนวนเตียงไม่พร้อมใช้งาน
-  plannedDischarge: number;        // จำนวนผู้ป่วยที่วางแผนจำหน่ายในวันถัดไป
-  opd24hr?: number;                // จำนวนผู้ป่วยนอก 24 ชั่วโมง
-  oldPatient?: number;             // จำนวนผู้ป่วยเก่า
-  newPatient?: number;             // จำนวนผู้ป่วยใหม่
-  admit24hr?: number;              // จำนวนรับไว้ในโรงพยาบาล 24 ชั่วโมง
-  allFormsApproved?: boolean;      // สถานะการอนุมัติแบบฟอร์มทั้งหมด (true = อนุมัติแล้วทั้งหมด)
+  opd24hr?: number;
+  oldPatient?: number;
+  newPatient?: number; 
+  admit24hr?: number;
+  availableBeds?: number;
+  unavailableBeds?: number;
+  plannedDischarge?: number;
+  
+  // สถานะการอนุมัติ
+  allFormsApproved: boolean;
   
   // ข้อมูลการบันทึก
-  createdBy?: string;              // รหัสผู้สร้าง
-  createdAt?: TimestampField;      // เวลาที่สร้าง
-  lastUpdatedBy?: string;          // รหัสผู้อัพเดทล่าสุด
-  lastUpdaterFirstName?: string;   // ชื่อผู้อัพเดทล่าสุด
-  lastUpdaterLastName?: string;    // นามสกุลผู้อัพเดทล่าสุด
-  updatedAt?: TimestampField;      // เวลาที่อัพเดทล่าสุด
+  createdBy?: string;
+  createdAt?: Date | Timestamp;
+  lastUpdatedBy?: string;
+  lastUpdaterFirstName?: string;
+  lastUpdaterLastName?: string;
+  updatedAt?: Date | Timestamp;
+  
+  // ระบุว่าเป็นข้อมูลตัวอย่างหรือไม่
+  isDummyData?: boolean;
 } 
