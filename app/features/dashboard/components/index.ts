@@ -24,4 +24,12 @@ export { default as WardSummaryCard } from './WardSummaryCard';
 export { default as CustomPieChart } from './PieChart';
 export { default as BarChartComponent } from './BarChartComponent';
 export { default as PatientTable } from './PatientTable';
-export { default as ShiftComparisonChart } from './ShiftComparisonChart'; 
+export { default as ShiftComparisonChart } from './ShiftComparisonChart';
+export { default as PatientCensusCalculation } from './PatientCensusCalculation';
+export { default as WardButton } from './WardButton';
+export { default as ShiftSummary } from './ShiftSummary';
+export { default as WardSummaryGrid } from './WardSummaryGrid';
+export { default as WardSummaryDashboard } from './WardSummaryDashboard';
+
+// Types
+export * from './types'; 

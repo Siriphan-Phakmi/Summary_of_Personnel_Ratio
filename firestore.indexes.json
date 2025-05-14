@@ -147,6 +147,23 @@
         { "fieldPath": "allFormsApproved", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "dailySummaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "dateString", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "dailySummaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "wardId", "order": "ASCENDING" },
+        { "fieldPath": "allFormsApproved", "order": "ASCENDING" },
+        { "fieldPath": "dateString", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

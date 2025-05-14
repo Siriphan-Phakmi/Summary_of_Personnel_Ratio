@@ -26,6 +26,8 @@ import {
 } from '../constants';
 import { createServerTimestamp } from '@/app/core/utils/dateUtils';
 
+type WardFormWithId = WardForm & { id: string };
+
 // ตรวจสอบว่ามี collection dailySummaries ใน Firebase หรือไม่
 export const checkDailySummariesCollectionExists = async (): Promise<boolean> => {
   try {
@@ -589,109 +591,267 @@ export const getSummaryById = async (summaryId: string): Promise<DailySummary | 
 /**
  * ดึงข้อมูลสรุปประจำวันตามช่วงวันที่และวอร์ด (ทั้งที่อนุมัติแล้วและยังไม่อนุมัติ)
  * @param wardId รหัสวอร์ด
- * @param startDate วันที่เริ่มต้น
- * @param endDate วันที่สิ้นสุด
+ * @param startDateStringForQuery วันที่เริ่มต้นในรูปแบบวันที่ที่ format แล้ว
+ * @param endDateStringForQuery วันที่สิ้นสุดในรูปแบบวันที่ที่ format แล้ว
  * @returns ข้อมูลสรุปประจำวันที่ตรงตามเงื่อนไข
  */
 export const getApprovedSummariesByDateRange = async (
   wardId: string,
-  startDate: Date,
-  endDate: Date
+  startDateStringForQuery: string,
+  endDateStringForQuery: string
 ): Promise<DailySummary[]> => {
-  console.log(`[dailySummary.getApprovedSummariesByDateRange] Function called with wardId=${wardId}, startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
-  console.log(`[dailySummary.getApprovedSummariesByDateRange] COLLECTION_SUMMARIES: ${COLLECTION_SUMMARIES}`);
+  console.log(`[dailySummary.getApprovedSummariesByDateRange] Called: wardId=${wardId}, start=${startDateStringForQuery}, end=${endDateStringForQuery}`);
   try {
     const summariesRef = collection(db, COLLECTION_SUMMARIES);
-    
-    // Use dateString for accurate date range queries
-    const startDateString = format(startDate, 'yyyy-MM-dd');
-    const endDateString = format(endDate, 'yyyy-MM-dd');
-    console.log(`[dailySummary.getApprovedSummariesByDateRange] dateString range: ${startDateString} to ${endDateString}`);
-
-    // Query using dateString field
     const basicQuery = query(
       summariesRef,
       where("wardId", "==", wardId),
-      where("dateString", ">=", startDateString),
-      where("dateString", "<=", endDateString),
+      where("dateString", ">=", startDateStringForQuery),
+      where("dateString", "<=", endDateStringForQuery),
       orderBy("dateString", "desc")
     );
-    const snapshot = await getDocs(basicQuery);
+
+    console.log(`[dailySummary.getApprovedSummariesByDateRange] Executing basic query...`);
+    const querySnapshot = await getDocs(basicQuery);
+    console.log(`[dailySummary.getApprovedSummariesByDateRange] Basic query found ${querySnapshot.size} docs.`);
     
-    console.log(`[dailySummary.getApprovedSummariesByDateRange] Query returned ${snapshot.docs.length} documents`);
+    let summaries: DailySummary[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as DailySummary;
+      data.allFormsApproved = true; 
+      summaries.push({ id: doc.id, ...data });
+    });
     
-    // Fallback when no documents found in date range
-    if (snapshot.empty) {
-      console.log(`[dailySummary.getApprovedSummariesByDateRange] No summaries in date range for ward ${wardId}, using fallback by wardId only`);
-      const fallbackQuery = query(
+    if (summaries.length === 0) {
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] Basic query empty. Fallback 1: wardId, orderBy dateString desc`);
+      const fallbackQuery1 = query(
         summariesRef,
-        where("wardId", "==", wardId)
+        where("wardId", "==", wardId),
+        orderBy("dateString", "desc") 
       );
-      const fallbackSnapshot = await getDocs(fallbackQuery);
-      console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback query returned ${fallbackSnapshot.docs.length} documents`);
+      const fallbackSnapshot1 = await getDocs(fallbackQuery1);
+      console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback 1 found ${fallbackSnapshot1.size} docs.`);
       
-      // Map fallback documents
-      const fallbackResults = fallbackSnapshot.docs.map(doc => {
-        const data = doc.data() as any;
-        // Ensure allFormsApproved true to show in Dashboard
-        if (data.allFormsApproved !== true) {
-          data.allFormsApproved = true;
-        }
-        return {
-          ...data,
-          id: doc.id
-        } as DailySummary;
+      const fallbackResults1: DailySummary[] = [];
+      fallbackSnapshot1.forEach(doc => {
+        const data = doc.data() as DailySummary;
+        data.allFormsApproved = true; 
+        fallbackResults1.push({ id: doc.id, ...data });
       });
       
-      // Filter by date range in JS
-      const filteredFallback = fallbackResults.filter(summary => {
-        const docDate = summary.date instanceof Timestamp ? summary.date.toDate() : new Date(summary.date);
-        const inRange = docDate >= startDate && docDate <= endDate;
-        if (!inRange) {
-          console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback excluded summary ${summary.id}, date ${summary.dateString}`);
+      if (fallbackResults1.length > 0) {
+        summaries = fallbackResults1.filter(summary => 
+          summary.dateString >= startDateStringForQuery && summary.dateString <= endDateStringForQuery
+        );
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback 1 filtered to ${summaries.length} docs.`);
+      }
+      
+      if (summaries.length === 0) {
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Fallback 1 empty after filter. Fallback 2: Generate from wardForms.`);
+        
+        const formsRef = collection(db, COLLECTION_WARDFORMS);
+        const formsQuery = query(
+          formsRef,
+          where("wardId", "==", wardId),
+          where("dateString", "==", endDateStringForQuery), 
+          where("status", "==", FormStatus.APPROVED),
+          orderBy("updatedAt", "desc")
+        );
+        
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Querying wardForms: wardId=${wardId}, dateString=${endDateStringForQuery}, status=APPROVED`);
+        const formsSnapshot = await getDocs(formsQuery);
+        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found ${formsSnapshot.size} approved forms in wardForms.`);
+        
+        if (!formsSnapshot.empty) {
+          // Define a simplified type that includes all the properties we need
+          interface WardFormWithId {
+            id: string;
+            wardName?: string;
+            date?: Timestamp;
+            dateString?: string;
+            patientCensus?: number;
+            calculatedCensus?: number;
+            nurseManager?: number;
+            rn?: number;
+            pn?: number;
+            wc?: number;
+            newAdmit?: number;
+            transferIn?: number;
+            referIn?: number;
+            discharge?: number;
+            transferOut?: number;
+            referOut?: number;
+            dead?: number;
+            available?: number;
+            unavailable?: number;
+            plannedDischarge?: number;
+            shift?: ShiftType;
+          }
+          let morningFormRaw: WardFormWithId | null = null;
+          let nightFormRaw: WardFormWithId | null = null;
+          
+          formsSnapshot.forEach(doc => {
+            const formData = doc.data() as WardForm;
+            if (formData.shift === 'morning' && !morningFormRaw) {
+              // Use type assertion to any first to avoid type errors
+              morningFormRaw = { 
+                id: doc.id,
+                wardName: formData.wardName,
+                date: formData.date as unknown as Timestamp,
+                dateString: formData.dateString,
+                patientCensus: formData.patientCensus,
+                calculatedCensus: formData.calculatedCensus,
+                nurseManager: formData.nurseManager,
+                rn: formData.rn,
+                pn: formData.pn,
+                wc: formData.wc,
+                newAdmit: formData.newAdmit,
+                transferIn: formData.transferIn,
+                referIn: formData.referIn,
+                discharge: formData.discharge,
+                transferOut: formData.transferOut,
+                referOut: formData.referOut,
+                dead: formData.dead,
+                available: formData.available,
+                unavailable: formData.unavailable,
+                plannedDischarge: formData.plannedDischarge,
+                shift: formData.shift
+              };
+            } else if (formData.shift === 'night' && !nightFormRaw) {
+              // Use type assertion to any first to avoid type errors
+              nightFormRaw = {
+                id: doc.id,
+                wardName: formData.wardName,
+                date: formData.date as unknown as Timestamp,
+                dateString: formData.dateString,
+                patientCensus: formData.patientCensus,
+                calculatedCensus: formData.calculatedCensus,
+                nurseManager: formData.nurseManager,
+                rn: formData.rn,
+                pn: formData.pn,
+                wc: formData.wc,
+                newAdmit: formData.newAdmit,
+                transferIn: formData.transferIn,
+                referIn: formData.referIn,
+                discharge: formData.discharge,
+                transferOut: formData.transferOut,
+                referOut: formData.referOut,
+                dead: formData.dead,
+                available: formData.available,
+                unavailable: formData.unavailable,
+                plannedDischarge: formData.plannedDischarge,
+                shift: formData.shift
+              };
+            }
+          });
+          
+          console.log(`[dailySummary.getApprovedSummariesByDateRange] Raw Morning form: ${!!morningFormRaw}, Raw Night form: ${!!nightFormRaw}`);
+
+          if (morningFormRaw || nightFormRaw) {
+            // Type assertion to help TypeScript understand the proper types
+            const morningForm = morningFormRaw as WardFormWithId | null;
+            const nightForm = nightFormRaw as WardFormWithId | null;
+            
+            const wardNameValue = morningForm?.wardName || nightForm?.wardName || '';
+            const dateValueRaw = morningForm?.date || nightForm?.date;
+            const dateValue = dateValueRaw instanceof Timestamp ? dateValueRaw : Timestamp.fromDate(new Date(endDateStringForQuery));
+            const dateStringValue = morningForm?.dateString || nightForm?.dateString || endDateStringForQuery;
+
+                          const mPatientCensus = morningForm?.patientCensus || 0;
+              const mCalculatedCensus = morningForm?.calculatedCensus || mPatientCensus;
+              const mNurseManager = morningForm?.nurseManager || 0;
+              const mRn = morningForm?.rn || 0;
+              const mPn = morningForm?.pn || 0;
+              const mWc = morningForm?.wc || 0;
+              const mNurseTotal = mNurseManager + mRn + mPn + mWc;
+
+              const nPatientCensus = nightForm?.patientCensus || 0;
+              const nCalculatedCensus = nightForm?.calculatedCensus || nPatientCensus;
+              const nNurseManager = nightForm?.nurseManager || 0;
+              const nRn = nightForm?.rn || 0;
+              const nPn = nightForm?.pn || 0;
+              const nWc = nightForm?.wc || 0;
+              const nNurseTotal = nNurseManager + nRn + nPn + nWc;
+            
+            const generatedSummary: DailySummary = {
+              id: `generated_${wardId}_${dateStringValue.replace(/-/g, '')}`,
+              wardId,
+              wardName: wardNameValue,
+              date: dateValue,
+              dateString: dateStringValue,
+              allFormsApproved: true,
+
+              morningFormId: morningForm?.id || '',
+              morningPatientCensus: mPatientCensus,
+              morningCalculatedCensus: mCalculatedCensus,
+              morningNurseManager: mNurseManager,
+              morningRn: mRn,
+              morningPn: mPn,
+              morningWc: mWc,
+              morningNurseTotal: mNurseTotal,
+              morningNewAdmit: morningForm?.newAdmit || 0,
+              morningTransferIn: morningForm?.transferIn || 0,
+              morningReferIn: morningForm?.referIn || 0,
+              morningAdmitTotal: (morningForm?.newAdmit || 0) + (morningForm?.transferIn || 0) + (morningForm?.referIn || 0),
+              morningDischarge: morningForm?.discharge || 0,
+              morningTransferOut: morningForm?.transferOut || 0,
+              morningReferOut: morningForm?.referOut || 0,
+              morningDead: morningForm?.dead || 0,
+              morningDischargeTotal: (morningForm?.discharge || 0) + (morningForm?.transferOut || 0) + (morningForm?.referOut || 0) + (morningForm?.dead || 0),
+              morningNurseRatio: mPatientCensus > 0 && mNurseTotal > 0 ? mNurseTotal / mPatientCensus : 0,
+
+              nightFormId: nightForm?.id || '',
+              nightPatientCensus: nPatientCensus,
+              nightCalculatedCensus: nCalculatedCensus,
+              nightNurseManager: nNurseManager,
+              nightRn: nRn,
+              nightPn: nPn,
+              nightWc: nWc,
+              nightNurseTotal: nNurseTotal,
+              nightNewAdmit: nightForm?.newAdmit || 0,
+              nightTransferIn: nightForm?.transferIn || 0,
+              nightReferIn: nightForm?.referIn || 0,
+              nightAdmitTotal: (nightForm?.newAdmit || 0) + (nightForm?.transferIn || 0) + (nightForm?.referIn || 0),
+              nightDischarge: nightForm?.discharge || 0,
+              nightTransferOut: nightForm?.transferOut || 0,
+              nightReferOut: nightForm?.referOut || 0,
+              nightDead: nightForm?.dead || 0,
+              nightDischargeTotal: (nightForm?.discharge || 0) + (nightForm?.transferOut || 0) + (nightForm?.referOut || 0) + (nightForm?.dead || 0),
+              nightNurseRatio: nPatientCensus > 0 && nNurseTotal > 0 ? nNurseTotal / nPatientCensus : 0,
+              
+              dailyPatientCensus: nPatientCensus || mPatientCensus,
+              dailyNurseManagerTotal: mNurseManager + nNurseManager,
+              dailyRnTotal: mRn + nRn,
+              dailyPnTotal: mPn + nPn,
+              dailyWcTotal: mWc + nWc,
+              dailyNurseTotal: mNurseTotal + nNurseTotal,
+              dailyNewAdmitTotal: (morningForm?.newAdmit || 0) + (nightForm?.newAdmit || 0),
+              dailyTransferInTotal: (morningForm?.transferIn || 0) + (nightForm?.transferIn || 0),
+              dailyReferInTotal: (morningForm?.referIn || 0) + (nightForm?.referIn || 0),
+              dailyAdmitTotal: ((morningForm?.newAdmit || 0) + (morningForm?.transferIn || 0) + (morningForm?.referIn || 0)) + ((nightForm?.newAdmit || 0) + (nightForm?.transferIn || 0) + (nightForm?.referIn || 0)),
+              dailyDischargeTotal: (morningForm?.discharge || 0) + (nightForm?.discharge || 0),
+              dailyTransferOutTotal: (morningForm?.transferOut || 0) + (nightForm?.transferOut || 0),
+              dailyReferOutTotal: (morningForm?.referOut || 0) + (nightForm?.referOut || 0),
+              dailyDeadTotal: (morningForm?.dead || 0) + (nightForm?.dead || 0),
+              dailyDischargeAllTotal: ((morningForm?.discharge || 0) + (morningForm?.transferOut || 0) + (morningForm?.referOut || 0) + (morningForm?.dead || 0)) + ((nightForm?.discharge || 0) + (nightForm?.transferOut || 0) + (nightForm?.referOut || 0) + (nightForm?.dead || 0)),
+              dailyNurseRatio: (mPatientCensus + nPatientCensus > 0 && mNurseTotal + nNurseTotal > 0) ? (mNurseTotal + nNurseTotal) / ((mPatientCensus + nPatientCensus) / 2) : 0,
+
+              availableBeds: morningForm?.available || nightForm?.available || 0, 
+              unavailableBeds: morningForm?.unavailable || nightForm?.unavailable || 0, 
+              plannedDischarge: morningForm?.plannedDischarge || nightForm?.plannedDischarge || 0,
+              
+              createdAt: Timestamp.now(),
+              updatedAt: Timestamp.now(),
+            };
+            console.log(`[dailySummary.getApprovedSummariesByDateRange] Generated synthetic summary:`, JSON.stringify(generatedSummary));
+            summaries = [generatedSummary];
+          }
         }
-        return inRange;
-      });
-      return filteredFallback;
+      }
     }
     
-    // แปลงข้อมูลจาก Firestore เป็น DailySummary objects
-    const results = snapshot.docs.map(doc => {
-      const data = doc.data() as any;
-      
-      // แสดงข้อมูลละเอียดของเอกสารแต่ละชิ้น
-      console.log(`[dailySummary.getApprovedSummariesByDateRange] Document ${doc.id}: dateString=${data.dateString}, morningFormId=${data.morningFormId ? 'yes' : 'no'}, nightFormId=${data.nightFormId ? 'yes' : 'no'}, allFormsApproved=${data.allFormsApproved}`);
-      
-      // ตรวจสอบและแสดงค่า calculatedCensus ถ้ามี
-      if (data.calculatedCensus) {
-        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found calculatedCensus=${data.calculatedCensus} for document ${doc.id}`);
-      }
-      if (data.morningCalculatedCensus) {
-        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found morningCalculatedCensus=${data.morningCalculatedCensus} for document ${doc.id}`);
-      }
-      if (data.nightCalculatedCensus) {
-        console.log(`[dailySummary.getApprovedSummariesByDateRange] Found nightCalculatedCensus=${data.nightCalculatedCensus} for document ${doc.id}`);
-      }
-      
-      // กำหนดให้ allFormsApproved เป็น true ถ้าไม่มีค่า หรือเป็น false
-      // เพื่อให้แน่ใจว่าข้อมูลจะแสดงในหน้า Dashboard
-      if (data.allFormsApproved !== true) {
-        console.log(`[dailySummary.getApprovedSummariesByDateRange] Setting allFormsApproved to true for document ${doc.id}`);
-        data.allFormsApproved = true;
-      }
-      
-      return {
-        ...data,
-        id: doc.id
-      } as DailySummary;
-    });
-    
-    // แสดงข้อมูลตัวอย่าง 3 รายการแรก (ถ้ามี)
-    results.slice(0, 3).forEach((doc, index) => {
-      console.log(`[dailySummary.getApprovedSummariesByDateRange] Result ${index + 1}: id=${doc.id}, date=${doc.dateString}, calculatedCensus=${doc.calculatedCensus ?? 'not found'}, allFormsApproved=${doc.allFormsApproved}`);
-    });
-    
-    return results;
+    console.log(`[dailySummary.getApprovedSummariesByDateRange] Returning ${summaries.length} summaries. First:`, summaries.length > 0 ? JSON.stringify(summaries[0]) : 'None');
+    return summaries;
   } catch (error) {
     console.error(`[dailySummary.getApprovedSummariesByDateRange] Error:`, error);
     throw error;

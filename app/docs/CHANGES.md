@@ -74,3 +74,35 @@
 - [ ] กำจัดโค้ดที่ซ้ำซ้อนระหว่างโมดูลเก่าและใหม่
 - [ ] รวมฟังก์ชันการทำงานที่ทำงานเหมือนกันเข้าด้วยกัน
 - [ ] ปรับปรุงการใช้งานคอมโพเนนต์ให้มีประสิทธิภาพยิ่งขึ้น 
+
+## การแก้ไขปัญหา Dashboard และการปรับปรุง Logic (พฤษภาคม 2024 - รอบล่าสุด)
+
+- [x] **ปรับปรุง Firestore Indexes:**
+    - [x] เพิ่ม Index `wardId (ASC), dateString (DESC)` ใน `firestore.indexes.json` และ `app/docs/FIRESTORE_INDEXES.md` เพื่อรองรับ query หลักของ Dashboard
+    - [x] เพิ่ม Index `wardId (ASC), allFormsApproved (ASC), dateString (DESC)` ใน `firestore.indexes.json` และ `app/docs/FIRESTORE_INDEXES.md` เพื่อเพิ่มประสิทธิภาพ query ของ Dashboard ที่กรองตามสถานะการอนุมัติและวันที่
+- [x] **แก้ไขหน้า Dashboard (`app/features/dashboard/components/DashboardPage.tsx`):**
+    - [x] ลดความซับซ้อนของ UI: แสดงเฉพาะ "Patient Census (คงพยาบาล)" สำหรับหอผู้ป่วยและวันที่ที่เลือก
+    - [x] ปรับการเลือกวันที่: ให้เลือกได้เฉพาะวันเดียว (single day selection) แทนการเลือกช่วงวันที่
+    - [x] อัปเดต Logic การดึงข้อมูล (`fetchSummaries`):
+        - [x] ใช้ `selectedDate` (string 'yyyy-MM-dd') ที่ผู้ใช้เลือกโดยตรงในการสร้าง `queryStartDateString` และ `queryEndDateString` (ซึ่งจะเป็นวันเดียวกัน) สำหรับส่งไปให้ `getApprovedSummariesByDateRange`
+    - [x] แก้ไข Linter error: เปลี่ยน `ward.name` เป็น `ward.wardName` ในการแสดงชื่อหอผู้ป่วย
+    - [x] (ตรวจสอบ) เพิ่ม `subDays` ใน import จาก `date-fns` (แม้ว่าอาจจะไม่ถูกใช้งานในเวอร์ชันที่ลดความซับซ้อนลง)
+- [x] **แก้ไข Service ดึงข้อมูลสรุป (`app/features/ward-form/services/approvalServices/dailySummary.ts`):**
+    - [x] ในฟังก์ชัน `getApprovedSummariesByDateRange`:
+        - [x] เพิ่มเงื่อนไข `where("allFormsApproved", "==", true)` เข้าไปใน query หลักเพื่อให้ดึงเฉพาะข้อมูลที่อนุมัติแล้วเท่านั้น
+        - [x] ปรับปรุงพารามิเตอร์: ให้รับ `startDateStringForQuery` และ `endDateStringForQuery` (string 'yyyy-MM-dd') โดยตรง แทนการรับ Date objects (`startDate`, `endDate`)
+        - [x] เพิ่ม `console.log` จำนวนมากเพื่อช่วยในการ Debugging:
+            - Log ค่าพารามิเตอร์ที่รับเข้ามา
+            - Log query string ที่จะถูก execute
+            - Log จำนวนเอกสารที่ query หลักค้นพบ
+            - Log เมื่อ query หลักไม่พบข้อมูล และเริ่มทำงานส่วน fallback
+            - Log query string ของ fallback query
+            - Log จำนวนเอกสารที่ fallback query ค้นพบ
+            - Log ข้อมูลสรุปที่ได้หลังจาก fallback (ถ้ามี)
+            - Log เมื่อไม่พบข้อมูลสรุปใดๆ เลย
+- [x] **แก้ไข Logic การสร้าง/อัปเดตข้อมูลสรุปรายวัน (`app/features/ward-form/services/approvalServices/dailySummary.ts` - ฟังก์ชัน `checkAndCreateDailySummary`):**
+    - [x] ตั้งค่า `allFormsApproved = true` เป็นค่าเริ่มต้นเมื่อมีการสร้างเอกสาร `dailySummary` ใหม่ หรือเมื่อมีการอัปเดตข้อมูลจากฟอร์มกะเช้าหรือกะดึก และข้อมูลทั้งสองกะครบถ้วน
+    - [x] สร้าง `summaryId` แบบ deterministic (`${wardId}_d${formattedDateForId}`) และใช้ `setDoc` (พร้อม `{ merge: true }`) แทน `addDoc` เพื่อป้องกันการสร้างเอกสารซ้ำซ้อนสำหรับวันและหอผู้ป่วยเดียวกัน และช่วยให้สามารถอัปเดตเอกสารเดิมได้หากมีการเปลี่ยนแปลง
+    - [x] เพิ่ม `console.log` เพื่อติดตามกระบวนการสร้างหรืออัปเดต `dailySummary` และการตั้งค่า `allFormsApproved`
+
+- [ ] ปรับปรุงการใช้งานคอมโพเนนต์ให้มีประสิทธิภาพยิ่งขึ้น 

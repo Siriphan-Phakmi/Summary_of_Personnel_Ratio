@@ -112,6 +112,23 @@ Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it her
 1. **userId (ASC), wardId (ASC)**  
    สำหรับตรวจสอบการเข้าถึง ward ของผู้ใช้ 
 
+### Collection: dailySummaries
+
+1. **wardId (ASC), date (ASC)**
+2. **wardId (ASC), date (DESC)**
+3. **wardId (ASC), allFormsApproved (ASC), date (ASC)**
+4. **wardId (ASC), allFormsApproved (ASC), date (DESC)**
+5. **wardId (ASC), dateString (DESC)** // Index ใหม่ที่เพิ่มสำหรับ Dashboard query
+6. **wardId (ASC), allFormsApproved (ASC), dateString (DESC)** // Index เพิ่มประสิทธิภาพ Dashboard query (ครอบคลุม allFormsApproved และ dateString)
+
+### Collection: notifications
+
+1. **userId (ASC), read (ASC), createdAt (DESC)**  
+   สำหรับดึงการแจ้งเตือนของผู้ใช้เรียงตามสถานะการอ่านและเวลาที่สร้าง
+
+2. **targetUserId (ASC), read (ASC), createdAt (DESC)**  
+   สำหรับดึงการแจ้งเตือนที่ส่งถึงผู้ใช้เป้าหมายเรียงตามสถานะการอ่านและเวลาที่สร้าง
+
 ## อัปเดตล่าสุด (2024-05-06)
 
 ### Indexes เพิ่มเติมที่อาจจำเป็นในการอัปเดต
