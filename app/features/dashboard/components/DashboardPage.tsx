@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { format, parseISO, startOfDay, endOfDay, subDays } from 'date-fns';
+import { format, parseISO, startOfDay, endOfDay, subDays, addDays, subWeeks, subMonths } from 'date-fns';
 import { Timestamp, getDocs, collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import NavBar from '@/app/core/ui/NavBar';
@@ -10,9 +10,25 @@ import { getWardsByUserPermission, getAllWards } from '@/app/features/ward-form/
 import { Ward, WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { UserRole } from '@/app/core/types/user';
 import { COLLECTION_SUMMARIES, COLLECTION_WARDFORMS } from '@/app/features/ward-form/services/constants';
-import { DashboardSummary, WardFormData } from './types';
+import { 
+  DashboardSummary, 
+  WardFormData, 
+  PatientTrendData,
+  WardSummaryData 
+} from './types';
 import WardSummaryDashboard from './WardSummaryDashboard';
-import PatientCensusCalculation from './PatientCensusCalculation';
+import DashboardOverview from './DashboardOverview';
+import EnhancedBarChart from './EnhancedBarChart';
+import EnhancedPieChart from './EnhancedPieChart';
+import PatientTrendChart, { TrendData } from './PatientTrendChart';
+import WardSummaryTable from './WardSummaryTable';
+import ShiftComparisonPanel from './ShiftComparisonPanel';
+
+// รายชื่อแผนกที่ต้องการให้แสดงใน Dashboard
+const DASHBOARD_WARDS = [
+  'CCU', 'ICU', 'LR', 'NSY', 'Ward10B', 'Ward11', 'Ward12',
+  'Ward6', 'Ward7', 'Ward8', 'Ward9', 'WardGI'
+];
 
 const printStyles = `
   @media print {
@@ -21,6 +37,22 @@ const printStyles = `
     /* Add other print-specific styles if needed */
   }
 `;
+
+// ตัวเลือกช่วงเวลา
+const DATE_RANGE_OPTIONS = [
+  { label: 'วันนี้', value: 'today' },
+  { label: '7 วันล่าสุด', value: '7days' },
+  { label: '30 วันล่าสุด', value: '30days' },
+  { label: 'กำหนดเอง', value: 'custom' }
+];
+
+// ประเภทของการดูข้อมูล
+enum ViewType {
+  SUMMARY = 'summary',
+  WARD_DETAIL = 'ward_detail',
+  TREND = 'trend',
+  ALL_WARDS = 'all_wards'
+}
 
 // ดึงข้อมูลจาก dailySummaries collection
 const getDailySummary = async (wardId: string, dateString: string) => {
@@ -102,6 +134,93 @@ const getDailySummary = async (wardId: string, dateString: string) => {
   } catch (error) {
     console.error('[getDailySummary] Error:', error);
     throw error;
+  }
+};
+
+// ดึงข้อมูลแนวโน้มผู้ป่วยในช่วงเวลาที่กำหนด
+const fetchPatientTrends = async (startDate: Date, endDate: Date, wardId?: string): Promise<TrendData[]> => {
+  console.log(`[fetchPatientTrends] Fetching trends from ${format(startDate, 'yyyy-MM-dd')} to ${format(endDate, 'yyyy-MM-dd')}`);
+  
+  try {
+    // แปลงวันที่เป็น string
+    const startDateString = format(startDate, 'yyyy-MM-dd');
+    const endDateString = format(endDate, 'yyyy-MM-dd');
+    
+    // ดึงข้อมูลจาก dailySummaries collection
+    const summariesRef = collection(db, COLLECTION_SUMMARIES);
+    
+    let trendQuery;
+    
+    if (wardId) {
+      const formattedWardId = wardId.toUpperCase();
+      trendQuery = query(
+        summariesRef,
+        where('wardId', '==', formattedWardId),
+        where('dateString', '>=', startDateString),
+        where('dateString', '<=', endDateString),
+        orderBy('dateString', 'asc')
+      );
+    } else {
+      trendQuery = query(
+        summariesRef,
+        where('dateString', '>=', startDateString),
+        where('dateString', '<=', endDateString),
+        orderBy('dateString', 'asc')
+      );
+    }
+    
+    const querySnapshot = await getDocs(trendQuery);
+    console.log(`[fetchPatientTrends] Found ${querySnapshot.size} data points`);
+    
+    // สร้าง Map เพื่อจัดกลุ่มข้อมูลตามวันที่
+    const dateToDataMap = new Map<string, TrendData>();
+    
+    // สร้างข้อมูลเริ่มต้นสำหรับทุกวันในช่วงเวลา
+    let currentDate = startDate;
+    while (currentDate <= endDate) {
+      const dateString = format(currentDate, 'yyyy-MM-dd');
+      dateToDataMap.set(dateString, {
+        date: format(currentDate, 'dd/MM'),
+        patientCount: 0,
+        admitCount: 0,
+        dischargeCount: 0 // Use dischargeCount from TrendData
+      });
+      currentDate = addDays(currentDate, 1);
+    }
+    
+    // รวมข้อมูลจากทุก ward ตามวันที่
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      const dateString = data.dateString;
+      const formattedDate = format(parseISO(dateString), 'dd/MM');
+      
+      const existingData = dateToDataMap.get(dateString) || {
+        date: formattedDate,
+        patientCount: 0,
+        admitCount: 0,
+        dischargeCount: 0 // Align with TrendData
+      };
+      
+      // ใช้ข้อมูล night form ถ้ามี มิฉะนั้นใช้ morning form
+      const patientCensus = data.nightPatientCensus || data.morningPatientCensus || 0;
+      const admitTotal = (data.nightAdmitTotal || 0) + (data.morningAdmitTotal || 0);
+      // Calculate discharge amount from summary data's dischargeTotal fields
+      const dischargeAmount = (data.nightDischargeTotal || 0) + (data.morningDischargeTotal || 0);
+      
+      dateToDataMap.set(dateString, {
+        date: formattedDate,
+        patientCount: existingData.patientCount + patientCensus,
+        admitCount: existingData.admitCount + admitTotal,
+        dischargeCount: existingData.dischargeCount + dischargeAmount // Use dischargeCount
+      });
+    });
+    
+    // แปลง Map เป็น Array สำหรับใช้กับกราฟ
+    const result = Array.from(dateToDataMap.values());
+    return result;
+  } catch (error) {
+    console.error('[fetchPatientTrends] Error:', error);
+    return [];
   }
 };
 
@@ -215,49 +334,182 @@ const getWardFormsByDateAndWard = async (
   }
 };
 
-// ฟังก์ชันสำหรับดึงข้อมูลผู้ป่วยทั้งหมดของทุก Ward
-const fetchAllWardCensus = async (dateString: string) => {
-  console.log(`[fetchAllWardCensus] Fetching census for all wards for date ${dateString}`);
+// ฟังก์ชันสำหรับดึงข้อมูลสรุปรวม 24 ชั่วโมง
+const fetchTotalStats = async (dateString: string) => {
+  console.log(`[fetchTotalStats] Fetching total stats for date ${dateString}`);
   
   try {
-    // แปลงวันที่เป็นรูปแบบที่ต้องการ
-    const date = dateString;
-    
     // ดึงข้อมูลจาก wardForms collection
     const formsRef = collection(db, COLLECTION_WARDFORMS);
     
     // สร้าง query ที่ดึงข้อมูลของวันที่ที่เลือกและมีสถานะเป็น FINAL หรือ APPROVED
     const formsQuery = query(
       formsRef,
-      where('dateString', '==', date),
+      where('dateString', '==', dateString),
       where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED])
     );
     
-    console.log(`[fetchAllWardCensus] Executing query for date ${date}`);
     const querySnapshot = await getDocs(formsQuery);
-    console.log(`[fetchAllWardCensus] Found ${querySnapshot.size} forms`);
+    console.log(`[fetchTotalStats] Found ${querySnapshot.size} forms`);
     
-    // สร้าง Map เพื่อเก็บข้อมูล Patient Census ของแต่ละ Ward
-    const wardCensusMap = new Map<string, number>();
+    let totalOpd = 0;
+    let totalOldPatient = 0;
+    let totalNewPatient = 0;
+    let totalAdmit = 0;
     
-    // วนลูปผ่านผลลัพธ์ที่ได้จาก query
+    // รวมข้อมูลจากทุกแบบฟอร์ม
     querySnapshot.forEach(doc => {
       const data = doc.data() as WardForm;
-      const wardId = data.wardId;
-      const patientCensus = data.patientCensus || 0;
       
-      // ถ้ายังไม่มีข้อมูลของ Ward นี้ หรือข้อมูลที่มีอยู่น้อยกว่าข้อมูลใหม่ ให้เก็บข้อมูลใหม่
-      if (!wardCensusMap.has(wardId) || wardCensusMap.get(wardId)! < patientCensus) {
-        wardCensusMap.set(wardId, patientCensus);
+      // ไม่นับซ้ำถ้าเป็น Ward เดียวกัน (นับเฉพาะกะดึกหรือถ้าไม่มีกะดึกให้นับกะเช้า)
+      if (data.shift === ShiftType.NIGHT || 
+         (data.shift === ShiftType.MORNING && !querySnapshot.docs.some(d => 
+           d.data().wardId === data.wardId && d.data().shift === ShiftType.NIGHT))) {
+        
+        totalOpd += data.oldPatient || 0; // ใช้ oldPatient แทน opdPatient
+        
+        // old patient คือผู้ป่วยที่มีอยู่แล้ว คำนวณจาก patientCensus - newAdmit
+        const oldPatient = Math.max(0, (data.patientCensus || 0) - (data.newAdmit || 0));
+        totalOldPatient += oldPatient;
+        
+        totalNewPatient += data.newAdmit || 0;
+        
+        // admit total คือผู้ป่วยที่รับใหม่ทั้งหมด
+        const admitTotal = (data.newAdmit || 0) + (data.transferIn || 0) + (data.referIn || 0);
+        totalAdmit += admitTotal;
       }
     });
     
-    console.log(`[fetchAllWardCensus] Ward census data:`, Object.fromEntries(wardCensusMap));
-    return wardCensusMap;
+    return {
+      opd24hr: totalOpd,
+      oldPatient: totalOldPatient,
+      newPatient: totalNewPatient,
+      admit24hr: totalAdmit
+    };
   } catch (error) {
-    console.error('[fetchAllWardCensus] Error:', error);
-    return new Map<string, number>();
+    console.error('[fetchTotalStats] Error:', error);
+    return {
+      opd24hr: 0,
+      oldPatient: 0,
+      newPatient: 0,
+      admit24hr: 0
+    };
   }
+};
+
+// Function to fetch all ward census data for a specific date
+const fetchAllWardCensus = async (dateString: string): Promise<Map<string, number>> => {
+  const censusMap = new Map<string, number>();
+  try {
+    const summariesRef = collection(db, COLLECTION_SUMMARIES);
+    const q = query(summariesRef, where('dateString', '==', dateString));
+    const querySnapshot = await getDocs(q);
+
+    const dashboardWardIdsUpper = DASHBOARD_WARDS.map(w => w.toUpperCase());
+
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      const wardId = data.wardId?.toUpperCase();
+      if (wardId && dashboardWardIdsUpper.includes(wardId)) {
+        const patientCensus = data.dailyPatientCensus ?? data.nightPatientCensus ?? data.morningPatientCensus ?? 0;
+        censusMap.set(wardId, patientCensus);
+      }
+    });
+    console.log(`[fetchAllWardCensus] Fetched census for ${dateString}:`, censusMap);
+  } catch (error) {
+    console.error('[fetchAllWardCensus] Error fetching ward census data:', error);
+  }
+  return censusMap;
+};
+
+// Function to fetch all ward summary data for a specific date
+const fetchAllWardSummaryData = async (dateString: string, allAppWards: Ward[]): Promise<WardSummaryData[]> => {
+  const results: WardSummaryData[] = [];
+  const dashboardWardIdsUpper = DASHBOARD_WARDS.map(name => name.toUpperCase());
+
+  const wardNameMap = new Map<string, string>();
+  allAppWards.forEach(w => {
+    if (w.id) { // Ensure ward id exists
+        wardNameMap.set(w.id.toUpperCase(), w.wardName);
+    }
+  });
+
+  try {
+    const summariesRef = collection(db, COLLECTION_SUMMARIES);
+    // Query for summaries of DASHBOARD_WARDS for the specific dateString
+    const q = query(summariesRef,
+                    where('dateString', '==', dateString),
+                    where('wardId', 'in', dashboardWardIdsUpper.length > 0 ? dashboardWardIdsUpper : ['dummy_non_existent_id'])); // Firestore 'in' query requires a non-empty array
+
+    const querySnapshot = await getDocs(q);
+
+    querySnapshot.forEach(doc => {
+      const summary = doc.data();
+      const wardIdUpper = summary.wardId?.toUpperCase();
+
+      if (wardIdUpper) {
+        const wardName = wardNameMap.get(wardIdUpper) || wardIdUpper;
+
+        // Prefer night data, fallback to morning data from the summary document
+        const formDataSource = (summary.nightPatientCensus !== undefined || summary.nightFormId) ? 'night' : 'morning';
+        
+        const patientCensus = summary[`${formDataSource}PatientCensus`] ?? 0;
+        const nurseManager = summary[`${formDataSource}NurseManager`] ?? 0;
+        const rn = summary[`${formDataSource}Rn`] ?? 0;
+        const pn = summary[`${formDataSource}Pn`] ?? 0;
+        const wc = summary[`${formDataSource}Wc`] ?? 0;
+        const newAdmit = summary[`${formDataSource}NewAdmit`] ?? 0;
+        const transferIn = summary[`${formDataSource}TransferIn`] ?? 0;
+        const referIn = summary[`${formDataSource}ReferIn`] ?? 0;
+        const discharge = summary[`${formDataSource}Discharge`] ?? 0; // Individual discharge type
+        const transferOut = summary[`${formDataSource}TransferOut`] ?? 0;
+        const referOut = summary[`${formDataSource}ReferOut`] ?? 0;
+        const dead = summary[`${formDataSource}Dead`] ?? 0;
+        
+        // availableBeds, unavailableBeds, plannedDischarge are usually daily totals on summary
+        const available = summary.availableBeds ?? 0;
+        const unavailable = summary.unavailableBeds ?? 0;
+        // Use overall plannedDischarge if available, else from selected shift
+        const plannedDischarge = summary.plannedDischarge ?? (summary[`${formDataSource}PlannedDischarge`] ?? 0);
+
+        results.push({
+          id: wardIdUpper, // Use the uppercase version consistent with map keys
+          wardName: wardName,
+          patientCensus,
+          nurseManager,
+          rn,
+          pn,
+          wc,
+          newAdmit,
+          transferIn,
+          referIn,
+          discharge,
+          transferOut,
+          referOut,
+          dead,
+          available,
+          unavailable,
+          plannedDischarge,
+        });
+      }
+    });
+
+    // Ensure all DASHBOARD_WARDS are present in results, adding empty ones if not found
+    for (const dwIdUpper of dashboardWardIdsUpper) {
+      if (!results.some(r => r.id.toUpperCase() === dwIdUpper)) {
+        const wardName = wardNameMap.get(dwIdUpper) || dwIdUpper;
+        results.push({
+          id: dwIdUpper, wardName: wardName, patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
+          newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0, transferOut: 0, referOut: 0,
+          dead: 0, available: 0, unavailable: 0, plannedDischarge: 0
+        });
+      }
+    }
+    console.log(`[fetchAllWardSummaryData] Fetched summary data for ${dateString}:`, results);
+  } catch (error) {
+    console.error('[fetchAllWardSummaryData] Error fetching ward summary data:', error);
+  }
+  return results;
 };
 
 export default function DashboardPage() {
@@ -270,6 +522,18 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [useDailySummaries, setUseDailySummaries] = useState(true);
   const [wardCensusMap, setWardCensusMap] = useState<Map<string, number>>(new Map());
+  const [summaryDataList, setWardSummaryData] = useState<WardSummaryData[]>([]);
+  const [totalStats, setTotalStats] = useState({
+    opd24hr: 0,
+    oldPatient: 0,
+    newPatient: 0,
+    admit24hr: 0
+  });
+  const [trendData, setTrendData] = useState<TrendData[]>([]);
+  const [dateRange, setDateRange] = useState('today');
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [currentView, setCurrentView] = useState<ViewType>(ViewType.SUMMARY);
 
   // Load Wards
   useEffect(() => {
@@ -285,7 +549,15 @@ export default function DashboardPage() {
         const hasAdminAccess = user.role === UserRole.ADMIN || 
                                user.role === UserRole.SUPER_ADMIN || 
                              user.role === UserRole.DEVELOPER;
-        const userWards = hasAdminAccess ? await getAllWards() : await getWardsByUserPermission(user);
+        let userWards = hasAdminAccess ? await getAllWards() : await getWardsByUserPermission(user);
+        
+        // กรองเฉพาะ ward ที่กำหนดไว้ใน DASHBOARD_WARDS
+        userWards = userWards.filter(ward => 
+          DASHBOARD_WARDS.some(dashboardWard => 
+            ward.wardName.toUpperCase().includes(dashboardWard.toUpperCase())
+          )
+        );
+        
         setWards(userWards);
         if (userWards.length > 0) {
           setSelectedWardId(userWards[0].id);
@@ -389,31 +661,6 @@ export default function DashboardPage() {
     fetchWardForms(selectedWardId, selectedDate);
   }, [selectedWardId, selectedDate, user, wards, fetchWardForms]);
 
-  const selectedWard = useMemo(() => wards.find(w => w.id === selectedWardId), [wards, selectedWardId]);
-  
-  // แสดง console.log เพื่อดูว่า summary มีค่าหรือไม่
-  useEffect(() => {
-    console.log('[DashboardPage] Current summary state:', summary);
-  }, [summary]);
-
-  const refreshData = useCallback(() => {
-    // เรียกโหลดข้อมูลใหม่โดยตรง ไม่ต้องผ่าน useEffect
-    console.log("[refreshData] Refreshing data...");
-    
-    if (selectedWardId && selectedDate) {
-      fetchWardForms(selectedWardId, selectedDate);
-    }
-  }, [selectedWardId, selectedDate, fetchWardForms]);
-
-  // เพิ่มส่วนสลับระหว่าง dailySummaries และ wardForms
-  const toggleDataSource = () => {
-    setUseDailySummaries(!useDailySummaries);
-    // หลังจากสลับแหล่งข้อมูล ให้รีเฟรชข้อมูลใหม่
-    if (selectedWardId && selectedDate) {
-      setTimeout(() => fetchWardForms(selectedWardId, selectedDate), 100);
-    }
-  };
-
   // ดึงข้อมูล Patient Census ของทุก Ward
   useEffect(() => {
     if (!selectedDate || !user || wards.length === 0) {
@@ -432,15 +679,137 @@ export default function DashboardPage() {
     fetchCensusData();
   }, [selectedDate, user, wards]);
   
-  // แปลงข้อมูล wards ให้อยู่ในรูปแบบที่ใช้กับ WardSummaryDashboard
-  const wardSummaryData = useMemo(() => {
-    return wards.map(ward => ({
+  // ดึงข้อมูลสรุปของทุกแผนก
+  useEffect(() => {
+    if (!selectedDate || !user || wards.length === 0) {
+      return;
+    }
+    
+    const fetchSummaryData = async () => {
+      try {
+        setLoading(true);
+        
+        // ดึงข้อมูลสรุปรวมทั้งหมด
+        const summaryData = await fetchAllWardSummaryData(selectedDate, wards);
+        setWardSummaryData(summaryData);
+        
+        // ดึงข้อมูลสถิติรวม 24 ชั่วโมง
+        const stats = await fetchTotalStats(selectedDate);
+        setTotalStats(stats);
+      } catch (err) {
+        console.error('[DashboardPage] Error fetching ward summary data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSummaryData();
+  }, [selectedDate, user, wards]);
+  
+  // ดึงข้อมูลแนวโน้มผู้ป่วย
+  useEffect(() => {
+    if (!user || wards.length === 0) {
+      return;
+    }
+    
+    const fetchTrendDataHandler = async () => {
+      try {
+        setLoading(true);
+        
+        let start: Date;
+        let end = new Date(selectedDate);
+        
+        switch (dateRange) {
+          case '7days':
+            start = subDays(end, 6);
+            break;
+          case '30days':
+            start = subDays(end, 29);
+            break;
+          case 'custom':
+            start = new Date(startDate);
+            end = new Date(endDate);
+            break;
+          default: // today
+            start = new Date(selectedDate);
+            break;
+        }
+        
+        // ดึงข้อมูลแนวโน้มตามช่วงเวลาที่เลือก
+        const trends = await fetchPatientTrends(start, end, 
+          currentView === ViewType.WARD_DETAIL && selectedWardId ? selectedWardId : undefined);
+        
+        // ใช้ trends โดยตรง เนื่องจากมีทั้ง dischargeTotal และ dischargeCount แล้ว
+        setTrendData(trends);
+      } catch (err) {
+        console.error('[DashboardPage] Error fetching trend data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchTrendDataHandler();
+  }, [selectedDate, dateRange, startDate, endDate, currentView, selectedWardId, user, wards]);
+
+  const selectedWard = useMemo(() => wards.find(w => w.id === selectedWardId), [wards, selectedWardId]);
+  
+  // แสดง console.log เพื่อดูว่า summary มีค่าหรือไม่
+  useEffect(() => {
+    console.log('[DashboardPage] Current summary state:', summary);
+  }, [summary]);
+
+  const refreshData = useCallback(() => {
+    // เรียกโหลดข้อมูลใหม่โดยตรง ไม่ต้องผ่าน useEffect
+    console.log("[refreshData] Refreshing data...");
+    
+    if (selectedWardId && selectedDate) {
+      fetchWardForms(selectedWardId, selectedDate);
+    }
+  }, [selectedWardId, selectedDate, fetchWardForms]);
+        
+  // เพิ่มส่วนสลับระหว่าง dailySummaries และ wardForms
+  const toggleDataSource = () => {
+    setUseDailySummaries(!useDailySummaries);
+    // หลังจากสลับแหล่งข้อมูล ให้รีเฟรชข้อมูลใหม่
+    if (selectedWardId && selectedDate) {
+      setTimeout(() => fetchWardForms(selectedWardId, selectedDate), 100);
+    }
+  };
+  
+  // แปลงข้อมูลสำหรับใช้แสดงบน Dashboard components
+  const wardCensusData = useMemo(() => {
+    // แปลง summaryDataList เป็นรูปแบบที่ใช้กับ EnhancedBarChart และ EnhancedPieChart
+    return summaryDataList.map(ward => ({
       id: ward.id,
       wardName: ward.wardName,
-      patientCount: wardCensusMap.get(ward.id?.toUpperCase() || '') || 0
+      patientCount: ward.patientCensus
     }));
-  }, [wards, wardCensusMap]);
-
+  }, [summaryDataList]);
+  
+  // จัดการการเปลี่ยนช่วงเวลา
+  const handleDateRangeChange = (range: string) => {
+    setDateRange(range);
+    const today = new Date();
+    
+    switch (range) {
+      case '7days':
+        setStartDate(format(subDays(today, 6), 'yyyy-MM-dd'));
+        setEndDate(format(today, 'yyyy-MM-dd'));
+        break;
+      case '30days':
+        setStartDate(format(subDays(today, 29), 'yyyy-MM-dd'));
+        setEndDate(format(today, 'yyyy-MM-dd'));
+        break;
+      case 'custom':
+        // ไม่ต้องเปลี่ยน startDate และ endDate
+        break;
+      default: // today
+        setStartDate(format(today, 'yyyy-MM-dd'));
+        setEndDate(format(today, 'yyyy-MM-dd'));
+        break;
+    }
+  };
+  
   return (
     <>
       <style>{printStyles}</style>
@@ -473,12 +842,48 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="flex items-end justify-between">
-            <button
-              onClick={toggleDataSource}
-              className="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-            >
-              ใช้ข้อมูลจาก: {useDailySummaries ? 'Daily Summaries' : 'Ward Forms'}
-            </button>
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setCurrentView(ViewType.SUMMARY)}
+                className={`text-sm px-3 py-1 rounded-md transition ${
+                  currentView === ViewType.SUMMARY 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                สรุปรวม
+              </button>
+              <button
+                onClick={() => setCurrentView(ViewType.WARD_DETAIL)}
+                className={`text-sm px-3 py-1 rounded-md transition ${
+                  currentView === ViewType.WARD_DETAIL 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                รายละเอียดแผนก
+              </button>
+              <button
+                onClick={() => setCurrentView(ViewType.TREND)}
+                className={`text-sm px-3 py-1 rounded-md transition ${
+                  currentView === ViewType.TREND 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                แนวโน้ม
+              </button>
+              <button
+                onClick={() => setCurrentView(ViewType.ALL_WARDS)}
+                className={`text-sm px-3 py-1 rounded-md transition ${
+                  currentView === ViewType.ALL_WARDS 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                ตารางรวม
+              </button>
+            </div>
             
             <button
               onClick={() => window.print()}
@@ -489,32 +894,135 @@ export default function DashboardPage() {
           </div>
         </div>
         
-        {/* แสดง WardSummaryDashboard */}
-        <WardSummaryDashboard
-          date={selectedDate}
-          wards={wardSummaryData}
-          selectedWardId={selectedWardId}
-          onSelectWard={setSelectedWardId}
-          summary={summary}
-          loading={loading}
-        />
+        {/* หน้าสรุปรวม */}
+        {currentView === ViewType.SUMMARY && !loading && (
+          <div className="space-y-6">
+            <DashboardOverview
+              date={new Date(selectedDate)}
+              totalStats={totalStats}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <EnhancedBarChart
+                data={wardCensusData}
+                selectedWardId={selectedWardId}
+                onSelectWard={setSelectedWardId}
+              />
+              
+              <EnhancedPieChart
+                data={wardCensusData}
+                selectedWardId={selectedWardId}
+                onSelectWard={setSelectedWardId}
+              />
+            </div>
+            
+            <PatientTrendChart
+              data={trendData}
+              title="แนวโน้มจำนวนผู้ป่วย"
+            />
+          </div>
+        )}
+        
+        {/* หน้ารายละเอียดแผนก */}
+        {currentView === ViewType.WARD_DETAIL && selectedWardId && !loading && (
+          <div className="space-y-6">
+            <WardSummaryDashboard
+              date={selectedDate}
+              wards={wardCensusData}
+              selectedWardId={selectedWardId}
+              onSelectWard={setSelectedWardId}
+              summary={summary}
+              loading={loading}
+            />
+            
+            <ShiftComparisonPanel
+              summary={summary}
+              wardName={selectedWard?.wardName || ''}
+            />
+          </div>
+        )}
+        
+        {/* หน้าแนวโน้ม */}
+        {currentView === ViewType.TREND && !loading && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+              <h2 className="text-xl font-bold mb-4 text-center">แนวโน้มผู้ป่วย {selectedWard ? `- ${selectedWard.wardName}` : 'ทั้งหมด'}</h2>
+              
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+                {DATE_RANGE_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleDateRangeChange(option.value)}
+                    className={`text-sm px-3 py-2 rounded-md transition ${
+                      dateRange === option.value 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              
+              {dateRange === 'custom' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label htmlFor="start-date" className="block text-sm font-medium mb-1">วันที่เริ่มต้น:</label>
+                    <input
+                      type="date"
+                      id="start-date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="form-input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="end-date" className="block text-sm font-medium mb-1">วันที่สิ้นสุด:</label>
+                    <input
+                      type="date"
+                      id="end-date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="form-input w-full"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              <PatientTrendChart
+                data={trendData}
+                title={`แนวโน้มจำนวนผู้ป่วย ${selectedWard ? selectedWard.wardName : 'ทุกแผนก'}`}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* หน้าตารางรวม */}
+        {currentView === ViewType.ALL_WARDS && !loading && (
+          <div className="space-y-6">
+            <WardSummaryTable
+              data={summaryDataList}
+              selectedWardId={selectedWardId}
+              onSelectWard={setSelectedWardId}
+              title="ข้อมูลรวมทุกแผนก"
+            />
+          </div>
+        )}
+        
+        {/* แสดง Loading */}
+        {loading && (
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow text-center">
+            <div className="animate-pulse flex justify-center">
+              <div className="h-8 w-8 bg-blue-400 rounded-full"></div>
+            </div>
+            <p className="mt-4 text-gray-500">กำลังโหลดข้อมูล...</p>
+          </div>
+        )}
         
         {/* แสดงข้อความแสดงข้อผิดพลาด */}
         {!loading && error && (
           <div className="mt-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg">
             {error}
-          </div>
-        )}
-        
-        {/* แสดงข้อมูลดิบทั้งหมด (สำหรับการทดสอบ) */}
-        {summary && (
-          <div className="mt-6 text-sm overflow-x-auto">
-            <details>
-              <summary className="cursor-pointer text-blue-500 hover:text-blue-700">แสดงข้อมูลดิบทั้งหมด (สำหรับการแก้ไขข้อบกพร่อง)</summary>
-              <pre className="mt-2 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto text-xs">
-                {JSON.stringify(summary, null, 2)}
-              </pre>
-            </details>
           </div>
         )}
       </div>

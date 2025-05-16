@@ -100,4 +100,78 @@ export interface PatientCensusCalculationProps {
   shiftTitle: string;
   showRefresh?: boolean;
   onRefresh?: () => void;
+}
+
+export interface DashboardOverviewProps {
+  date: Date;
+  totalStats: {
+    opd24hr: number;
+    oldPatient: number;
+    newPatient: number;
+    admit24hr: number;
+  };
+}
+
+export interface EnhancedBarChartProps {
+  data: {
+    id: string;
+    wardName: string;
+    patientCount: number;
+  }[];
+  selectedWardId: string | null;
+  onSelectWard: (wardId: string) => void;
+}
+
+export interface EnhancedPieChartProps {
+  data: {
+    id: string;
+    wardName: string;
+    patientCount: number;
+  }[];
+  selectedWardId: string | null;
+  onSelectWard: (wardId: string) => void;
+}
+
+export interface PatientTrendData {
+  date: string;
+  patientCount: number;
+  admitCount: number;
+  dischargeTotal: number;
+}
+
+export interface PatientTrendChartProps {
+  data: PatientTrendData[];
+  title?: string;
+}
+
+export interface WardSummaryData {
+  id: string;
+  wardName: string;
+  patientCensus: number;
+  nurseManager: number;
+  rn: number;
+  pn: number;
+  wc: number;
+  newAdmit: number;
+  transferIn: number;
+  referIn: number;
+  discharge: number;
+  transferOut: number;
+  referOut: number;
+  dead: number;
+  available: number;
+  unavailable: number;
+  plannedDischarge: number;
+}
+
+export interface WardSummaryTableProps {
+  data: WardSummaryData[];
+  selectedWardId: string | null;
+  onSelectWard: (wardId: string) => void;
+  title?: string;
+}
+
+export interface ShiftComparisonPanelProps {
+  summary: DashboardSummary | null;
+  wardName: string;
 } 

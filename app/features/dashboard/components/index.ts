@@ -6,6 +6,12 @@ import OverallStats from './OverallStats';
 import PieChartSummary from './PieChartSummary';
 import LineChartSummary from './LineChartSummary';
 import BarChartSummary from './BarChartSummary';
+import DashboardOverview from './DashboardOverview';
+import EnhancedBarChart from './EnhancedBarChart';
+import EnhancedPieChart from './EnhancedPieChart';
+import PatientTrendChart from './PatientTrendChart';
+import WardSummaryTable from './WardSummaryTable';
+import ShiftComparisonPanel from './ShiftComparisonPanel';
 
 export {
   DashboardPage,
@@ -15,7 +21,13 @@ export {
   OverallStats,
   PieChartSummary,
   LineChartSummary,
-  BarChartSummary
+  BarChartSummary,
+  DashboardOverview,
+  EnhancedBarChart,
+  EnhancedPieChart,
+  PatientTrendChart,
+  WardSummaryTable,
+  ShiftComparisonPanel
 };
 
 export { default as FormStatusBadge } from './FormStatusBadge';
