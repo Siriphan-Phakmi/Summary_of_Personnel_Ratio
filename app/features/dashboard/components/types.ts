@@ -117,9 +117,12 @@ export interface EnhancedBarChartProps {
     id: string;
     wardName: string;
     patientCount: number;
+    morningPatientCount?: number;
+    nightPatientCount?: number;
   }[];
   selectedWardId: string | null;
   onSelectWard: (wardId: string) => void;
+  showShiftData?: boolean;
 }
 
 export interface EnhancedPieChartProps {

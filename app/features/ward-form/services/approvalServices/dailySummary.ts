@@ -1,18 +1,17 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-  limit,
-  setDoc
-} from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
+import { getDoc } from 'firebase/firestore';
+import { getDocs } from 'firebase/firestore';
+import { query } from 'firebase/firestore';
+import { where } from 'firebase/firestore';
+import { orderBy } from 'firebase/firestore';
+import { addDoc } from 'firebase/firestore';
+import { updateDoc } from 'firebase/firestore';
+import { serverTimestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
+import { limit } from 'firebase/firestore';
+import { setDoc } from 'firebase/firestore';
+
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
@@ -618,6 +617,7 @@ export const getApprovedSummariesByDateRange = async (
     let summaries: DailySummary[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data() as DailySummary;
+      // ตั้งค่า allFormsApproved = true เสมอเพื่อให้แสดงข้อมูลได้
       data.allFormsApproved = true; 
       summaries.push({ id: doc.id, ...data });
     });
@@ -635,6 +635,7 @@ export const getApprovedSummariesByDateRange = async (
       const fallbackResults1: DailySummary[] = [];
       fallbackSnapshot1.forEach(doc => {
         const data = doc.data() as DailySummary;
+        // ตั้งค่า allFormsApproved = true เสมอ
         data.allFormsApproved = true; 
         fallbackResults1.push({ id: doc.id, ...data });
       });
