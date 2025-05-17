@@ -32,8 +32,8 @@ const DraftNotification: React.FC<DraftNotificationProps> = ({
   
   // Determine shift text
   const shiftText = draftData.shift === ShiftType.MORNING 
-    ? 'กะเช้า (เวลา 08:00 น.)' 
-    : 'กะดึก (เวลา 16:00 น.)';
+    ? 'เวรเช้า (เวลา 08:00 น.)' 
+    : 'เวรดึก (เวลา 16:00 น.)';
 
   return (
     <div className={`bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md ${className}`}>

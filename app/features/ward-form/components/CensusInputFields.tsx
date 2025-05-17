@@ -58,8 +58,8 @@ const PatientCensusDisplay: React.FC<{
   // ตรวจสอบว่ามีความแตกต่างระหว่างค่าที่คำนวณได้กับค่าที่แสดง
   const hasDifference = expectedCensus !== displayCensus;
 
-  // ข้อความแสดงผลขึ้นอยู่กับกะที่เลือก
-  const resultLabel = selectedShift === ShiftType.MORNING ? 'คงเหลือ (กะเช้า):' : 'คงเหลือ (กะดึก):';
+  // ข้อความแสดงผลขึ้นอยู่กับเวรที่เลือก
+  const resultLabel = selectedShift === ShiftType.MORNING ? 'คงเหลือ (เวรเช้า):' : 'คงเหลือ (เวรดึก):';
 
   // ฟังก์ชันสำหรับรีเฟรชค่า (จริงๆ แล้วจะไม่ทำอะไร เพราะแสดงตามค่าที่กรอกอยู่แล้ว)
   const handleRefresh = () => {
@@ -222,7 +222,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
             {/* Display explanation if census is auto-calculated and read-only */}
             {patientCensusReadOnly && isCensusAutoCalculated && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                * ค่านี้คำนวณจากยอดคงเหลือของกะดึกคืนก่อน
+                * ค่านี้คำนวณจากยอดคงเหลือของเวรดึกคืนก่อน
               </p>
             )}
           </div>

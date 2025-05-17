@@ -22,7 +22,7 @@ export enum FormStatus {
 }
 
 /**
- * ประเภทกะการทำงาน
+ * ประเภทเวรการทำงาน
  */
 export enum ShiftType {
   MORNING = 'morning',

@@ -38,7 +38,7 @@ const ConfirmSaveModal: React.FC<ConfirmSaveModalProps> = ({
   // Create a formatted summary of key data
   const formatShift = (shift: string | undefined) => {
     if (!shift) return '-';
-    return shift === 'morning' ? 'กะเช้า' : 'กะดึก';
+    return shift === 'morning' ? 'เวรเช้า' : 'เวรดึก';
   };
 
   return (
@@ -46,7 +46,7 @@ const ConfirmSaveModal: React.FC<ConfirmSaveModalProps> = ({
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">ยืนยันการบันทึกทับข้อมูลร่างเดิม</h2>
         <div className="mb-4 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-md border border-yellow-200 dark:border-yellow-800">
-          <p className="text-sm">พบข้อมูลร่างที่บันทึกไว้ก่อนหน้านี้สำหรับวันและกะเดียวกัน คุณต้องการบันทึกทับหรือไม่?</p>
+          <p className="text-sm">พบข้อมูลร่างที่บันทึกไว้ก่อนหน้านี้สำหรับวันและเวรเดียวกัน คุณต้องการบันทึกทับหรือไม่?</p>
         </div>
 
         <div className="space-y-4 mb-6">
@@ -56,7 +56,7 @@ const ConfirmSaveModal: React.FC<ConfirmSaveModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <p><strong>วอร์ด:</strong> {formData.wardName || '-'}</p>
           <p><strong>วันที่:</strong> {formatTimestamp(formData.date)}</p>
-              <p><strong>กะ:</strong> {formatShift(formData.shift)}</p>
+              <p><strong>เวร:</strong> {formatShift(formData.shift)}</p>
               <p><strong>Patient Census:</strong> {formData.patientCensus ?? '-'}</p>
               <p><strong>Nurse Manager:</strong> {formData.nurseManager ?? '-'}</p>
               <p><strong>RN:</strong> {formData.rn ?? '-'}</p>

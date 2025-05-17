@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, ChangeEvent, useRef, Dispatch, SetStateAction } from 'react';
 import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
+import { User, UserRole } from '@/app/core/types/user';
 import { 
   getWardForm, 
   getLatestPreviousNightForm, 
@@ -81,6 +81,8 @@ interface UseWardFormDataReturn {
   showConfirmOverwriteModal: boolean;
   setShowConfirmOverwriteModal: Dispatch<SetStateAction<boolean>>;
   proceedToSaveDraft: () => Promise<void>;
+  // --- Reload Trigger ---
+  setReloadDataTrigger: Dispatch<SetStateAction<number>>;
 }
 
 export const useWardFormData = ({
@@ -110,6 +112,8 @@ export const useWardFormData = ({
   const [showConfirmZeroModal, setShowConfirmZeroModal] = useState(false);
   const [fieldsWithValueZero, setFieldsWithValueZero] = useState<string[]>([]);
   const [saveActionType, setSaveActionType] = useState<'draft' | 'final' | null>(null); // To know what to do after confirmation
+  // เพิ่ม setter สำหรับ reloadDataTrigger
+  const [localReloadTrigger, setReloadDataTrigger] = useState<number>(0);
 
   // Store previous selection to prevent unnecessary reloads if only shift changes
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
@@ -214,8 +218,21 @@ export const useWardFormData = ({
                 if (isFinal) {
                 console.log('[useWardFormData] FINAL/APPROVED data found. Setting read-only state.');
                     setIsFinalDataFound(true);
-                setIsFormReadOnly(true); // Read-only regardless
-                console.log('[useWardFormData] Setting isFormReadOnly = true, status = ', existingForm.status, 'form ID =', existingForm.id);
+                
+                // ตรวจสอบว่าผู้ใช้เป็น Admin/Dev หรือไม่
+                const isAdminOrDeveloper = user?.role === UserRole.ADMIN || 
+                                           user?.role === UserRole.SUPER_ADMIN || 
+                                           user?.role === UserRole.DEVELOPER;
+                
+                // ถ้าเป็น Admin/Dev ให้สามารถแก้ไขฟอร์มได้ แม้จะเป็นสถานะ FINAL หรือ APPROVED
+                if (isAdminOrDeveloper) {
+                  setIsFormReadOnly(false);
+                  console.log('[useWardFormData] User is Admin/Developer, allowing edit on FINAL/APPROVED form');
+                } else {
+                  setIsFormReadOnly(true); // Read-only สำหรับผู้ใช้ทั่วไป
+                  console.log('[useWardFormData] Setting isFormReadOnly = true, status = ', existingForm.status, 'form ID =', existingForm.id);
+                }
+                
                     setIsDraftLoaded(false);
                 // Show toast only on initial load
                 if (reloadDataTrigger === 0) {
@@ -446,7 +463,7 @@ export const useWardFormData = ({
       setIsDraftLoaded(false);
       setIsFinalDataFound(false);
     }
-  }, [selectedBusinessWardId, selectedDate, user, loadData]); // Use loadData callback as dependency, removed shift and reloadDataTrigger as they trigger loadData via useCallback
+  }, [selectedBusinessWardId, selectedDate, selectedShift, reloadDataTrigger, user, loadData]); // เพิ่ม reloadDataTrigger และ selectedShift เข้าไปใน dependency
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -817,6 +834,9 @@ export const useWardFormData = ({
 
           setIsFormDirty(false);
           setIsDraftLoaded(true);
+          
+          // Trigger a reload of data after successful save
+          setReloadDataTrigger(prev => prev + 1);
       } catch (error) {
           console.error("[useWardFormData] Error saving draft:", error);
           showErrorToast(`เกิดข้อผิดพลาดในการบันทึกร่าง: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -917,6 +937,9 @@ export const useWardFormData = ({
       setIsFormReadOnly(true);
       setIsDraftLoaded(false);
       setIsFinalDataFound(true);
+      
+      // Trigger a reload of data after successful save
+      setReloadDataTrigger(prev => prev + 1);
 
     } catch (error) {
       console.error("[useWardFormData] Error saving final:", error);
@@ -974,5 +997,7 @@ export const useWardFormData = ({
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
     proceedToSaveDraft: executeDraftSave,
+    // --- Reload Trigger ---
+    setReloadDataTrigger,
   };
 }; 

@@ -39,9 +39,9 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
     return getStatusIcon(status);
   };
 
-  // ฟังก์ชันสร้างข้อความสำหรับปุ่มตามประเภทของกะและสถานะ
+  // ฟังก์ชันสร้างข้อความสำหรับปุ่มตามประเภทของเวรและสถานะ
   const getShiftButtonText = (): React.ReactNode => {
-    const baseText = shift === ShiftType.MORNING ? 'กะเช้า (Morning)' : 'กะดึก (Night)';
+    const baseText = shift === ShiftType.MORNING ? 'เวรเช้า (Morning)' : 'เวรดึก (Night)';
 
     // แสดงสถานะเฉพาะกรณี FINAL, APPROVED, REJECTED
     if (
@@ -69,7 +69,7 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
       );
     }
 
-    // กรณีอื่นๆ แสดงเฉพาะชื่อกะ
+    // กรณีอื่นๆ แสดงเฉพาะชื่อเวร
     return baseText;
   };
 

@@ -133,73 +133,73 @@ const ShiftComparison: React.FC<ShiftComparisonProps> = ({ summaries, selectedWa
   // เตรียมข้อมูลสำหรับกราฟเปรียบเทียบ
   const prepareComparisonData = () => {
     if (selectedWard !== 'all') {
-      // กรณีเลือกแผนกเฉพาะ แสดงข้อมูลกะเช้าและกะดึกเปรียบเทียบกัน
+      // กรณีเลือกแผนกเฉพาะ แสดงข้อมูลเวรเช้าและเวรดึกเปรียบเทียบกัน
       const data = latestData as DailySummary;
       return [
         {
           name: 'จำนวนผู้ป่วย',
-          'กะเช้า': data.morningPatientCensus || 0,
-          'กะดึก': data.nightPatientCensus || 0
+          'เวรเช้า': data.morningPatientCensus || 0,
+          'เวรดึก': data.nightPatientCensus || 0
         },
         {
           name: 'Nurse Manager',
-          'กะเช้า': data.morningNurseManager || 0,
-          'กะดึก': data.nightNurseManager || 0
+          'เวรเช้า': data.morningNurseManager || 0,
+          'เวรดึก': data.nightNurseManager || 0
         },
         {
           name: 'RN',
-          'กะเช้า': data.morningRn || 0,
-          'กะดึก': data.nightRn || 0
+          'เวรเช้า': data.morningRn || 0,
+          'เวรดึก': data.nightRn || 0
         },
         {
           name: 'PN',
-          'กะเช้า': data.morningPn || 0,
-          'กะดึก': data.nightPn || 0
+          'เวรเช้า': data.morningPn || 0,
+          'เวรดึก': data.nightPn || 0
         },
         {
           name: 'WC',
-          'กะเช้า': data.morningWc || 0,
-          'กะดึก': data.nightWc || 0
+          'เวรเช้า': data.morningWc || 0,
+          'เวรดึก': data.nightWc || 0
         },
         {
           name: 'พยาบาลทั้งหมด',
-          'กะเช้า': data.morningNurseTotal || 0,
-          'กะดึก': data.nightNurseTotal || 0
+          'เวรเช้า': data.morningNurseTotal || 0,
+          'เวรดึก': data.nightNurseTotal || 0
         },
         {
           name: 'รับใหม่',
-          'กะเช้า': data.morningNewAdmit || 0,
-          'กะดึก': data.nightNewAdmit || 0
+          'เวรเช้า': data.morningNewAdmit || 0,
+          'เวรดึก': data.nightNewAdmit || 0
         },
         {
           name: 'Transfer In',
-          'กะเช้า': data.morningTransferIn || 0,
-          'กะดึก': data.nightTransferIn || 0
+          'เวรเช้า': data.morningTransferIn || 0,
+          'เวรดึก': data.nightTransferIn || 0
         },
         {
           name: 'Refer In',
-          'กะเช้า': data.morningReferIn || 0,
-          'กะดึก': data.nightReferIn || 0
+          'เวรเช้า': data.morningReferIn || 0,
+          'เวรดึก': data.nightReferIn || 0
         },
         {
           name: 'Discharge',
-          'กะเช้า': data.morningDischarge || 0,
-          'กะดึก': data.nightDischarge || 0
+          'เวรเช้า': data.morningDischarge || 0,
+          'เวรดึก': data.nightDischarge || 0
         },
         {
           name: 'Transfer Out',
-          'กะเช้า': data.morningTransferOut || 0,
-          'กะดึก': data.nightTransferOut || 0
+          'เวรเช้า': data.morningTransferOut || 0,
+          'เวรดึก': data.nightTransferOut || 0
         },
         {
           name: 'Refer Out',
-          'กะเช้า': data.morningReferOut || 0,
-          'กะดึก': data.nightReferOut || 0
+          'เวรเช้า': data.morningReferOut || 0,
+          'เวรดึก': data.nightReferOut || 0
         },
         {
           name: 'Dead',
-          'กะเช้า': data.morningDead || 0,
-          'กะดึก': data.nightDead || 0
+          'เวรเช้า': data.morningDead || 0,
+          'เวรดึก': data.nightDead || 0
         }
       ];
     } else {
@@ -228,7 +228,7 @@ const ShiftComparison: React.FC<ShiftComparisonProps> = ({ summaries, selectedWa
   // กรณีเลือกแผนกเฉพาะ และข้อมูลมีเพียงเรคอร์ดเดียว
   if (selectedWard !== 'all') {
     const data = latestData as DailySummary;
-    const shiftTitle = shift === 'morning' ? 'กะเช้า' : 'กะดึก';
+    const shiftTitle = shift === 'morning' ? 'เวรเช้า' : 'เวรดึก';
     const shiftColor = shift === 'morning' ? 'blue' : 'purple';
     const bgClass = shift === 'morning' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-purple-50 dark:bg-purple-900/20';
     const borderClass = shift === 'morning' ? 'border-blue-200 dark:border-blue-800' : 'border-purple-200 dark:border-purple-800';
@@ -389,8 +389,8 @@ const ShiftComparison: React.FC<ShiftComparisonProps> = ({ summaries, selectedWa
                   <YAxis dataKey="name" type="category" width={120} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="กะเช้า" name="กะเช้า" fill="#3498DB" />
-                  <Bar dataKey="กะดึก" name="กะดึก" fill="#9B59B6" />
+                  <Bar dataKey="เวรเช้า" name="เวรเช้า" fill="#3498DB" />
+                  <Bar dataKey="เวรดึก" name="เวรดึก" fill="#9B59B6" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -405,7 +405,7 @@ const ShiftComparison: React.FC<ShiftComparisonProps> = ({ summaries, selectedWa
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          ข้อมูล{shift === 'morning' ? 'กะเช้า' : 'กะดึก'} ทุกแผนก
+          ข้อมูล{shift === 'morning' ? 'เวรเช้า' : 'เวรดึก'} ทุกแผนก
         </h2>
         
         {/* ข้อมูลสรุปของทุกแผนกตามกะที่เลือก */}
@@ -480,7 +480,7 @@ const ShiftComparison: React.FC<ShiftComparisonProps> = ({ summaries, selectedWa
         {/* กราฟเปรียบเทียบแผนก */}
         <div className="mt-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            เปรียบเทียบระหว่างแผนก ({shift === 'morning' ? 'กะเช้า' : 'กะดึก'})
+            เปรียบเทียบระหว่างแผนก ({shift === 'morning' ? 'เวรเช้า' : 'เวรดึก'})
           </h3>
           <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">

@@ -147,8 +147,8 @@ const LineChartSummary: React.FC<LineChartSummaryProps> = ({ summaries, selected
       case 'patients':
         return (
           <>
-            <Line type="monotone" dataKey="morningPatients" name="กะเช้า" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="nightPatients" name="กะดึก" stroke="#9B59B6" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="morningPatients" name="เวรเช้า" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="nightPatients" name="เวรดึก" stroke="#9B59B6" strokeWidth={2} activeDot={{ r: 8 }} />
             <Line type="monotone" dataKey="totalPatients" name="รวม 24 ชม." stroke="#2C3E50" strokeWidth={2} activeDot={{ r: 8 }} />
           </>
         );
@@ -260,9 +260,10 @@ const LineChartSummary: React.FC<LineChartSummaryProps> = ({ summaries, selected
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis label={{ value: getYAxisLabel(), angle: -90, position: 'insideLeft' }} />
-              <Tooltip />
+              <XAxis dataKey="date" tickFormatter={formatDate} />
+              <YAxis yAxisId="left" />
+              <YAxis yAxisId="right" orientation="right" />
+              <Tooltip content={<CustomTooltip />} />
               <Legend />
               {getLines()}
             </LineChart>

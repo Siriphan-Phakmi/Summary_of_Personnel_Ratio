@@ -292,15 +292,22 @@ export default function DailyCensusForm() {
   // Combine form read-only state with saving state for general disabling
   const isFormLocked = isFormReadOnly || isFormSaving;
 
-  // Disable actions only if current shift is approved
-  const isActionDisabledBasedOnApproval = selectedShift === ShiftType.MORNING
+  // ตรวจสอบว่าเป็น Admin/Dev หรือไม่
+  const isAdminOrDeveloper = currentUser?.role === UserRole.ADMIN || 
+                             currentUser?.role === UserRole.SUPER_ADMIN || 
+                             currentUser?.role === UserRole.DEVELOPER;
+
+  // Disable actions only if current shift is approved และไม่ใช่ Admin/Dev
+  const isActionDisabledBasedOnApproval = !isAdminOrDeveloper && (
+      selectedShift === ShiftType.MORNING
       ? actualMorningStatus === FormStatus.APPROVED
-      : actualNightStatus === FormStatus.APPROVED;
+      : actualNightStatus === FormStatus.APPROVED
+  );
 
   // Final Save button disabled if no changes and no existing draft, form locked, or *either* shift is approved
   const saveFinalDisabled = 
       isFormLocked || // Disable if form is read-only or saving
-      isActionDisabledBasedOnApproval; // Disable if the current shift is already approved
+      isActionDisabledBasedOnApproval; // Disable if the current shift is already approved และไม่ใช่ Admin/Dev
 
   // Save Draft button disabled if no changes, form locked, or *either* shift is approved.
   const saveDraftDisabled = 
