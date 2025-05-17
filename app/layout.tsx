@@ -65,6 +65,7 @@ export default function RootLayout({
                       border: '1px solid var(--button-bg-primary)',
                     },
                     icon: '✓',
+                    className: 'animate-slide-right-enter animate-slide-right-leave',
                   },
                   error: {
                     style: {
@@ -73,6 +74,7 @@ export default function RootLayout({
                     },
                     icon: '✕',
                     duration: 5000,
+                    className: 'animate-slide-right-enter animate-slide-right-leave',
                   }
                 }}
               />

@@ -8,7 +8,7 @@ const TOAST_THROTTLE_MS = 2000; // ห้ามแสดง toast ซ้ำภ�
 
 // Success toast component
 export const SuccessToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-emerald-900/40 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg animate-fadeIn">
+  <div className={`flex items-center w-full max-w-md p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/40 dark:to-emerald-900/40 border-l-4 border-green-500 dark:border-green-400 rounded-lg shadow-lg ${t.visible ? 'animate-slide-right-enter' : 'animate-slide-right-leave'}`}>
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/50">
         <FiCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 animate-fadeIn" />
@@ -29,7 +29,7 @@ export const SuccessToast = ({ message, t }: { message: string; t: Toast }) => (
 
 // Error toast component
 export const ErrorToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg animate-fadeIn">
+  <div className={`flex items-center w-full max-w-md p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/40 border-l-4 border-red-500 dark:border-red-400 rounded-lg shadow-lg ${t.visible ? 'animate-slide-right-enter' : 'animate-slide-right-leave'}`}>
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50">
         <FiAlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 animate-pulse" />
@@ -50,7 +50,7 @@ export const ErrorToast = ({ message, t }: { message: string; t: Toast }) => (
 
 // Info toast component
 export const InfoToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40 border-l-4 border-blue-500 dark:border-blue-400 rounded-lg shadow-lg animate-fadeIn">
+  <div className={`flex items-center w-full max-w-md p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/40 dark:to-blue-800/40 border-l-4 border-blue-500 dark:border-blue-400 rounded-lg shadow-lg ${t.visible ? 'animate-slide-right-enter' : 'animate-slide-right-leave'}`}>
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/50">
         <FiInfo className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -71,7 +71,7 @@ export const InfoToast = ({ message, t }: { message: string; t: Toast }) => (
 
 // Warning toast component
 export const WarningToast = ({ message, t }: { message: string; t: Toast }) => (
-  <div className="flex items-center w-full max-w-md p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/40 border-l-4 border-orange-500 dark:border-orange-400 rounded-lg shadow-lg animate-fadeIn">
+  <div className={`flex items-center w-full max-w-md p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/40 border-l-4 border-orange-500 dark:border-orange-400 rounded-lg shadow-lg ${t.visible ? 'animate-slide-right-enter' : 'animate-slide-right-leave'}`}>
     <div className="flex-shrink-0 mr-3">
       <div className="flex items-center justify-center h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900/50">
         <FiAlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />

@@ -153,7 +153,7 @@ export default function UserManagement() {
       const usersData: UserData[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data() as UserData;
-        usersData.push({ ...data, uid: doc.id, floor: data.floor || '' });
+        usersData.push({ ...data, id: doc.id, uid: doc.id, floor: data.floor || '' });
       });
       setUsers(usersData);
     } catch (error) {
@@ -229,6 +229,7 @@ export default function UserManagement() {
       active: user.active,
     });
     setError('');
+    setShowAddUser(true);
   };
 
   const handleToggleUserStatus = async (user: UserData) => {
@@ -236,9 +237,9 @@ export default function UserManagement() {
     setLoading(true);
     const newStatus = !user.active;
     try {
-      const userRef = doc(db, 'users', user.id);
+      const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { active: newStatus });
-      setUsers(users.map(u => u.id === user.id ? { ...u, active: newStatus } : u));
+      setUsers(users.map(u => u.uid === user.uid ? { ...u, active: newStatus } : u));
       toast.success(`เปลี่ยนสถานะ ${user.username} เป็น ${newStatus ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} สำเร็จ`);
 
       // Log user activity
@@ -246,7 +247,7 @@ export default function UserManagement() {
         currentUser.uid,
         currentUser.username || 'unknown',
         'toggle_user_status',
-        { targetUserId: user.id, targetUsername: user.username, newStatus: newStatus }
+        { targetUserId: user.uid, targetUsername: user.username, newStatus: newStatus }
       );
 
     } catch (error) {
@@ -258,7 +259,7 @@ export default function UserManagement() {
         'status_change_failed', 
         { uid: currentUser?.uid || 'unknown', username: currentUser?.username || 'admin' },
         { 
-          targetUserId: user.id,
+          targetUserId: user.uid,
           targetUsername: user.username || '',
           attempted_status: !user.active,
           timestamp: new Date().toISOString(),
@@ -353,11 +354,9 @@ export default function UserManagement() {
       };
       
       if (editingUser) {
-        const userRef = doc(db, 'users', editingUser.id);
+        const userRef = doc(db, 'users', editingUser.uid);
         
         const updatePayload: Partial<UserData> = { ...userData };
-        delete updatePayload.username;
-
         if (formData.password) {
             updatePayload.password = await hashPassword(formData.password);
         }
@@ -368,11 +367,11 @@ export default function UserManagement() {
           currentUser.uid,
           currentUser.username || 'unknown',
           'update_user',
-          { targetUserId: editingUser.id, targetUsername: userData.username, changes: Object.keys(updatePayload) }
+          { targetUserId: editingUser.uid, targetUsername: userData.username, changes: Object.keys(updatePayload) }
         );
         
         setUsers(users.map(u => 
-          u.id === editingUser.id ? {...u, ...updatePayload, username: editingUser.username } : u
+          u.uid === editingUser.uid ? {...u, ...updatePayload } : u
         ));
         
         toast.success(`อัปเดตข้อมูลผู้ใช้ ${editingUser.username} สำเร็จ`);
@@ -447,7 +446,7 @@ export default function UserManagement() {
       <ToggleSwitch
         isOn={user.active === true}
         handleToggle={() => handleToggleUserStatus(user)}
-        id={`user-status-${user.id}`}
+        id={`user-status-${user.uid}`}
       />
       <span className={`text-lg font-medium ${user.active ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}>
         {user.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}

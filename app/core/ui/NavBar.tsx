@@ -237,14 +237,6 @@ const NavBar = () => {
 
           {/* Desktop Menu Links */}
           <div className="hidden md:flex md:items-center md:space-x-4">
-            {/* Dashboard menu - ทุก Role สามารถเห็นได้ */}
-            <NavLink 
-              href="/features/dashboard" 
-              active={isActive('/features/dashboard')} 
-              icon={<FiPieChart />} 
-              text="Dashboard" 
-            />
-            
             {/* Form menu - ทุก Role สามารถเห็นได้ */}
             <NavLink 
               href="/census/form" 
@@ -259,6 +251,14 @@ const NavBar = () => {
               active={isActive('/census/approval')} 
               icon={<FiCheckSquare />} 
               text="Approval" 
+            />
+
+            {/* Dashboard menu - ทุก Role สามารถเห็นได้ */}
+            <NavLink 
+              href="/features/dashboard" 
+              active={isActive('/features/dashboard')} 
+              icon={<FiPieChart />} 
+              text="Dashboard" 
             />
             
             {/* User Management - แสดงสำหรับ Admin และ Developer เท่านั้น */}
@@ -308,17 +308,8 @@ const NavBar = () => {
       {isMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-800 shadow-lg">
           {/* Mobile Menu Links */}
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {/* Dashboard menu - ทุก Role สามารถเข้าถึงได้ */}
-            <MobileNavLink 
-              href="/features/dashboard" 
-              active={isActive('/features/dashboard')} 
-              icon={<FiPieChart />} 
-              text="Dashboard" 
-              onClick={() => setIsMenuOpen(false)}
-            />
-            
-            {/* Form menu - ทุก Role สามารถเข้าถึงได้ */}
+          <div className="px-2 pt-2 pb-3 space-y-1">
+            {/* Form - ทุก Role สามารถเห็นได้ */}
             <MobileNavLink 
               href="/census/form" 
               active={isActive('/census/form')} 
@@ -327,12 +318,21 @@ const NavBar = () => {
               onClick={() => setIsMenuOpen(false)} 
             />
             
-            {/* Approval menu - ทุก Role สามารถเห็นได้ */}
+            {/* Approval - ทุก Role สามารถเห็นได้ */}
             <MobileNavLink 
               href="/census/approval" 
               active={isActive('/census/approval')} 
               icon={<FiCheckSquare />} 
               text="Approval" 
+              onClick={() => setIsMenuOpen(false)} 
+            />
+            
+            {/* Dashboard - ทุก Role สามารถเห็นได้ */}
+            <MobileNavLink 
+              href="/features/dashboard" 
+              active={isActive('/features/dashboard')} 
+              icon={<FiPieChart />} 
+              text="Dashboard" 
               onClick={() => setIsMenuOpen(false)} 
             />
             

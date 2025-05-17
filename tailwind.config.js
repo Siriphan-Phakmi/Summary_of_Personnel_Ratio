@@ -65,6 +65,8 @@ module.exports = {
         'ripple': 'ripple 0.6s linear',
         'enter': 'enter 0.3s ease-out forwards',
         'leave': 'leave 0.2s ease-in forwards',
+        'slide-right-enter': 'slideRightEnter 0.3s ease-out forwards',
+        'slide-right-leave': 'slideRightLeave 0.2s ease-in forwards',
       },
       keyframes: {
         fadeIn: {
@@ -82,6 +84,14 @@ module.exports = {
         leave: {
           '0%': { opacity: '1', transform: 'scale(1) translateY(0)' },
           '100%': { opacity: '0', transform: 'scale(0.9) translateY(-10px)' }
+        },
+        slideRightEnter: {
+          '0%': { opacity: '0', transform: 'translateX(-20px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' }
+        },
+        slideRightLeave: {
+          '0%': { opacity: '1', transform: 'translateX(0)' },
+          '100%': { opacity: '0', transform: 'translateX(20px)' }
         }
       },
     },
