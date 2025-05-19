@@ -30,31 +30,31 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
       {!loading && selectedWard && summary && (
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <h2 className="text-xl font-bold mb-4 text-center">
-            {selectedWard.wardName} - วันที่ {date ? format(parseISO(date), 'dd/MM/yyyy') : ''}
+            <span className="block sm:inline">{selectedWard.wardName}</span> <span className="block sm:inline">- วันที่ {date ? format(parseISO(date), 'dd/MM/yyyy') : ''}</span>
           </h2>
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-center mb-6">
             <div>
-              <p className="text-lg font-medium">รวม (ทั้งวัน):</p>
-              <p className="text-3xl font-bold">
+              <p className="text-base sm:text-lg font-medium">รวม (ทั้งวัน):</p>
+              <p className="text-2xl sm:text-3xl font-bold">
                 {summary.nightForm?.patientCensus ?? summary.morningForm?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
-              <p className="text-lg font-medium">กะเช้า:</p>
-              <p className="text-3xl font-bold">
+              <p className="text-base sm:text-lg font-medium">กะเช้า:</p>
+              <p className="text-2xl sm:text-3xl font-bold">
                 {summary.morningForm?.calculatedCensus ?? summary.morningForm?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
-              <p className="text-lg font-medium">กะดึก:</p>
-              <p className="text-3xl font-bold">
+              <p className="text-base sm:text-lg font-medium">กะดึก:</p>
+              <p className="text-2xl sm:text-3xl font-bold">
                 {summary.nightForm?.calculatedCensus ?? summary.nightForm?.patientCensus ?? 'N/A'}
               </p>
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 gap-y-6 mb-6">
             {/* กะเช้า */}
             {summary.morningForm && (
               <ShiftSummary
@@ -98,7 +98,7 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
             )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
             {summary.morningForm && (
               <PatientCensusCalculation 
                 formData={{

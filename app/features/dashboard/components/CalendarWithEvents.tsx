@@ -96,8 +96,16 @@ const CalendarWithEvents: React.FC<CalendarWithEventsProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
   
-  const isDarkMode = propDarkMode !== undefined ? propDarkMode : theme === 'dark';
+  // ป้องกัน hydration mismatch โดยรอให้ client-side rendering เสร็จสมบูรณ์ก่อน
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  // ใช้ค่าที่กำหนดไว้แน่นอนสำหรับ initial render เพื่อป้องกัน hydration mismatch
+  // แล้วค่อยใช้ค่าจริงหลังจาก component mount แล้ว
+  const isDarkMode = mounted ? (propDarkMode !== undefined ? propDarkMode : theme === 'dark') : false;
 
   const colorClasses = {
     bgMain: isDarkMode ? 'bg-gray-900' : 'bg-stone-50',
@@ -240,14 +248,34 @@ const CalendarWithEvents: React.FC<CalendarWithEventsProps> = ({
     return (<div> Week view under development </div>);
   };
 
-  const isDark = theme==='dark';
+  // ลบตัวแปร isDark ที่ไม่จำเป็นออกเพราะเรามี colorClasses แล้ว
 
+  // ถ้ายังไม่ mount ให้แสดง placeholder ก่อนเพื่อป้องกัน hydration mismatch
+  if (!mounted) {
+    return (
+      <section className={`relative bg-white dark:bg-gray-900 ${className}`}>
+        <div className="flex items-center justify-between p-2 bg-white dark:bg-gray-900">
+          <button className="p-1 text-indigo-600 dark:text-blue-400">Prev</button>
+          <div className="text-sm font-semibold text-gray-800 dark:text-white">{format(currentDate,'MMMM yyyy')}</div>
+          <button className="p-1 text-indigo-600 dark:text-blue-400">Next</button>
+        </div>
+        <div className="p-2">
+          {/* Placeholder content until client-side rendering */}
+          <div className="animate-pulse space-y-2 w-full">
+            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+            <div className="h-48 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+  
   return (
-    <section className={`relative ${colorClasses.bgMain} ${className}`}>
+    <section className={`relative ${colorClasses.bgMain} ${className} rounded-xl`}>
       <div className="flex items-center justify-between p-2 bg-gradient-to-b from-white to-white/25 dark:from-gray-800 dark:to-gray-800/25">
-        <button onClick={goToPrevious} className={`${isDark?'text-blue-400':'text-indigo-600'} p-1`}>Prev</button>
+        <button onClick={goToPrevious} className={`${colorClasses.currentDay} p-1`}>Prev</button>
         <div className="text-sm font-semibold text-gray-800 dark:text-white">{format(currentDate,'MMMM yyyy')}</div>
-        <button onClick={goToNext} className={`${isDark?'text-blue-400':'text-indigo-600'} p-1`}>Next</button>
+        <button onClick={goToNext} className={`${colorClasses.currentDay} p-1`}>Next</button>
       </div>
       <div className="p-2">
         {viewMode==='month'?renderMonthView():renderWeekView()}

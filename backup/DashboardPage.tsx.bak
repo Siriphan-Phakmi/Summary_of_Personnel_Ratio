@@ -674,7 +674,7 @@ const NoDataMessage = ({ message = 'ไม่พบข้อมูล', subMessa
 };
 
 // Component to display Ward Census buttons
-const WardCensusButtons = ({ 
+function WardCensusButtons({ 
   wards, 
   wardCensusMap, 
   selectedWardId, 
@@ -686,104 +686,75 @@ const WardCensusButtons = ({
   selectedWardId: string | null, 
   onWardSelect: (wardId: string) => void,
   onActionSelect?: (action: string) => void 
-}) => {
-  // Filter wards to display only ones with data
-  const displayWards = wards.filter(ward => ward.id);
-  
-  // คำนวณข้อมูล Ward ที่มีผู้ป่วยมากที่สุด 3 อันดับแรก
-  const topWards = [...displayWards]
-    .sort((a, b) => {
-      const countA = wardCensusMap.get(a.id?.toUpperCase() || '') || 0;
-      const countB = wardCensusMap.get(b.id?.toUpperCase() || '') || 0;
-      return countB - countA;
-    })
-    .slice(0, 3);
-  
-  if (displayWards.length === 0) {
-    return (
-      <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">
-        ไม่พบข้อมูล Ward
-      </div>
-    );
-  }
-  
-  // ฟังก์ชันสำหรับการไปยังส่วนต่างๆ
+}) {
   const handleAction = (action: string) => {
     if (onActionSelect) {
       onActionSelect(action);
     }
   };
-  
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm mb-6">
-      <div className="p-3">
-        <div className="flex flex-wrap gap-1.5">
-          {displayWards.map(ward => {
-            const patientCount = wardCensusMap.get(ward.id?.toUpperCase() || '') || 0;
-            const isSelected = selectedWardId === ward.id;
-            
-            return (
-              <button
-                key={ward.id}
-                onClick={() => onWardSelect(ward.id || '')}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium flex items-center ${
-                  isSelected 
-                    ? 'bg-blue-600 text-white shadow-sm' 
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                } transition-colors duration-200`}
-              >
-                <span>{ward.wardName || ward.id}</span>
-                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full ${
-                  isSelected 
-                    ? 'bg-white bg-opacity-20 text-white' 
-                    : 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                }`}>
-                  {patientCount}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        
-        <div className="flex mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-600 dark:text-gray-400 mr-2 flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            ดูเพิ่มเติม:
-          </div>
-          <button 
-            onClick={() => handleAction('comparison')}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline mr-3 flex items-center"
+    <div className="mb-6">
+      <h2 className="text-xl font-semibold mb-3 text-gray-800 dark:text-white">
+        จำนวนผู้ป่วยในแต่ละหอผู้ป่วย
+      </h2>
+      <div className="flex flex-wrap gap-2">
+        {wards.map((ward) => (
+          <button
+            key={ward.id}
+            onClick={() => onWardSelect(ward.id || '')}
+            className={`px-4 py-2 rounded-md text-sm font-medium ${
+              selectedWardId === ward.id
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white'
+            }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            เปรียบเทียบเวร
+            {ward.wardName} ({wardCensusMap.get(ward.id) || 0})
           </button>
-          <button 
-            onClick={() => handleAction('trend')}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-            </svg>
-            แนวโน้มผู้ป่วย
-          </button>
+        ))}
+      </div>
+      
+      <div className="flex mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="text-xs text-gray-600 dark:text-gray-400 mr-2 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          ดูเพิ่มเติม:
         </div>
+        <button 
+          onClick={() => handleAction('comparison')}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline mr-3 flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          เปรียบเทียบเวร
+        </button>
+        <button 
+          onClick={() => handleAction('trend')}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+          แนวโน้มผู้ป่วย
+        </button>
       </div>
     </div>
   );
-};
+}
 
-export default function DashboardPage() {
+function DashboardPage() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const [wards, setWards] = useState<Ward[]>([]);
   const [selectedWardId, setSelectedWardId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [wardSummary, setWardSummary] = useState<WardSummaryData[]>([]);
+  const [wardSummaryLoading, setWardSummaryLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const wardSummaryDataRef = useRef<WardSummaryData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [useDailySummaries, setUseDailySummaries] = useState(true);
   const [wardCensusMap, setWardCensusMap] = useState<Map<string, number>>(new Map());
@@ -806,10 +777,10 @@ export default function DashboardPage() {
   const [markers, setMarkers] = useState<CalendarMarker[]>([]);
   const [pieChartData, setPieChartData] = useState<any[]>([]);
   
-  // เพิ่ม ref สำหรับ scroll ไปยังส่วนต่างๆ
-  const shiftComparisonRef = React.useRef<HTMLDivElement>(null);
-  const wardSummaryRef = React.useRef<HTMLDivElement>(null);
-  const patientTrendRef = React.useRef<HTMLDivElement>(null);
+  // Refs for scrolling to sections
+  const shiftComparisonRef = useRef<HTMLDivElement>(null);
+  const wardSummarySectionRef = useRef<HTMLDivElement>(null);
+  const patientTrendRef = useRef<HTMLDivElement>(null);
 
   // ตรวจสอบว่าผู้ใช้เป็น admin หรือไม่
   const isAdmin = useMemo(() => {
@@ -1603,245 +1574,131 @@ export default function DashboardPage() {
                 <div className="bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl p-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-white opacity-80">Admit 24hr</p>
-                      <p className="text-3xl font-bold text-white">{totalStats.admit24hr}</p>
+                      <p className="text-sm font-medium text-white opacity-80">เตียงว่าง</p>
+                      <p className="text-3xl font-bold text-white">{bedSummaryData?.availableBeds || 0}</p>
                     </div>
                     <div className="bg-white bg-opacity-30 p-3 rounded-lg">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                       </svg>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-          
-          {/* Add Ward Census Buttons */}
-          {wardCensusMap.size > 0 && (
-            <WardCensusButtons
-              wards={wards}
-              wardCensusMap={wardCensusMap}
-              selectedWardId={selectedWardId}
-              onWardSelect={handleSelectWard}
-              onActionSelect={handleActionSelect}
-            />
-          )}
-          
-          {/* Charts Section - แนวนอน (แถวเดียวกัน) */}
-          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-12">
-            {/* Patient Count by Ward */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-7">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">จำนวนผู้ป่วยตามแผนก</h2>
-              {wardCensusData.length > 0 ? (
-                <div className="h-96 w-full">
-                  <EnhancedBarChart 
-                    data={wardCensusData}
-                    selectedWardId={selectedWardId}
-                    onSelectWard={handleSelectWard}
-                    showShiftData={true}
-                  />
-                </div>
-              ) : (
-                <NoDataMessage 
-                  message="ไม่พบข้อมูลสำหรับแสดงกราฟ" 
-                  subMessage="ไม่พบข้อมูลจำนวนผู้ป่วยสำหรับการแสดงกราฟในช่วงเวลาที่เลือก" 
-                  icon="chart"
-                />
-              )}
-            </div>
-            
-            {/* Bed Summary */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-5">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">สถานะเตียง</h2>
-              {pieChartData.length > 0 ? (
-                <div className="h-96">
-                  <BedSummaryPieChart data={bedSummaryData} />
-                </div>
-              ) : (
-                <NoDataMessage 
-                  message="ไม่พบข้อมูลสถานะเตียง" 
-                  subMessage="ไม่พบข้อมูลเตียงว่าง/ไม่ว่าง สำหรับช่วงเวลาที่เลือก กรุณาตรวจสอบการบันทึกข้อมูลเตียง" 
-                  icon="bed"
-                />
-              )}
-            </div>
-          </div>
-          
-          {/* Rest of the Dashboard Content - ปรับการแสดงผลแนวนอน */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* ตารางข้อมูลรวมทั้งหมด */}
-            <div className="lg:col-span-7">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
-                สรุปรายหอผู้ป่วย ({format(parseISO(startDate), 'dd/MM/yyyy')} - {format(parseISO(endDate), 'dd/MM/yyyy')})
-              </h2>
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm overflow-x-auto h-full">
-                {summaryDataList.length > 0 ? (
-                  <div className="h-full">
-                    <WardSummaryTable 
-                      data={summaryDataList} 
-                      selectedWardId={selectedWardId}
-                      onSelectWard={handleSelectWard}
-                      title="ตารางข้อมูลรวมทั้งหมด"
-                    />
-                  </div>
-                ) : (
-                  <NoDataMessage 
-                    message="ไม่พบข้อมูลสรุปรายหอผู้ป่วย" 
-                    subMessage="ไม่พบข้อมูลหรือยังไม่มีการบันทึกข้อมูลในช่วงเวลาที่เลือก"
-                    icon="table"
-                  />
-                )}
-              </div>
-            </div>
-            
-            {/* จำนวนผู้ป่วย (ตามหอผู้ป่วย) */}
-            <div className="lg:col-span-5">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">จำนวนผู้ป่วย (ตามหอผู้ป่วย)</h2>
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm h-full">
-                {wards.length > 0 ? (
-                  <div className="space-y-3">
-                    {summary && (
-                      <WardSummaryDashboard 
-                        summary={summary} 
-                        date={selectedDate}
-                        wards={wards.map(ward => ({
-                          id: ward.id || '',
-                          wardName: ward.wardName,
-                          patientCount: wardCensusMap.get(ward.id?.toUpperCase() || '') || 0
-                        }))}
-                        selectedWardId={selectedWardId}
-                        onSelectWard={handleSelectWard}
-                        loading={loading}
-                      />
-                    )}
-                    {!summary && !loading && (
-                      <NoDataMessage 
-                        message="ไม่พบข้อมูลสำหรับวันที่เลือก"
-                        subMessage="กรุณาเลือกวันที่มีการบันทึกข้อมูล หรือตรวจสอบการอนุมัติจากหัวหน้า"
-                        icon="user"
-                      />
-                    )}
-                    {loading && (
-                      <div className="flex justify-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <NoDataMessage
-                    message="ไม่พบหอผู้ป่วยที่มีสิทธิ์เข้าถึง"
-                    subMessage="คุณอาจไม่มีสิทธิ์ในการเข้าถึงข้อมูลหอผู้ป่วย กรุณาติดต่อผู้ดูแลระบบ"
-                    icon="user"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Ward Comparison Panel */}
-          <div className="mt-6" ref={shiftComparisonRef}>
-            <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">เปรียบเทียบเวรเช้า-ดึก</h2>
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-              {selectedWardId ? (
-                <div>
-                  <div className="mb-4">
-                    <label htmlFor="ward-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">เลือกหอผู้ป่วย:</label>
-                    <select
-                      id="ward-select"
-                      value={selectedWardId}
-                      onChange={(e) => handleSelectWard(e.target.value)}
-                      className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md w-full max-w-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {wards.map((ward) => (
-                        <option key={ward.id} value={ward.id || ''}>
-                          {ward.wardName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {summary ? (
-                    <ShiftComparisonPanel
-                      summary={summary}
-                      wardName={summary.wardName}
-                      allWards={wards}
-                      onWardSelect={handleSelectWard}
-                    />
+              
+              {/* Bed Summary Section */}
+              <div className="col-span-1 lg:col-span-2">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                  <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">สถานะเตียง</h2>
+                  {bedSummaryData ? (
+                    <div className="h-80 w-full">
+                      <BedSummaryPieChart data={bedSummaryData} />
+                    </div>
                   ) : (
-                    <NoDataMessage 
-                      message="ไม่พบข้อมูลการเปรียบเทียบสำหรับวอร์ดที่เลือก" 
-                      subMessage="ไม่พบข้อมูลเวรเช้า-ดึกสำหรับวอร์ดที่เลือกในวันนี้ หรือข้อมูลยังไม่ได้รับการอนุมัติ" 
-                      icon="compare"
-                    />
+                    <div className="h-80 flex items-center justify-center">
+                      <div className="text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="mt-2 text-gray-600 dark:text-gray-400">ไม่พบข้อมูลสถานะเตียง</p>
+                        <p className="mt-1 text-sm text-gray-500">กรุณาเลือกวอร์ดหรือวันที่อื่น</p>
+                      </div>
+                    </div>
                   )}
                 </div>
-              ) : (
-                <NoDataMessage 
-                  message="กรุณาเลือกวอร์ด" 
-                  subMessage="เลือกวอร์ดเพื่อดูข้อมูลการเปรียบเทียบระหว่างเวรเช้าและเวรดึก" 
-                  icon="compare"
-                />
-              )}
-            </div>
-          </div>
-          
-          {/* Patient Trend Chart */}
-          <div className="mt-6" ref={patientTrendRef}>
-            <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
-              {getTrendTitle()}
-              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                {format(parseISO(startDate), 'dd/MM/yyyy')} - {format(parseISO(endDate), 'dd/MM/yyyy')}
-              </span>
-            </h2>
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-              {shouldShowAllWardsTrend && (
-                <div className="mb-4">
-                  <div className="flex items-center">
-                    <span className="mr-2 text-sm text-gray-600 dark:text-gray-400">แสดงข้อมูล:</span>
-                    <button
-                      onClick={() => setSelectedWardId(null)}
-                      className={`px-3 py-1 mr-2 rounded-md text-xs font-medium ${
-                        selectedWardId === null ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white'
-                      }`}
-                    >
-                      ทุกวอร์ด
-                    </button>
-                    {selectedWardId && (
-                      <button
-                        onClick={() => setSelectedWardId(null)}
-                        className="px-3 py-1 rounded-md text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white"
-                      >
-                        {wards.find(w => w.id === selectedWardId)?.wardName} (คลิกเพื่อดูทุกวอร์ด)
-                      </button>
-                    )}
-                  </div>
+              </div>
+              
+              {/* Ward Census Buttons */}
+              {wardCensusMap.size > 0 && (
+                <div className="col-span-1 lg:col-span-2">
+                  <WardCensusButtons
+                    wards={wards}
+                    wardCensusMap={wardCensusMap}
+                    selectedWardId={selectedWardId}
+                    onWardSelect={handleSelectWard}
+                    onActionSelect={handleActionSelect}
+                  />
                 </div>
               )}
               
-              {trendData.length > 0 ? (
-                <div className="h-72">
-                  <PatientTrendChart 
-                    data={trendData} 
-                    wardName={selectedWardId ? wards.find(w => w.id === selectedWardId)?.wardName : isAdmin ? 'ทุกแผนก' : selectedWard?.wardName}
-                    allWards={isAdmin ? wards : []}
-                    onWardSelect={handleSelectWard}
-                  />
+              {/* Charts Section */}
+              <div className="col-span-1 lg:col-span-2">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                  <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">จำนวนผู้ป่วยตามแผนก</h2>
+                  <div className="overflow-x-auto">
+                    <WardSummaryDashboard
+                      date={selectedDate}
+                      wards={wards.map(ward => ({
+                        ...ward,
+                        patientCount: wardCensusMap.get(ward.id) || 0
+                      }))}
+                      selectedWardId={selectedWardId}
+                      onSelectWard={handleSelectWard}
+                      summary={wardSummaryDataRef.current}
+                      loading={wardSummaryLoading}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div className="h-72">
-                  <PatientTrendChart 
-                    data={[]} 
-                    wardName={selectedWardId ? wards.find(w => w.id === selectedWardId)?.wardName : isAdmin ? 'ทุกแผนก' : selectedWard?.wardName}
-                    allWards={isAdmin ? wards : []}
-                    onWardSelect={handleSelectWard}
-                  />
+              </div>
+              
+              {/* Trend Chart Section */}
+              <div className="col-span-1 lg:col-span-2">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+                  <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
+                    สรุปข้อมูลรายวัน
+                    <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                      {format(parseISO(selectedDate), 'dd/MM/yyyy')}
+                    </span>
+                  </h2>
+                  
+                  {shouldShowAllWardsTrend && (
+                    <div className="mb-4">
+                      <div className="flex items-center">
+                        <span className="mr-2 text-sm text-gray-600 dark:text-gray-400">แสดงข้อมูล:</span>
+                        <button
+                          onClick={() => setSelectedWardId(null)}
+                          className={`px-3 py-1 mr-2 rounded-md text-xs font-medium ${
+                            selectedWardId === null ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white'
+                          }`}
+                        >
+                          ทุกวอร์ด
+                        </button>
+                        {selectedWardId && (
+                          <button
+                            onClick={() => setSelectedWardId(null)}
+                            className="px-3 py-1 rounded-md text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white"
+                          >
+                            {wards.find(w => w.id === selectedWardId)?.wardName} (คลิกเพื่อดูทุกวอร์ด)
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="h-72">
+                    {trendData.length > 0 ? (
+                      <PatientTrendChart 
+                        data={trendData} 
+                        wardName={selectedWardId ? wards.find(w => w.id === selectedWardId)?.wardName : isAdmin ? 'ทุกแผนก' : selectedWard?.wardName}
+                        allWards={isAdmin ? wards : []}
+                        onWardSelect={handleSelectWard}
+                      />
+                    ) : (
+                      <NoDataMessage 
+                        message="ไม่พบข้อมูลสำหรับแสดงกราฟ" 
+                        subMessage="ไม่พบข้อมูลแนวโน้มผู้ป่วยสำหรับการแสดงกราฟในช่วงเวลาที่เลือก" 
+                        icon="chart"
+                      />
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
       </main>
     </div>
   );
-} 
+}
+
+export default DashboardPage;

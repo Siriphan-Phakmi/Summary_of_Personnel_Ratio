@@ -10,9 +10,9 @@ const PatientCensusCalculation: React.FC<PatientCensusCalculationProps> = ({
   onRefresh = () => {}
 }) => {
   return (
-    <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-800 shadow-sm">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-medium text-blue-700 dark:text-blue-300">การคำนวณ Patient Census ({shiftTitle})</h3>
+    <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-3 sm:p-4 border border-blue-200 dark:border-blue-800 shadow-sm h-full">
+      <div className="flex justify-between items-center mb-2 flex-wrap">
+        <h3 className="font-medium text-blue-700 dark:text-blue-300 text-sm sm:text-base">การคำนวณ Patient Census ({shiftTitle})</h3>
         {showRefresh && (
           <button 
             onClick={onRefresh}
@@ -25,7 +25,7 @@ const PatientCensusCalculation: React.FC<PatientCensusCalculationProps> = ({
           </button>
         )}
       </div>
-      <div className="space-y-2 text-sm">
+      <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
         <div className="flex justify-between">
           <span className="text-gray-600 dark:text-gray-400">เริ่มต้น:</span>
           <span className="font-medium">{formData.initialCensus}</span>
@@ -43,7 +43,7 @@ const PatientCensusCalculation: React.FC<PatientCensusCalculationProps> = ({
           <span>คงเหลือ (คาดการณ์):</span>
           <span>{formData.calculatedCensus}</span>
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1 sm:mt-2">
           สูตร: เริ่มต้น + รับเข้า - จำหน่าย = คงเหลือ
         </div>
       </div>
