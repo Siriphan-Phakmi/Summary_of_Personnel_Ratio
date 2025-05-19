@@ -3,7 +3,6 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { WardSummaryDashboardProps } from './types';
-import WardSummaryGrid from './WardSummaryGrid';
 import ShiftSummary from './ShiftSummary';
 import PatientCensusCalculation from './PatientCensusCalculation';
 
@@ -19,18 +18,6 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
   
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
-        <h2 className="text-xl font-bold mb-4 text-center">
-          Patient Census By Ward
-        </h2>
-        
-        <WardSummaryGrid
-          wards={wards}
-          selectedWardId={selectedWardId}
-          onSelectWard={onSelectWard}
-        />
-      </div>
-      
       {loading && (
         <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow text-center">
           <div className="animate-pulse flex justify-center">

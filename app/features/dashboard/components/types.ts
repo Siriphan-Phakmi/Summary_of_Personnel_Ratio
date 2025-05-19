@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import { Ward } from '@/app/core/types/ward';
 
 export interface DashboardSummary {
   wardId: string;
@@ -165,6 +166,7 @@ export interface WardSummaryData {
   available: number;
   unavailable: number;
   plannedDischarge: number;
+  daysWithData?: number;
 }
 
 export interface WardSummaryTableProps {
@@ -177,4 +179,6 @@ export interface WardSummaryTableProps {
 export interface ShiftComparisonPanelProps {
   summary: DashboardSummary | null;
   wardName: string;
+  allWards?: Ward[];
+  onWardSelect?: (wardId: string) => void;
 } 

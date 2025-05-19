@@ -12,6 +12,7 @@ import EnhancedPieChart from './EnhancedPieChart';
 import PatientTrendChart from './PatientTrendChart';
 import WardSummaryTable from './WardSummaryTable';
 import ShiftComparisonPanel from './ShiftComparisonPanel';
+import CalendarWithEvents from './CalendarWithEvents';
 
 export {
   DashboardPage,
@@ -27,7 +28,8 @@ export {
   EnhancedPieChart,
   PatientTrendChart,
   WardSummaryTable,
-  ShiftComparisonPanel
+  ShiftComparisonPanel,
+  CalendarWithEvents
 };
 
 export { default as FormStatusBadge } from './FormStatusBadge';

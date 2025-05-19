@@ -34,6 +34,28 @@ interface LineChartSummaryProps {
 
 type DataType = 'patients' | 'nurses' | 'ratio' | 'movement';
 
+// ฟังก์ชันสำหรับฟอร์แมตวันที่ในแกน X
+const formatDate = (dateStr: string) => {
+  return dateStr; // หรือฟอร์แมตตามที่ต้องการ
+};
+
+// คอมโพเนนต์ Custom Tooltip สำหรับแสดงข้อมูลเมื่อ hover
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-3 border rounded shadow-lg">
+        <p className="font-bold">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} style={{ color: entry.color }}>
+            {entry.name}: {entry.value}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 const LineChartSummary: React.FC<LineChartSummaryProps> = ({ summaries, selectedWard }) => {
   const [dataType, setDataType] = useState<DataType>('patients');
   
@@ -147,36 +169,36 @@ const LineChartSummary: React.FC<LineChartSummaryProps> = ({ summaries, selected
       case 'patients':
         return (
           <>
-            <Line type="monotone" dataKey="morningPatients" name="เวรเช้า" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="nightPatients" name="เวรดึก" stroke="#9B59B6" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="totalPatients" name="รวม 24 ชม." stroke="#2C3E50" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="morningPatients" name="กะเช้า" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="nightPatients" name="กะดึก" stroke="#82ca9d" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="totalPatients" name="รวม" stroke="#ff7300" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
           </>
         );
       case 'nurses':
         return (
           <>
-            <Line type="monotone" dataKey="nurseManager" name="Nurse Manager" stroke="#1ABC9C" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="rn" name="RN" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="pn" name="PN" stroke="#9B59B6" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="wc" name="WC" stroke="#F1C40F" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="totalNurses" name="รวม" stroke="#2C3E50" strokeWidth={3} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="nurseManager" name="Nurse Manager" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="rn" name="RN" stroke="#82ca9d" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="pn" name="PN" stroke="#ff7300" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="wc" name="WC" stroke="#d88488" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="totalNurses" name="รวม" stroke="#a4de6c" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
           </>
         );
       case 'ratio':
         return (
           <>
-            <Line type="monotone" dataKey="nurseRatio" name="อัตราส่วนพยาบาล:ผู้ป่วย" stroke="#E74C3C" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="totalPatients" name="จำนวนผู้ป่วย" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="totalNurses" name="จำนวนพยาบาล" stroke="#2ECC71" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="nurseRatio" name="อัตราส่วนพยาบาล:ผู้ป่วย" stroke="#8884d8" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="available" name="เตียงว่าง" stroke="#82ca9d" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="right" />
+            <Line type="monotone" dataKey="unavailable" name="เตียงปิด" stroke="#ff7300" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="right" />
           </>
         );
       case 'movement':
         return (
           <>
-            <Line type="monotone" dataKey="newAdmit" name="รับใหม่" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="referIn" name="Refer In" stroke="#2ECC71" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="referOut" name="Refer Out" stroke="#E74C3C" strokeWidth={2} activeDot={{ r: 8 }} />
-            <Line type="monotone" dataKey="dead" name="Discharge/Dead" stroke="#F39C12" strokeWidth={2} activeDot={{ r: 8 }} />
+            <Line type="monotone" dataKey="newAdmit" name="รับใหม่" stroke="#3498DB" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="referIn" name="Refer In" stroke="#2ECC71" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="referOut" name="Refer Out" stroke="#E74C3C" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
+            <Line type="monotone" dataKey="dead" name="Discharge/Dead" stroke="#F39C12" strokeWidth={2} activeDot={{ r: 8 }} yAxisId="left" />
           </>
         );
       default:

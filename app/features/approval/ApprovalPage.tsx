@@ -15,6 +15,9 @@ import Modal from '@/app/core/ui/Modal';
 import { ApprovalHistoryRecord } from '@/app/core/types/approval';
 import { FiLoader, FiCheckCircle, FiXCircle, FiAlertTriangle, FiExternalLink } from 'react-icons/fi';
 import { handleIndexError } from '@/app/core/firebase/indexDetector';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/app/core/firebase/firebase';
+import { COLLECTION_WARDFORMS } from '@/app/features/ward-form/services/constants';
 
 interface FormDetailsModalProps {
   form: WardForm | null;
@@ -349,9 +352,6 @@ export default function ApprovalPage() {
         }
         
         try {
-          // ลดความซับซ้อนของ query โดยใช้ query แบบง่ายที่ไม่ต้องการ complex index
-          // ถึงแม้จะใช้เงื่อนไขหลายเงื่อนไข แต่ Firebase จะใช้ index แบบ single-field
-          
           // ดึงตาม wardId และ createdBy เพื่อให้เห็นเฉพาะของแผนกตัวเองและสร้างโดยตัวเอง
           // โดยใช้ IN clause แทนการใช้ compound query เพื่อหลีกเลี่ยงความจำเป็นที่ต้องใช้ complex index
           const simpleFilter = {
@@ -359,20 +359,82 @@ export default function ApprovalPage() {
             createdBy: user.uid // เพิ่มเงื่อนไขให้ดึงเฉพาะฟอร์มที่สร้างโดยผู้ใช้คนปัจจุบัน
           };
           
-          let userForms = await getPendingForms(simpleFilter);
+          try {
+            // ลองใช้วิธีง่ายกว่าเพื่อหลีกเลี่ยง index error
+            // 1. ดึงเฉพาะตาม wardId ก่อน โดยไม่ใช้ orderBy
+            const formsRef = collection(db, COLLECTION_WARDFORMS);
+            const wardQuery = query(
+              formsRef,
+              where('wardId', '==', user.floor)
+            );
+            
+            const querySnapshot = await getDocs(wardQuery);
+            let userForms: WardForm[] = [];
           
-          // ทำการกรองข้อมูลหลังจากดึงมาแล้ว (client-side filtering)
+            // 2. กรองข้อมูลที่ได้แบบ client-side
+            querySnapshot.forEach(doc => {
+              const formData = doc.data() as WardForm;
+              if (formData.createdBy === user.uid) {
+                userForms.push({
+                  ...formData,
+                  id: doc.id
+                });
+              }
+            });
+            
+            // 3. กรอง status ถ้าจำเป็น
           if (selectedStatus !== 'all') {
             userForms = userForms.filter(form => form.status === selectedStatus);
           }
           
-          // เรียงข้อมูลหลังจากกรอง
+            // 4. เรียงข้อมูลหลังจากกรอง
           userForms.sort((a, b) => {
             if (!a.dateString || !b.dateString) return 0;
             return b.dateString.localeCompare(a.dateString); // เรียงจากวันล่าสุด
           });
           
           setForms(userForms);
+          } catch (err) {
+            console.error('Error in simplified query:', err);
+            
+            // ถ้ายังมี error ลองใช้การ query แบบง่ายขึ้นไปอีก (เฉพาะ wardId)
+            try {
+              const formsRef = collection(db, COLLECTION_WARDFORMS);
+              const simpleQuery = query(
+                formsRef,
+                where('wardId', '==', user.floor)
+              );
+              
+              const querySnapshot = await getDocs(simpleQuery);
+              let userForms: WardForm[] = [];
+              
+              querySnapshot.forEach(doc => {
+                userForms.push({
+                  ...(doc.data() as WardForm),
+                  id: doc.id
+                });
+              });
+              
+              // กรองด้วยตัวเอง
+              userForms = userForms.filter(form => form.createdBy === user.uid);
+              
+              if (selectedStatus !== 'all') {
+                userForms = userForms.filter(form => form.status === selectedStatus);
+              }
+              
+              // เรียงข้อมูลหลังจากกรอง
+              userForms.sort((a, b) => {
+                if (!a.dateString || !b.dateString) return 0;
+                return b.dateString.localeCompare(a.dateString);
+              });
+              
+              setForms(userForms);
+            } catch (fallbackErr) {
+              console.error('Error in fallback query:', fallbackErr);
+              setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
+              setForms([]);
+            }
+          }
         } catch (err) {
           console.error('Error in simplified query:', err);
           setError('เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาลองใหม่อีกครั้ง');
