@@ -3,11 +3,13 @@
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-// ปรับ Interface ให้ตรงกับข้อมูลที่ส่งมา (id, wardName, value for available beds)
-interface PieChartDataItem {
+// ปรับ Interface ให้ตรงกับข้อมูลที่ส่งมา
+export interface PieChartDataItem {
   id: string;
   wardName: string;
   value: number; // จำนวนเตียงว่าง
+  total?: number; // จำนวนเตียงทั้งหมด
+  unavailable?: number; // จำนวนเตียงไม่ว่าง
 }
 
 interface EnhancedPieChartProps {
@@ -63,22 +65,25 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
 
   // ตรวจสอบว่ามีข้อมูลที่ไม่เป็น 0 อย่างน้อย 1 รายการหรือไม่
   const hasNonZeroData = data.some(item => item.value > 0);
-  const totalAvailableBeds = data.reduce((sum, item) => sum + item.value, 0);
+  const totalAvailableBeds = data.reduce((sum, item) => sum + (item.value || 0), 0);
 
-  // เตรียมข้อมูลสำหรับแสดงบนกราฟ
+  // เตรียมข้อมูลสำหรับแสดงบนกราฟ - ต้องแสดงทุก Ward เสมอ แม้ค่าจะเป็น 0
   const chartData = useMemo(() => {
-    // แม้ไม่มีข้อมูลหรือทุกค่าเป็น 0 ก็ต้องแสดงทุก Ward
-    return data.map((ward, index) => ({
+    // แสดงทุก Ward เสมอ แม้ไม่มีข้อมูลหรือทุกค่าเป็น 0
+    return data.map((ward) => ({
       name: ward.wardName,
-      value: ward.value > 0 ? ward.value : 0, // ถ้าเป็น 0 ให้เก็บเป็น 0 เพื่อให้แสดงว่าไม่มีข้อมูล
+      value: ward.value > 0 ? ward.value : 0,
       id: ward.id,
-      noData: ward.value === 0, // เพิ่ม flag สำหรับบ่งชี้ว่าไม่มีข้อมูล
-      percentage: totalAvailableBeds > 0 ? 
-        Math.round((ward.value / totalAvailableBeds) * 100) : 0
+      // noData is true if available beds are 0 AND total beds are 0 (or undefined)
+      noData: ward.value === 0 && (ward.total === undefined || ward.total === 0),
+      percentage: totalAvailableBeds > 0 ?
+        Math.round((ward.value / totalAvailableBeds) * 100) : 0,
+      total: ward.total || 0,
+      unavailable: ward.unavailable || 0
     }));
   }, [data, totalAvailableBeds]);
 
-  // ถ้าไม่มีข้อมูลเลย ให้แสดงข้อความ
+  // ถ้าไม่มีข้อมูลเลย ให้แสดงข้อความ (ทั้งนี้ต้องไม่มีข้อมูลจริงๆ ไม่ใช่แค่มีแต่ค่าเป็น 0)
   if (data.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
@@ -90,19 +95,10 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
     );
   }
 
-  // สำหรับ tooltip แสดงค่าที่แท้จริง (ไม่ใช่ค่าที่ปรับสำหรับการแสดงผล)
-  const originalData = data.map(ward => ({
-    name: ward.wardName,
-    value: ward.value,
-    id: ward.id,
-    noData: ward.value === 0,
-    percentage: totalAvailableBeds > 0 ? Math.round((ward.value / totalAvailableBeds) * 100) : 0
-  }));
-
   // Custom Tooltip component
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const { name, value, noData } = payload[0].payload;
+      const { name, value, noData, percentage, total, unavailable } = payload[0].payload;
       return (
         <div className="bg-white dark:bg-gray-800 p-3 shadow-md rounded-md border border-gray-200 dark:border-gray-700">
           <p className="font-bold text-gray-800 dark:text-gray-200">{name}</p>
@@ -110,8 +106,10 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
             <p className="text-gray-600 dark:text-gray-300">ไม่ได้กรอกข้อมูล</p>
           ) : (
             <>
-          <p className="text-gray-600 dark:text-gray-300">จำนวนเตียงว่าง: {value}</p>
-              <p className="text-gray-600 dark:text-gray-300">คิดเป็น: {payload[0].payload.percentage}%</p>
+              <p className="text-gray-600 dark:text-gray-300">เตียงว่าง: {value}</p>
+              <p className="text-gray-600 dark:text-gray-300">เตียงไม่ว่าง: {unavailable}</p>
+              <p className="text-gray-600 dark:text-gray-300">เตียงทั้งหมด: {total}</p>
+              <p className="text-gray-600 dark:text-gray-300">คิดเป็น: {percentage}%</p>
             </>
           )}
         </div>
@@ -120,48 +118,54 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
     return null;
   };
 
-  // Custom Label component
-  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value, payload }: any) => {
-    // แสดง label สำหรับทุก ward แม้จะไม่มีข้อมูล
-    if (payload.noData) return null; // ไม่แสดง label สำหรับ Ward ที่ไม่มีข้อมูล
-    if (value === 0) return null;    // ไม่แสดง label สำหรับค่า 0
+  // Custom Label component - แสดงเฉพาะบน segment ที่มีข้อมูล
+  const CustomLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, value, name, index, x, y, fill, noData } = props;
 
-    const RADIAN = Math.PI / 180;
-    const radiusFactor = data.length > 6 ? 0.6 : 0.7; // ลดขนาด label ถ้ามี ward เยอะ
-    const radius = innerRadius + (outerRadius - innerRadius) * radiusFactor;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    
-    // แสดงชื่อ Ward และจำนวนเตียง
-    const labelContent = `${name}: ${Math.round(value)}`;
-    const textLength = labelContent.length;
-    const fontSize = data.length > 8 ? '9px' : (textLength > 15 ? '9px' : '10px');
+    if (value === 0) { // Do not show label if value is 0
+      return null;
+    }
+
+    const boxWidth = 24;
+    const boxHeight = 18;
+    const borderRadius = 3;
+
+    // Position the box centered around the (x,y) point given by recharts
+    const rectX = x - boxWidth / 2;
+    const rectY = y - boxHeight / 2;
 
     return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="#fff" 
-        textAnchor={x > cx ? 'start' : 'end'} 
-        dominantBaseline="central"
-        style={{ 
-          fontSize, 
-          fontWeight: 'bold', 
-          textShadow: '0px 0px 3px rgba(0,0,0,0.7)' 
-        }}
-      >
-        {labelContent}
-      </text>
+      <g>
+        <rect
+          x={rectX}
+          y={rectY}
+          width={boxWidth}
+          height={boxHeight}
+          rx={borderRadius}
+          ry={borderRadius}
+          fill={isDarkMode ? "#4B5563" : "#374151"} // Dark gray box
+          stroke="none"
+        />
+        <text
+          x={x}
+          y={y}
+          fill="#FFFFFF" // White text
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="10px"
+          fontWeight="bold"
+        >
+          {Math.round(value)}
+        </text>
+      </g>
     );
   };
 
   // สร้างสีแบบไล่ระดับความเข้มของสีตามจำนวนข้อมูล
-  const getColorScale = (baseColorLight: string, baseColorDark: string, index: number, noData: boolean) => {
-    // ถ้าไม่มีข้อมูล ให้แสดงเป็นสีเทา
-    if (noData) {
-      return isDarkMode ? '#4B5563' : '#9CA3AF'; // สีเทาสำหรับ Ward ที่ไม่มีข้อมูล
+  const getColorScale = (baseColorLight: string, baseColorDark: string, index: number, noDataFlag: boolean) => {
+    if (noDataFlag) {
+      return isDarkMode ? '#4B5563' : '#9CA3AF'; // Gray for noData
     }
-    
     return isDarkMode ? DARK_COLORS[index % DARK_COLORS.length] : COLORS[index % COLORS.length];
   };
 
@@ -170,48 +174,47 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
       <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+          <PieChart margin={{ top: 20, right: 0, bottom: 20, left: 0 }}> {/* Added margin for labels */}
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={0} // เปลี่ยนเป็น 0 เพื่อให้แสดงเป็นกราฟวงกลมเต็มรูปแบบ (ไม่เป็นโดนัท)
-              outerRadius={90}
-              paddingAngle={1} // ลดช่องว่างเพื่อให้แสดงเป็นกราฟวงกลมปกติ
+              innerRadius={0}
+              outerRadius={75} // Reduced for label space
+              paddingAngle={2} // Slightly increased padding
               dataKey="value"
               onClick={(entryData) => onSelectWard(entryData.id)}
-              labelLine={false} // ไม่ต้องแสดงเส้นออกไปนอกกราฟ
-              label={CustomLabel}
+              labelLine={true} // Enabled label line
+              label={<CustomLabel />} // Use custom label
               isAnimationActive={true}
               animationDuration={500}
+              minAngle={1}
             >
               {chartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={getColorScale(COLORS[index % COLORS.length], DARK_COLORS[index % DARK_COLORS.length], index, entry.noData)} 
-                  stroke={selectedWardId === entry.id ? '#fff' : 'none'} 
-                  strokeWidth={selectedWardId === entry.id ? 3 : 0} 
+                <Cell
+                  key={`cell-${index}`}
+                  fill={getColorScale(COLORS[index % COLORS.length], DARK_COLORS[index % DARK_COLORS.length], index, entry.noData)}
+                  stroke={selectedWardId === entry.id ? (isDarkMode ? '#FFFFFF' : '#1F2937') : (isDarkMode ? '#374151' : '#E5E7EB')} // Contextual stroke
+                  strokeWidth={selectedWardId === entry.id ? 2 : 0.5} // Thicker for selected, thin for others
                 />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
-            <Legend 
-              formatter={(valueKey, entry) => {
-                const { color, payload } = entry as any;
-                const { name, value, noData } = payload;
-                const originalValue = originalData.find(d => d.name === name)?.value || 0;
-                
-                // แสดงชื่อ Ward และจำนวนเตียง หรือ "ไม่ได้กรอกข้อมูล" ถ้าไม่มีข้อมูล
+            <Legend
+              formatter={(value, entry) => {
+                const { payload } = entry as any;
                 return (
-                  <span className="text-gray-800 dark:text-gray-200 text-xs" style={{ fontSize: '11px' }}>
-                    {`${name}: ${noData ? "ไม่ได้กรอกข้อมูล" : `${Math.round(originalValue)} เตียง`}`}
+                  <span style={{ color: isDarkMode ? '#D1D5DB' : '#374151', fontSize: '11px', marginLeft: '3px' }}>
+                    {payload.name}
                   </span>
                 );
               }}
               layout="vertical"
-              verticalAlign="middle" 
+              verticalAlign="middle"
               align="right"
-              wrapperStyle={{ fontSize: '11px', paddingTop: '5px' }}
+              iconSize={10}
+              iconType="square" // Square icon
+              wrapperStyle={{ fontSize: '11px', paddingLeft: '15px' }} // Adjusted padding
             />
           </PieChart>
         </ResponsiveContainer>
