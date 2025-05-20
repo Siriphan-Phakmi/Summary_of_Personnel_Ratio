@@ -71,15 +71,15 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
         </p>
       </div>
       
-      <div className="flex-grow">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="flex-grow flex items-center justify-center">
+        <ResponsiveContainer width="100%" height="80%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={60}
-              outerRadius={100}
+              innerRadius={0}
+              outerRadius="60%"
               fill="#8884d8"
               paddingAngle={2}
               dataKey="value"
@@ -96,7 +96,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
       
-      <div className="grid grid-cols-3 gap-4 mt-4">
+      <div className="grid grid-cols-3 gap-4 mt-auto pt-4">
         <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-lg p-3 text-center">
           <p className="text-xs font-medium text-white mb-1">เตียงว่าง</p>
           <p className="text-2xl font-bold text-white">{data.availableBeds}</p>

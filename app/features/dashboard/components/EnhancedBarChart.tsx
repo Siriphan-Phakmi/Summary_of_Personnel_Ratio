@@ -128,20 +128,30 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
     return false;
   }, []);
 
+  // คำนวณความสูงที่เหมาะสมตามจำนวน Ward
+  const getOptimalHeight = (data: WardCensusData[]) => {
+    // กำหนดความสูงขั้นต่ำและความสูงต่อ ward
+    const minHeight = 300;
+    const heightPerWard = 45; // เพิ่มความสูงต่อ ward เพื่อให้มีพื้นที่เพียงพอ
+    
+    return Math.max(minHeight, data.length * heightPerWard);
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
       <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">จำนวนผู้ป่วย (คงพยาบาล)</h2>
       
       {showShiftData && <CustomLegend />}
       
-      <div style={{ height: `${chartHeight}px` }}>
+      <div style={{ height: `${getOptimalHeight(data)}px` }}>
         <ResponsiveContainer width="100%" height="100%">
           {!showShiftData ? (
             <BarChart
               data={chartData}
               layout="vertical"
-              margin={{ top: 5, right: 60, left: 80, bottom: 5 }}
-              barGap={8}
+              margin={{ top: 5, right: 90, left: 10, bottom: 5 }}
+              barCategoryGap={8}
+              barGap={4}
             >
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={isDarkMode ? '#374151' : '#e5e7eb'} />
               <XAxis 

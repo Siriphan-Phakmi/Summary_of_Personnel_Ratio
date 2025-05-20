@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import NavBar from '@/app/core/ui/NavBar';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { useAuth } from '@/app/features/auth';
@@ -291,6 +291,7 @@ export default function ApprovalPage() {
   const [approveLoading, setApproveLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('all'); // แสดงทั้งหมดเป็นค่าเริ่มต้น
+  const [itemsPerPage, setItemsPerPage] = useState<number>(20); // จำนวนรายการที่แสดงต่อหน้า ค่าเริ่มต้นคือ 20
   const statusRef = useRef<HTMLSelectElement>(null);
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -565,6 +566,11 @@ export default function ApprovalPage() {
     return Array.from(wardSet).sort();
   }, [forms]);
 
+  // กรองฟอร์มตามจำนวนที่ต้องการแสดง
+  const displayedForms = useMemo(() => {
+    return forms.slice(0, itemsPerPage);
+  }, [forms, itemsPerPage]);
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -598,7 +604,7 @@ export default function ApprovalPage() {
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <div className="flex flex-col md:flex-row gap-4 mb-6">
-              <div className="w-full md:w-1/3">
+              <div className="w-full md:w-1/4">
                 <label htmlFor="date-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   วันที่
                 </label>
@@ -611,7 +617,7 @@ export default function ApprovalPage() {
                 />
               </div>
 
-              <div className="w-full md:w-1/3">
+              <div className="w-full md:w-1/4">
                 <label htmlFor="ward-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   หอผู้ป่วย
                 </label>
@@ -629,7 +635,7 @@ export default function ApprovalPage() {
                 </select>
               </div>
 
-              <div className="w-full md:w-1/3">
+              <div className="w-full md:w-1/4">
                 <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   สถานะ
                 </label>
@@ -643,6 +649,25 @@ export default function ApprovalPage() {
                   <option value={FormStatus.FINAL}>รออนุมัติ</option>
                   <option value={FormStatus.APPROVED}>อนุมัติแล้ว</option>
                   <option value={FormStatus.REJECTED}>ปฏิเสธ</option>
+                </select>
+              </div>
+
+              <div className="w-full md:w-1/4">
+                <label htmlFor="items-per-page" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  จำนวนรายการ
+                </label>
+                <select
+                  id="items-per-page"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700"
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                >
+                  <option value={20}>20 รายการ</option>
+                  <option value={50}>50 รายการ</option>
+                  <option value={100}>100 รายการ</option>
+                  <option value={300}>300 รายการ</option>
+                  <option value={500}>500 รายการ</option>
+                  <option value={1000}>1000 รายการ</option>
                 </select>
               </div>
             </div>
@@ -670,101 +695,106 @@ export default function ApprovalPage() {
               )}
               
               {!loading && !error && forms.length > 0 && (
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        วันที่
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        กะ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        หอผู้ป่วย
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        ผู้บันทึก
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        เวลาบันทึก
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        ผู้อนุมัติ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        เวลาอนุมัติ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        สถานะ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                        การดำเนินการ
-                      </th>
-                </tr>
-              </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {forms.map((form) => (
-                      form.id ? (
-                        <tr key={form.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {formatTimestamp(form.date, 'dd/MM/yyyy')}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.wardName}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.recorderFirstName} {form.recorderLastName}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.finalizedAt ? formatTimestamp(form.finalizedAt, 'HH:mm') : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.approverFirstName && form.approverLastName 
-                              ? `${form.approverFirstName} ${form.approverLastName}` 
-                              : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {form.approvedAt ? formatTimestamp(form.approvedAt, 'HH:mm') : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <ApprovalStatusBadge status={form.status} />
-                        </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center space-x-3">
-                            <button
-                              onClick={() => openDetailsModal(form)}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              ดูรายละเอียด
-                            </button>
+                <>
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          วันที่
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          กะ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          หอผู้ป่วย
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          ผู้บันทึก
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          เวลาบันทึก
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          ผู้อนุมัติ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          เวลาอนุมัติ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          สถานะ
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          การดำเนินการ
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {displayedForms.map((form) => (
+                        form.id ? (
+                          <tr key={form.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {formatTimestamp(form.date, 'dd/MM/yyyy')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.wardName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.recorderFirstName} {form.recorderLastName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.finalizedAt ? formatTimestamp(form.finalizedAt, 'HH:mm') : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.approverFirstName && form.approverLastName 
+                                ? `${form.approverFirstName} ${form.approverLastName}` 
+                                : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {form.approvedAt ? formatTimestamp(form.approvedAt, 'HH:mm') : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <ApprovalStatusBadge status={form.status} />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center space-x-3">
+                              <button
+                                onClick={() => openDetailsModal(form)}
+                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                              >
+                                ดูรายละเอียด
+                              </button>
 
-                            {form.status === FormStatus.FINAL && canApprove && (
-                              <>
-                                <button
-                                  onClick={() => openApproveModal(form)}
-                                  className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
-                                  disabled={approveLoading}
-                                >
-                                  {approveLoading ? 'กำลังดำเนินการ...' : 'อนุมัติ'}
-                                </button>
-                                
-                                <button
-                                  onClick={() => openRejectModal(form)}
-                                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                  disabled={rejectLoading}
-                                >
-                                  {rejectLoading ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ) : null
-                    ))}
-                  </tbody>
-                </table>
+                              {form.status === FormStatus.FINAL && canApprove && (
+                                <>
+                                  <button
+                                    onClick={() => openApproveModal(form)}
+                                    className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
+                                    disabled={approveLoading}
+                                  >
+                                    {approveLoading ? 'กำลังดำเนินการ...' : 'อนุมัติ'}
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => openRejectModal(form)}
+                                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                    disabled={rejectLoading}
+                                  >
+                                    {rejectLoading ? 'กำลังดำเนินการ...' : 'ปฏิเสธ'}
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ) : null
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    แสดง {Math.min(displayedForms.length, itemsPerPage)} จาก {forms.length} รายการ
+                  </div>
+                </>
               )}
             </div>
           </div>

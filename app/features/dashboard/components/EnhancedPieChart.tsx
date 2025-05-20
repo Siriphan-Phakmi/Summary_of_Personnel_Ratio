@@ -67,15 +67,16 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
 
   // เตรียมข้อมูลสำหรับแสดงบนกราฟ
   const chartData = useMemo(() => {
+    // แม้ไม่มีข้อมูลหรือทุกค่าเป็น 0 ก็ต้องแสดงทุก Ward
     return data.map((ward, index) => ({
       name: ward.wardName,
-      value: ward.value > 0 ? ward.value : (hasNonZeroData ? 0 : 1), // ถ้าทุกค่าเป็น 0 ให้แสดงเป็น 1 เพื่อให้กราฟมีขนาดเท่ากัน
+      value: ward.value > 0 ? ward.value : 0, // ถ้าเป็น 0 ให้เก็บเป็น 0 เพื่อให้แสดงว่าไม่มีข้อมูล
       id: ward.id,
+      noData: ward.value === 0, // เพิ่ม flag สำหรับบ่งชี้ว่าไม่มีข้อมูล
       percentage: totalAvailableBeds > 0 ? 
-        Math.round((ward.value / totalAvailableBeds) * 100) : 
-        (data.length > 0 ? Math.round(100 / data.length) : 0) // ถ้ารวม = 0 แต่มีข้อมูล ให้แสดงเป็นเปอร์เซ็นต์เท่าๆ กัน
+        Math.round((ward.value / totalAvailableBeds) * 100) : 0
     }));
-  }, [data, hasNonZeroData, totalAvailableBeds]);
+  }, [data, totalAvailableBeds]);
 
   // ถ้าไม่มีข้อมูลเลย ให้แสดงข้อความ
   if (data.length === 0) {
@@ -94,18 +95,25 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
     name: ward.wardName,
     value: ward.value,
     id: ward.id,
+    noData: ward.value === 0,
     percentage: totalAvailableBeds > 0 ? Math.round((ward.value / totalAvailableBeds) * 100) : 0
   }));
 
   // Custom Tooltip component
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const { name, value, percentage } = payload[0].payload;
+      const { name, value, noData } = payload[0].payload;
       return (
         <div className="bg-white dark:bg-gray-800 p-3 shadow-md rounded-md border border-gray-200 dark:border-gray-700">
           <p className="font-bold text-gray-800 dark:text-gray-200">{name}</p>
+          {noData ? (
+            <p className="text-gray-600 dark:text-gray-300">ไม่ได้กรอกข้อมูล</p>
+          ) : (
+            <>
           <p className="text-gray-600 dark:text-gray-300">จำนวนเตียงว่าง: {value}</p>
-          <p className="text-gray-600 dark:text-gray-300">คิดเป็น: {percentage}%</p>
+              <p className="text-gray-600 dark:text-gray-300">คิดเป็น: {payload[0].payload.percentage}%</p>
+            </>
+          )}
         </div>
       );
     }
@@ -113,9 +121,10 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
   };
 
   // Custom Label component
-  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }: any) => {
-    if (chartData[index].value === 0 && hasNonZeroData) return null; // ถ้ามี data อื่นที่ไม่ใช่ 0 ก็ไม่ต้องแสดง label ของอันที่เป็น 0
-    if (!hasNonZeroData && data.length > 1) return null; // ถ้าทุกค่าเป็น 0 และมีหลาย ward ก็ไม่ต้องแสดง label
+  const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value, payload }: any) => {
+    // แสดง label สำหรับทุก ward แม้จะไม่มีข้อมูล
+    if (payload.noData) return null; // ไม่แสดง label สำหรับ Ward ที่ไม่มีข้อมูล
+    if (value === 0) return null;    // ไม่แสดง label สำหรับค่า 0
 
     const RADIAN = Math.PI / 180;
     const radiusFactor = data.length > 6 ? 0.6 : 0.7; // ลดขนาด label ถ้ามี ward เยอะ
@@ -146,6 +155,16 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
     );
   };
 
+  // สร้างสีแบบไล่ระดับความเข้มของสีตามจำนวนข้อมูล
+  const getColorScale = (baseColorLight: string, baseColorDark: string, index: number, noData: boolean) => {
+    // ถ้าไม่มีข้อมูล ให้แสดงเป็นสีเทา
+    if (noData) {
+      return isDarkMode ? '#4B5563' : '#9CA3AF'; // สีเทาสำหรับ Ward ที่ไม่มีข้อมูล
+    }
+    
+    return isDarkMode ? DARK_COLORS[index % DARK_COLORS.length] : COLORS[index % COLORS.length];
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
       <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
@@ -169,7 +188,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
               {chartData.map((entry, index) => (
                 <Cell 
                   key={`cell-${index}`} 
-                  fill={isDarkMode ? DARK_COLORS[index % DARK_COLORS.length] : COLORS[index % COLORS.length]} 
+                  fill={getColorScale(COLORS[index % COLORS.length], DARK_COLORS[index % DARK_COLORS.length], index, entry.noData)} 
                   stroke={selectedWardId === entry.id ? '#fff' : 'none'} 
                   strokeWidth={selectedWardId === entry.id ? 3 : 0} 
                 />
@@ -179,12 +198,13 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
             <Legend 
               formatter={(valueKey, entry) => {
                 const { color, payload } = entry as any;
-                const { name, value } = payload;
+                const { name, value, noData } = payload;
                 const originalValue = originalData.find(d => d.name === name)?.value || 0;
-                // แสดงชื่อ Ward และจำนวนเตียง
+                
+                // แสดงชื่อ Ward และจำนวนเตียง หรือ "ไม่ได้กรอกข้อมูล" ถ้าไม่มีข้อมูล
                 return (
                   <span className="text-gray-800 dark:text-gray-200 text-xs" style={{ fontSize: '11px' }}>
-                    {`${name}: ${Math.round(originalValue)} เตียง`}
+                    {`${name}: ${noData ? "ไม่ได้กรอกข้อมูล" : `${Math.round(originalValue)} เตียง`}`}
                   </span>
                 );
               }}
