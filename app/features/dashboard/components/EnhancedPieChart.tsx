@@ -10,6 +10,7 @@ export interface PieChartDataItem {
   value: number; // จำนวนเตียงว่าง
   total?: number; // จำนวนเตียงทั้งหมด
   unavailable?: number; // จำนวนเตียงไม่ว่าง
+  plannedDischarge?: number; // จำนวนเตียงที่วางแผนจำหน่าย
 }
 
 interface EnhancedPieChartProps {
@@ -98,7 +99,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
   // Custom Tooltip component
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const { name, value, noData, percentage, total, unavailable } = payload[0].payload;
+      const { name, value, noData, percentage, total, unavailable, plannedDischarge } = payload[0].payload;
       return (
         <div className="bg-white dark:bg-gray-800 p-3 shadow-md rounded-md border border-gray-200 dark:border-gray-700">
           <p className="font-bold text-gray-800 dark:text-gray-200">{name}</p>
@@ -109,6 +110,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
               <p className="text-gray-600 dark:text-gray-300">เตียงว่าง: {value}</p>
               <p className="text-gray-600 dark:text-gray-300">เตียงไม่ว่าง: {unavailable}</p>
               <p className="text-gray-600 dark:text-gray-300">เตียงทั้งหมด: {total}</p>
+              <p className="text-gray-600 dark:text-gray-300">แผนจำหน่าย: {plannedDischarge || 0}</p>
               <p className="text-gray-600 dark:text-gray-300">คิดเป็น: {percentage}%</p>
             </>
           )}

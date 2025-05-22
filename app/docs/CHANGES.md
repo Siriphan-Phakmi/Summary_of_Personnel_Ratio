@@ -39,20 +39,14 @@
 - [x] ปรับปรุงกฎการเข้าถึงข้อมูลใน collection wardForms ให้รองรับกรณีที่แบบฟอร์มถูกปฏิเสธ
 - [x] กำหนดให้ไม่สามารถแก้ไขหรือลบบันทึกใน collection systemLogs
 
-### การแก้ไขล่าสุด (Dashboard Data Display - พฤษภาคม 2024)
+### การแก้ไขล่าสุด (กรกฎาคม 2024)
 
-- [x] **ปรับปรุง Logic การดึงข้อมูลใน `app/features/ward-form/services/approvalServices/dailySummary.ts`**:
-  - [x] แก้ไขฟังก์ชัน `getApprovedSummariesByDateRange` ให้ Query ข้อมูลโดยใช้ `dateString` เพื่อแก้ไขปัญหา Timestamp mismatch
-  - [x] เพิ่ม Fallback logic ในกรณีที่ไม่พบข้อมูลในช่วงวันที่ที่กำหนด โดยจะค้นหาจาก `wardId` แล้วกรองผลลัพธ์
-  - [x] ตั้งค่า `allFormsApproved = true` สำหรับข้อมูลที่ดึงมาได้ เพื่อให้แสดงผลบน Dashboard ตามความต้องการปัจจุบัน
-- [x] **ปรับปรุงการแสดงผลใน `app/features/dashboard/components/DashboardPage.tsx`**:
-  - [x] อัปเดตฟังก์ชัน `fetchSummaries` ให้ประมวลผลข้อมูล `summaries` ที่ได้รับจาก `getApprovedSummariesByDateRange` อย่างถูกต้อง
-  - [x] ปรับ Logic การคำนวณ `wardStats` (สำหรับ WardCard) ให้จัดลำดับความสำคัญของค่า Census (ใช้ `calculatedCensus` และรูปแบบตามกะ) เพื่อความแม่นยำ
-  - [x] จัดการการตั้งค่า `allFormsApproved = true` ในข้อมูล `summaries` เพื่อให้สอดคล้องกับการแสดงผล
-- [x] **ปรับปรุง Logic การอนุมัติใน `app/features/ward-form/services/approvalServices/approvalForms.ts`**:
-  - [x] แก้ไขฟังก์ชัน `updateDailySummaryApprovalStatus` ให้ตั้งค่า `allFormsApproved = true` ในเอกสาร `dailySummaries` เมื่อมีการอัปเดตสถานะ
-- [x] **อัปเดต Interface ใน `app/core/types/approval.ts`**:
-  - [x] เพิ่มฟิลด์ `calculatedCensus`, `morningCalculatedCensus`, และ `nightCalculatedCensus` ใน Interface `DailySummary`
+- [x] **แก้ไขปัญหา Linter Error ในไฟล์ DashboardPage.tsx**:
+  - [x] แก้ไขการเข้าถึง property 'available' และ 'unavailable' บน object summary ที่มี type เป็น DailySummary
+  - [x] ปรับเปลี่ยนจาก `summary.availableBeds ?? summary.available ?? 0` เป็น `summary.availableBeds ?? 0`
+  - [x] ปรับเปลี่ยนจาก `summary.unavailableBeds ?? summary.unavailable ?? 0` เป็น `summary.unavailableBeds ?? 0`
+  - [x] ลบ comment ที่ไม่จำเป็นออกเพื่อทำให้โค้ดสะอาดขึ้น
+  - [x] ปรับปรุงการใช้คำศัพท์ภาษาไทยจาก "อัพเดท" เป็น "อัพเดต" ให้ถูกต้อง
 
 ## งานที่ต้องทำต่อ
 
@@ -74,36 +68,6 @@
 - [ ] กำจัดโค้ดที่ซ้ำซ้อนระหว่างโมดูลเก่าและใหม่
 - [ ] รวมฟังก์ชันการทำงานที่ทำงานเหมือนกันเข้าด้วยกัน
 - [ ] ปรับปรุงการใช้งานคอมโพเนนต์ให้มีประสิทธิภาพยิ่งขึ้น 
-
-## การแก้ไขปัญหา Dashboard และการปรับปรุง Logic (พฤษภาคม 2024 - รอบล่าสุด)
-
-- [x] **ปรับปรุง Firestore Indexes:**
-    - [x] เพิ่ม Index `wardId (ASC), dateString (DESC)` ใน `firestore.indexes.json` และ `app/docs/FIRESTORE_INDEXES.md` เพื่อรองรับ query หลักของ Dashboard
-    - [x] เพิ่ม Index `wardId (ASC), allFormsApproved (ASC), dateString (DESC)` ใน `firestore.indexes.json` และ `app/docs/FIRESTORE_INDEXES.md` เพื่อเพิ่มประสิทธิภาพ query ของ Dashboard ที่กรองตามสถานะการอนุมัติและวันที่
-- [x] **แก้ไขหน้า Dashboard (`app/features/dashboard/components/DashboardPage.tsx`):**
-    - [x] ลดความซับซ้อนของ UI: แสดงเฉพาะ "Patient Census (คงพยาบาล)" สำหรับหอผู้ป่วยและวันที่ที่เลือก
-    - [x] ปรับการเลือกวันที่: ให้เลือกได้เฉพาะวันเดียว (single day selection) แทนการเลือกช่วงวันที่
-    - [x] อัปเดต Logic การดึงข้อมูล (`fetchSummaries`):
-        - [x] ใช้ `selectedDate` (string 'yyyy-MM-dd') ที่ผู้ใช้เลือกโดยตรงในการสร้าง `queryStartDateString` และ `queryEndDateString` (ซึ่งจะเป็นวันเดียวกัน) สำหรับส่งไปให้ `getApprovedSummariesByDateRange`
-    - [x] แก้ไข Linter error: เปลี่ยน `ward.name` เป็น `ward.wardName` ในการแสดงชื่อหอผู้ป่วย
-    - [x] (ตรวจสอบ) เพิ่ม `subDays` ใน import จาก `date-fns` (แม้ว่าอาจจะไม่ถูกใช้งานในเวอร์ชันที่ลดความซับซ้อนลง)
-- [x] **แก้ไข Service ดึงข้อมูลสรุป (`app/features/ward-form/services/approvalServices/dailySummary.ts`):**
-    - [x] ในฟังก์ชัน `getApprovedSummariesByDateRange`:
-        - [x] เพิ่มเงื่อนไข `where("allFormsApproved", "==", true)` เข้าไปใน query หลักเพื่อให้ดึงเฉพาะข้อมูลที่อนุมัติแล้วเท่านั้น
-        - [x] ปรับปรุงพารามิเตอร์: ให้รับ `startDateStringForQuery` และ `endDateStringForQuery` (string 'yyyy-MM-dd') โดยตรง แทนการรับ Date objects (`startDate`, `endDate`)
-        - [x] เพิ่ม `console.log` จำนวนมากเพื่อช่วยในการ Debugging:
-            - Log ค่าพารามิเตอร์ที่รับเข้ามา
-            - Log query string ที่จะถูก execute
-            - Log จำนวนเอกสารที่ query หลักค้นพบ
-            - Log เมื่อ query หลักไม่พบข้อมูล และเริ่มทำงานส่วน fallback
-            - Log query string ของ fallback query
-            - Log จำนวนเอกสารที่ fallback query ค้นพบ
-            - Log ข้อมูลสรุปที่ได้หลังจาก fallback (ถ้ามี)
-            - Log เมื่อไม่พบข้อมูลสรุปใดๆ เลย
-- [x] **แก้ไข Logic การสร้าง/อัปเดตข้อมูลสรุปรายวัน (`app/features/ward-form/services/approvalServices/dailySummary.ts` - ฟังก์ชัน `checkAndCreateDailySummary`):**
-    - [x] ตั้งค่า `allFormsApproved = true` เป็นค่าเริ่มต้นเมื่อมีการสร้างเอกสาร `dailySummary` ใหม่ หรือเมื่อมีการอัปเดตข้อมูลจากฟอร์มกะเช้าหรือกะดึก และข้อมูลทั้งสองกะครบถ้วน
-    - [x] สร้าง `summaryId` แบบ deterministic (`${wardId}_d${formattedDateForId}`) และใช้ `setDoc` (พร้อม `{ merge: true }`) แทน `addDoc` เพื่อป้องกันการสร้างเอกสารซ้ำซ้อนสำหรับวันและหอผู้ป่วยเดียวกัน และช่วยให้สามารถอัปเดตเอกสารเดิมได้หากมีการเปลี่ยนแปลง
-    - [x] เพิ่ม `console.log` เพื่อติดตามกระบวนการสร้างหรืออัปเดต `dailySummary` และการตั้งค่า `allFormsApproved`
 
 ## การปรับปรุง Dashboard เพิ่มเติม (16 พฤษภาคม 2024)
 
@@ -169,3 +133,40 @@
     - [x] ใช้ `useMemo` สำหรับการคำนวณรายการที่จะแสดงเพื่อประสิทธิภาพที่ดีขึ้น
     - [x] เพิ่มส่วนแสดงข้อมูลสรุป "แสดง X จาก Y รายการ" ด้านล่างตาราง
     - [x] ปรับปรุง Layout ของฟิลเตอร์จาก 3 คอลัมน์เป็น 4 คอลัมน์เพื่อให้มีความสมดุลมากขึ้น 
+
+## งานที่ต้องทำต่อ
+
+### ปรับปรุงหน้า Dashboard (กรกฎาคม 2024)
+
+- [ ] **แก้ไขปัญหาการแสดงผลบนมือถือ**:
+  - [ ] ทดสอบการแสดงผลบน iPhone และ iPad ให้ครบถ้วน
+  - [ ] ปรับขนาดกราฟและตารางให้เหมาะสมกับหน้าจอขนาดเล็ก
+  - [ ] ปรับปรุงการแสดงผลกราฟวงกลมบนหน้าจอโมบาย
+
+- [ ] **เพิ่มความสามารถในการ Export ข้อมูล**:
+  - [ ] เพิ่มปุ่ม Export ข้อมูลเป็น Excel/PDF สำหรับตารางข้อมูลรวม
+  - [ ] เพิ่มความสามารถในการ Export กราฟเป็นรูปภาพ
+
+- [ ] **ปรับปรุงประสิทธิภาพการโหลดข้อมูล**:
+  - [ ] เพิ่ม Skeleton Loading State ระหว่างการโหลดข้อมูล
+  - [ ] ลดจำนวนการ Re-render ที่ไม่จำเป็น
+  - [ ] ปรับปรุงประสิทธิภาพการแสดงผลของกราฟขนาดใหญ่
+
+### การปรับปรุงระบบแจ้งเตือน (กรกฎาคม 2024)
+
+- [ ] **พัฒนาระบบแจ้งเตือนเพิ่มเติม**:
+  - [ ] แจ้งเตือนเมื่อมีการอนุมัติหรือปฏิเสธแบบฟอร์ม
+  - [ ] แจ้งเตือนเมื่อถึงเวลาต้องกรอกข้อมูลรายวัน
+  - [ ] ให้ผู้ใช้สามารถกำหนดประเภทการแจ้งเตือนที่ต้องการได้
+
+### การพัฒนาระบบรายงาน (สิงหาคม 2024)
+
+- [ ] **เพิ่มรายงานสรุปประจำเดือน**:
+  - [ ] พัฒนาหน้ารายงานสรุปที่แสดงแนวโน้มต่างๆ ตามช่วงเวลา
+  - [ ] เพิ่มความสามารถในการสร้างรายงานแบบกำหนดเองได้
+  - [ ] เพิ่มกราฟแสดงแนวโน้มที่ซับซ้อนขึ้น เช่น กราฟเปรียบเทียบตามไตรมาส
+
+- [ ] **พัฒนาระบบ Export รายงาน**:
+  - [ ] สร้างระบบ Export รายงานอัตโนมัติรายเดือน
+  - [ ] พัฒนาการส่งรายงานทาง Email อัตโนมัติ
+  - [ ] เพิ่มรูปแบบการ Export หลากหลาย (PDF, Excel, CSV) 

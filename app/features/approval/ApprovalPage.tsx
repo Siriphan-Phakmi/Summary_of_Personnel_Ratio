@@ -273,6 +273,37 @@ const IndexErrorMessage = ({ error }: { error?: unknown }) => {
 };
 
 /**
+ * แปลงค่าเวลาให้เป็น timestamp มิลลิวินาทีสำหรับเปรียบเทียบ
+ * @param time เวลาในรูปแบบต่างๆ
+ * @returns timestamp เป็นมิลลิวินาทีเพื่อใช้เปรียบเทียบ
+ */
+const getComparisonTimestamp = (time: any): number => {
+  try {
+    // กรณีเป็น Firestore Timestamp (มี seconds และ nanoseconds)
+    if (time && typeof time === 'object' && 'seconds' in time) {
+      return time.seconds * 1000 + (time.nanoseconds ? time.nanoseconds / 1000000 : 0);
+    }
+    
+    // กรณีเป็น JavaScript Date object
+    if (time instanceof Date) {
+      return time.getTime();
+    }
+    
+    // กรณีเป็น string (ISO date) พยายามแปลงเป็น Date
+    if (typeof time === 'string') {
+      const dateObj = new Date(time);
+      return isNaN(dateObj.getTime()) ? 0 : dateObj.getTime();
+    }
+    
+    // กรณีอื่นๆ ที่ไม่รู้จัก
+    return 0;
+  } catch (err) {
+    console.error("Error converting time to timestamp:", err);
+    return 0;
+  }
+};
+
+/**
  * หน้าสำหรับการอนุมัติแบบฟอร์ม
  */
 export default function ApprovalPage() {
@@ -334,6 +365,25 @@ export default function ApprovalPage() {
         // Admin เห็นทั้งหมด สามารถกรองตาม wardFilter ได้
         filter.wardId = wardFilter || undefined;
         fetchedForms = await getApprovalsByUserPermission(user, filter);
+        
+        // เรียงลำดับตามเวลาล่าสุด (อัพเดทล่าสุดหรือสร้างล่าสุด)
+        fetchedForms.sort((a, b) => {
+          // ใช้เวลาที่มีการอัพเดทล่าสุดก่อน
+          const aTime = a.updatedAt || a.finalizedAt || a.createdAt;
+          const bTime = b.updatedAt || b.finalizedAt || b.createdAt;
+          
+          // ถ้าไม่มีเวลา ให้ถือว่าเก่ากว่า
+          if (!aTime) return 1;
+          if (!bTime) return -1;
+          
+          // แปลงเป็น timestamp มิลลิวินาที เพื่อเปรียบเทียบ
+          const aTimestamp = getComparisonTimestamp(aTime);
+          const bTimestamp = getComparisonTimestamp(bTime);
+          
+          // เรียงจากใหม่ไปเก่า
+          return bTimestamp - aTimestamp;
+        });
+        
         setForms(fetchedForms);
       }
       // ผู้อนุมัติเห็นเฉพาะแผนกที่มีสิทธิ์
@@ -341,6 +391,25 @@ export default function ApprovalPage() {
         // Approver ใช้ wardFilter เมื่อกรอง แต่ตัว service จะจำกัดเฉพาะแผนกที่มีสิทธิ์
         filter.wardId = wardFilter || undefined;
         fetchedForms = await getApprovalsByUserPermission(user, filter);
+        
+        // เรียงลำดับตามเวลาล่าสุด (อัพเดทล่าสุดหรือสร้างล่าสุด)
+        fetchedForms.sort((a, b) => {
+          // ใช้เวลาที่มีการอัพเดทล่าสุดก่อน
+          const aTime = a.updatedAt || a.finalizedAt || a.createdAt;
+          const bTime = b.updatedAt || b.finalizedAt || b.createdAt;
+          
+          // ถ้าไม่มีเวลา ให้ถือว่าเก่ากว่า
+          if (!aTime) return 1;
+          if (!bTime) return -1;
+          
+          // แปลงเป็น timestamp มิลลิวินาที เพื่อเปรียบเทียบ
+          const aTimestamp = getComparisonTimestamp(aTime);
+          const bTimestamp = getComparisonTimestamp(bTime);
+          
+          // เรียงจากใหม่ไปเก่า
+          return bTimestamp - aTimestamp;
+        });
+        
         setForms(fetchedForms);
       }
       // ผู้ใช้ทั่วไป (NURSE/VIEWER) เห็นเฉพาะแบบฟอร์มของตนเองและเฉพาะแผนกของตนเอง
@@ -356,7 +425,7 @@ export default function ApprovalPage() {
           // ดึงตาม wardId และ createdBy เพื่อให้เห็นเฉพาะของแผนกตัวเองและสร้างโดยตัวเอง
           // โดยใช้ IN clause แทนการใช้ compound query เพื่อหลีกเลี่ยงความจำเป็นที่ต้องใช้ complex index
           const simpleFilter = {
-            wardId: user.floor,
+            wardId: user.floor.toUpperCase(),
             createdBy: user.uid // เพิ่มเงื่อนไขให้ดึงเฉพาะฟอร์มที่สร้างโดยผู้ใช้คนปัจจุบัน
           };
           
@@ -366,7 +435,7 @@ export default function ApprovalPage() {
             const formsRef = collection(db, COLLECTION_WARDFORMS);
             const wardQuery = query(
               formsRef,
-              where('wardId', '==', user.floor)
+              where('wardId', '==', user.floor.toUpperCase())
             );
             
             const querySnapshot = await getDocs(wardQuery);
@@ -375,12 +444,14 @@ export default function ApprovalPage() {
             // 2. กรองข้อมูลที่ได้แบบ client-side
             querySnapshot.forEach(doc => {
               const formData = doc.data() as WardForm;
-              if (formData.createdBy === user.uid) {
+              // แก้ไขเงื่อนไข: ให้แสดงทุกฟอร์มในแผนกของผู้ใช้ (user.floor)
+              // โดยไม่ต้องตรวจสอบว่าผู้ใช้เป็นคนสร้างฟอร์มนั้นหรือไม่ (ลบ `formData.createdBy === user.uid`)
+              // ที่จริงแล้ว querySnapshot ที่ได้มาก็คือข้อมูลทั้งหมดของ user.floor อยู่แล้ว จึงไม่จำเป็นต้องกรองซ้ำ
+              // สามารถ push ข้อมูลเข้า userForms ได้เลย
                 userForms.push({
                   ...formData,
                   id: doc.id
                 });
-              }
             });
             
             // 3. กรอง status ถ้าจำเป็น
@@ -390,8 +461,26 @@ export default function ApprovalPage() {
           
             // 4. เรียงข้อมูลหลังจากกรอง
           userForms.sort((a, b) => {
+              // ใช้เวลาที่มีการอัพเดทล่าสุดก่อน ถ้าไม่มีให้ใช้ timestamp อื่นๆ ตามลำดับความสำคัญ
+              const aTime = a.updatedAt || a.finalizedAt || a.createdAt;
+              const bTime = b.updatedAt || b.finalizedAt || b.createdAt;
+              
+              // ถ้าไม่มีเวลา ให้ใช้ dateString แทน
+              if (!aTime && !bTime) {
             if (!a.dateString || !b.dateString) return 0;
             return b.dateString.localeCompare(a.dateString); // เรียงจากวันล่าสุด
+              }
+              
+              // ถ้าไม่มีเวลา ให้ถือว่าเก่ากว่า
+              if (!aTime) return 1;
+              if (!bTime) return -1;
+              
+              // แปลงเป็น timestamp มิลลิวินาที เพื่อเปรียบเทียบ
+              const aTimestamp = getComparisonTimestamp(aTime);
+              const bTimestamp = getComparisonTimestamp(bTime);
+              
+              // เรียงจากใหม่ไปเก่า
+              return bTimestamp - aTimestamp;
           });
           
           setForms(userForms);
@@ -403,7 +492,7 @@ export default function ApprovalPage() {
               const formsRef = collection(db, COLLECTION_WARDFORMS);
               const simpleQuery = query(
                 formsRef,
-                where('wardId', '==', user.floor)
+                where('wardId', '==', user.floor.toUpperCase())
               );
               
               const querySnapshot = await getDocs(simpleQuery);
@@ -417,7 +506,7 @@ export default function ApprovalPage() {
               });
               
               // กรองด้วยตัวเอง
-              userForms = userForms.filter(form => form.createdBy === user.uid);
+              // userForms = userForms.filter(form => form.createdBy === user.uid); // ลบ dòng นี้ออก
               
               if (selectedStatus !== 'all') {
                 userForms = userForms.filter(form => form.status === selectedStatus);
@@ -425,8 +514,26 @@ export default function ApprovalPage() {
               
               // เรียงข้อมูลหลังจากกรอง
               userForms.sort((a, b) => {
+                // ใช้เวลาที่มีการอัพเดทล่าสุดก่อน
+                const aTime = a.updatedAt || a.finalizedAt || a.createdAt;
+                const bTime = b.updatedAt || b.finalizedAt || b.createdAt;
+                
+                // ถ้าไม่มีเวลา ให้ใช้ dateString แทน
+                if (!aTime && !bTime) {
                 if (!a.dateString || !b.dateString) return 0;
-                return b.dateString.localeCompare(a.dateString);
+                  return b.dateString.localeCompare(a.dateString); // เรียงจากวันล่าสุด
+                }
+                
+                // ถ้าไม่มีเวลา ให้ถือว่าเก่ากว่า
+                if (!aTime) return 1;
+                if (!bTime) return -1;
+                
+                // แปลงเป็น timestamp มิลลิวินาที เพื่อเปรียบเทียบ
+                const aTimestamp = getComparisonTimestamp(aTime);
+                const bTimestamp = getComparisonTimestamp(bTime);
+                
+                // เรียงจากใหม่ไปเก่า
+                return bTimestamp - aTimestamp;
               });
               
               setForms(userForms);
