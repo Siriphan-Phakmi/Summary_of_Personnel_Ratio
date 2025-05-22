@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { format, parseISO, startOfDay, endOfDay, subDays, addDays, subWeeks, subMonths, subYears, addMonths } from 'date-fns';
+import { format, parseISO, startOfDay, endOfDay, subDays, addDays, subWeeks, subMonths, subYears, addMonths, getDay } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 import { getDocs } from 'firebase/firestore';
 import { collection } from 'firebase/firestore';
@@ -26,6 +26,16 @@ import {
 import WardSummaryDashboard from './WardSummaryDashboard';
 import DashboardOverview from './DashboardOverview';
 import EnhancedBarChart from './EnhancedBarChart';
+
+// นิยาม interface สำหรับข้อมูลกราฟแท่งของจำนวนเตียง
+// สอดคล้องกับ interface WardCensusData ใน EnhancedBarChart.tsx
+interface WardCensusData {
+  id: string;
+  wardName: string;
+  patientCount: number;
+  morningPatientCount?: number;
+  nightPatientCount?: number;
+};
 import EnhancedPieChart, { PieChartDataItem } from './EnhancedPieChart';
 import PatientTrendChart, { TrendData } from './PatientTrendChart';
 import WardSummaryTable from './WardSummaryTable';
@@ -50,10 +60,6 @@ const printStyles = `
 // ตัวเลือกช่วงเวลา
 const DATE_RANGE_OPTIONS = [
   { label: 'วันนี้', value: 'today' },
-  { label: '7 วันล่าสุด', value: '7days' },
-  { label: '30 วันล่าสุด', value: '30days' },
-  { label: 'เดือนล่าสุด', value: 'lastMonth' },
-  { label: 'แสดงทั้งหมด', value: 'all' },
   { label: 'กำหนดเอง', value: 'custom' }
 ];
 
@@ -889,7 +895,7 @@ const WardCensusButtons = ({
   );
 };
 
-export default function DashboardPage() {
+function DashboardPage() {
   const { user } = useAuth();
   const { theme } = useTheme();
   const [wards, setWards] = useState<Ward[]>([]);
@@ -919,8 +925,8 @@ export default function DashboardPage() {
   const [markers, setMarkers] = useState<CalendarMarker[]>([]);
   const [pieChartData, setPieChartData] = useState<PieChartDataItem[]>([]);
   
-  // state สำหรับเก็บข้อมูลสรุปเตียง
-  const [bedSummaryData, setBedSummaryData] = useState<PieChartDataItem[]>([]);
+  // state สำหรับเก็บข้อมูลจำนวนเตียงระหว่างเวรเช้า-ดึก
+  const [bedCensusData, setBedCensusData] = useState<WardCensusData[]>([]);
   
   // เพิ่ม ref สำหรับ scroll ไปยังส่วนต่างๆ
   const shiftComparisonRef = React.useRef<HTMLDivElement>(null);
@@ -1144,6 +1150,47 @@ export default function DashboardPage() {
       try {
         const censusMap = await fetchAllWardCensus(selectedDate);
         setWardCensusMap(censusMap);
+        
+        // สร้างข้อมูลสำหรับกราฟแท่งแสดงจำนวนเตียงระหว่างเวรเช้า-ดึก
+        const bedCensusArr = [];
+        
+        // แปลงข้อมูลจาก ward forms หรือ daily summaries ให้เป็นรูปแบบที่เหมาะสมสำหรับกราฟแท่ง
+        for (const ward of wards) {
+          if (ward.id) {
+            // ดึงข้อมูลเตียงจาก wardForms หรือ dailySummaries
+            try {
+              const { morning, night } = await getWardFormsByDateAndWard(ward.id, selectedDate);
+              
+              // ใช้ available แทน availableBeds เพราะเป็นชื่อ field ที่ถูกต้องใน WardFormData
+              bedCensusArr.push({
+                id: ward.id,
+                wardName: ward.wardName,
+                patientCount: 0,  // ผลรวมจะใช้ morningPatientCount + nightPatientCount แทน
+                morningPatientCount: morning?.available || 0, // จำนวนเตียงว่างเวรเช้า
+                nightPatientCount: night?.available || 0    // จำนวนเตียงว่างเวรดึก
+              });
+            } catch (err) {
+              console.error(`[DashboardPage] Error fetching bed data for ward ${ward.id}:`, err);
+              // ใส่ข้อมูลเปล่าแทนหากมีข้อผิดพลาด
+              bedCensusArr.push({
+                id: ward.id,
+                wardName: ward.wardName,
+                patientCount: 0,
+                morningPatientCount: 0,
+                nightPatientCount: 0
+              });
+            }
+          }
+        }
+        
+        // เรียงลำดับตามจำนวนเตียงเริ่มจากมากไปน้อย
+        bedCensusArr.sort((a, b) => {
+          const aTotal = (a.morningPatientCount || 0) + (a.nightPatientCount || 0);
+          const bTotal = (b.morningPatientCount || 0) + (b.nightPatientCount || 0);
+          return bTotal - aTotal;
+        });
+        
+        setBedCensusData(bedCensusArr);
       } catch (err) {
         console.error('[DashboardPage] Error fetching ward census data:', err);
       }
@@ -1250,7 +1297,7 @@ export default function DashboardPage() {
   const calculateBedSummary = useCallback(async () => {
     try {
       // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
-      if (pieChartData.length > 0 && bedSummaryData.length > 0) {
+      if (pieChartData.length > 0) {
         // ตรวจสอบว่ามีข้อมูลครบทุก ward ที่ผู้ใช้มีสิทธิ์เข้าถึงหรือไม่
         const existingWardIds = new Set(pieChartData.map(item => item.id.toUpperCase()));
         const accessibleWardIds = wards.map(w => w.id?.toUpperCase() || '').filter(id => id !== '');
@@ -1258,8 +1305,8 @@ export default function DashboardPage() {
         // ตรวจสอบว่ามีข้อมูลครบทุก ward หรือไม่
         const allWardsHaveData = accessibleWardIds.every(wardId => existingWardIds.has(wardId));
         
-        // ถ้ามีข้อมูลครบแล้ว ไม่ต้องดึงใหม่
-        if (allWardsHaveData) {
+        // ถ้ามีข้อมูลอยู่แล้ว และมีข้อมูลครบทุก ward ให้รีเทิร์นข้อมูลที่มีอยู่แล้ว
+        if (allWardsHaveData && pieChartData.length > 0) {
           console.log("[calculateBedSummary] Using existing bed data");
           return;
         }
@@ -1363,9 +1410,8 @@ export default function DashboardPage() {
 
       console.log("[calculateBedSummary] Generated pie data (ensuring all wards):", pieData);
 
-      // อัปเดต State
-      setBedSummaryData(pieData); // BedSummaryData ควรใช้ข้อมูลนี้โดยตรง
-      setPieChartData(pieData); // PieChartData ก็ใช้ข้อมูลเดียวกัน
+      // อัปเดต State สำหรับข้อมูลกราฟ
+      setPieChartData(pieData); // ใช้ข้อมูลเดียวกันสำหรับการแสดงผล
 
     } catch (error) {
       console.error('[calculateBedSummary] Error calculating bed summary:', error);
@@ -1381,12 +1427,12 @@ export default function DashboardPage() {
           plannedDischarge: 0 // แผนจำหน่าย
         }));
       
-      setBedSummaryData(emptyPieDataForAllWards);
+      setPieChartData(emptyPieDataForAllWards);
       setPieChartData(emptyPieDataForAllWards);
     } finally {
       setLoading(false);
     }
-  }, [effectiveDateRange, wards, pieChartData, bedSummaryData]);
+  }, [effectiveDateRange, wards, pieChartData]);
 
   // ฟังก์ชันสำหรับรีเฟรชข้อมูลทั้งหมด
   const refreshData = useCallback(async () => {
@@ -1431,8 +1477,83 @@ export default function DashboardPage() {
         await fetchWardForms(selectedWardId, formDateToQuery);
       }
       
-      // ดึงข้อมูลเตียง - เรียกโดยตรงและรอ Promise ให้เสร็จสิ้น
-      await calculateBedSummary();
+      // ดึงข้อมูลเตียงสำหรับกราฟแท่ง (แทนที่ calculateBedSummary เดิมที่ใช้ bedSummaryData)
+      try {
+        console.log('[refreshData] Fetching bed status data...');
+        
+        // ดึงข้อมูลโดยตรงจาก functions เดิมที่มีอยู่
+        // เรียกใช้ Firestore API โดยตรง แทนที่จะใช้ fetchCensusData ที่มีปัญหา
+        const censusMap = await fetchAllWardCensus(format(currentEndDate, 'yyyy-MM-dd'));
+        setWardCensusMap(censusMap);
+        
+        // สร้างข้อมูลสำหรับกราฟแท่งแสดงจำนวนเตียงระหว่างเวรเช้า-ดึก
+        const bedCensusArr = [];
+        
+        // ดึงข้อมูลจากแต่ละ ward และสร้างข้อมูลสำหรับกราฟ
+        for (const ward of wards) {
+          if (ward.id) {
+            // ดึงข้อมูลเตียงจาก wardForms หรือ dailySummaries
+            const { morning, night } = await getWardFormsByDateAndWard(ward.id, format(currentEndDate, 'yyyy-MM-dd'));
+            
+            if (morning || night) {
+              // สร้างข้อมูลสำหรับกราฟแท่ง
+              bedCensusArr.push({
+                id: ward.id,
+                wardName: ward.wardName || 'ไม่ระบุ',
+                patientCount: morning?.patientCensus || night?.patientCensus || 0,
+                morningPatientCount: morning?.available || 0,
+                nightPatientCount: night?.available || 0
+              });
+            }
+          }
+        }
+        
+        // เรียงลำดับข้อมูลตามจำนวนเตียง
+        bedCensusArr.sort((a, b) => {
+          const aTotal = (a.morningPatientCount || 0) + (a.nightPatientCount || 0);
+          const bTotal = (b.morningPatientCount || 0) + (b.nightPatientCount || 0);
+          return bTotal - aTotal;
+        });
+        
+        // กำหนดค่า bedCensusData สำหรับกราฟแท่ง
+        setBedCensusData(bedCensusArr);
+        
+        // ใช้ ward form ที่เพิ่งดึงมาเพื่อสร้างข้อมูล pie chart
+        if (selectedWardId) {
+          const formData = await getWardFormsByDateAndWard(selectedWardId, format(currentEndDate, 'yyyy-MM-dd'));
+          
+          if (formData.morning || formData.night) {
+            // ใช้ข้อมูลเวรเช้าเป็นหลัก หรือใช้ข้อมูลเวรดึกถ้าไม่มีข้อมูลเวรเช้า
+            const wardForm = formData.morning || formData.night;
+            
+            if (wardForm) {
+              // สร้างข้อมูล pie chart
+              const availableBeds = wardForm.available || 0;
+              const unavailableBeds = wardForm.unavailable || 0;
+              const plannedDischarge = wardForm.plannedDischarge || 0;
+              
+              const total = availableBeds + unavailableBeds;
+              if (total > 0) {
+                // กำหนดข้อมูลสำหรับ pie chart
+                // กำหนดค่าแต่ละเตียงแยกตามสถานะ
+                const pieData = [
+                  {
+                    id: `${selectedWardId}-available`,
+                    wardName: 'เตียงว่าง',
+                    value: availableBeds,
+                    total: total,
+                    unavailable: unavailableBeds,
+                    plannedDischarge: plannedDischarge
+                  }
+                ];
+                setPieChartData(pieData);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[refreshData] Error fetching bed data:', error);
+      }
       
       console.log('[refreshData] All data refreshed successfully');
     } catch (error) {
@@ -1532,38 +1653,10 @@ export default function DashboardPage() {
     let newStartDate = startDate;
     let newEndDate = endDate;
     
-    const today = new Date();
-    
     switch(newRange) {
       case 'today':
-        newStartDate = format(today, 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
-      case '7days':
-        newStartDate = format(subDays(today, 6), 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
-      case '30days':
-        newStartDate = format(subDays(today, 29), 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'lastMonth':
-        const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const lastDayOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-        newStartDate = format(firstDayOfLastMonth, 'yyyy-MM-dd');
-        newEndDate = format(lastDayOfLastMonth, 'yyyy-MM-dd');
-        break;
-      case 'all':
-        // กำหนด newStartDate ให้เป็นวันที่เก่ามากๆ และ newEndDate เป็นวันปัจจุบัน
-        // เพื่อให้ refreshData ดึงข้อมูลทั้งหมดตาม fetchAllTime flag
-        newStartDate = format(parseISO('1970-01-01'), 'yyyy-MM-dd'); 
-        newEndDate = format(today, 'yyyy-MM-dd');
-        
-        // เมื่อเลือก "แสดงทั้งหมด" จะล้าง selectedWardId เพื่อให้แสดงทุกแผนก
-        if (selectedWardId) {
-          console.log(`[handleDateRangeChange] "แสดงทั้งหมด" selected: clearing selectedWardId`);
-          setSelectedWardId(null);
-        }
+        newStartDate = format(new Date(), 'yyyy-MM-dd');
+        newEndDate = format(new Date(), 'yyyy-MM-dd');
         break;
       case 'custom':
         // ใช้ค่าเดิม
@@ -1599,6 +1692,10 @@ export default function DashboardPage() {
       console.error('[DashboardPage] Error parsing date range:', err);
       }
   }, [startDate, endDate]);
+
+  // ป้องกัน ReferenceError: bedSummaryData is not defined
+  // สร้างตัวแปร bedSummaryData เพื่อใช้แทนที่ pieChartData
+  const bedSummaryData = pieChartData;
 
   // useEffect สำหรับดึงข้อมูล markers จาก dailySummaries
   useEffect(() => {
@@ -1721,18 +1818,24 @@ export default function DashboardPage() {
       return `แนวโน้มผู้ป่วย${selectedWard?.wardName ? ` แผนก${selectedWard.wardName}` : ''}`;
     }
   };
-
-  // Prepare Pie Chart data for bed availability
-  useEffect(() => {
-    if (bedSummaryData.length > 0) {
-      console.log("[DashboardPage] Setting pieChartData with data:", JSON.parse(JSON.stringify(bedSummaryData)));
-      // bedSummaryData มีข้อมูลที่จำเป็นสำหรับ EnhancedPieChart แล้ว
-      // จึงสามารถใช้ตรง ๆ ได้เลย
-      setPieChartData(bedSummaryData);
-    }
-  }, [bedSummaryData]);
   
-  // ดูข้อมูล pieChartData เพื่อตรวจสอบ
+  // ฟังก์ชันแปลงวันที่เป็นชื่อวันภาษาไทย
+  const getThaiDayName = (dateString: string) => {
+    const date = parseISO(dateString);
+    const dayOfWeek = getDay(date);
+    const thaiDays = [
+      'วันอาทิตย์',
+      'วันจันทร์',
+      'วันอังคาร',
+      'วันพุธ',
+      'วันพฤหัสบดี',
+      'วันศุกร์',
+      'วันเสาร์'
+    ];
+    return thaiDays[dayOfWeek];
+  };
+
+  // ตรวจสอบข้อมูล pieChartData เมื่อมีการเปลี่ยนแปลง
   useEffect(() => {
     if (pieChartData.length > 0) {
       console.log("[DashboardPage] Current pieChartData:", JSON.parse(JSON.stringify(pieChartData)));
@@ -1770,13 +1873,13 @@ export default function DashboardPage() {
   // ปรับปรุง useEffect สำหรับ fetchBedSummary ให้มีการตรวจสอบก่อนดึงข้อมูล
   useEffect(() => {
     // ดึงข้อมูลสรุปเตียงเฉพาะเมื่อมีการเปลี่ยนแปลง selectedWardId
-    if (user && wards.length > 0 && selectedWardId && !isDataFetching) {
-      console.log(`[DashboardPage] Fetching bed summary for ward: ${selectedWardId}`);
+    if (user && wards.length > 0 && !isDataFetching) {
+      console.log(`[DashboardPage] Fetching bed summary for ward: ${selectedWardId || 'all'}`);
       calculateBedSummary().catch(err => {
         console.error("Error calculating bed summary:", err);
       });
     }
-  }, [selectedWardId, user, wards, calculateBedSummary, isDataFetching]);
+  }, [selectedWardId, user, wards, calculateBedSummary, isDataFetching, startDate, endDate]);
 
   // แสดงหน้า Dashboard
   return (
@@ -1787,7 +1890,12 @@ export default function DashboardPage() {
           <style dangerouslySetInnerHTML={{ __html: printStyles }} />
           
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Dashboard</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Dashboard</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                วันที่ {selectedDate} ({getThaiDayName(selectedDate)})
+              </p>
+            </div>
             
             <div className="flex space-x-2">
               <select
@@ -1882,7 +1990,7 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold mb-3 text-gray-800 dark:text-white">
               Daily Patient Census and Staffing
               <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                ข้อมูลวันที่ {selectedDate}
+                ข้อมูลวันที่ {selectedDate} ({getThaiDayName(selectedDate)})
               </span>
             </h2>
             
@@ -1963,14 +2071,13 @@ export default function DashboardPage() {
               onActionSelect={handleActionSelect}
             />
           )}
-          
-          {/* Charts Section - แนวนอน (แถวเดียวกัน) */}
-          <div className="grid grid-cols-1 gap-6 mb-10 lg:grid-cols-12">
+                    {/* Charts Section - แนวนอน (แถวเดียวกัน) */}
+          <div className="grid grid-cols-1 gap-6 mb-10 lg:grid-cols-12 overflow-hidden">
             {/* Patient Count by Ward */}
             <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-7">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">จำนวนผู้ป่วยตามแผนก</h2>
+              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">Patient Census (คงพยาบาล) ตามแผนก</h2>
               {wardCensusData.length > 0 ? (
-                <div className="w-full" style={{ height: Math.max(420, wardCensusData.length * 65) }}>
+                <div className="w-full" style={{ height: Math.max(400, Math.min(650, wardCensusData.length * 42)) }}>
                   <EnhancedBarChart 
                     data={wardCensusData}
                     selectedWardId={selectedWardId}
@@ -1987,30 +2094,19 @@ export default function DashboardPage() {
               )}
             </div>
             
-            {/* Bed Summary */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-5">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">สถานะเตียง</h2>
-              {(pieChartData.length > 0) ? (
-                <div style={{ height: Math.max(420, wardCensusData.length * 65) }}>
-                  {/* แสดง BedSummaryPieChart สำหรับภาพรวมทุกแผนก */}
-                  <div className="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <BedSummaryPieChart 
-                      data={{
-                        availableBeds: pieChartData.reduce((sum, item) => sum + (item.value || 0), 0),
-                        unavailableBeds: pieChartData.reduce((sum, item) => sum + (item.unavailable || 0), 0),
-                        plannedDischarge: pieChartData.reduce((sum, item) => sum + (item.plannedDischarge || 0), 0),
-                        wardName: "ทุกแผนก"
-                      }}
+            {/* Bed Status Bar Chart */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-5 overflow-hidden">
+              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">สถานะเตียงระหว่างเวรเช้า-ดึก</h2>
+              {(bedCensusData.length > 0) ? (
+                <div className="w-full h-full">
+                  <div className="h-[450px]">
+                    <EnhancedBarChart 
+                      data={bedCensusData}
+                      selectedWardId={selectedWardId}
+                      onSelectWard={handleSelectWard}
+                      showShiftData={true}
                     />
                   </div>
-                  
-                  {/* แสดง EnhancedPieChart สำหรับภาพรวมทุก ward */}
-                  <EnhancedPieChart 
-                    data={pieChartData} 
-                    selectedWardId={selectedWardId}
-                    onSelectWard={handleSelectWard}
-                  />
-                  
                 </div>
               ) : loading ? (
                 <div className="flex justify-center items-center h-96">
@@ -2175,4 +2271,6 @@ export default function DashboardPage() {
       </main>
     </div>
   );
-} 
+}
+
+export default DashboardPage;

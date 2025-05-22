@@ -56,13 +56,9 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
   selectedWardId,
   onSelectWard
 }) => {
-  // ตรวจสอบว่ากำลังใช้ dark mode หรือไม่
-  const isDarkMode = useMemo(() => {
-    if (typeof document !== 'undefined') {
-      return document.documentElement.classList.contains('dark');
-    }
-    return false;
-  }, []);
+  // ใช้ useTheme hook จาก next-themes แทนการตรวจสอบเอง เพื่อให้สอดคล้องกับคอมโพเนนต์อื่นๆ
+  const { theme } = require('next-themes').useTheme();
+  const isDarkMode = theme === 'dark';
 
   // ตรวจสอบว่ามีข้อมูลที่ไม่เป็น 0 อย่างน้อย 1 รายการหรือไม่
   const hasNonZeroData = data.some(item => item.value > 0);
@@ -120,7 +116,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
     return null;
   };
 
-  // Custom Label component - แสดงเฉพาะบน segment ที่มีข้อมูล
+  // Custom Label component - แสดงเฉพาะบน segment ที่มีข้อมูล และปรับปรุงให้อ่านง่ายขึ้น
   const CustomLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius, value, name, index, x, y, fill, noData } = props;
 
@@ -128,9 +124,9 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
       return null;
     }
 
-    const boxWidth = 24;
-    const boxHeight = 18;
-    const borderRadius = 3;
+    const boxWidth = 28; // เพิ่มความกว้างเล็กน้อย
+    const boxHeight = 20; // เพิ่มความสูงเล็กน้อย
+    const borderRadius = 4; // เพิ่มความโค้งมนเล็กน้อย
 
     // Position the box centered around the (x,y) point given by recharts
     const rectX = x - boxWidth / 2;
@@ -146,7 +142,8 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
           rx={borderRadius}
           ry={borderRadius}
           fill={isDarkMode ? "#4B5563" : "#374151"} // Dark gray box
-          stroke="none"
+          stroke={isDarkMode ? "#6B7280" : "#1F2937"} // เพิ่ม stroke เพื่อให้เห็นชัดเจนขึ้น
+          strokeWidth={0.5}
         />
         <text
           x={x}
@@ -154,7 +151,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
           fill="#FFFFFF" // White text
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize="10px"
+          fontSize="11px" // เพิ่มขนาดตัวอักษรเล็กน้อย
           fontWeight="bold"
         >
           {Math.round(value)}
@@ -172,22 +169,22 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
-      <div className="h-72">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md h-full">
+      <h2 className="text-lg font-semibold mb-3 text-center text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
+      <div className="h-full" style={{ minHeight: '200px' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart margin={{ top: 20, right: 0, bottom: 20, left: 0 }}> {/* Added margin for labels */}
+          <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
               innerRadius={0}
-              outerRadius={75} // Reduced for label space
-              paddingAngle={2} // Slightly increased padding
+              outerRadius="70%" // ใช้เป็นเปอร์เซ็นต์เพื่อความยืดหยุ่น
+              paddingAngle={2}
               dataKey="value"
               onClick={(entryData) => onSelectWard(entryData.id)}
-              labelLine={true} // Enabled label line
-              label={<CustomLabel />} // Use custom label
+              labelLine={false} // ไม่แสดงเส้น
+              label={<CustomLabel />}
               isAnimationActive={true}
               animationDuration={500}
               minAngle={1}
@@ -196,8 +193,9 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
                 <Cell
                   key={`cell-${index}`}
                   fill={getColorScale(COLORS[index % COLORS.length], DARK_COLORS[index % DARK_COLORS.length], index, entry.noData)}
-                  stroke={selectedWardId === entry.id ? (isDarkMode ? '#FFFFFF' : '#1F2937') : (isDarkMode ? '#374151' : '#E5E7EB')} // Contextual stroke
-                  strokeWidth={selectedWardId === entry.id ? 2 : 0.5} // Thicker for selected, thin for others
+                  stroke={selectedWardId === entry.id ? (isDarkMode ? '#FFFFFF' : '#1F2937') : (isDarkMode ? '#374151' : '#E5E7EB')}
+                  strokeWidth={selectedWardId === entry.id ? 2 : 0.5}
+                  style={{ cursor: 'pointer' }} // เพิ่ม cursor pointer
                 />
               ))}
             </Pie>
@@ -205,18 +203,29 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
             <Legend
               formatter={(value, entry) => {
                 const { payload } = entry as any;
+                // แสดงจำนวนเตียงว่างต่อท้ายชื่อ ward
                 return (
-                  <span style={{ color: isDarkMode ? '#D1D5DB' : '#374151', fontSize: '11px', marginLeft: '3px' }}>
-                    {payload.name}
+                  <span style={{ 
+                    color: isDarkMode ? '#D1D5DB' : '#374151', 
+                    fontSize: '11px', 
+                    marginLeft: '3px',
+                    fontWeight: selectedWardId === payload.id ? 'bold' : 'normal'
+                  }}>
+                    {payload.name} ({payload.value})
                   </span>
                 );
               }}
               layout="vertical"
               verticalAlign="middle"
               align="right"
-              iconSize={10}
-              iconType="square" // Square icon
-              wrapperStyle={{ fontSize: '11px', paddingLeft: '15px' }} // Adjusted padding
+              iconSize={8}
+              iconType="circle" // เปลี่ยนเป็นวงกลม
+              wrapperStyle={{ 
+                fontSize: '11px', 
+                paddingLeft: '10px',
+                maxHeight: '180px',
+                overflowY: 'auto' // เพิ่ม scroll กรณีมีข้อมูลเยอะ
+              }}
             />
           </PieChart>
         </ResponsiveContainer>

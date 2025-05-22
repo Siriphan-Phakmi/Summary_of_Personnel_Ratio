@@ -139,7 +139,7 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
 
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-      <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">จำนวนผู้ป่วย (คงพยาบาล)</h2>
+      <h2 className="text-xl font-bold mb-4 text-center text-gray-800 dark:text-white">Patient Census (คงพยาบาล)</h2>
       
       {showShiftData && <CustomLegend />}
       

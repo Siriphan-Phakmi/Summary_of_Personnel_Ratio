@@ -20,10 +20,11 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
 
+  // กำหนดสีให้สดใสและสอดคล้องกับ EnhancedPieChart
   const chartData = [
-    { name: 'เตียงว่าง', value: data.availableBeds || 0, color: '#10B981' },
-    { name: 'เตียงไม่ว่าง', value: data.unavailableBeds || 0, color: '#EF4444' },
-    { name: 'แผนจำหน่าย', value: data.plannedDischarge || 0, color: '#3B82F6' }
+    { name: 'เตียงว่าง', value: data.availableBeds || 0, color: '#10B981' }, // สีเขียว
+    { name: 'เตียงไม่ว่าง', value: data.unavailableBeds || 0, color: '#EF4444' }, // สีแดง
+    { name: 'แผนจำหน่าย', value: data.plannedDischarge || 0, color: '#3B82F6' } // สีฟ้า
   ].filter(item => item.value > 0);
 
   const totalBeds = data.availableBeds + data.unavailableBeds;
@@ -34,9 +35,13 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded shadow-sm">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">{`${payload[0].name}: ${payload[0].value} เตียง`}</p>
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
+            {`${payload[0].name}: ${payload[0].value} เตียง`}
+          </p>
           {payload[0].name !== 'แผนจำหน่าย' && totalBeds > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{`${(payload[0].value / totalBeds * 100).toFixed(1)}% ของจำนวนเตียงทั้งหมด`}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {`${(payload[0].value / totalBeds * 100).toFixed(1)}% ของจำนวนเตียงทั้งหมด`}
+            </p>
           )}
         </div>
       );
@@ -47,12 +52,12 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   const renderLegend = (props: any) => {
     const { payload } = props;
     return (
-      <ul className="flex justify-center flex-wrap gap-6 mt-2">
+      <ul className="flex justify-center flex-wrap gap-4 mt-2">
         {payload.map((entry: any, index: number) => (
           <li key={`item-${index}`} className="flex items-center">
             <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
             <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              {entry.value} {entry.name}
+              <span className="font-semibold">{entry.value}</span> {entry.name}
             </span>
           </li>
         ))}
@@ -61,33 +66,40 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <div className="text-center mb-2">
-        <h3 className={`text-lg font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+    <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+      <div className="text-center mb-3">
+        <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
           {data.wardName ? `สถานะเตียง ${data.wardName}` : 'สถานะเตียงรวม'}
         </h3>
         <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-          เตียงทั้งหมด: {totalBeds} เตียง (อัตราการครองเตียง: {occupancyRate}%)
+          เตียงทั้งหมด: <span className="font-medium">{totalBeds}</span> เตียง (อัตราการครองเตียง: <span className="font-medium">{occupancyRate}%</span>)
         </p>
       </div>
       
-      <div className="flex-grow flex items-center justify-center">
-        <ResponsiveContainer width="100%" height="80%">
+      <div className="flex-grow flex items-center justify-center" style={{ minHeight: '180px' }}>
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
               innerRadius={0}
-              outerRadius="60%"
+              outerRadius="65%" 
               fill="#8884d8"
               paddingAngle={2}
               dataKey="value"
-              label={({ name, value }) => `${value} เตียง`}
+              label={({ name, value }) => `${value}`} 
               labelLine={false}
+              isAnimationActive={true}
+              animationDuration={800}
             >
               {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={entry.color} 
+                  stroke={isDarkMode ? '#374151' : '#f8fafc'}
+                  strokeWidth={0.5}
+                />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
@@ -96,18 +108,18 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
       
-      <div className="grid grid-cols-3 gap-4 mt-auto pt-4">
-        <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-lg p-3 text-center">
+      <div className="grid grid-cols-3 gap-3 mt-auto pt-3">
+        <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-lg p-2.5 text-center">
           <p className="text-xs font-medium text-white mb-1">เตียงว่าง</p>
-          <p className="text-2xl font-bold text-white">{data.availableBeds}</p>
+          <p className="text-xl font-bold text-white">{data.availableBeds}</p>
         </div>
-        <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-3 text-center">
+        <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-lg p-2.5 text-center">
           <p className="text-xs font-medium text-white mb-1">เตียงไม่ว่าง</p>
-          <p className="text-2xl font-bold text-white">{data.unavailableBeds}</p>
+          <p className="text-xl font-bold text-white">{data.unavailableBeds}</p>
         </div>
-        <div className="bg-gradient-to-r from-blue-400 to-blue-500 rounded-lg p-3 text-center">
+        <div className="bg-gradient-to-r from-blue-400 to-blue-500 rounded-lg p-2.5 text-center">
           <p className="text-xs font-medium text-white mb-1">แผนจำหน่าย</p>
-          <p className="text-2xl font-bold text-white">{data.plannedDischarge}</p>
+          <p className="text-xl font-bold text-white">{data.plannedDischarge}</p>
         </div>
       </div>
     </div>
