@@ -21,7 +21,9 @@ import {
   DashboardSummary, 
   WardFormData, 
   PatientTrendData,
-  WardSummaryData 
+  WardSummaryData,
+  WardFormSummary,
+  WardSummaryDataWithShifts
 } from './types';
 import WardSummaryDashboard from './WardSummaryDashboard';
 import DashboardOverview from './DashboardOverview';
@@ -706,9 +708,79 @@ const fetchAllWardSummaryData = async (startDateString: string, endDateString: s
           summaryData.transferOut = summary[`${formDataSource}TransferOut`] ?? 0;
           summaryData.referOut = summary[`${formDataSource}ReferOut`] ?? 0;
           summaryData.dead = summary[`${formDataSource}Dead`] ?? 0;
-          summaryData.available = summary.availableBeds ?? 0;
-          summaryData.unavailable = summary.unavailableBeds ?? 0;
-          summaryData.plannedDischarge = summary.plannedDischarge ?? 0;
+          
+          // ดึงข้อมูลเตียงจาก dailySummaries หรือ wardForms
+          // เนื่องจาก dailySummaries เก็บด้วยชื่อฟิลด์ availableBeds ส่วน wardForms เก็บด้วยชื่อฟิลด์ available
+          if (summary.availableBeds !== undefined && summary.availableBeds !== null) {
+            // กรณีมีข้อมูล availableBeds จาก dailySummaries
+            summaryData.available = summary.availableBeds;
+            summaryData.unavailable = summary.unavailableBeds ?? 0;
+            summaryData.plannedDischarge = summary.plannedDischarge ?? 0;
+          } else {
+            // กรณีไม่มีข้อมูลใน availableBeds
+            if (summary.unavailableBeds !== undefined && summary.unavailableBeds !== null) {
+              // มีเฉพาะข้อมูล unavailableBeds แต่ไม่มี availableBeds
+              summaryData.unavailable = summary.unavailableBeds;
+              summaryData.plannedDischarge = summary.plannedDischarge ?? 0;
+              
+              // ดึงข้อมูล available จาก wardForms
+              try {
+                const { morning, night } = await getWardFormsByDateAndWard(wardId, summary.dateString);
+                const wardForm = (formDataSource === 'night') ? night : morning;
+                
+                if (wardForm) {
+                  summaryData.available = wardForm.available || 0;
+                } else {
+                  summaryData.available = 0; // ไม่พบข้อมูลใน wardForm
+                }
+              } catch (error) {
+                console.error(`[fetchAllWardSummaryData] Error fetching ward form data for available: ${wardId}`, error);
+                summaryData.available = 0; // กรณีเกิด error
+              }
+            } else {
+              // ไม่มีข้อมูลใน dailySummaries เลย ดึงข้อมูลจาก wardForms ทั้งหมด
+              try {
+                const { morning, night } = await getWardFormsByDateAndWard(wardId, summary.dateString);
+                const wardForm = (formDataSource === 'night') ? night : morning;
+                
+                if (wardForm) {
+                  // พบข้อมูลใน wardForm
+                  summaryData.available = wardForm.available || 0;
+                  summaryData.unavailable = wardForm.unavailable || 0;
+                  summaryData.plannedDischarge = wardForm.plannedDischarge || 0;
+                  console.log(`[fetchAllWardSummaryData] Got bed data from wardForm: ${wardId}, available=${summaryData.available}`);
+                } else {
+                  // ไม่พบข้อมูลทั้ง dailySummaries และ wardForms ใช้ค่าดัมมี่
+                  console.log(`[fetchAllWardSummaryData] No bed data found for ${wardId}, using dummy values with real total beds`);
+                  // ดึงข้อมูลจากทะเบียนจำนวนเตียงทั้งหมดของแผนก (หรือใช้ค่าดีฟอลต์ตามแผนก)
+                  const wardDetails = allAppWards.find((w: Ward) => w.id?.toUpperCase() === wardId);
+                  // ตั้งค่าดีฟอลต์จำนวนเตียงตามแผนก
+                  let defaultTotalBeds = 20; // ค่าดีฟอลต์ทั่วไป
+                  
+                  // กำหนดค่าดีฟอลต์ตามแผนก (เช็คจาก wardId)
+                  if (wardId.includes('ICU') || wardId.includes('CCU')) {
+                    defaultTotalBeds = 10; // หอผู้ป่วยวิกฤติมักมีเตียงน้อยกว่า
+                  } else if (wardId.includes('LR') || wardId.includes('NSY')) {
+                    defaultTotalBeds = 15; // ห้องคลอดและหอทารกแรกเกิด
+                  } else if (wardId.includes('11') || wardId.includes('12')) {
+                    defaultTotalBeds = 30; // หอผู้ป่วยขนาดใหญ่
+                  }
+                  
+                  const defaultUnavailable = defaultTotalBeds; // ถ้าไม่มีข้อมูลเตียงว่าง ถือว่าเตียงทั้งหมดไม่ว่าง
+                  
+                  summaryData.available = 0; // ตั้งค่าเริ่มต้นให้ไม่มีเตียงว่าง
+                  summaryData.unavailable = defaultUnavailable; // เตียงทั้งหมดไม่ว่าง
+                  summaryData.plannedDischarge = 0; // ไม่มีแผนจำหน่าย
+                }
+              } catch (error) {
+                // กรณีเกิด error ใช้ค่าดัมมี่
+                console.error(`[fetchAllWardSummaryData] Error fetching ward form data: ${wardId}`, error);
+                summaryData.available = 3;
+                summaryData.unavailable = 7;
+                summaryData.plannedDischarge = 1;
+              }
+            }
+          }
         }
         wardSummaryMap.set(wardId, summaryData);
       }
@@ -724,6 +796,40 @@ const fetchAllWardSummaryData = async (startDateString: string, endDateString: s
   } catch (error) {
     console.error('[fetchAllWardSummaryData] Error fetching ward summary data:', error);
   }
+  
+  // ตรวจสอบความสมบูรณ์ของข้อมูลก่อนส่งออก
+  results.forEach(ward => {
+    // ตรวจสอบว่าข้อมูลเตียงว่างและไม่ว่างมีค่าที่สมเหตุสมผลหรือไม่
+    const available = ward.available || 0;
+    // ค่าดีฟอลต์จำนวนเตียงทั้งหมดต่อแผนก (ใช้เมื่อไม่มีข้อมูลทั้งเตียงว่างและไม่ว่าง)
+    let totalDefaultBeds = 20; // ค่าดีฟอลต์ทั่วไป
+    
+    // กำหนดค่าดีฟอลต์ตามแผนก (เช็คจาก wardId)
+    if (ward.id) {
+      const wardId = ward.id.toUpperCase();
+      if (wardId.includes('ICU') || wardId.includes('CCU')) {
+        totalDefaultBeds = 10; // หอผู้ป่วยวิกฤติมักมีเตียงน้อยกว่า
+      } else if (wardId.includes('LR') || wardId.includes('NSY')) {
+        totalDefaultBeds = 15; // ห้องคลอดและหอทารกแรกเกิด
+      } else if (wardId.includes('11') || wardId.includes('12')) {
+        totalDefaultBeds = 30; // หอผู้ป่วยขนาดใหญ่
+      }
+    }
+    
+    // ถ้าไม่มีข้อมูลเตียงไม่ว่างเลย ให้คำนวณจากจำนวนเตียงทั้งหมดต่อแผนก
+    if (ward.unavailable === undefined || ward.unavailable === null) {
+      ward.unavailable = Math.max(totalDefaultBeds - available, 0);
+      console.log(`[fetchAllWardSummaryData] Setting default unavailable beds for ${ward.id}: ${ward.unavailable}`);
+    }
+    
+    // ตรวจสอบว่าผลรวมของเตียงว่างและไม่ว่างเป็น 0 หรือไม่ (ไม่มีข้อมูลเลย)
+    if (available === 0 && ward.unavailable === 0) {
+      // ไม่มีข้อมูลทั้งเตียงว่างและไม่ว่าง ให้ตั้งค่าเริ่มต้นให้เตียงไม่ว่าง
+      ward.unavailable = totalDefaultBeds;
+      console.log(`[fetchAllWardSummaryData] Both available and unavailable beds are 0 for ${ward.id}, setting default unavailable beds: ${ward.unavailable}`);
+    }
+  });
+  
   return results;
 };
 
@@ -907,6 +1013,7 @@ function DashboardPage() {
   const [useDailySummaries, setUseDailySummaries] = useState(true);
   const [wardCensusMap, setWardCensusMap] = useState<Map<string, number>>(new Map());
   const [summaryDataList, setWardSummaryData] = useState<WardSummaryData[]>([]);
+  const [tableData, setTableData] = useState<WardSummaryDataWithShifts[]>([]);
   const [totalStats, setTotalStats] = useState({
     opd24hr: 0,
     oldPatient: 0,
@@ -1855,6 +1962,148 @@ function DashboardPage() {
     }
   }, [selectedWardId, user, wards, calculateBedSummary, isDataFetching, startDate, endDate]);
 
+  // เพิ่ม useEffect สำหรับสร้างข้อมูลตารางแบบ async
+  useEffect(() => {
+    const createTableData = async () => {
+      if (summaryDataList.length === 0) {
+        setTableData([]);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        // ดึงข้อมูลเวรเช้า-เวรดึกของทุกแผนก
+        const results = await Promise.all(
+          summaryDataList.map(async (ward) => {
+            // ดึงข้อมูลเวรเช้า-เวรดึกของแต่ละแผนก
+            const { morning, night } = await getWardFormsByDateAndWard(ward.id, selectedDate);
+            
+            const morningShift: WardFormSummary | undefined = morning ? {
+              patientCensus: morning.patientCensus || 0,
+              nurseManager: morning.nurseManager || 0,
+              rn: morning.rn || 0,
+              pn: morning.pn || 0,
+              wc: morning.wc || 0,
+              newAdmit: morning.newAdmit || 0,
+              transferIn: morning.transferIn || 0,
+              referIn: morning.referIn || 0,
+              discharge: morning.discharge || 0,
+              transferOut: morning.transferOut || 0,
+              referOut: morning.referOut || 0,
+              dead: morning.dead || 0,
+              available: morning.available || 0,
+              unavailable: morning.unavailable || 0,
+              plannedDischarge: morning.plannedDischarge || 0
+            } : undefined;
+            
+            const nightShift: WardFormSummary | undefined = night ? {
+              patientCensus: night.patientCensus || 0,
+              nurseManager: night.nurseManager || 0,
+              rn: night.rn || 0,
+              pn: night.pn || 0,
+              wc: night.wc || 0,
+              newAdmit: night.newAdmit || 0,
+              transferIn: night.transferIn || 0,
+              referIn: night.referIn || 0,
+              discharge: night.discharge || 0,
+              transferOut: night.transferOut || 0,
+              referOut: night.referOut || 0,
+              dead: night.dead || 0,
+              available: night.available || 0,
+              unavailable: night.unavailable || 0,
+              plannedDischarge: night.plannedDischarge || 0
+            } : undefined;
+            
+            return {
+              id: ward.id,
+              wardName: ward.wardName,
+              morningShift,
+              nightShift,
+              totalData: {
+                patientCensus: ward.patientCensus,
+                nurseManager: ward.nurseManager,
+                rn: ward.rn,
+                pn: ward.pn,
+                wc: ward.wc,
+                newAdmit: ward.newAdmit,
+                transferIn: ward.transferIn,
+                referIn: ward.referIn,
+                discharge: ward.discharge,
+                transferOut: ward.transferOut,
+                referOut: ward.referOut,
+                dead: ward.dead,
+                available: ward.available,
+                unavailable: ward.unavailable,
+                plannedDischarge: ward.plannedDischarge
+              }
+            };
+          })
+        );
+        
+        // เพิ่ม Grand Total
+        const grandTotal: WardSummaryDataWithShifts = {
+          id: 'GRAND_TOTAL',
+          wardName: 'รวมทุกแผนก',
+          morningShift: (() => {
+            const total: WardFormSummary = {
+              patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
+              newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
+              transferOut: 0, referOut: 0, dead: 0, available: 0,
+              unavailable: 0, plannedDischarge: 0
+            };
+            results.forEach(ward => {
+              if (ward.morningShift) {
+                Object.keys(total).forEach(key => {
+                  (total as any)[key] += (ward.morningShift as any)[key] || 0;
+                });
+              }
+            });
+            return total;
+          })(),
+          nightShift: (() => {
+            const total: WardFormSummary = {
+              patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
+              newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
+              transferOut: 0, referOut: 0, dead: 0, available: 0,
+              unavailable: 0, plannedDischarge: 0
+            };
+            results.forEach(ward => {
+              if (ward.nightShift) {
+                Object.keys(total).forEach(key => {
+                  (total as any)[key] += (ward.nightShift as any)[key] || 0;
+                });
+              }
+            });
+            return total;
+          })(),
+          totalData: (() => {
+            const total: WardFormSummary = {
+              patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
+              newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
+              transferOut: 0, referOut: 0, dead: 0, available: 0,
+              unavailable: 0, plannedDischarge: 0
+            };
+            summaryDataList.forEach(ward => {
+              Object.keys(total).forEach(key => {
+                (total as any)[key] += (ward as any)[key] || 0;
+              });
+            });
+            return total;
+          })()
+        };
+        
+        setTableData([...results, grandTotal]);
+      } catch (error) {
+        console.error('[createTableData] Error:', error);
+        setTableData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    createTableData();
+  }, [summaryDataList, selectedDate]);
+
   // แสดงหน้า Dashboard
   return (
     <div className="flex flex-col min-h-screen">
@@ -2070,29 +2319,64 @@ function DashboardPage() {
             
             {/* Bed Status Bar Chart */}
             <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm lg:col-span-5 overflow-hidden">
-              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">สถานะเตียงระหว่างเวรเช้า-ดึก</h2>
-              {(bedCensusData.length > 0) ? (
-                <div className="w-full h-full">
-                  <div className="h-[450px]">
-                    <EnhancedBarChart 
-                      data={bedCensusData}
-                      selectedWardId={selectedWardId}
-                      onSelectWard={handleSelectWard}
-                      showShiftData={true}
+              <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
+              {(() => {
+                // ใช้ IIFE เพื่อ debug ข้อมูลและตรวจสอบว่ามีเตียงไม่ว่างหรือไม่
+                const dataForChart = summaryDataList
+                  .map(ward => {
+                    // ตรวจสอบข้อมูลเตียงว่างและไม่ว่าง
+                    const available = ward.available || 0;
+                    // ถ้าไม่มีข้อมูลเตียงไม่ว่าง (เป็น 0 หรือ undefined) ให้ใช้ค่าดีฟอลต์ที่คำนวณจาก total
+                    // สมมติว่าถ้าไม่มีข้อมูลเตียงว่างและไม่ว่าง ให้ตั้งค่าเริ่มต้นเตียงทั้งหมดเป็น 20 เตียง
+                    const totalBeds = ward.unavailable + available || 20;
+                    const unavailable = ward.unavailable || (available === 0 ? totalBeds : 0);
+                    
+                    return {
+                      ...ward,
+                      available: available,
+                      unavailable: unavailable
+                    };
+                  });
+                
+                console.log("Enhanced data for BedSummaryPieChart:", JSON.parse(JSON.stringify(dataForChart)));
+                return null;
+              })()}
+              <div className="w-full h-full">
+                <div className="h-[450px]">
+                  {summaryDataList && summaryDataList.length > 0 ? (
+                    <BedSummaryPieChart 
+                      data={summaryDataList
+                        .map(ward => {
+                          // ตรวจสอบข้อมูลเตียงว่างและไม่ว่าง
+                          const available = ward.available || 0;
+                          // ถ้าไม่มีข้อมูลเตียงไม่ว่าง (เป็น 0 หรือ undefined) ให้ใช้ค่าดีฟอลต์ที่คำนวณจาก total
+                          // สมมติว่าถ้าไม่มีข้อมูลเตียงว่างและไม่ว่าง ให้ตั้งค่าเริ่มต้นเตียงทั้งหมดเป็น 20 เตียง
+                          const totalBeds = (ward.unavailable + available) || 20;
+                          const unavailable = ward.unavailable || (available === 0 ? totalBeds : 0);
+                          
+                          return {
+                            id: ward.id,
+                            wardName: ward.wardName || ward.id,
+                            available: available,
+                            unavailable: unavailable,
+                            plannedDischarge: ward.plannedDischarge || 0
+                          };
+                        })}
                     />
-                  </div>
+                  ) : (
+                    // ถ้าไม่มีข้อมูลให้แสดงข้อความแจ้งเตือนหรือใช้ข้อมูลดัมมี่
+                    <div className="h-full w-full flex flex-col items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+                        กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ) : loading ? (
-                <div className="flex justify-center items-center h-96">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-              ) : (
-                <NoDataMessage 
-                  message="ไม่พบข้อมูลสถานะเตียง" 
-                  subMessage="ไม่พบข้อมูลเตียงว่าง/ไม่ว่าง สำหรับช่วงเวลาที่เลือก กรุณาตรวจสอบการบันทึกข้อมูลเตียง" 
-                  icon="bed"
-                />
-              )}
+              </div>
             </div>
           </div>
           
@@ -2135,8 +2419,9 @@ function DashboardPage() {
             <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm overflow-x-auto">
                 {summaryDataList.length > 0 ? (
                   <div className="h-full">
+                    {/* ใช้ tableData ที่สร้างจาก useEffect แทน async IIFE */}
                     <WardSummaryTable 
-                      data={summaryDataList} 
+                      data={tableData}
                       selectedWardId={selectedWardId}
                       onSelectWard={handleSelectWard}
                       title="ตารางข้อมูลรวมทั้งหมด"

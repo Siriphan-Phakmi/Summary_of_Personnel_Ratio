@@ -181,4 +181,30 @@ export interface ShiftComparisonPanelProps {
   wardName: string;
   allWards?: Ward[];
   onWardSelect?: (wardId: string) => void;
+}
+
+export interface WardFormSummary {
+  patientCensus: number;
+  nurseManager: number;
+  rn: number;
+  pn: number;
+  wc: number;
+  newAdmit: number;
+  transferIn: number;
+  referIn: number;
+  discharge: number;
+  transferOut: number;
+  referOut: number;
+  dead: number;
+  available: number;
+  unavailable: number;
+  plannedDischarge: number;
+}
+
+export interface WardSummaryDataWithShifts {
+  id: string;
+  wardName: string;
+  morningShift?: WardFormSummary;
+  nightShift?: WardFormSummary;
+  totalData: WardFormSummary;
 } 
