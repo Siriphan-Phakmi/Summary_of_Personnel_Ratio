@@ -157,6 +157,31 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
                     {morningRatio > 0 ? morningRatio.toFixed(2) : 'N/A'} : 1
                   </span>
                 </div>
+
+                {/* เพิ่มส่วนข้อมูลเตียงสำหรับเวรเช้า */}
+                <div className="mt-3 pt-2 border-t border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">ข้อมูลเตียง</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white dark:bg-blue-900/40 p-2 rounded border border-blue-200 dark:border-blue-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-300">เตียงว่าง</div>
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-300">
+                        {summary?.morningForm?.available || 0} เตียง
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-blue-900/40 p-2 rounded border border-blue-200 dark:border-blue-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-300">เตียงไม่ว่าง</div>
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-300">
+                        {summary?.morningForm?.unavailable || 0} เตียง
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-white dark:bg-blue-900/40 rounded border border-blue-200 dark:border-blue-800">
+                    <div className="text-xs text-gray-500 dark:text-gray-300">แผนจำหน่าย</div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-300">
+                      {summary?.morningForm?.plannedDischarge || 0} ราย
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -190,6 +215,31 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
                   <span className="font-bold text-indigo-700 dark:text-indigo-300">
                     {nightRatio > 0 ? nightRatio.toFixed(2) : 'N/A'} : 1
                   </span>
+                </div>
+
+                {/* เพิ่มส่วนข้อมูลเตียงสำหรับเวรดึก */}
+                <div className="mt-3 pt-2 border-t border-indigo-200 dark:border-indigo-800">
+                  <h4 className="font-semibold text-indigo-700 dark:text-indigo-300 mb-2">ข้อมูลเตียง</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white dark:bg-indigo-900/40 p-2 rounded border border-indigo-200 dark:border-indigo-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-300">เตียงว่าง</div>
+                      <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
+                        {summary?.nightForm?.available || 0} เตียง
+                      </div>
+                    </div>
+                    <div className="bg-white dark:bg-indigo-900/40 p-2 rounded border border-indigo-200 dark:border-indigo-800">
+                      <div className="text-xs text-gray-500 dark:text-gray-300">เตียงไม่ว่าง</div>
+                      <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
+                        {summary?.nightForm?.unavailable || 0} เตียง
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-white dark:bg-indigo-900/40 rounded border border-indigo-200 dark:border-indigo-800">
+                    <div className="text-xs text-gray-500 dark:text-gray-300">แผนจำหน่าย</div>
+                    <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300">
+                      {summary?.nightForm?.plannedDischarge || 0} ราย
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -319,6 +369,104 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
                               : 'text-gray-600 dark:text-gray-400'
                         }`}>
                           {(nightRatio - morningRatio).toFixed(2)}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* เพิ่มแถวข้อมูลเตียง */}
+                  <tr className="border-t-2 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="py-3 px-4 text-gray-700 dark:text-gray-200 font-semibold">ข้อมูลเตียง</td>
+                    <td className="py-3 px-4 text-center text-blue-700 dark:text-blue-300 font-medium bg-blue-50/50 dark:bg-blue-900/10">
+                      -
+                    </td>
+                    <td className="py-3 px-4 text-center text-indigo-700 dark:text-indigo-300 font-medium bg-indigo-50/50 dark:bg-indigo-900/10">
+                      -
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      -
+                    </td>
+                  </tr>
+                  
+                  <tr className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50">
+                    <td className="py-2 px-4 text-gray-600 dark:text-gray-300 pl-8">เตียงว่าง</td>
+                    <td className="py-2 px-4 text-center text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/5">
+                      {summary?.morningForm?.available || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/5">
+                      {summary?.nightForm?.available || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {summary?.morningForm?.available !== undefined && summary?.nightForm?.available !== undefined ? (
+                        <span className={`font-medium text-sm rounded px-2 py-0.5 ${
+                          (summary.nightForm.available > summary.morningForm.available)
+                            ? 'text-green-500 dark:text-green-400 bg-green-50/50 dark:bg-green-900/10' 
+                            : (summary.nightForm.available < summary.morningForm.available)
+                              ? 'text-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10' 
+                              : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {(summary.nightForm.available !== summary.morningForm.available) ? 
+                            ((summary.nightForm.available > summary.morningForm.available ? '+' : '') + 
+                            (summary.nightForm.available - summary.morningForm.available)) : 
+                            '-'}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                  </tr>
+                  
+                  <tr className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50">
+                    <td className="py-2 px-4 text-gray-600 dark:text-gray-300 pl-8">เตียงไม่ว่าง</td>
+                    <td className="py-2 px-4 text-center text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/5">
+                      {summary?.morningForm?.unavailable || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/5">
+                      {summary?.nightForm?.unavailable || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {summary?.morningForm?.unavailable !== undefined && summary?.nightForm?.unavailable !== undefined ? (
+                        <span className={`font-medium text-sm rounded px-2 py-0.5 ${
+                          (summary.nightForm.unavailable > summary.morningForm.unavailable)
+                            ? 'text-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10' 
+                            : (summary.nightForm.unavailable < summary.morningForm.unavailable)
+                              ? 'text-green-500 dark:text-green-400 bg-green-50/50 dark:bg-green-900/10' 
+                              : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {(summary.nightForm.unavailable !== summary.morningForm.unavailable) ? 
+                            ((summary.nightForm.unavailable > summary.morningForm.unavailable ? '+' : '') + 
+                            (summary.nightForm.unavailable - summary.morningForm.unavailable)) : 
+                            '-'}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                  </tr>
+                  
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50">
+                    <td className="py-2 px-4 text-gray-600 dark:text-gray-300 pl-8">แผนจำหน่าย</td>
+                    <td className="py-2 px-4 text-center text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/5">
+                      {summary?.morningForm?.plannedDischarge || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/5">
+                      {summary?.nightForm?.plannedDischarge || 0}
+                    </td>
+                    <td className="py-2 px-4 text-center">
+                      {summary?.morningForm?.plannedDischarge !== undefined && summary?.nightForm?.plannedDischarge !== undefined ? (
+                        <span className={`font-medium text-sm rounded px-2 py-0.5 ${
+                          (summary.nightForm.plannedDischarge > summary.morningForm.plannedDischarge)
+                            ? 'text-green-500 dark:text-green-400 bg-green-50/50 dark:bg-green-900/10' 
+                            : (summary.nightForm.plannedDischarge < summary.morningForm.plannedDischarge)
+                              ? 'text-red-500 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10' 
+                              : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {(summary.nightForm.plannedDischarge !== summary.morningForm.plannedDischarge) ? 
+                            ((summary.nightForm.plannedDischarge > summary.morningForm.plannedDischarge ? '+' : '') + 
+                            (summary.nightForm.plannedDischarge - summary.morningForm.plannedDischarge)) : 
+                            '-'}
                         </span>
                       ) : (
                         '-'

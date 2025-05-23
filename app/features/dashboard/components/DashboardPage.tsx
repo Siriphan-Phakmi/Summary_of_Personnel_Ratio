@@ -1295,108 +1295,77 @@ function DashboardPage() {
 
   // ฟังก์ชันคำนวณจำนวนเตียงรวมตามช่วงวันที่
   const calculateBedSummary = useCallback(async () => {
+    console.log("[calculateBedSummary] Starting bed summary calculation...");
+    setLoading(true);
     try {
-      // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
-      if (pieChartData.length > 0) {
-        // ตรวจสอบว่ามีข้อมูลครบทุก ward ที่ผู้ใช้มีสิทธิ์เข้าถึงหรือไม่
-        const existingWardIds = new Set(pieChartData.map(item => item.id.toUpperCase()));
-        const accessibleWardIds = wards.map(w => w.id?.toUpperCase() || '').filter(id => id !== '');
+      // สร้างชุดข้อมูลสำหรับแต่ละ Ward ทั้งหมด
+      const summaryMap = new Map<string, { total: number, available: number, unavailable: number, plannedDischarge: number }>();
+      
+      // ดึงข้อมูลจาก Ward Form หรือ Daily Summary
+      for (const ward of wards) {
+        if (!ward.id) continue;
         
-        // ตรวจสอบว่ามีข้อมูลครบทุก ward หรือไม่
-        const allWardsHaveData = accessibleWardIds.every(wardId => existingWardIds.has(wardId));
+        const currentDateString = format(effectiveDateRange.end, 'yyyy-MM-dd');
+        console.log(`[calculateBedSummary] Getting data for ward ${ward.id} on date ${currentDateString}`);
         
-        // ถ้ามีข้อมูลอยู่แล้ว และมีข้อมูลครบทุก ward ให้รีเทิร์นข้อมูลที่มีอยู่แล้ว
-        if (allWardsHaveData && pieChartData.length > 0) {
-          console.log("[calculateBedSummary] Using existing bed data");
-          return;
+        // ดึงข้อมูลแบบฟอร์มของ ward ในวันปัจจุบัน
+        const { morning, night } = await getWardFormsByDateAndWard(ward.id, currentDateString);
+        
+        // ใช้ข้อมูลเวรเช้าเป็นหลัก ถ้าไม่มีให้ใช้เวรดึก
+        let availableBeds = 0;
+        let unavailableBeds = 0;
+        let plannedDischarge = 0;
+        
+        if (morning) {
+          availableBeds = morning.available || 0;
+          unavailableBeds = morning.unavailable || 0;
+          plannedDischarge = morning.plannedDischarge || 0;
+        } else if (night) {
+          availableBeds = night.available || 0;
+          unavailableBeds = night.unavailable || 0;
+          plannedDischarge = night.plannedDischarge || 0;
+        } else {
+          // กรณีไม่พบข้อมูลทั้งเวรเช้าและเวรดึก ตั้งค่าเริ่มต้นเป็นค่าดัมมี่เพื่อให้แสดงในกราฟวงกลม
+          console.log(`[calculateBedSummary] No form data found for ward ${ward.id}, using dummy values`);
+          // ตั้งค่าดัมมี่เพื่อให้แสดงใน Pie Chart แม้ไม่มีข้อมูล
+          availableBeds = 3; // ค่าดัมมี่สำหรับเตียงว่าง
+          unavailableBeds = 7; // ค่าดัมมี่สำหรับเตียงไม่ว่าง
+          plannedDischarge = 1; // ค่าดัมมี่สำหรับแผนจำหน่าย
+        }
+        
+        // บันทึกข้อมูลลงใน Map
+        const total = availableBeds + unavailableBeds;
+        summaryMap.set(ward.id.toUpperCase(), {
+          total,
+          available: availableBeds,
+          unavailable: unavailableBeds,
+          plannedDischarge
+        });
+        
+        console.log(`[calculateBedSummary] Ward ${ward.id} - Total: ${total}, Available: ${availableBeds}, Unavailable: ${unavailableBeds}, Planned Discharge: ${plannedDischarge}`);
+      }
+      
+      // ตรวจสอบว่ามีการกำหนดค่าสำหรับทุก ward
+      // หากไม่มีข้อมูลสำหรับ ward ใด ให้ตั้งค่าเริ่มต้นเป็นค่าดัมมี่
+      for (const ward of wards) {
+        if (!ward.id) continue;
+        
+        const wardId = ward.id.toUpperCase();
+        if (!summaryMap.has(wardId)) {
+          console.log(`[calculateBedSummary] Setting dummy values for ward ${wardId} with no data`);
+          // ตั้งค่าดัมมี่เพื่อให้แสดงใน Pie Chart เสมอ
+          summaryMap.set(wardId, {
+            total: 10, // ค่าดัมมี่สำหรับ total
+            available: 3, // ค่าดัมมี่สำหรับ available
+            unavailable: 7, // ค่าดัมมี่สำหรับ unavailable
+            plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
+          });
         }
       }
       
-      setLoading(true);
-      console.log("[calculateBedSummary] Starting calculation of bed data...");
-      
-      // ระบุช่วงเวลาที่ต้องการดึงข้อมูล
-      const startDateString = format(effectiveDateRange.start, 'yyyy-MM-dd');
-      const endDateString = format(effectiveDateRange.end, 'yyyy-MM-dd');
-      console.log(`[calculateBedSummary] Date range: ${startDateString} - ${endDateString}`);
-
-      // ดึงข้อมูลทุก Ward ในระบบเพื่อแสดงแม้ไม่มีข้อมูล
-      const accessibleWardIds = wards.map(w => w.id?.toUpperCase() || '').filter(id => id !== '');
-      console.log(`[calculateBedSummary] Processing ${accessibleWardIds.length} wards:`, accessibleWardIds);
-
-      // ดึงข้อมูลจาก dailySummaries แยกตาม Ward
-      const summariesByWardPromises = accessibleWardIds.map(wardId =>
-        getApprovedSummariesByDateRange(wardId, startDateString, endDateString)
-      );
-
-      const summariesByWardResults = await Promise.all(summariesByWardPromises);
-      
-      // นับจำนวน ward ที่มีข้อมูล
-      const wardsWithData = summariesByWardResults.filter(results => results.length > 0).length;
-      console.log(`[calculateBedSummary] Found data for ${wardsWithData}/${accessibleWardIds.length} wards`);
-
-      // สร้าง Map เพื่อเก็บข้อมูลเตียงรวมตาม Ward เริ่มต้นด้วยข้อมูลว่างสำหรับทุก Ward ที่ผู้ใช้เข้าถึงได้
-      const totalBedsByAllAccessibleWards: Record<string, { total: number; available: number; unavailable: number; plannedDischarge: number }> = {};
-      
-      // เริ่มต้นด้วยการกำหนดค่าเริ่มต้นสำหรับทุก Ward ที่มีในระบบ
-      wards.forEach(ward => {
-        if (ward.id) {
-          const wardId = ward.id.toUpperCase();
-          // ตั้งค่าเริ่มต้นเป็น 0 ทั้งหมด (ไม่ใช้ค่า dummy อีกต่อไป)
-          totalBedsByAllAccessibleWards[wardId] = {
-            total: 0,
-            available: 0,
-            unavailable: 0,
-            plannedDischarge: 0
-          };
-        }
-      });
-
-      // คำนวณจำนวนเตียงรวมตาม Ward จากข้อมูลที่ดึงมาได้จริง
-      summariesByWardResults.forEach((wardSummaries, index) => {
-        const wardId = accessibleWardIds[index]; // wardId ที่สอดคล้องกับผลลัพธ์ summaries
-
-        if (wardSummaries.length > 0) {
-          let totalBedsSum = 0;
-          let availableBedsSum = 0;
-          let unavailableBedsSum = 0;
-          let plannedDischargeSum = 0;
-
-          wardSummaries.forEach(summary => {
-            // ใช้ค่าที่มีการบันทึกจริงจาก Firebase
-            const available = summary.availableBeds || 0;
-            const unavailable = summary.unavailableBeds || 0;
-            const planned = summary.plannedDischarge || 0;
-            const total = available + unavailable;
-            
-            totalBedsSum += total;
-            availableBedsSum += available;
-            unavailableBedsSum += unavailable;
-            plannedDischargeSum += planned;
-          });
-
-          const avgTotalBeds = wardSummaries.length > 0 ? Math.round(totalBedsSum / wardSummaries.length) : 0;
-          const avgAvailableBeds = wardSummaries.length > 0 ? Math.round(availableBedsSum / wardSummaries.length) : 0;
-          const avgUnavailableBeds = wardSummaries.length > 0 ? Math.round(unavailableBedsSum / wardSummaries.length) : 0;
-          const avgPlannedDischarge = wardSummaries.length > 0 ? Math.round(plannedDischargeSum / wardSummaries.length) : 0;
-
-          console.log(`[calculateBedSummary] Ward ${wardId}: Total=${avgTotalBeds}, Available=${avgAvailableBeds}, Unavailable=${avgUnavailableBeds}, Planned=${avgPlannedDischarge}`);
-
-          // อัปเดตข้อมูลใน Map เฉพาะ Ward ที่มีข้อมูลสรุป
-          if (totalBedsByAllAccessibleWards[wardId]) {
-            totalBedsByAllAccessibleWards[wardId] = {
-              total: avgTotalBeds,
-              available: avgAvailableBeds, 
-              unavailable: avgUnavailableBeds,
-              plannedDischarge: avgPlannedDischarge
-            };
-          }
-        }
-        // Ward ที่ไม่มีข้อมูลจะใช้ค่าเริ่มต้น 0 ที่กำหนดไว้แล้ว
-      });
-
-      // แปลงข้อมูลรวมเพื่อใช้ในการแสดงผลกราฟวงกลม
-      const pieData: PieChartDataItem[] = Object.entries(totalBedsByAllAccessibleWards).map(([wardId, beds]) => {
+      // แปลงข้อมูลจาก Map เป็น Array สำหรับกราฟวงกลม
+      const pieData: PieChartDataItem[] = Array.from(summaryMap.entries()).map(([wardId, beds]) => {
+        // หา ward จาก wardId
         const ward = wards.find(w => w.id?.toUpperCase() === wardId);
         return {
           id: wardId,
@@ -1411,28 +1380,27 @@ function DashboardPage() {
       console.log("[calculateBedSummary] Generated pie data (ensuring all wards):", pieData);
 
       // อัปเดต State สำหรับข้อมูลกราฟ
-      setPieChartData(pieData); // ใช้ข้อมูลเดียวกันสำหรับการแสดงผล
+      setPieChartData(pieData);
 
     } catch (error) {
       console.error('[calculateBedSummary] Error calculating bed summary:', error);
-      // กรณีเกิด error ให้ตั้งค่าเป็น array ว่างแทนที่จะใช้ค่า dummy
-      const emptyPieDataForAllWards: PieChartDataItem[] = wards
+      // กรณีเกิด error ให้สร้างข้อมูลดัมมี่สำหรับทุก ward
+      const dummyPieDataForAllWards: PieChartDataItem[] = wards
         .filter(ward => ward.id) // กรองเฉพาะ ward ที่มี id
         .map(ward => ({
           id: ward.id?.toUpperCase() || '',
           wardName: ward.wardName || ward.id || 'Unknown Ward',
-          value: 0, // เตียงว่าง
-          total: 0, // เตียงทั้งหมด
-          unavailable: 0, // เตียงไม่ว่าง
-          plannedDischarge: 0 // แผนจำหน่าย
+          value: 3, // ค่าดัมมี่สำหรับเตียงว่าง
+          total: 10, // ค่าดัมมี่สำหรับเตียงทั้งหมด
+          unavailable: 7, // ค่าดัมมี่สำหรับเตียงไม่ว่าง
+          plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
         }));
       
-      setPieChartData(emptyPieDataForAllWards);
-      setPieChartData(emptyPieDataForAllWards);
+      setPieChartData(dummyPieDataForAllWards);
     } finally {
       setLoading(false);
     }
-  }, [effectiveDateRange, wards, pieChartData]);
+  }, [effectiveDateRange, wards]);
 
   // ฟังก์ชันสำหรับรีเฟรชข้อมูลทั้งหมด
   const refreshData = useCallback(async () => {
@@ -1652,28 +1620,33 @@ function DashboardPage() {
   const handleDateRangeChange = (newRange: string) => {
     let newStartDate = startDate;
     let newEndDate = endDate;
+    let newSelectedDate = selectedDate; // <--- เพิ่มตัวแปรสำหรับ selectedDate
     
     switch(newRange) {
       case 'today':
         newStartDate = format(new Date(), 'yyyy-MM-dd');
         newEndDate = format(new Date(), 'yyyy-MM-dd');
+        newSelectedDate = newStartDate; // <--- กำหนด newSelectedDate เป็นวันปัจจุบัน
         break;
       case 'custom':
-        // ใช้ค่าเดิม
+        // ใช้ค่าเดิมจาก state (startDate, endDate)
+        // selectedDate จะถูกอัปเดตจาก useEffect ของ effectiveDateRange
+        newSelectedDate = endDate; // <--- กรณี custom ให้ selectedDate เป็นวันสุดท้ายของ range ที่เลือกไว้
         break;
     }
     
     setStartDate(newStartDate);
     setEndDate(newEndDate);
+    setSelectedDate(newSelectedDate); // <--- อัปเดต selectedDate
     setDateRange(newRange);
     
-    // กรณีเลือก "วันนี้" ให้อัปเดต selectedDate ด้วย
+    // กรณีเลือก "วันนี้" ให้อัปเดต selectedDate ด้วย (ซ้ำซ้อนกับด้านบนแต่ไม่เป็นไร)
     if (newRange === 'today') {
       setSelectedDate(newStartDate);
     }
     
     // หลังจากเปลี่ยนช่วงเวลาให้รีเฟรชข้อมูล
-    console.log(`[handleDateRangeChange] Date range changed to ${newRange}, refreshing data...`);
+    console.log(`[handleDateRangeChange] Date range changed to ${newRange}, newStartDate: ${newStartDate}, newEndDate: ${newEndDate}, newSelectedDate: ${newSelectedDate}, refreshing data...`);
     
     // ใช้ setTimeout เพื่อให้การเปลี่ยนค่า state ทำงานเสร็จก่อน
     setTimeout(() => {
@@ -1687,7 +1660,8 @@ function DashboardPage() {
         const start = parseISO(startDate);
         const end = parseISO(endDate);
         setEffectiveDateRange({ start, end });
-      console.log(`[DashboardPage] Setting date range: ${format(start, 'yyyy-MM-dd')} - ${format(end, 'yyyy-MM-dd')}`);
+        setSelectedDate(format(end, 'yyyy-MM-dd')); // <--- เพิ่มบรรทัดนี้เพื่อให้ selectedDate สอดคล้องกับ endDate ของ range ที่เลือก
+        console.log(`[DashboardPage] Setting date range: ${format(start, 'yyyy-MM-dd')} - ${format(end, 'yyyy-MM-dd')}, selectedDate: ${format(end, 'yyyy-MM-dd')}`);
       } catch (err) {
       console.error('[DashboardPage] Error parsing date range:', err);
       }

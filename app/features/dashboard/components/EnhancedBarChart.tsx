@@ -131,9 +131,10 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
   // คำนวณความสูงที่เหมาะสมตามจำนวน Ward
   const getOptimalHeight = (data: WardCensusData[]) => {
     // กำหนดความสูงขั้นต่ำและความสูงต่อ ward
-    const minHeight = 300;
-    const heightPerWard = 45; // เพิ่มความสูงต่อ ward เพื่อให้มีพื้นที่เพียงพอ
+    const minHeight = 350; // เพิ่มความสูงขั้นต่ำจาก 300px เป็น 350px
+    const heightPerWard = 60; // เพิ่มความสูงต่อ ward จาก 45px เป็น 60px เพื่อให้มีพื้นที่เพียงพอ
     
+    // คำนวณความสูงตามจำนวน ward แต่ไม่น้อยกว่า minHeight
     return Math.max(minHeight, data.length * heightPerWard);
   };
 

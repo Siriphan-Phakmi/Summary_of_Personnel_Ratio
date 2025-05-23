@@ -124,9 +124,9 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
       return null;
     }
 
-    const boxWidth = 28; // เพิ่มความกว้างเล็กน้อย
-    const boxHeight = 20; // เพิ่มความสูงเล็กน้อย
-    const borderRadius = 4; // เพิ่มความโค้งมนเล็กน้อย
+    const boxWidth = 32; // เพิ่มความกว้างจาก 28 เป็น 32
+    const boxHeight = 24; // เพิ่มความสูงจาก 20 เป็น 24
+    const borderRadius = 5; // เพิ่มความโค้งมนจาก 4 เป็น 5
 
     // Position the box centered around the (x,y) point given by recharts
     const rectX = x - boxWidth / 2;
@@ -143,7 +143,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
           ry={borderRadius}
           fill={isDarkMode ? "#4B5563" : "#374151"} // Dark gray box
           stroke={isDarkMode ? "#6B7280" : "#1F2937"} // เพิ่ม stroke เพื่อให้เห็นชัดเจนขึ้น
-          strokeWidth={0.5}
+          strokeWidth={1} // เพิ่มความหนาของเส้นขอบจาก 0.5 เป็น 1
         />
         <text
           x={x}
@@ -151,7 +151,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
           fill="#FFFFFF" // White text
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize="11px" // เพิ่มขนาดตัวอักษรเล็กน้อย
+          fontSize="13px" // เพิ่มขนาดตัวอักษรจาก 11px เป็น 13px
           fontWeight="bold"
         >
           {Math.round(value)}
@@ -171,7 +171,7 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md h-full">
       <h2 className="text-lg font-semibold mb-3 text-center text-gray-800 dark:text-white">จำนวนเตียงว่าง</h2>
-      <div className="h-full" style={{ minHeight: '200px' }}>
+      <div className="h-full" style={{ minHeight: '250px' }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <Pie
@@ -179,11 +179,11 @@ const EnhancedPieChart: React.FC<EnhancedPieChartProps> = ({
               cx="50%"
               cy="50%"
               innerRadius={0}
-              outerRadius="70%" // ใช้เป็นเปอร์เซ็นต์เพื่อความยืดหยุ่น
-              paddingAngle={2}
+              outerRadius="75%" // เพิ่มขนาดวงกลมจาก 70% เป็น 75%
+              paddingAngle={1} // ลดช่องว่างระหว่างส่วนจาก 2 เป็น 1
               dataKey="value"
               onClick={(entryData) => onSelectWard(entryData.id)}
-              labelLine={false} // ไม่แสดงเส้น
+              labelLine={true} // เปลี่ยนเป็น true เพื่อแสดงเส้นเชื่อมไปยังข้อมูล
               label={<CustomLabel />}
               isAnimationActive={true}
               animationDuration={500}
