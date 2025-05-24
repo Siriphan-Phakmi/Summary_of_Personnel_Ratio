@@ -222,17 +222,17 @@ const CalendarWithEvents: React.FC<CalendarWithEventsProps> = ({
                   cursor-pointer relative`} 
                 onClick={() => handleDateSelect(day.date)}
               >
-                <span className={`text-[10px] ${
-                  isSelected ? 'text-white bg-blue-600 rounded-full w-4 h-4 flex items-center justify-center' :
-                  isToday ? colorClasses.currentDay :
-                  day.isCurrentMonth ? colorClasses.textPrimary : 'text-gray-500'
+                <span className={`${
+                  isSelected ? 'text-white bg-blue-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold' :
+                  isToday ? `${colorClasses.currentDay} font-bold text-xs border border-blue-400 dark:border-blue-500 rounded-full w-5 h-5 flex items-center justify-center bg-blue-50 dark:bg-blue-900/30` :
+                  day.isCurrentMonth ? `${colorClasses.textPrimary} text-[10px]` : 'text-gray-500 text-[10px]'
                 }`}>
                   {format(day.date, 'd')}
                 </span>
                 
                 {dayEvents.length > 0 && (
                   <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
-                    <div className={`w-1.5 h-1.5 rounded-full bg-${dayEvents[0].color}-500`}></div>
+                    <div className={`w-2.5 h-2.5 rounded-full bg-${dayEvents[0].color}-500`}></div>
                   </div>
                 )}
               </div>

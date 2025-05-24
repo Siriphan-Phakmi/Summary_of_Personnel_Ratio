@@ -92,7 +92,20 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  const [showWardDetails, setShowWardDetails] = useState(true);
+  // ดึงค่าการแสดงแยกแผนกจาก localStorage ถ้ามี
+  const [showWardDetails, setShowWardDetails] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedPreference = localStorage.getItem('dashboardShowWardDetails');
+        // ถ้ามีค่าเก็บไว้ ให้ใช้ค่านั้น แต่ถ้าไม่มีให้ค่าเริ่มต้นเป็น true
+        return savedPreference !== null ? savedPreference === 'true' : true;
+      } catch (error) {
+        console.error('Error reading display mode preference:', error);
+        return true;
+      }
+    }
+    return true;
+  });
   
   if (!data || data.length === 0) {
     return (
@@ -210,7 +223,15 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
   };
   
   const toggleDisplayMode = () => {
+    // สลับระหว่างการแสดงแยกแผนกและแสดงภาพรวม
     setShowWardDetails(!showWardDetails);
+    
+    // บันทึกสถานะลงใน localStorage เพื่อจำค่าไว้
+    try {
+      localStorage.setItem('dashboardShowWardDetails', (!showWardDetails).toString());
+    } catch (error) {
+      console.error('Error saving display mode preference:', error);
+    }
   };
 
   const renderLineChart = (chartData: any[], wardLines: LineConfig[], useWardLines: boolean, showWardDetails: boolean) => {
@@ -334,7 +355,7 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white'
               }`}
             >
-              {showWardDetails ? 'แสดงแยกแผนก' : 'แสดงภาพรวม'}
+              {showWardDetails ? 'แสดงภาพรวม' : 'แสดงแยกแผนก'}
             </button>
           )}
           </div>

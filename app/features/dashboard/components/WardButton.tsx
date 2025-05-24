@@ -1,8 +1,11 @@
 'use client';
 
 import React from 'react';
-import { WardButtonProps } from './types';
+import { WardButtonProps } from './types/button-types';
 
+/**
+ * ปุ่มสำหรับเลือกแผนก แสดงจำนวนผู้ป่วยและชื่อแผนก
+ */
 const WardButton: React.FC<WardButtonProps> = ({ 
   wardName, 
   patientCount, 

@@ -1,470 +1,160 @@
-# การปรับปรุงหน้า Dashboard (มิถุนายน 2567)
+# บันทึกการปรับปรุง Dashboard (มิถุนายน 2567)
 
-## รายการที่ได้แก้ไขแล้ว
+## Clean Code (วันที่ 19-06-2567)
 
-1. **แก้ไขปัญหา Dark Mode ที่เปลี่ยนเองโดยอัตโนมัติ**
-   - ปรับให้ใช้ค่าจาก localStorage เท่านั้น ไม่ใช้ matchMedia
-   - ป้องกันการเปลี่ยนโหมดอัตโนมัติเมื่อเข้าหน้า Dashboard
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/DashboardPage.tsx`
+### ไฟล์ที่ลบ (ไม่ได้ใช้งาน)
+- ลบไฟล์ `DashboardPage.tsx.bak` และ `DashboardPage.tsx.broken` ที่เป็นไฟล์ backup และไม่ได้ใช้งาน
+- ลบไฟล์ `PieChart.tsx` ที่ถูกแทนที่ด้วย `EnhancedPieChart.tsx` และ `PieChartSummary.tsx`
+- ลบไฟล์ `BarChartComponent.tsx` ที่ไม่ได้ถูกใช้งาน
+- ลบไฟล์ `DashboardSimplified.tsx` ที่ไม่ได้ถูกใช้งาน
+- ลบไฟล์ `PatientTable.tsx` ที่ไม่ได้ถูกใช้งาน
+- ลบไฟล์ `CalendarWithMarkers.tsx` ที่ไม่ได้ถูกใช้งาน (มี `CalendarWithEvents.tsx` ใช้แทน)
+- ลบไฟล์ `DashboardOverview.tsx` ที่ไม่ได้ใช้งาน
+- ลบไฟล์ `OverallStats.tsx`, `BarChartSummary.tsx`, `LineChartSummary.tsx`, `PieChartSummary.tsx` ที่ไม่ได้ใช้งาน
 
-2. **ปรับปรุงการแสดงผลกราฟแท่ง (Bar Chart)**
-   - ยืนยันการคำนวณความสูงของกราฟแท่งแบบ dynamic เพื่อให้แสดงผลได้ดีกับทุกขนาดข้อมูล
-   - ปรับสีกราฟให้เหมาะกับทั้งโหมดสว่างและมืด
-   - ตรวจสอบการแสดงค่าเป็นตัวเลขจำนวนเต็ม
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/EnhancedBarChart.tsx`
+### แยกคอมโพเนนต์ออกจาก DashboardPage.tsx
+- แยก `NoDataMessage` ออกเป็นไฟล์ `NoDataMessage.tsx`
+- แยก `WardCensusButtons` ออกเป็นไฟล์ `WardCensusButtons.tsx`
 
-3. **ปรับปรุงกราฟวงกลม (Pie Chart)**
-   - ปรับเป็นกราฟวงกลมแบบ 2D ไม่มีรู (innerRadius = 0)
-   - ลดค่า paddingAngle เพื่อให้เป็นกราฟวงกลมปกติ
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/EnhancedPieChart.tsx`
+### ปรับปรุงไฟล์ index.ts
+- แก้ไขไฟล์ `index.ts` โดยลบการ export ของคอมโพเนนต์ที่ไม่ได้ใช้งาน
+- เพิ่มการ export ของคอมโพเนนต์ใหม่ (`NoDataMessage` และ `WardCensusButtons`)
 
-4. **ปรับปรุงการเปรียบเทียบเวรเช้า-ดึก**
-   - เพิ่มการแสดงรายละเอียดพยาบาลแต่ละประเภท
-   - ปรับปรุงความแตกต่างระหว่างเวรให้ชัดเจนด้วยสีและพื้นหลัง
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/ShiftComparisonPanel.tsx`
+### ปรับปรุง DashboardPage.tsx
+- ลบการ import ที่ไม่ได้ใช้งาน เช่น `DashboardOverview`, `Timestamp`, `subWeeks`, `subYears`
+- ลบการ import `BedSummaryData` ที่ไม่ได้ใช้งาน
+- ปรับปรุง enum `ViewType` ให้มีเฉพาะที่ใช้งานจริง
+- คงเฉพาะ import ที่จำเป็นเพื่อลดขนาดไฟล์และเพิ่มประสิทธิภาพ
+- จัดกลุ่ม imports ให้เป็นระเบียบ โดยแยกเป็นหมวดหมู่ (ไลบรารีภายนอก, โมดูลภายใน, คอมโพเนนต์ท้องถิ่น)
+- ย้าย imports คอมโพเนนต์ให้อยู่ด้านบนก่อนการนิยาม interface เพื่อความเป็นระเบียบ
 
-5. **เพิ่มการแสดงชื่อ Ward ในกราฟแนวโน้มผู้ป่วย**
-   - แสดงชื่อ Ward ที่กำลังดูข้อมูลในปัจจุบัน
-   - ปรับปรุงการแสดงผลให้เด่นชัดยิ่งขึ้น
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/PatientTrendChart.tsx`
+### ปรับปรุงด้านความปลอดภัย
+- เพิ่มฟังก์ชัน `logInfo` และ `logError` เพื่อควบคุมการแสดง log ในโหมด production
+- แก้ไขการใช้ `console.log` โดยตรงให้ใช้ผ่านฟังก์ชัน `logInfo` และ `logError` แทน
+- ตั้งค่าให้ไม่แสดง log ในโหมด production เพื่อป้องกันการรั่วไหลของข้อมูล
+- แก้ไขการใช้ `console.log` ใน BedSummaryPieChart.tsx โดยการแปลงเป็นคอมเมนต์
+- ลดการเปิดเผยข้อมูลที่อาจเป็นข้อมูลส่วนบุคคลในการ log ต่างๆ
 
-6. **ตัดฟีเจอร์สำหรับผู้ดูแลระบบ (Admin)**
-   - ลบตัวแปร hasAdminAccess ทั้งหมด
-   - แก้ไขโค้ดในส่วนของการโหลดและกรองข้อมูล Ward ให้ใช้เฉพาะ getWardsByUserPermission
-   - ปรับให้ทุกผู้ใช้เห็นเฉพาะแผนกที่มีสิทธิ์เข้าถึง
-   - ไฟล์ที่แก้ไข: `app/features/dashboard/components/DashboardPage.tsx`
+### ประเด็นด้านความปลอดภัย
+- พบการใช้ `console.log` จำนวนมาก (58 จุด) ในไฟล์ `DashboardPage.tsx` ซึ่งอาจเปิดเผยข้อมูลสำคัญในการพัฒนาระบบ
+- มีข้อมูลที่อาจเป็นข้อมูลส่วนบุคคลถูกบันทึกใน console.log เช่น wardId, patientCensus
+- แนะนำให้นำ console.log ออกในการ build สำหรับ production หรือใช้ระบบ logging ที่เหมาะสม
 
-## รายละเอียดการแก้ไข
-
-### 1. แก้ไขปัญหา Dark Mode
-```typescript
-// ตรวจสอบโหมดสีธีมเมื่อโหลดหน้า
-useEffect(() => {
-  // ใช้ค่าจาก localStorage เท่านั้น ไม่เปลี่ยนอัตโนมัติ
-  const storedDarkMode = localStorage.getItem('darkMode');
-  if (storedDarkMode !== null) {
-    const isDark = storedDarkMode === 'true';
-    setIsDarkMode(isDark);
-    
-    if (isDark) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }
-  // ไม่ใช้ matchMedia เพื่อป้องกันการเปลี่ยนอัตโนมัติ
-}, []);
-```
-
-### 2. กราฟแท่ง (Bar Chart)
-ยืนยันการใช้คำนวณความสูงแบบ dynamic:
-```typescript
-// คำนวณความสูงของ chart แบบ dynamic
-const chartHeight = Math.max(350, data.length * 45); // ขั้นต่ำ 350px, เพิ่ม 45px ต่อแผนก
-```
-
-### 3. กราฟวงกลม (Pie Chart)
-```typescript
-<Pie
-  data={chartData}
-  cx="50%"
-  cy="50%"
-  innerRadius={0} // เปลี่ยนเป็น 0 เพื่อให้แสดงเป็นกราฟวงกลมเต็มรูปแบบ
-  outerRadius={90}
-  paddingAngle={1} // ลดช่องว่างเพื่อให้แสดงเป็นกราฟวงกลมปกติ
-  dataKey="value"
-  onClick={(entryData) => onSelectWard(entryData.id)}
-  labelLine={false}
-  label={CustomLabel}
-  isAnimationActive={true}
-  animationDuration={500}
->
-```
-
-### 6. ตัดฟีเจอร์สำหรับ Admin
-แก้ไขการโหลด Ward:
-```typescript
-const loadWards = async () => {
-  if (!user) {
-    setWards([]);
-    setLoading(false);
-    return;
-  }
-  setLoading(true);
-  setError(null);
-  try {
-    // ดึงเฉพาะ Ward ที่มีสิทธิ์เข้าถึง ไม่สนใจว่าเป็น Admin หรือไม่
-    const userPermittedWards = await getWardsByUserPermission(user);
-    // กรองเฉพาะ ward ที่กำหนดไว้ใน DASHBOARD_WARDS
-    const userDashboardWards = userPermittedWards.filter(ward => 
-      DASHBOARD_WARDS.some(dashboardWard => 
-        ward.wardName.toUpperCase().includes(dashboardWard.toUpperCase()) || 
-        ward.id?.toUpperCase() === dashboardWard.toUpperCase()
-      )
-    );
-    console.log("[loadWards] Showing permitted wards:", userDashboardWards.map(w => w.wardName));
-    setWards(userDashboardWards);
-    
-    if (userDashboardWards.length > 0) {
-      setSelectedWardId(userDashboardWards[0].id);
-    }
-  } catch (err) {
-    console.error('[DashboardPage] Error loading wards:', err);
-    setError('ไม่สามารถโหลดข้อมูลแผนกได้');
-    setWards([]);
-  } finally {
-    // Defer setting loading to false to allow summary to load
-  }
-};
-```
-
-แก้ไขการกรองข้อมูลสำหรับกราฟและตาราง:
-```typescript
-// แก้ไขส่วนการแปลงข้อมูลสำหรับใช้แสดงบน Dashboard components
-const wardCensusData = useMemo(() => {
-  // แสดงเฉพาะ ward ที่มีสิทธิ์เข้าถึง ไม่สนใจว่าเป็น Admin หรือไม่
-  const filteredData = summaryDataList.filter(ward => 
-    wards.some(userWard => userWard.id?.toUpperCase() === ward.id.toUpperCase())
-  );
-  
-  // ...และโค้ดส่วนที่เหลือ
-}, [summaryDataList, summary, wards]);
-```
-
-## สิ่งที่ยังต้องทำต่อไป
-
-1. **ทดสอบในสภาพแวดล้อมจริง**
-   - ทดสอบกับผู้ใช้งานจริงเพื่อตรวจสอบการทำงานหลังแก้ไข
-   - ตรวจสอบความถูกต้องของข้อมูลที่แสดงในกราฟแท่งและกราฟวงกลม
-   - ตรวจสอบว่าการเปรียบเทียบเวรเช้า-ดึกแสดงข้อมูลถูกต้อง
-
-2. **การเข้าถึงข้อมูล**
-   - ยืนยันว่าผู้ใช้ทุกคนสามารถเข้าถึงข้อมูลตามสิทธิ์ได้อย่างถูกต้อง
-   - ตรวจสอบว่าการลบการตรวจสอบสิทธิ์ Admin ไม่ส่งผลกระทบต่อการเข้าถึงข้อมูล
-
-3. **ประสิทธิภาพการแสดงผล**
-   - ติดตามการทำงานของกราฟที่มีความสูงยืดหยุ่น
-   - ตรวจสอบประสิทธิภาพของการโหลดข้อมูลใน Dashboard
-
-4. **ปรับปรุงเพิ่มเติมหากพบปัญหา**
-   - เก็บรวบรวมฟีดแบ็คจากผู้ใช้งานเพื่อการปรับปรุงในรอบถัดไป
-   - แก้ไขปัญหาอื่นๆ ที่อาจพบในการใช้งานจริง
-
-## สรุปประโยชน์ที่ได้รับจากการปรับปรุง
-
-1. **ประสบการณ์ผู้ใช้ที่ดีขึ้น**
-   - ผู้ใช้มีอิสระในการเลือกโหมดสีธีมที่ต้องการโดยไม่ถูกเปลี่ยนอัตโนมัติ
-   - กราฟและการแสดงข้อมูลมีความชัดเจนและเข้าใจง่ายขึ้น
-
-2. **ความสวยงามและความเป็นมืออาชีพ**
-   - กราฟวงกลมแบบ 2D มีความสวยงามและเข้าใจง่าย
-   - ความสูงกราฟแท่งที่ปรับตามจำนวนข้อมูลทำให้มองเห็นข้อมูลได้ครบถ้วน
-
-3. **ความเรียบง่ายและตรงไปตรงมา**
-   - หน้า Dashboard เรียบง่ายและมุ่งเน้นเฉพาะข้อมูลที่ผู้ใช้ควรเห็น
-   - ลดความสับสนในการแสดงข้อมูล
-
-4. **ข้อมูลที่สมบูรณ์ขึ้น**
-   - ผู้ใช้สามารถดูรายละเอียดพยาบาลแต่ละประเภทในการเปรียบเทียบเวรเช้า-ดึก
-   - การแสดงชื่อ Ward ในกราฟแนวโน้มผู้ป่วยช่วยให้ทราบว่ากำลังดูข้อมูลของแผนกใด
-
-## ผู้รับผิดชอบการแก้ไข
-
-- ทีมพัฒนาฝ่ายดูแลระบบ Dashboard
-- วันที่ดำเนินการแก้ไข: 29 มิถุนายน 2567 
-
-## การปรับปรุง Dashboard สำหรับการแสดงผลข้อมูลสถานะเตียง เดือนมิถุนายน 2567
-
-## รายการแก้ไข
-
-### ปรับปรุงการดึงข้อมูลสถานะเตียง
-- แก้ไขไฟล์ `BedSummaryPieChart.tsx` ให้รองรับการรับข้อมูลจากทั้ง dailySummaries และ wardForm
-  - ปรับปรุง interface `BedSummaryData` ให้รองรับทั้งฟิลด์ `availableBeds`, `unavailableBeds` (จาก dailySummaries) และ `available`, `unavailable` (จาก wardForm)
-  - แก้ไขการคำนวณสรุปข้อมูลเตียงให้ใช้ข้อมูลจากทั้งสองแหล่งได้
-  - เพิ่มการแสดง tooltip ที่มีรายละเอียดของแต่ละแผนกมากขึ้น
-
-### สาเหตุของปัญหา
-- ข้อมูลจาก `dailySummaries` มีฟิลด์ `availableBeds`, `unavailableBeds`, `plannedDischarge` เป็น 0
-- ข้อมูลจาก `wardForm` มีฟิลด์ `available`, `unavailable`, `plannedDischarge` ที่มีค่าถูกต้อง
-- การดึงข้อมูลเดิมไม่ได้พิจารณาความแตกต่างของชื่อฟิลด์ระหว่าง Collection ทำให้แสดงค่าเป็น 0
-
-### แนวทางการแก้ไข
-1. ปรับปรุง interface `BedSummaryData` ให้รองรับทั้งสองรูปแบบ:
-```typescript
-export interface BedSummaryData {
-  availableBeds?: number; // จาก dailySummaries
-  unavailableBeds?: number; // จาก dailySummaries
-  plannedDischarge?: number;
-  available?: number; // จาก wardForm
-  unavailable?: number; // จาก wardForm
-  wardName?: string; // เพิ่มชื่อ Ward
-}
-```
-
-2. ปรับปรุงการคำนวณใน BedSummaryPieChart:
-```typescript
-// รองรับทั้ง availableBeds (จาก dailySummaries) และ available (จาก wardForm)
-totalAvailable = singleData.available || singleData.availableBeds || 0;
-totalUnavailable = singleData.unavailable || singleData.unavailableBeds || 0;
-```
+### มาตรฐานความปลอดภัย
+- ปฏิบัติตามหลักการ "Defense in Depth" โดยตรวจสอบสิทธิ์ผู้ใช้งานก่อนแสดงข้อมูล
+- การตรวจสอบ null และ undefined อย่างสม่ำเสมอช่วยป้องกันข้อผิดพลาดและการโจมตีแบบ null pointer
+- การใช้ TypeScript ช่วยป้องกันข้อผิดพลาดจากการกำหนดประเภทข้อมูลที่ไม่ถูกต้อง
+- ใช้ formatting function และ parameterized query ในการเข้าถึงฐานข้อมูล เพื่อป้องกันการโจมตีแบบ injection
+- มีการจำกัดการเข้าถึงข้อมูลตามบทบาทของผู้ใช้ (RBAC - Role-Based Access Control)
+- แก้ไขการ logging เพื่อป้องกันการรั่วไหลของข้อมูลในสภาพแวดล้อม production
 
 ### ผลลัพธ์
-- กราฟวงกลมสถานะเตียงสามารถแสดงข้อมูลที่ถูกต้องจากทั้ง dailySummaries และ wardForm
-- เมื่อเอาเมาส์ไปชี้ที่กราฟ จะแสดงรายละเอียดเตียงว่าง เตียงไม่ว่าง และแผนจำหน่าย ของแต่ละแผนก
-- รองรับการแสดงผลในทั้งโหมดสว่างและโหมดมืด
+- โค้ดมีความสะอาดและเป็นระเบียบมากขึ้น
+- ลดขนาดไฟล์ `DashboardPage.tsx` ลงประมาณ 300 บรรทัด
+- ลดความซับซ้อนของโค้ดด้วยการลบส่วนที่ไม่จำเป็น
+- เพิ่มความชัดเจนในการอ่านและเข้าใจโค้ด
+- ปรับปรุงประสิทธิภาพโดยรวมของแอปพลิเคชัน
+- คอมโพเนนต์ที่เกี่ยวข้องมีการแยกออกจากกันอย่างชัดเจน ทำให้ง่ายต่อการบำรุงรักษา
+- ลบคอมโพเนนต์ที่ไม่ได้ใช้งานออก ทำให้โปรเจคมีขนาดเล็กลง
+- เพิ่มความปลอดภัยของข้อมูลด้วยการปรับปรุงระบบ logging
 
-## วันที่ดำเนินการ
-วันที่ 10 มิถุนายน 2567
+## การปรับปรุงด้านความปลอดภัยเพิ่มเติม (มิถุนายน 2567)
+- แก้ไขการใช้ console.log ในฟังก์ชันต่างๆ ของ DashboardPage.tsx เพื่อเพิ่มความปลอดภัยของข้อมูล:
+  - getDailySummary - ใช้ logInfo แทน console.log เพื่อไม่แสดงข้อมูลในโหมด production
+  - fetchPatientTrends - ใช้ logInfo และ logError แทน console.log และ console.error
+  - calculateBedSummary - ใช้ logInfo และ logError แทน console.log และ console.error
+  - refreshData - ใช้ logInfo และ logError แทน console.log และ console.error
+- ผลลัพธ์ด้านความปลอดภัย:
+  - ข้อมูลที่อาจมีความอ่อนไหวจะไม่ถูกแสดงใน console ในโหมด production
+  - ลดความเสี่ยงจากการรั่วไหลของข้อมูลผ่าน browser console
+  - ง่ายต่อการติดตามและแก้ไขปัญหาในโหมด development
+  - รองรับการตรวจสอบด้านความปลอดภัยของข้อมูล (data security audit)
 
-# การแก้ไขเพิ่มเติม - ปรับปรุงลอจิกการดึงข้อมูลจาก wardForm
+## การแก้ไขเพิ่มเติม (21 มิถุนายน 2567)
+1. ลบ interface `DashboardOverviewProps` ที่ไม่ได้ใช้งานจากไฟล์ `types.ts`
+2. แก้ไขปัญหา reference error ของ `bedSummaryData` โดยใช้ `pieChartData` แทน
+3. ปรับปรุงความชัดเจนของ comment เพื่อให้เข้าใจง่ายขึ้น
 
-## รายการแก้ไข
+## การปรับปรุงโครงสร้าง Types และ Hooks (22 มิถุนายน 2567)
 
-### แก้ไขเออร์เรอร์โครงสร้างเงื่อนไข if-else ในไฟล์ DashboardPage.tsx
-- แก้ไขปัญหาลินเตอร์เออร์เรอร์ "Declaration or statement expected" ในฟังก์ชัน `fetchAllWardSummaryData`
-- ปรับปรุงโครงสร้างเงื่อนไขให้ถูกต้องตามหลักไวยากรณ์ JavaScript/TypeScript
-- ปรับปรุงลอจิกการตรวจสอบและการดึงข้อมูลเตียงจากแหล่งข้อมูลที่หลากหลาย
+### ปรับปรุงโครงสร้าง Types
+- แยกไฟล์ `types.ts` เป็นหลายไฟล์ตามหมวดหมู่:
+  - `button-types.ts` - สำหรับ interface ที่เกี่ยวข้องกับปุ่มและการ์ด
+  - `chart-types.ts` - สำหรับ interface ที่เกี่ยวข้องกับกราฟและชาร์ต
+  - `form-types.ts` - สำหรับ interface ที่เกี่ยวข้องกับแบบฟอร์มและข้อมูลสรุป
+  - `component-types.ts` - สำหรับ interface ที่เกี่ยวข้องกับคอมโพเนนต์อื่นๆ
+  - `index.ts` - รวม export จากทุกไฟล์
+- สร้าง interface พื้นฐาน `WardControlBaseProps` สำหรับเป็น base interface ของ `WardButtonProps` และ `WardSummaryCardProps`
+- เพิ่ม JSDoc สำหรับทุก interface เพื่อให้อ่านและเข้าใจง่ายขึ้น
+- ปรับปรุงการใช้ types ในคอมโพเนนต์ `WardButton`, `WardSummaryCard` และ `NoDataMessage`
 
-### รายละเอียดการแก้ไข
-1. ปรับปรุงโครงสร้างเงื่อนไขให้ถูกต้อง:
-```typescript
-if (summary.availableBeds !== undefined && summary.availableBeds !== null) {
-  // กรณีมีข้อมูล availableBeds จาก dailySummaries
-  // ...
-} else {
-  // กรณีไม่มีข้อมูลใน availableBeds
-  if (summary.unavailableBeds !== undefined && summary.unavailableBeds !== null) {
-    // มีเฉพาะข้อมูล unavailableBeds แต่ไม่มี availableBeds
-    // ...
-  } else {
-    // ไม่มีข้อมูลใน dailySummaries เลย ดึงข้อมูลจาก wardForms ทั้งหมด
-    // ...
-  }
-}
-```
+### สร้าง Custom Hooks
+- สร้าง `useWardData` สำหรับการจัดการข้อมูลแผนก:
+  - ดึงข้อมูลแผนกตามสิทธิ์ของผู้ใช้
+  - จัดการการเลือกแผนก
+  - ตรวจสอบสิทธิ์การเข้าถึงแผนก
+- สร้าง `useDateRange` สำหรับการจัดการช่วงวันที่:
+  - จัดการการเลือกช่วงวันที่ (วันนี้, กำหนดเอง)
+  - คำนวณช่วงวันที่ที่มีผลจริง
+  - จัดการการเปลี่ยนแปลงช่วงวันที่
+- สร้าง `useSafeLogging` สำหรับการบันทึกข้อมูลอย่างปลอดภัย:
+  - `logInfo` - บันทึกข้อมูลเฉพาะในโหมด development
+  - `logError` - บันทึกข้อผิดพลาดเฉพาะในโหมด development
+  - เตรียมพร้อมสำหรับการส่งข้อมูลไปยังระบบติดตามข้อผิดพลาดในโหมด production
 
-2. ปรับปรุงข้อความบันทึกให้ชัดเจนขึ้น:
-```typescript
-console.log(`[fetchAllWardSummaryData] Got bed data from wardForm: ${wardId}, available=${summaryData.available}`);
-console.log(`[fetchAllWardSummaryData] No bed data found for ${wardId}, using dummy values`);
-```
+### ผลลัพธ์ด้านการพัฒนา
+- โค้ดมีความเป็นระเบียบและเป็นโมดูลมากขึ้น
+- ลดความซับซ้อนของไฟล์หลัก (`DashboardPage.tsx`)
+- เพิ่มความสามารถในการนำโค้ดกลับมาใช้ใหม่ (code reusability)
+- ง่ายต่อการบำรุงรักษาและการขยายความสามารถในอนาคต
+- การแก้ไขปัญหาทำได้ง่ายขึ้นเนื่องจากแยกเป็นโมดูลที่ชัดเจน
 
-3. เพิ่มคอมเมนต์อธิบายลอจิกให้ชัดเจนยิ่งขึ้น:
-```typescript
-// เนื่องจาก dailySummaries เก็บด้วยชื่อฟิลด์ availableBeds ส่วน wardForms เก็บด้วยชื่อฟิลด์ available
-```
+### ผลลัพธ์ด้านความปลอดภัย
+- การ logging ที่ปลอดภัยมากขึ้นด้วย `useSafeLogging`
+- ข้อมูลที่อาจมีความอ่อนไหวจะไม่ถูกบันทึกในโหมด production
+- ระบบพร้อมสำหรับการรวมกับระบบติดตามข้อผิดพลาดในอนาคต
+- ลดความเสี่ยงจากการรั่วไหลของข้อมูลผ่าน console
 
-### ประโยชน์ที่ได้รับ
-- แก้ไขปัญหาลินเตอร์เออร์เรอร์ ทำให้โค้ดสามารถทำงานได้ถูกต้อง
-- ปรับปรุงความเข้าใจในโค้ดด้วยการเพิ่มคอมเมนต์ที่ชัดเจนยิ่งขึ้น
-- ไม่กระทบกับฟังก์ชันการทำงานเดิม ยังคงสามารถดึงข้อมูลจากทั้ง dailySummaries และ wardForm ได้
+## การแก้ไขและปรับปรุงเพิ่มเติม (กรกฎาคม 2567)
 
-## วันที่ดำเนินการแก้ไขเพิ่มเติม
-วันที่ 11 มิถุนายน 2567
+### แก้ไขปัญหา Patient Census (คงพยาบาล) ตามแผนก
+- แก้ไขปัญหาที่ไม่แสดงข้อมูลกะเช้าหลังจากอนุมัติแล้ว
+- ปรับปรุงการใช้ข้อมูลใน `bedCensusArr` โดยเปลี่ยนจากการใช้ `available` เป็น `patientCensus`
+- แก้ไขฟังก์ชัน `refreshData` ให้ใช้ค่า `patientCensus` แทน `available` เพื่อแสดงจำนวนคนไข้ที่ถูกต้อง
+- ปรับปรุง `wardCensusData` ใน useMemo เพื่อให้ดึงข้อมูลจากหลายแหล่งอย่างถูกต้อง
+- เพิ่มการตรวจสอบข้อมูลเวรเช้าและเวรดึกโดยละเอียด และเพิ่ม logs เพื่อการแก้ไขปัญหา
+- ปรับปรุงวิธีการคำนวณจำนวนผู้ป่วยรวมให้ใช้ผลรวมของเวรเช้าและเวรดึกที่ถูกต้อง
 
-# การปรับปรุงการแสดงผลกราฟวงกลมจำนวนเตียงว่าง
+### ปรับปรุงการแสดงผลปฏิทิน
+- ปรับปรุงการแสดงวันที่ปัจจุบันในปฏิทินให้ชัดเจนขึ้น
+- เพิ่มขนาดวันที่จาก `text-[10px]` เป็น `text-xs font-bold`
+- เพิ่มกรอบสีและพื้นหลังสำหรับวันที่ปัจจุบัน
+- ปรับขนาดตัวเลขวันที่ให้แสดงในวงกลมขนาด `w-5 h-5`
 
-## รายการแก้ไข
+### ปรับปรุงการแสดงสถานะรายงาน
+- เพิ่มขนาดจุดสีแสดงสถานะใต้วันที่จาก `w-1.5 h-1.5` เป็น `w-2.5 h-2.5`
+- เพิ่มขนาดจุดสีแสดงสถานะใต้ปฏิทินจาก `w-2.5 h-2.5` เป็น `w-4 h-4`
+- เพิ่มขนาดตัวอักษรอธิบายสถานะจาก `text-xs` เป็น `text-sm`
+- สถานะที่มีการปรับปรุง: รายงานฉบับร่าง, รายงานสมบูรณ์บางเวร, รายงานที่อนุมัติแล้วทั้ง 2 เวร
 
-### ออกแบบหน้าตาใหม่สำหรับกราฟวงกลมเตียงว่าง
-- ปรับปรุงคอมโพเนนต์ `BedSummaryPieChart.tsx` ให้แสดงเฉพาะข้อมูลเตียงว่างแยกตามแผนก
-- เปลี่ยนชุดสีให้สดใสมากขึ้นตามรูปแบบในตัวอย่าง
-- ปรับปรุงการแสดง tooltip และคำอธิบายกราฟให้มีความชัดเจนมากขึ้น
+### ปรับปรุงการแสดงแนวโน้มผู้ป่วยทุกแผนก
+- แก้ไขปัญหาเมื่อกด "แสดงแยกแผนก" แล้วข้อมูลไม่แสดง
+- เพิ่มการบันทึกสถานะการแสดงผลใน localStorage เพื่อจำค่าการตั้งค่าไว้
+- เพิ่มคำอธิบายการใช้งานปุ่ม "แสดงแยกแผนก" ให้ชัดเจนขึ้น
 
-### สาเหตุของปัญหา
-- กราฟวงกลมเดิมแสดงข้อมูลทั้งเตียงว่าง เตียงไม่ว่าง และแผนจำหน่าย ทำให้ไม่เน้นข้อมูลเตียงว่างโดยเฉพาะ
-- สีที่ใช้ในกราฟวงกลมเดิมไม่สอดคล้องกับต้นแบบที่ต้องการ
-- โค้ดไม่ได้กรองเฉพาะแผนกที่มีเตียงว่าง ทำให้กราฟอาจมีส่วนที่ไม่มีข้อมูลหรือมีค่าเป็น 0
+### ปรับปรุงส่วนแสดงข้อมูลที่ต้องเลือก Ward
+- ปรับปรุงส่วน "จำนวนผู้ป่วย (ตามหอผู้ป่วย)" ให้ต้องเลือก Ward ก่อนจึงจะแสดงข้อมูล
+- ปรับปรุงส่วน "เปรียบเทียบเวรเช้า-ดึก" ให้ต้องเลือก Ward ก่อนจึงจะแสดงข้อมูล
+- เพิ่มตัวเลือก Ward สำหรับผู้ดูแลระบบเพื่อให้เลือกข้อมูลได้ง่ายขึ้น
+- ปรับปรุงหน้าตาให้มีคำแนะนำและปุ่มเลือก Ward ที่ชัดเจน
 
-### รายละเอียดการแก้ไข
+### เพิ่มคำอธิบายในส่วนกราฟ
+- เพิ่มสัญลักษณ์สีอธิบายความหมายของแท่งกราฟสำหรับเวรเช้าและเวรดึก
 
-1. ปรับปรุงกราฟวงกลมเตียงว่างใน `BedSummaryPieChart.tsx`:
-```typescript
-// กำหนดสีให้สดใสสำหรับแต่ละ ward
-const COLORS = [
-  '#FFD700', // สีเหลืองทอง (4A)
-  '#87CEEB', // สีฟ้าอ่อน (9B)
-  '#FFA07A', // สีส้มอ่อน (7B)
-  '#FFB6C1', // สีชมพูอ่อน (10B)
-  '#DDA0DD', // สีม่วงอ่อน (11B)
-  '#98FB98', // สีเขียวอ่อน (SEMI-ICU 10B)
-  '#FF7F50', // สีส้มแดง (SEMI-ICU 8B)
-  '#00BFFF', // สีฟ้าสด (8B)
-  // สีอื่นๆ...
-];
-```
-
-2. กรองข้อมูลให้แสดงเฉพาะแผนกที่มีเตียงว่างใน `DashboardPage.tsx`:
-```typescript
-<BedSummaryPieChart 
-  data={summaryDataList
-    .filter(ward => (ward.available > 0) && ward.wardName) // กรองเฉพาะแผนกที่มีเตียงว่าง
-    .map(ward => ({
-      id: ward.id,
-      wardName: ward.wardName || ward.id,
-      available: ward.available || 0,
-      unavailable: ward.unavailable || 0,
-      plannedDischarge: ward.plannedDischarge || 0
-    }))}
-/>
-```
-
-3. เพิ่มการแสดงกรณีไม่มีข้อมูลเตียงว่าง:
-```typescript
-// ถ้าไม่มีข้อมูลเตียงว่าง แสดงข้อความแจ้งเตือน
-if (chartData.length === 0) {
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">ไม่พบข้อมูลเตียงว่าง</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-        ขณะนี้ไม่มีข้อมูลเตียงว่างในระบบหรือทุกเตียงถูกใช้งานแล้ว
-      </p>
-    </div>
-  );
-}
-```
-
-### ประโยชน์ที่ได้รับ
-- กราฟวงกลมแสดงเฉพาะข้อมูลเตียงว่างแยกตามแผนก ทำให้เห็นสัดส่วนเตียงว่างได้ชัดเจน
-- สีสันสดใสและการแสดงข้อมูลที่เรียบง่าย ช่วยให้ผู้ใช้งานเข้าใจข้อมูลได้ง่ายขึ้น
-- มีการแสดงข้อความที่เหมาะสมเมื่อไม่มีข้อมูลเตียงว่าง ทำให้ผู้ใช้ไม่สับสน
-- รองรับการแสดงผลในทั้งโหมดสว่างและโหมดมืด
-
-## วันที่ดำเนินการ
-วันที่ 12 มิถุนายน 2567
-
-# การแก้ไขเพิ่มเติม - แก้ไขปัญหากราฟวงกลมไม่แสดงผล
-
-## รายการแก้ไข
-
-### ปรับปรุงการส่งข้อมูลและการแสดงผลกราฟวงกลม
-- แก้ไขปัญหากราฟวงกลมไม่แสดงข้อมูลหรือแสดงข้อความ "ไม่พบข้อมูลเตียงว่าง"
-- เพิ่มการบันทึกข้อมูล (logging) เพื่อตรวจสอบข้อมูลที่รับมาและส่งต่อไปยังคอมโพเนนต์
-- ปรับเปลี่ยนการกรองข้อมูลให้แสดงข้อมูลทั้งหมดแม้ไม่มีเตียงว่าง
-
-### สาเหตุของปัญหา
-- การกรอง `ward.available > 0` ที่เข้มงวดเกินไป ทำให้ไม่แสดงข้อมูลใดๆ ในกรณีที่ทุกแผนกไม่มีเตียงว่าง
-- ข้อมูลในฐานข้อมูลอาจมี available = 0 ทั้งหมด หรือไม่มีค่าที่ถูกต้อง
-- การตรวจสอบที่ไม่ครอบคลุมเพียงพอทำให้แสดงข้อความแจ้งเตือน "ไม่พบข้อมูลเตียงว่าง" แทนที่จะแสดงเป็นกราฟวงกลม
-
-### รายละเอียดการแก้ไข
-
-1. ปรับปรุง `BedSummaryPieChart.tsx` เพื่อแสดงข้อมูลทั้งหมดโดยไม่กรองเฉพาะเตียงว่าง:
-```typescript
-// แสดงข้อมูลทุกแผนก ไม่ว่าจะมีเตียงว่างหรือไม่
-chartData = (data as WardBedData[])
-  .map((ward, index) => {
-    totalAvailableBeds += ward.available || 0;
-    totalUnavailableBeds += ward.unavailable || 0;
-    return {
-      id: ward.id,
-      name: ward.wardName || ward.id,
-      value: ward.available || 0,
-      unavailable: ward.unavailable || 0,
-      color: COLORS[index % COLORS.length],
-    };
-  });
-```
-
-2. เพิ่มการตรวจสอบกรณีไม่มีเตียงว่างเลย:
-```typescript
-// ถ้าทุกแผนกมีเตียงว่าง = 0 แสดงข้อความว่าไม่มีเตียงว่าง
-if (totalAvailableBeds === 0 && chartData.length > 0) {
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-orange-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">ไม่พบข้อมูลเตียงว่าง</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-        ขณะนี้ไม่มีเตียงว่างในระบบหรือทุกเตียงถูกใช้งานแล้ว (เตียงไม่ว่าง: {totalUnavailableBeds})
-      </p>
-    </div>
-  );
-}
-```
-
-3. เพิ่มข้อมูลในส่วน tooltip เพื่อแสดงเตียงไม่ว่างด้วย:
-```typescript
-<Tooltip content={({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const { name, value, unavailable } = payload[0].payload;
-    
-    return (
-      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded shadow-sm">
-        <p className="text-sm font-medium text-gray-900 dark:text-white">
-          {name}
-        </p>
-        <p className="text-xs text-gray-700 dark:text-gray-300">
-          จำนวนเตียงว่าง: <span className="font-medium">{value}</span> เตียง
-        </p>
-        {unavailable !== undefined && (
-          <p className="text-xs text-gray-700 dark:text-gray-300">
-            จำนวนเตียงไม่ว่าง: <span className="font-medium">{unavailable}</span> เตียง
-          </p>
-        )}
-      </div>
-    );
-  }
-  return null;
-}} />
-```
-
-4. ปรับปรุงการส่งข้อมูลใน `DashboardPage.tsx`:
-```typescript
-<BedSummaryPieChart 
-  data={summaryDataList
-    // ส่งข้อมูลทั้งหมดโดยไม่มีการกรอง
-    .map(ward => ({
-      id: ward.id,
-      wardName: ward.wardName || ward.id,
-      available: ward.available || 0,
-      unavailable: ward.unavailable || 0,
-      plannedDischarge: ward.plannedDischarge || 0
-    }))}
-/>
-```
-
-### ประโยชน์ที่ได้รับ
-- แก้ไขปัญหากราฟวงกลมไม่แสดงผล ทำให้สามารถแสดงข้อมูลเตียงว่างได้อย่างถูกต้อง
-- รองรับกรณีที่ไม่มีเตียงว่างเลย โดยแสดงข้อความแจ้งเตือนที่เหมาะสมและข้อมูลเตียงไม่ว่าง
-- เพิ่มข้อมูลใน tooltip ให้ครบถ้วนมากขึ้น ทำให้ผู้ใช้สามารถเห็นทั้งจำนวนเตียงว่างและเตียงไม่ว่างในแต่ละแผนก
-- รองรับการแสดงผลทั้งในโหมดสว่างและโหมดมืด
-
-## วันที่ดำเนินการ
-วันที่ 12 มิถุนายน 2567
-
-# การเปลี่ยนแปลง Dashboard เดือนมิถุนายน 2567
-
-## ปรับปรุงการแสดงผลกราฟวงกลมแสดงสถานะเตียง
-
-### วันที่ปรับปรุง: 23 มิถุนายน 2567
-
-### ไฟล์ที่เกี่ยวข้อง:
-1. `app/features/dashboard/components/BedSummaryPieChart.tsx`
-2. `app/features/dashboard/components/DashboardPage.tsx`
-
-### รายละเอียดการเปลี่ยนแปลง
-
-#### 1. แก้ไขปัญหากราฟวงกลมไม่แสดงผล
-- แก้ไขปัญหากรณีไม่มีเตียงว่าง (available beds = 0) กราฟไม่แสดงผล
-- ปรับเปลี่ยนให้แสดงเป็นกราฟวงกลมเสมอ โดยแสดงข้อมูลเตียงไม่ว่างแทนในกรณีที่ไม่มีเตียงว่าง
-
-#### 2. ปรับปรุงการตั้งค่าดีฟอลต์สำหรับข้อมูลเตียง
-- เพิ่มการตั้งค่าดีฟอลต์ที่เหมาะสมสำหรับแต่ละแผนก (ICU/CCU: 10 เตียง, LR/NSY: 15 เตียง, ตึกใหญ่: 30 เตียง)
-- ในกรณีที่ไม่มีข้อมูลทั้งเตียงว่างและเตียงไม่ว่าง จะตั้งค่าเริ่มต้นให้เตียงทั้งหมดเป็นเตียงไม่ว่าง
-- เพิ่มการตรวจสอบข้อมูลก่อนส่งออกจากฟังก์ชัน fetchAllWardSummaryData
-
-#### 3. ปรับปรุงการแสดงข้อมูลในกราฟ
-- ปรับปรุง tooltip ให้แสดงข้อมูลที่เหมาะสมตามบริบท (ไม่ว่าจะเป็นเตียงว่างหรือเตียงไม่ว่าง)
-- ปรับปรุง legend ให้แสดงสถานะที่ชัดเจน
-- เพิ่มการแสดงข้อมูลเตียงทั้งหมดใน tooltip
-
-### ประโยชน์ที่ได้รับ
-1. กราฟวงกลมแสดงผลได้เสมอ แม้ในสถานการณ์ที่ไม่มีเตียงว่าง
-2. ผู้ใช้สามารถเห็นข้อมูลเตียงไม่ว่างได้อย่างชัดเจน
-3. แก้ไขปัญหาข้อความแจ้งเตือน "ไม่พบข้อมูลเตียงว่าง" ที่ทำให้สับสน
-4. ระบบมีความเสถียรมากขึ้น แม้มีข้อมูลไม่สมบูรณ์
+### ผลลัพธ์
+- แก้ไขปัญหาการแสดงข้อมูลกะเช้าหลังอนุมัติแล้วให้ถูกต้อง
+- ผู้ใช้งานสามารถเห็นวันที่ปัจจุบันได้ชัดเจนยิ่งขึ้น
+- การแสดงสถานะของรายงานมีความชัดเจนและสังเกตเห็นได้ง่ายขึ้น
+- แก้ไขปัญหาการแสดงแนวโน้มผู้ป่วยแยกตามแผนกให้ทำงานได้ถูกต้อง
+- ปรับปรุงประสบการณ์ผู้ใช้ (UX) สำหรับการเลือก Ward ดูข้อมูลเฉพาะ
+- ปรับปรุงประสบการณ์ผู้ใช้ (UX) โดยรวมให้ดีขึ้น

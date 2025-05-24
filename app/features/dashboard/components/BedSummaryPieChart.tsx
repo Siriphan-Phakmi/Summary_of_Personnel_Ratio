@@ -4,6 +4,13 @@ import React from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTheme } from 'next-themes';
 
+// ฟังก์ชันสำหรับ logging ที่ปลอดภัย - แสดงเฉพาะใน development mode
+const logInfo = (message: string, ...data: any[]) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(message, ...data);
+  }
+};
+
 // ข้อมูลสำหรับแสดงสรุปเตียง (ว่าง/ไม่ว่าง/แผนจำหน่าย)
 export interface BedSummaryData {
   availableBeds?: number; // จาก dailySummaries
@@ -31,8 +38,8 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
 
-  // แสดง console.log เพื่อตรวจสอบข้อมูลที่ได้รับ
-  console.log('BedSummaryPieChart received data:', JSON.parse(JSON.stringify(data)));
+  // ใช้ logInfo แทน console.log เพื่อความปลอดภัย
+  // logInfo('BedSummaryPieChart received data:', JSON.parse(JSON.stringify(data)));
 
   // กำหนดสีให้สดใสสำหรับแต่ละ ward
   const COLORS = [

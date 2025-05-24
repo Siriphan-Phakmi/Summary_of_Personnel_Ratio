@@ -33,13 +33,15 @@ interface WardSummaryTableProps {
   selectedWardId: string | null;
   onSelectWard: (wardId: string) => void;
   title?: string;
+  isRegularUser?: boolean;
 }
 
 const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   data,
   selectedWardId,
   onSelectWard,
-  title = 'ตารางข้อมูลรวมทั้งหมด'
+  title = 'ตารางข้อมูลรวมทั้งหมด',
+  isRegularUser = false
 }) => {
   const renderShiftRow = (
     wardId: string,
@@ -204,7 +206,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
       <h2 className="text-xl font-bold p-4 text-center border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white">
-        {title}
+        {isRegularUser ? 'ข้อมูลหอผู้ป่วยของคุณ' : title}
       </h2>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

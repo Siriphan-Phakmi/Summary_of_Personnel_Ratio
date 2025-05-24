@@ -1,16 +1,11 @@
 'use client';
 
 import React from 'react';
+import { WardSummaryCardProps } from './types/button-types';
 
-interface WardSummaryCardProps {
-  wardName: string;
-  patientCount: number | string;
-  hasData?: boolean;
-  onClick?: () => void;
-  isSelected?: boolean;
-  color?: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'pink' | 'teal';
-}
-
+/**
+ * การ์ดแสดงข้อมูลสรุปของแผนก
+ */
 const colors = {
   blue: 'bg-blue-100 text-blue-800',
   green: 'bg-green-100 text-green-800',

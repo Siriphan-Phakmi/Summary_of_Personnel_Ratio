@@ -103,16 +103,6 @@ export interface PatientCensusCalculationProps {
   onRefresh?: () => void;
 }
 
-export interface DashboardOverviewProps {
-  date: Date;
-  totalStats: {
-    opd24hr: number;
-    oldPatient: number;
-    newPatient: number;
-    admit24hr: number;
-  };
-}
-
 export interface EnhancedBarChartProps {
   data: {
     id: string;

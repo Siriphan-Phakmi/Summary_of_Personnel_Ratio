@@ -219,10 +219,11 @@ export const checkAndCreateDailySummary = async (
           ((nightForm.nurseManager || 0) + (nightForm.rn || 0) + (nightForm.pn || 0) + (nightForm.wc || 0)) / nightForm.patientCensus : 0,
         dailyNurseRatio: 0, // จะคำนวณอีกครั้งเมื่อผู้อนุมัติกรอกข้อมูลเพิ่มเติมเพื่อคำนวณอัตราส่วนพยาบาลต่อผู้ป่วยเฉลี่ยทั้งวัน
         
-        // ข้อมูลอื่นๆ
-        availableBeds: nightForm?.available || morningForm?.available || 0,
-        unavailableBeds: nightForm?.unavailable || morningForm?.unavailable || 0,
-        plannedDischarge: nightForm?.plannedDischarge || morningForm?.plannedDischarge || 0,
+        // ข้อมูลอื่นๆ - แก้ไขเพื่อให้ค่าเตียงที่มีในแบบฟอร์มถูกส่งไปยัง DailySummary
+        // เลือกค่าที่ไม่เป็น 0 ก่อน โดยเช็คค่ากะดึกและกะเช้าตามลำดับ
+        availableBeds: (nightForm?.available || 0) || (morningForm?.available || 0),
+        unavailableBeds: (nightForm?.unavailable || 0) || (morningForm?.unavailable || 0),
+        plannedDischarge: (nightForm?.plannedDischarge || 0) || (morningForm?.plannedDischarge || 0),
         
         // สถานะการอนุมัติแบบฟอร์ม - เปลี่ยนค่าเริ่มต้นเป็น true เพื่อให้ข้อมูลแสดงในหน้า Dashboard
         allFormsApproved: true, // เปลี่ยนจากการตรวจสอบ morningForm และ nightForm เป็นค่าคงที่ true
@@ -282,6 +283,11 @@ export const checkAndCreateDailySummary = async (
           morningNurseRatio: morningForm.patientCensus > 0 ? 
             ((morningForm.nurseManager || 0) + (morningForm.rn || 0) + (morningForm.pn || 0) + (morningForm.wc || 0)) / morningForm.patientCensus : 0,
           
+          // อัพเดทข้อมูลเตียง - เลือกค่าที่ไม่เป็น 0 ก่อน โดยเช็คค่าทั้งกะเช้าและกะดึก
+          availableBeds: (morningForm.available || 0) || existingSummary.availableBeds || 0,
+          unavailableBeds: (morningForm.unavailable || 0) || existingSummary.unavailableBeds || 0,
+          plannedDischarge: (morningForm.plannedDischarge || 0) || existingSummary.plannedDischarge || 0,
+          
           updatedAt: Timestamp.now()
         };
         
@@ -319,6 +325,11 @@ export const checkAndCreateDailySummary = async (
           
           // ใช้ข้อมูลกะดึกเป็นข้อมูลผู้ป่วยล่าสุด
       dailyPatientCensus: nightForm.patientCensus || 0,
+          
+          // อัพเดทข้อมูลเตียง - เลือกค่าที่ไม่เป็น 0 ก่อน โดยเช็คค่าทั้งกะดึกและกะเช้า
+          availableBeds: (nightForm.available || 0) || existingSummary.availableBeds || 0,
+          unavailableBeds: (nightForm.unavailable || 0) || existingSummary.unavailableBeds || 0,
+          plannedDischarge: (nightForm.plannedDischarge || 0) || existingSummary.plannedDischarge || 0,
           
           updatedAt: Timestamp.now()
         };
@@ -527,9 +538,10 @@ export const updateDailySummary = async (
         oldPatient: morningForm.patientCensus || 0,
         newPatient: (morningForm.newAdmit || 0) + (nightForm.newAdmit || 0) + (morningForm.transferIn || 0) + (nightForm.transferIn || 0) + (morningForm.referIn || 0) + (nightForm.referIn || 0),
         admit24hr: (morningForm.newAdmit || 0) + (nightForm.newAdmit || 0),
-        availableBeds: nightForm.available || 0,
-        unavailableBeds: nightForm.unavailable || 0,
-        plannedDischarge: nightForm.plannedDischarge || 0,
+        // แก้ไขให้ใช้ข้อมูลจากทั้งกะเช้าและกะดึก โดยเลือกค่าที่ไม่เป็น 0 เพื่อบันทึกข้อมูลให้ถูกต้อง
+        availableBeds: (nightForm.available || 0) || (morningForm.available || 0),
+        unavailableBeds: (nightForm.unavailable || 0) || (morningForm.unavailable || 0),
+        plannedDischarge: (nightForm.plannedDischarge || 0) || (morningForm.plannedDischarge || 0),
         
         // ข้อมูลการบันทึก
         createdBy: approver.uid,
