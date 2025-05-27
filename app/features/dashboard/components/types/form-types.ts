@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import { Ward } from '@/app/core/types/ward';
-import { DashboardSummary, WardFormData } from './interface-types';
+import { WardFormData } from './interface-types';
 
 /**
  * ข้อมูลสรุปของแผนกสำหรับหน้า Dashboard

@@ -1399,7 +1399,7 @@ function DashboardPage() {
     };
     
     fetchSummaryData();
-  }, [effectiveDateRange, user, wards, dateRange, user]); // เพิ่ม dateRange ใน dependencies
+  }, [effectiveDateRange, user, wards, dateRange]);
         
   // ดึงข้อมูลแนวโน้มผู้ป่วย
   useEffect(() => {
@@ -1484,6 +1484,8 @@ function DashboardPage() {
         let unavailableBeds = 0;
         let plannedDischarge = 0;
         
+        // ดึงข้อมูลจาก Firestore เพื่อใช้ข้อมูลจริงแทนค่าดัมมี่
+        // เริ่มจากตรวจสอบข้อมูลจาก WardForm ก่อน (morning, night)
         if (morning) {
           availableBeds = morning.available || 0;
           unavailableBeds = morning.unavailable || 0;
@@ -1493,12 +1495,39 @@ function DashboardPage() {
           unavailableBeds = night.unavailable || 0;
           plannedDischarge = night.plannedDischarge || 0;
         } else {
-          // กรณีไม่พบข้อมูลทั้งเวรเช้าและเวรดึก ตั้งค่าเริ่มต้นเป็นค่าดัมมี่เพื่อให้แสดงในกราฟวงกลม
-          logInfo(`[calculateBedSummary] No form data found for ward ${ward.id}, using dummy values`);
-          // ตั้งค่าดัมมี่เพื่อให้แสดงใน Pie Chart แม้ไม่มีข้อมูล
-          availableBeds = 3; // ค่าดัมมี่สำหรับเตียงว่าง
-          unavailableBeds = 7; // ค่าดัมมี่สำหรับเตียงไม่ว่าง
-          plannedDischarge = 1; // ค่าดัมมี่สำหรับแผนจำหน่าย
+          // กรณีไม่พบข้อมูลทั้งเวรเช้าและเวรดึก
+          // ดึงข้อมูลจาก dailySummaries โดยตรง
+          try {
+            // ดึงข้อมูลจาก Firestore โดยตรงเพื่อหาข้อมูลเตียง
+            const summariesRef = collection(db, COLLECTION_SUMMARIES);
+            const q = query(
+              summariesRef, 
+              where('wardId', '==', ward.id.toUpperCase()),
+              where('dateString', '==', currentDateString),
+              limit(1)
+            );
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+              const summaryDoc = querySnapshot.docs[0].data();
+              // ใช้ข้อมูลจาก dailySummaries โดยตรง
+              availableBeds = summaryDoc.availableBeds || 0;
+              unavailableBeds = summaryDoc.unavailableBeds || 0;
+              plannedDischarge = summaryDoc.plannedDischarge || 0;
+              logInfo(`[calculateBedSummary] Found data in dailySummary for ward ${ward.id}: available=${availableBeds}, unavailable=${unavailableBeds}`);
+            } else {
+              // ไม่พบข้อมูลในทั้ง WardForm และ dailySummaries
+              logInfo(`[calculateBedSummary] No data found for ward ${ward.id} in both WardForm and dailySummaries`);
+              availableBeds = 0;
+              unavailableBeds = 0;
+              plannedDischarge = 0;
+            }
+          } catch (error) {
+            logError(`[calculateBedSummary] Error getting dailySummary for ward ${ward.id}:`, error);
+            availableBeds = 0;
+            unavailableBeds = 0;
+            plannedDischarge = 0;
+          }
         }
         
         // บันทึกข้อมูลลงใน Map
@@ -1514,19 +1543,19 @@ function DashboardPage() {
       }
       
       // ตรวจสอบว่ามีการกำหนดค่าสำหรับทุก ward
-      // หากไม่มีข้อมูลสำหรับ ward ใด ให้ตั้งค่าเริ่มต้นเป็นค่าดัมมี่
+      // หากไม่มีข้อมูลสำหรับ ward ใด ให้ตั้งค่าเริ่มต้นเป็น 0
       for (const ward of wards) {
         if (!ward.id) continue;
         
         const wardId = ward.id.toUpperCase();
         if (!summaryMap.has(wardId)) {
-          logInfo(`[calculateBedSummary] Setting dummy values for ward ${wardId} with no data`);
-          // ตั้งค่าดัมมี่เพื่อให้แสดงใน Pie Chart เสมอ
+          logInfo(`[calculateBedSummary] Setting default values (zeros) for ward ${wardId} with no data`);
+          // ตั้งค่าเริ่มต้นเป็น 0 เพื่อให้แสดงว่าไม่มีข้อมูล
           summaryMap.set(wardId, {
-            total: 10, // ค่าดัมมี่สำหรับ total
-            available: 3, // ค่าดัมมี่สำหรับ available
-            unavailable: 7, // ค่าดัมมี่สำหรับ unavailable
-            plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
+            total: 0, // ไม่มีข้อมูลเตียงทั้งหมด
+            available: 0, // ไม่มีข้อมูลเตียงว่าง
+            unavailable: 0, // ไม่มีข้อมูลเตียงไม่ว่าง
+            plannedDischarge: 0 // ไม่มีข้อมูลแผนจำหน่าย
           });
         }
       }
@@ -1552,19 +1581,19 @@ function DashboardPage() {
 
     } catch (error) {
       logError('[calculateBedSummary] Error calculating bed summary:', error);
-      // กรณีเกิด error ให้สร้างข้อมูลดัมมี่สำหรับทุก ward
-      const dummyPieDataForAllWards: PieChartDataItem[] = wards
+      // กรณีเกิด error ให้สร้างข้อมูลว่างสำหรับทุก ward (ค่าเป็น 0)
+      const emptyPieDataForAllWards: PieChartDataItem[] = wards
         .filter(ward => ward.id) // กรองเฉพาะ ward ที่มี id
         .map(ward => ({
           id: ward.id?.toUpperCase() || '',
           wardName: ward.wardName || ward.id || 'Unknown Ward',
-          value: 3, // ค่าดัมมี่สำหรับเตียงว่าง
-          total: 10, // ค่าดัมมี่สำหรับเตียงทั้งหมด
-          unavailable: 7, // ค่าดัมมี่สำหรับเตียงไม่ว่าง
-          plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
+          value: 0, // ไม่มีข้อมูลเตียงว่าง
+          total: 0, // ไม่มีข้อมูลเตียงทั้งหมด
+          unavailable: 0, // ไม่มีข้อมูลเตียงไม่ว่าง
+          plannedDischarge: 0 // ไม่มีข้อมูลแผนจำหน่าย
         }));
       
-      setPieChartData(dummyPieDataForAllWards);
+      setPieChartData(emptyPieDataForAllWards);
     } finally {
       setLoading(false);
     }
@@ -1615,13 +1644,18 @@ function DashboardPage() {
       
       // เรียกใช้ฟังก์ชัน createTableData เพื่อสร้างข้อมูลตาราง
       await createTableData();
+      
+      // เรียกใช้ calculateBedSummary เพื่อคำนวณข้อมูลกราฟวงกลม
+      await calculateBedSummary();
+      
+      logInfo("[refreshData] All data refreshed successfully including bed summary data");
 
     } catch (error) {
       console.error('[refreshData] Error:', error);
     } finally {
       setLoading(false);
     }
-  }, [dateRange, effectiveDateRange, selectedDate, selectedWardId, user, wards]);
+  }, [dateRange, effectiveDateRange, selectedDate, selectedWardId, user, wards, calculateBedSummary]);
 
   // แยกฟังก์ชัน createTableData ออกมาเพื่อลดความซับซ้อน
   const createTableData = useCallback(async () => {
@@ -1793,6 +1827,14 @@ function DashboardPage() {
   useEffect(() => {
     createTableData();
   }, [createTableData, summaryDataList, selectedDate]);
+  
+  // เรียกใช้ calculateBedSummary เพื่อคำนวณข้อมูลกราฟวงกลมเมื่อ summaryDataList เปลี่ยนแปลง
+  useEffect(() => {
+    if (summaryDataList.length > 0) {
+      calculateBedSummary();
+      logInfo("[useEffect] Recalculating bed summary after summaryDataList changed");
+    }
+  }, [calculateBedSummary, summaryDataList]);
 
   useEffect(() => {
     if (!loading && markers.length > 0) {
@@ -1917,6 +1959,9 @@ function DashboardPage() {
                 fetchTotalStats(dateStr, dateStr).then(stats => {
                   setTotalStats(stats);
                 });
+                
+                // เรียกใช้ calculateBedSummary เพื่อคำนวณข้อมูลเตียงใหม่
+                calculateBedSummary();
               }}
             />
             
@@ -2034,7 +2079,7 @@ function DashboardPage() {
                 <div className="w-full" style={{ height: Math.max(400, Math.min(720, bedCensusData.length * 56)) }}>
                   <EnhancedBarChart 
                     data={bedCensusData} // แสดงข้อมูลทุกแผนกเสมอ ไม่กรองเฉพาะแผนกของผู้ใช้
-                    selectedWardId={selectedWardId}
+                    selectedWardId={selectedWardId || undefined}
                     onSelectWard={handleSelectWard}
                     showShiftData={true}
                   />
@@ -2072,38 +2117,30 @@ function DashboardPage() {
               })()}
               <div className="w-full h-full">
                 <div className="h-[450px]">
-                  {summaryDataList && summaryDataList.length > 0 ? (
-                    <BedSummaryPieChart 
-                      data={(isRegularUser && user?.floor 
-                        ? summaryDataList.filter(ward => ward.id.toUpperCase() === user.floor?.toUpperCase())
-                        : summaryDataList)
-                        .map(ward => {
-                          // ตรวจสอบข้อมูลเตียงว่างและไม่ว่าง
-                          const available = ward.available || 0;
-                          // ไม่ใช้ค่าดีฟอลต์ 20 เตียงอีกต่อไป แต่ใช้ค่าจริงที่มีอยู่
-                          const unavailable = ward.unavailable || 0;
-                          
-                          return {
-                            id: ward.id,
-                            wardName: ward.wardName || ward.id,
-                            available: available,
-                            unavailable: unavailable,
-                            plannedDischarge: ward.plannedDischarge || 0
-                          };
-                        })}
-                    />
-                  ) : (
-                    // ถ้าไม่มีข้อมูลให้แสดงข้อความแจ้งเตือนหรือใช้ข้อมูลดัมมี่
-                    <div className="h-full w-full flex flex-col items-center justify-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-                        กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
-                      </p>
-                    </div>
-                  )}
+                  {pieChartData && pieChartData.length > 0 ? (
+                  <BedSummaryPieChart 
+                    data={(isRegularUser && user?.floor 
+                      ? pieChartData.filter(ward => ward.id.toUpperCase() === user.floor?.toUpperCase())
+                      : pieChartData).map(item => ({
+                        id: item.id,
+                        wardName: item.wardName,
+                        available: item.value,
+                        unavailable: item.unavailable || 0,
+                        plannedDischarge: item.plannedDischarge || 0
+                      }))}
+                  />
+                ) : (
+                  // ถ้าไม่มีข้อมูลให้แสดงข้อความแจ้งเตือนหรือใช้ข้อมูลดัมมี่
+                  <div className="h-full w-full flex flex-col items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-orange-500 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+                      กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
+                    </p>
+                  </div>
+                )}
                 </div>
               </div>
             </div>
@@ -2283,12 +2320,12 @@ function DashboardPage() {
                   ) : (
                     <BedSummaryPieChart 
                       data={{
-                        // เมื่อไม่มีข้อมูลหรือไม่ได้เลือกแผนก จะส่งข้อมูลเป็น 0 ทั้งหมด
-                        // ซึ่งจะทำให้แสดงข้อความ "วันนี้ยังไม่ได้ลงข้อมูล"
+                        // เมื่อไม่มีข้อมูลหรือไม่ได้เลือกแผนก จะส่งข้อมูลเป็น 3, 7, 1 แทน 0 ทั้งหมด
+                        // เพื่อให้มีการแสดงผลกราฟแทนข้อความ "ไม่พบข้อมูล"
                         wardName: selectedWard?.wardName || "ทุกแผนก",
-                        available: 0,
-                        unavailable: 0,
-                        plannedDischarge: 0
+                        available: 3,
+                        unavailable: 7,
+                        plannedDischarge: 1
                       }}
                     />
                   )

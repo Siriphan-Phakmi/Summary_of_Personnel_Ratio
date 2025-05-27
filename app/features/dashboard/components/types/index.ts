@@ -8,7 +8,11 @@ export * from './button-types';
 export * from './chart-types';
 export * from './form-types';
 export * from './component-types';
-export * from './interface-types';
+// ใช้ re-export ที่ชัดเจนเพื่อหลีกเลี่ยงความขัดแย้งกับ DashboardSummary จาก form-types
+export type { 
+  WardFormData,
+  // ไม่ re-export DashboardSummary จาก interface-types เพื่อหลีกเลี่ยงความซ้ำซ้อน
+} from './interface-types';
 
 // Export types ที่ใช้ทั่วไปใน dashboard
 export interface WardCensusData {
