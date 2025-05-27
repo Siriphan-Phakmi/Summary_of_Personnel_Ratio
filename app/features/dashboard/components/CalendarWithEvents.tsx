@@ -3,7 +3,7 @@ import { format, addDays, subDays, startOfWeek, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { useTheme } from 'next-themes';
 
-interface Event {
+export interface Event {
   id: string;
   title: string;
   description: string;

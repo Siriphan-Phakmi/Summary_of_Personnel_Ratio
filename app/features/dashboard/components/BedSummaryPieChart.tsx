@@ -76,21 +76,17 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
       .map((ward, index) => {
         const availableBeds = ward.available || 0;
         const unavailableBeds = ward.unavailable || 0;
-        // ถ้าไม่มีข้อมูลทั้ง available และ unavailable ให้ใช้ค่าดีฟอลต์ 
-        // เพื่อให้มีอะไรแสดงใน chart
-        const defaultTotal = (availableBeds === 0 && unavailableBeds === 0) ? 10 : 0;
-        const defaultUnavailable = (availableBeds === 0 && unavailableBeds === 0) ? 10 : 0;
         
         totalAvailableBeds += availableBeds;
-        totalUnavailableBeds += unavailableBeds || defaultUnavailable;
-        totalBeds += availableBeds + (unavailableBeds || defaultUnavailable) || defaultTotal;
+        totalUnavailableBeds += unavailableBeds;
+        totalBeds += availableBeds + unavailableBeds;
         
         return {
           id: ward.id,
           name: ward.wardName || ward.id,
           value: availableBeds,
-          unavailable: unavailableBeds || defaultUnavailable,
-          totalBeds: availableBeds + (unavailableBeds || defaultUnavailable) || defaultTotal,
+          unavailable: unavailableBeds,
+          totalBeds: availableBeds + unavailableBeds,
           plannedDischarge: ward.plannedDischarge || 0,
           color: availableBeds > 0 ? COLORS[index % COLORS.length] : NO_AVAILABLE_BEDS_COLOR,
         };
@@ -102,28 +98,25 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     // รองรับทั้ง availableBeds (จาก dailySummaries) และ available (จาก wardForm)
     const availableBeds = singleData.available || singleData.availableBeds || 0;
     const unavailableBeds = singleData.unavailable || singleData.unavailableBeds || 0;
-    // ถ้าไม่มีข้อมูลทั้ง available และ unavailable ให้ใช้ค่าดีฟอลต์
-    const defaultTotal = (availableBeds === 0 && unavailableBeds === 0) ? 10 : 0;
-    const defaultUnavailable = (availableBeds === 0 && unavailableBeds === 0) ? 10 : 0;
     
     totalAvailableBeds = availableBeds;
-    totalUnavailableBeds = unavailableBeds || defaultUnavailable;
-    totalBeds = availableBeds + (unavailableBeds || defaultUnavailable) || defaultTotal;
+    totalUnavailableBeds = unavailableBeds;
+    totalBeds = availableBeds + unavailableBeds;
     
     chartData = [
       { 
         name: singleData.wardName || 'เตียงว่าง', 
         value: availableBeds, 
-        unavailable: unavailableBeds || defaultUnavailable,
-        totalBeds: availableBeds + (unavailableBeds || defaultUnavailable) || defaultTotal,
+        unavailable: unavailableBeds,
+        totalBeds: availableBeds + unavailableBeds,
         plannedDischarge: singleData.plannedDischarge || 0,
         color: availableBeds > 0 ? COLORS[0] : NO_AVAILABLE_BEDS_COLOR
       }
     ];
   }
 
-  // ถ้าไม่มีข้อมูลเลยให้แสดงข้อความแจ้งเตือน
-  if (chartData.length === 0) {
+  // ถ้าไม่มีข้อมูลเลยหรือทั้ง available และ unavailable เป็น 0 ให้แสดงข้อความแจ้งเตือน
+  if (chartData.length === 0 || (totalAvailableBeds === 0 && totalUnavailableBeds === 0)) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,7 +124,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
         </svg>
         <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">ไม่พบข้อมูล</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-          ไม่พบข้อมูลแผนกหรือเตียงในระบบ กรุณาตรวจสอบการเชื่อมต่อกับฐานข้อมูล
+          ไม่พบข้อมูลสำหรับวันที่เลือก กรุณาเลือกวันที่มีการบันทึกข้อมูล หรือตรวจสอบการอนุมัติจากหัวหน้า
         </p>
       </div>
     );
@@ -141,7 +134,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   let pieChartData: any[] = [];
   
   // ถ้าไม่มีเตียงว่างเลย ให้แสดงเป็นกราฟวงกลมที่แสดงเฉพาะเตียงไม่ว่าง
-  if (totalAvailableBeds === 0) {
+  if (totalAvailableBeds === 0 && totalUnavailableBeds > 0) {
     // สร้างข้อมูลสำหรับแสดงเฉพาะเตียงที่ไม่ว่าง
     pieChartData = chartData.map(item => ({
       id: item.id,
@@ -149,7 +142,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
       value: item.unavailable,
       totalBeds: item.totalBeds,
       color: NO_AVAILABLE_BEDS_COLOR,
-      isUnavailable: true // เพิ่ม flag เพื่อระบุว่าเป็นข้อมูลเตียงไม่ว่าง
+      isUnavailable: true, // เพิ่ม flag เพื่อระบุว่าเป็นข้อมูลเตียงไม่ว่าง
     }));
   } else {
     // กรณีมีเตียงว่าง ให้ใช้ข้อมูลเตียงว่างตามปกติ
@@ -160,7 +153,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
       unavailable: item.unavailable,
       totalBeds: item.totalBeds,
       plannedDischarge: item.plannedDischarge,
-      color: item.color
+      color: item.color,
     }));
   }
 
@@ -170,36 +163,50 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     if (active && payload && payload.length) {
       const { name, value, unavailable, isUnavailable, totalBeds, plannedDischarge } = payload[0].payload;
       
+      // กรณีไม่มีข้อมูล (ค่าทั้งหมดเป็น 0)
+      if (value === 0 && unavailable === 0) {
+        return (
+          <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded shadow-md">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">
+              ไม่มีข้อมูล
+            </p>
+            <p className="text-xs text-gray-700 dark:text-gray-300">
+              ไม่พบข้อมูลสำหรับวันที่เลือก กรุณาเลือกวันที่มีการบันทึกข้อมูล หรือตรวจสอบการอนุมัติจากหัวหน้า
+            </p>
+          </div>
+        );
+      }
+      
       return (
-        <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded shadow-sm">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">
+        <div className="bg-white dark:bg-gray-800 p-3 border-2 border-gray-300 dark:border-gray-600 rounded shadow-md">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
             {name}
           </p>
           {isUnavailable ? (
             // กรณีเป็นข้อมูลเตียงไม่ว่าง
             <p className="text-xs text-gray-700 dark:text-gray-300">
-              จำนวนเตียงไม่ว่าง: <span className="font-medium">{value}</span> เตียง
+              จำนวนเตียงไม่ว่าง: <span className="font-medium text-red-500 dark:text-red-400">{value}</span> เตียง
             </p>
           ) : (
             // กรณีเป็นข้อมูลเตียงว่าง
             <>
               <p className="text-xs text-gray-700 dark:text-gray-300">
-                จำนวนเตียงว่าง: <span className="font-medium">{value}</span> เตียง
+                จำนวนเตียงว่าง: <span className="font-medium text-green-500 dark:text-green-400">{value}</span> เตียง
               </p>
               {unavailable !== undefined && (
                 <p className="text-xs text-gray-700 dark:text-gray-300">
-                  จำนวนเตียงไม่ว่าง: <span className="font-medium">{unavailable}</span> เตียง
+                  จำนวนเตียงไม่ว่าง: <span className="font-medium text-red-500 dark:text-red-400">{unavailable}</span> เตียง
                 </p>
               )}
               {plannedDischarge !== undefined && plannedDischarge > 0 && (
                 <p className="text-xs text-gray-700 dark:text-gray-300">
-                  แผนจำหน่าย: <span className="font-medium">{plannedDischarge}</span>
+                  แผนจำหน่าย: <span className="font-medium text-blue-500 dark:text-blue-400">{plannedDischarge}</span>
                 </p>
               )}
             </>
           )}
           {totalBeds !== undefined && (
-            <p className="text-xs text-gray-700 dark:text-gray-300 mt-1">
+            <p className="text-xs text-gray-700 dark:text-gray-300 mt-1 pt-1 border-t border-gray-200 dark:border-gray-700">
               เตียงทั้งหมด: <span className="font-medium">{totalBeds}</span> เตียง
             </p>
           )}
@@ -212,14 +219,53 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
   const renderLegend = (props: any) => {
     const { payload } = props;
     
+    // กรณีไม่มีข้อมูล (ไม่มีหรือว่างเปล่า)
+    if (!payload || payload.length === 0) {
+      return (
+        <div className="pt-4">
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 justify-start">
+            <li className="flex items-center">
+              <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: NO_AVAILABLE_BEDS_COLOR }} />
+              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                ไม่มีข้อมูล: <span className="font-semibold text-yellow-500 dark:text-yellow-400">ไม่พบข้อมูลสำหรับวันที่เลือก</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+      );
+    }
+    
+    // กรณีทุกค่าเป็น 0 (ไม่มีข้อมูลจริง)
+    const allZeroValues = payload.every((entry: any) => entry.value === 0);
+    if (allZeroValues) {
+      return (
+        <div className="pt-4">
+          <div className="mb-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded-md inline-block">
+            ⚠️ ไม่พบข้อมูลสำหรับวันที่เลือก กรุณาเลือกวันที่มีการบันทึกข้อมูล
+          </div>
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 justify-start">
+            {payload.map((entry: any, index: number) => (
+              <li key={`item-${index}`} className="flex items-center">
+                <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
+                <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  {entry.name}: <span className="font-semibold text-gray-500">0</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+    
+    // กรณีปกติ มีข้อมูลให้แสดง
     return (
       <div className="pt-4">
         <ul className="flex flex-wrap gap-x-4 gap-y-2 justify-start">
           {payload.map((entry: any, index: number) => (
             <li key={`item-${index}`} className="flex items-center">
-              <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
-              <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {entry.name} <span className="font-semibold">{entry.payload.isUnavailable ? 'ไม่ว่าง' : 'ว่าง'}: {entry.value}</span>
+              <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
+              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                {entry.name} <span className={`font-semibold ${entry.payload.isUnavailable ? 'text-red-500 dark:text-red-400' : 'text-green-500 dark:text-green-400'}`}>{entry.payload.isUnavailable ? 'ไม่ว่าง' : 'ว่าง'}: {entry.value}</span>
               </span>
             </li>
           ))}
@@ -232,33 +278,91 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
       <div className="text-center mb-3">
         <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-          {totalAvailableBeds > 0 ? 'จำนวนเตียงว่าง' : 'จำนวนเตียงไม่ว่าง'}
+          {totalAvailableBeds > 0 ? 'จำนวนเตียงว่าง' : 
+           (totalUnavailableBeds > 0 ? 'จำนวนเตียงไม่ว่าง' : 'ไม่มีข้อมูลจำนวนเตียง')}
         </h3>
         {totalAvailableBeds > 0 ? (
           <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            เตียงว่างทั้งหมด: <span className="font-medium">{totalAvailableBeds}</span> เตียง
-            {totalUnavailableBeds > 0 && ` (เตียงไม่ว่าง: ${totalUnavailableBeds})`}
+            เตียงว่างทั้งหมด: <span className="font-medium text-green-500 dark:text-green-400">{totalAvailableBeds}</span> เตียง
+            {totalUnavailableBeds > 0 && ` (เตียงไม่ว่าง: `}
+            {totalUnavailableBeds > 0 && <span className="font-medium text-red-500 dark:text-red-400">{totalUnavailableBeds}</span>}
+            {totalUnavailableBeds > 0 && ` เตียง)`}
+          </p>
+        ) : totalUnavailableBeds > 0 ? (
+          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            ไม่มีเตียงว่าง (เตียงไม่ว่าง: <span className="font-medium text-red-500 dark:text-red-400">{totalUnavailableBeds}</span> เตียง)
           </p>
         ) : (
           <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            ไม่มีเตียงว่าง (เตียงไม่ว่าง: <span className="font-medium">{totalUnavailableBeds}</span> เตียง)
+            <span className="text-yellow-500 dark:text-yellow-400 font-medium">ไม่พบข้อมูลสำหรับวันที่เลือก</span> กรุณาเลือกวันที่มีการบันทึกข้อมูล หรือตรวจสอบการอนุมัติจากหัวหน้า
           </p>
         )}
       </div>
       
-      <div className="flex-grow flex items-center justify-center" style={{ minHeight: '250px' }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="flex-grow flex items-center justify-center" style={{ minHeight: '200px' }}>
+        <ResponsiveContainer width="100%" height="100%" className="max-h-[350px] sm:max-h-[450px]">
           <PieChart>
             <Pie
               data={pieChartData}
               cx="50%"
               cy="50%"
               innerRadius={0}
-              outerRadius="65%"
+              outerRadius={{
+                // ปรับขนาดตามหน้าจอ
+                base: '55%',
+                sm: '60%',
+                md: '65%',
+                lg: '65%',
+                xl: '65%',
+              }[typeof window !== 'undefined' ? (window.innerWidth < 640 ? 'base' : window.innerWidth < 768 ? 'sm' : window.innerWidth < 1024 ? 'md' : window.innerWidth < 1280 ? 'lg' : 'xl') : 'md']}
               fill="#8884d8"
               paddingAngle={2}
               dataKey="value"
-              label={({ name, value }) => (value > 0 ? `${value}` : '')}
+              label={({ name, value, x, y, cx, cy }) => {
+                // แสดงเฉพาะกรณีที่มีค่ามากกว่า 0
+                if (value <= 0) return null;
+                
+                // คำนวณตำแหน่งป้ายชื่อให้ถูกต้อง
+                const RADIAN = Math.PI / 180;
+                const radius = 25 + 12; // ระยะห่างจากขอบของกราฟ
+                const innerRadius = 0;  // ตำแหน่งเริ่มต้นของป้ายชื่อ
+                
+                // ปรับขนาดกรอบตามหน้าจอ
+                const boxWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 20 : 24;
+                const boxHeight = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 20;
+                const borderRadius = 4;
+                
+                // คำนวณตำแหน่งที่ถูกต้อง
+                const rectX = x - boxWidth / 2;
+                const rectY = y - boxHeight / 2;
+                
+                // สร้างป้ายกำกับที่มีพื้นหลังสีเข้มเพื่อให้เห็นข้อความชัดเจน
+                return (
+                  <g>
+                    <rect
+                      x={rectX}
+                      y={rectY}
+                      width={boxWidth}
+                      height={boxHeight}
+                      rx={borderRadius}
+                      ry={borderRadius}
+                      fill={isDarkMode ? "#4B5563" : "#374151"}
+                      opacity={0.9}
+                    />
+                    <text
+                      x={x}
+                      y={y}
+                      textAnchor="middle"
+                      fill="#FFFFFF"
+                      fontSize={typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12}
+                      fontWeight="bold"
+                      dominantBaseline="middle"
+                    >
+                      {value}
+                    </text>
+                  </g>
+                );
+              }}
               labelLine={false}
               isAnimationActive={true}
               animationDuration={800}
