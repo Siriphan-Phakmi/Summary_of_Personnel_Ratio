@@ -46,6 +46,11 @@
    - ติดตามประสิทธิภาพของการ query ข้อมูลหลังการแก้ไข
    - ตรวจสอบว่ากลไก fallback ทำงานได้อย่างถูกต้องหรือไม่
 
+5. **ปรับปรุง Performance ในการดึงข้อมูล**:
+   - ใช้ `Promise.all` เพื่อ parallelize การดึงข้อมูล ward forms และ summaries ลดระยะเวลาการรอ
+   - ลดการเรียกซ้ำฟังก์ชันที่ดึงข้อมูลเดิมซ้ำหลายครั้ง
+   - เพิ่ม Loading Indicator (Spinner) ในส่วน Chart และ Grid โดยใช้ state `loading` เพื่อแสดงสถานะขณะดึงข้อมูล
+
 ## การทดสอบ
 
 1. ทดสอบการย้ายระหว่างกะเช้าและกะดึกในแบบฟอร์ม
@@ -142,6 +147,15 @@
    - ตรวจสอบว่ากราฟแสดงข้อมูลได้อย่างถูกต้องแม้ว่าข้อมูลจะเป็นศูนย์หรือมีจำนวนน้อย
    - ตรวจสอบว่าการแสดงผลตัวเลขเป็นจำนวนเต็มไม่ส่งผลกระทบต่อความถูกต้องของข้อมูล
 
+3. **ปรับปรุง Performance ในการดึงข้อมูล**:
+   - ใช้ `Promise.all` เพื่อ parallelize การดึงข้อมูล ward forms และ summaries ลดระยะเวลาการรอ
+   - ลดการเรียกซ้ำฟังก์ชันที่ดึงข้อมูลเดิมซ้ำหลายครั้ง
+   - เพิ่ม Loading Indicator (Spinner) ในส่วน Chart และ Grid โดยใช้ state `loading` เพื่อแสดงสถานะขณะดึงข้อมูล
+
+4. **ตรวจสอบประสิทธิภาพ**:
+   - ติดตามประสิทธิภาพของการ query ข้อมูลหลังการแก้ไข
+   - ตรวจสอบว่ากลไก fallback ทำงานได้อย่างถูกต้องหรือไม่
+
 ---
 
 # การแก้ไขปัญหากราฟวงกลมสถานะเตียงไม่แสดงผล (มิถุนายน 2024)
@@ -232,119 +246,151 @@
    - รวบรวมฟีดแบ็คจากผู้ใช้ว่าสามารถอ่านและเข้าใจข้อมูลในกราฟวงกลมได้ดีหรือไม่
    - ตรวจสอบว่าผู้ใช้สามารถคลิกที่กราฟวงกลมเพื่อเลือกดูข้อมูลของ Ward นั้นๆ ได้ถูกต้องหรือไม่
 
-# การแก้ไขปัญหาการแสดงข้อมูลจำนวนเตียงไม่ถูกต้อง (กรกฎาคม 2024)
+# การแก้ไขปัญหาการแสดงข้อความ "ไม่พบข้อมูล" ซ้ำซ้อนใน BedSummaryPieChart (สิงหาคม 2024)
 
 ## ประเด็นปัญหา
 
-หลังจากการปรับปรุงกราฟวงกลมสถานะเตียงให้แสดงผลได้ถูกต้อง ยังพบปัญหาการแสดงข้อมูลจำนวนเตียงไม่ตรงกับข้อมูลจริงในฐานข้อมูล ซึ่งเกิดจากการใช้ค่าดัมมี่ (mock data) แทนการดึงข้อมูลจริงจาก Firestore
-
-## สาเหตุของปัญหา
-
-1. **การใช้ค่าดัมมี่ในกรณีไม่พบข้อมูล**: ในฟังก์ชัน `calculateBedSummary` มีการกำหนดค่าดัมมี่ (เตียงว่าง: 3, เตียงไม่ว่าง: 7, แผนจำหน่าย: 1) ในกรณีที่ไม่พบข้อมูลจริง
-2. **ไม่ได้พยายามดึงข้อมูลจาก Firestore โดยตรง**: ในกรณีที่ไม่พบข้อมูลในตัวแปร `morning` และ `night` โค้ดไม่ได้พยายามดึงข้อมูลจาก collection `COLLECTION_SUMMARIES` โดยตรง
-3. **การกำหนดค่าเริ่มต้นไม่สอดคล้องกับความเป็นจริง**: การใช้ค่าดัมมี่ทำให้กราฟวงกลมแสดงข้อมูลที่ไม่ตรงกับความเป็นจริง ซึ่งอาจทำให้ผู้ใช้เข้าใจผิดเกี่ยวกับสถานะเตียงจริง
+พบปัญหาการแสดงข้อความ "ไม่พบข้อมูล" ซ้ำซ้อนในส่วนของแสดงสถานะเตียงดังนี้:
+1. ในส่วนของ BedSummaryPieChart เมื่อไม่มีข้อมูล จะแสดงข้อความ "ไม่พบข้อมูล" ในตัวกราฟ
+2. ในส่วนของคำอธิบายสถานะเตียงด้านขวาก็มีการแสดงข้อความ "ไม่พบข้อมูล" ซ้ำซ้อนกัน
+3. ใน component BedSummaryPieChart ยังมีการแสดงข้อความแจ้งเตือนซ้ำซ้อนในส่วนต่างๆ เช่น legend และ header
 
 ## การแก้ไข
 
-1. **แก้ไขฟังก์ชัน `calculateBedSummary` ใน DashboardPage.tsx**:
-   - ลบการใช้ค่าดัมมี่ (3, 7, 1) ในกรณีที่ไม่พบข้อมูลจากตัวแปร `morning` และ `night`
-   - เพิ่มโค้ดสำหรับดึงข้อมูลจาก collection `COLLECTION_SUMMARIES` โดยตรงในกรณีที่ไม่พบข้อมูลในตัวแปร `morning` และ `night`:
-     ```javascript
-     try {
-       // ดึงข้อมูลจาก Firestore โดยตรงเพื่อหาข้อมูลเตียง
-       const summariesRef = collection(db, COLLECTION_SUMMARIES);
-       const q = query(
-         summariesRef, 
-         where('wardId', '==', ward.id.toUpperCase()),
-         where('dateString', '==', currentDateString),
-         limit(1)
-       );
-       const querySnapshot = await getDocs(q);
-       
-       if (!querySnapshot.empty) {
-         const summaryDoc = querySnapshot.docs[0].data();
-         // ใช้ข้อมูลจาก dailySummaries โดยตรง
-         availableBeds = summaryDoc.availableBeds || 0;
-         unavailableBeds = summaryDoc.unavailableBeds || 0;
-         plannedDischarge = summaryDoc.plannedDischarge || 0;
-         logInfo(`[calculateBedSummary] Found data in dailySummary for ward ${ward.id}: available=${availableBeds}, unavailable=${unavailableBeds}`);
-       } else {
-         // ไม่พบข้อมูลในทั้ง WardForm และ dailySummaries
-         logInfo(`[calculateBedSummary] No data found for ward ${ward.id} in both WardForm and dailySummaries`);
-         availableBeds = 0;
-         unavailableBeds = 0;
-         plannedDischarge = 0;
-       }
-     } catch (error) {
-       logError(`[calculateBedSummary] Error getting dailySummary for ward ${ward.id}:`, error);
-       availableBeds = 0;
-       unavailableBeds = 0;
-       plannedDischarge = 0;
-     }
-     ```
+1. **ปรับปรุงไฟล์ BedSummaryPieChart.tsx**:
+   - แก้ไขเงื่อนไขการตรวจสอบข้อมูลใน CustomTooltip ให้ตรวจสอบครบถ้วนมากขึ้น ด้วยการเพิ่มเงื่อนไข `unavailable === undefined`
+   - ลบการแสดง Legend ในกรณีที่ไม่มีข้อมูลเพื่อลดความซ้ำซ้อน โดยเปลี่ยนเป็น `return null;`
+   - ลบข้อความ warning ที่ไม่จำเป็นออกจาก Legend สำหรับกรณีที่ข้อมูลเป็น 0
+   - ปรับปรุงหัวข้อกราฟจาก "ไม่มีข้อมูลจำนวนเตียง" เป็น "จำนวนเตียง" ให้เรียบง่ายขึ้น
+   - ลดข้อความที่ซ้ำซ้อนในส่วนคำอธิบายเพื่อให้มีเพียง "ไม่มีข้อมูลเตียง" เท่านั้น
 
-2. **แก้ไขการกำหนดค่าเริ่มต้นสำหรับ Ward ที่ไม่มีข้อมูล**:
-   - เปลี่ยนการกำหนดค่าดัมมี่ในโค้ดที่ตรวจสอบว่ามีการกำหนดค่าสำหรับทุก ward:
-     ```javascript
-     // เปลี่ยนจาก
-     summaryMap.set(wardId, {
-       total: 10, // ค่าดัมมี่สำหรับ total
-       available: 3, // ค่าดัมมี่สำหรับ available
-       unavailable: 7, // ค่าดัมมี่สำหรับ unavailable
-       plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
-     });
-     
-     // เป็น
-     summaryMap.set(wardId, {
-       total: 0, // ไม่มีข้อมูลเตียงทั้งหมด
-       available: 0, // ไม่มีข้อมูลเตียงว่าง
-       unavailable: 0, // ไม่มีข้อมูลเตียงไม่ว่าง
-       plannedDischarge: 0 // ไม่มีข้อมูลแผนจำหน่าย
-     });
-     ```
-
-3. **แก้ไขการสร้างข้อมูลในกรณีเกิด error**:
-   - เปลี่ยนจากการใช้ `dummyPieDataForAllWards` เป็น `emptyPieDataForAllWards` ซึ่งมีค่าเป็น 0 ทั้งหมด:
-     ```javascript
-     // เปลี่ยนจาก
-     const dummyPieDataForAllWards: PieChartDataItem[] = wards
-       .filter(ward => ward.id) // กรองเฉพาะ ward ที่มี id
-       .map(ward => ({
-         id: ward.id?.toUpperCase() || '',
-         wardName: ward.wardName || ward.id || 'Unknown Ward',
-         value: 3, // ค่าดัมมี่สำหรับเตียงว่าง
-         total: 10, // ค่าดัมมี่สำหรับเตียงทั้งหมด
-         unavailable: 7, // ค่าดัมมี่สำหรับเตียงไม่ว่าง
-         plannedDischarge: 1 // ค่าดัมมี่สำหรับแผนจำหน่าย
-       }));
-     
-     // เป็น
-     const emptyPieDataForAllWards: PieChartDataItem[] = wards
-       .filter(ward => ward.id) // กรองเฉพาะ ward ที่มี id
-       .map(ward => ({
-         id: ward.id?.toUpperCase() || '',
-         wardName: ward.wardName || ward.id || 'Unknown Ward',
-         value: 0, // ไม่มีข้อมูลเตียงว่าง
-         total: 0, // ไม่มีข้อมูลเตียงทั้งหมด
-         unavailable: 0, // ไม่มีข้อมูลเตียงไม่ว่าง
-         plannedDischarge: 0 // ไม่มีข้อมูลแผนจำหน่าย
-       }));
-     ```
-
-## ผลลัพธ์
-
-1. **ข้อมูลที่ถูกต้อง**: กราฟวงกลมแสดงข้อมูลจำนวนเตียงตามข้อมูลจริงในฐานข้อมูล Firebase
-2. **ความโปร่งใส**: ในกรณีที่ไม่มีข้อมูล จะแสดงเป็น 0 แทนค่าดัมมี่ที่อาจทำให้เข้าใจผิด
-3. **ประสิทธิภาพ**: ใช้ข้อมูลจริงจาก Firestore แทนการใช้ค่าดัมมี่ทำให้ได้ข้อมูลที่ถูกต้องและเป็นปัจจุบัน
+2. **ปรับปรุงไฟล์ DashboardPage.tsx**:
+   - แก้ไขส่วนแสดงคำอธิบายสถานะเตียงด้านขวาให้ไม่แสดงข้อความ "ไม่พบข้อมูล" ซ้ำซ้อนกับด้านซ้าย
+   - เปลี่ยนเป็นข้อความสั้นๆ "โปรดดูข้อมูลที่แผนภูมิด้านซ้าย" แทน
+   - ลบไอคอนและรายละเอียดที่ซ้ำซ้อนออก
 
 ## ประโยชน์ที่ได้รับ
 
-1. **ข้อมูลที่ถูกต้องและน่าเชื่อถือ**: ผู้ใช้สามารถเห็นข้อมูลจำนวนเตียงที่ตรงกับความเป็นจริง
-2. **การตัดสินใจที่ดีขึ้น**: ผู้บริหารและเจ้าหน้าที่สามารถใช้ข้อมูลที่ถูกต้องในการวางแผนและตัดสินใจ
-3. **ความโปร่งใสในการแสดงข้อมูล**: การแสดงข้อมูลเป็น 0 เมื่อไม่มีข้อมูล ช่วยให้ผู้ใช้ทราบว่าไม่มีข้อมูลจริงๆ แทนที่จะเห็นข้อมูลที่เป็นค่าดัมมี่
+1. **ลดความซ้ำซ้อนของข้อความ**:
+   - ผู้ใช้ไม่สับสนจากการเห็นข้อความเตือนเดียวกันหลายที่
+   - UI สะอาดและเป็นระเบียบมากขึ้น
 
-## สิ่งที่ต้องติดตามต่อไป
+2. **การแสดงผลที่ชัดเจน**:
+   - ข้อความแจ้งเตือนมีความกระชับและเข้าใจง่ายขึ้น
+   - ผู้ใช้เห็นข้อความแจ้งเตือนในตำแหน่งที่เหมาะสมเพียงที่เดียว
 
-1. **ประสิทธิภาพในการดึงข้อมูล**: ติดตามว่าการดึงข้อมูลจาก Firestore โดยตรงมีผลกระทบต่อประสิทธิภาพโดยรวมหรือไม่
-2. **ความสม่ำเสมอของข้อมูล**: ตรวจสอบว่าข้อมูลเตียงมีความสม่ำเสมอและถูกต้องตรงกันในทุกส่วนของแอปพลิเคชัน
-3. **การแสดงผลเมื่อไม่มีข้อมูล**: ตรวจสอบการแสดงผลในกรณีที่ไม่มีข้อมูลว่ามีความชัดเจนและเข้าใจง่ายสำหรับผู้ใช้
+3. **ลดการรบกวนสายตา**:
+   - ลดข้อความที่ไม่จำเป็นเพื่อให้ผู้ใช้โฟกัสกับข้อมูลที่สำคัญ
+
+## การทดสอบ
+
+- ทดสอบการแสดงผลในกรณีที่ไม่มีข้อมูล
+- ทดสอบการแสดงผลในกรณีที่มีข้อมูลเตียงว่าง
+- ทดสอบการแสดงผลในกรณีที่มีเฉพาะข้อมูลเตียงไม่ว่าง
+- ตรวจสอบความถูกต้องของการแสดงผลทั้งในโหมดสว่างและโหมดมืด
+
+## แก้ไขปัญหา Pie Chart ไม่แสดงข้อมูล (27 พฤษภาคม 2567)
+
+### ปัญหาที่พบ
+- Pie Chart ไม่แสดงข้อมูล แม้ว่าจะมีการเรียกใช้ `calculateBedSummary` เพื่อดึงข้อมูลมาแสดง
+- สาเหตุเกิดจากการเรียกใช้ฟังก์ชัน async (`calculateBedSummary`) ใน useEffect โดยไม่มีการจัดการ Promise อย่างเหมาะสม
+- การส่งข้อมูลไปยัง `BedSummaryPieChart` ไม่ทำงานตามที่คาดหวังเมื่อไม่มีข้อมูล
+
+### การแก้ไข
+1. ปรับการเรียกใช้ฟังก์ชัน `calculateBedSummary` ใน useEffect ให้รองรับ async/await ผ่าน IIFE:
+   ```javascript
+   useEffect(() => {
+     if (user && wards.length > 0) {
+       (async () => {
+         try {
+           setLoading(true);
+           await calculateBedSummary();
+           // log success
+         } catch (error) {
+           // log error
+         } finally {
+           setLoading(false);
+         }
+       })();
+     }
+   }, [calculateBedSummary, selectedDate, selectedWardId, user, wards]);
+   ```
+
+2. ปรับการเรียกใช้ฟังก์ชัน `calculateBedSummary` ในฟังก์ชัน `onDateChange`:
+   ```javascript
+   (async () => {
+     try {
+       setLoading(true);
+       await calculateBedSummary();
+       // log success
+     } catch (error) {
+       // log error
+     } finally {
+       setLoading(false);
+     }
+   })();
+   ```
+
+3. ปรับปรุงการแสดงผลเมื่อไม่มีข้อมูล:
+   - แสดงตัวโหลดข้อมูลระหว่างที่กำลังโหลด
+   - ส่งข้อมูลดัมมี่ไปยัง BedSummaryPieChart เมื่อไม่มีข้อมูล เพื่อให้ component แสดงผลข้อความ "ไม่พบข้อมูล"
+
+4. เพิ่มการตรวจสอบข้อมูลก่อนส่งไปยัง BedSummaryPieChart:
+   ```javascript
+   (isRegularUser && user?.floor 
+     ? pieChartData.filter(ward => ward.id.toUpperCase() === user.floor?.toUpperCase())
+     : pieChartData).map(item => {
+       // แปลงข้อมูลก่อนส่งไปยัง component
+       const formattedItem = {
+         id: item.id,
+         wardName: item.wardName,
+         available: item.value,
+         unavailable: item.unavailable || 0,
+         plannedDischarge: item.plannedDischarge || 0
+       };
+       
+       // ตรวจสอบข้อมูลในโหมด development
+       if (process.env.NODE_ENV !== 'production') {
+         console.log("[PieChart Item]", JSON.stringify(formattedItem));
+       }
+       return formattedItem;
+     })
+   ```
+
+### ผลลัพธ์
+- Pie Chart สามารถแสดงข้อมูลได้อย่างถูกต้อง
+- ระบบแสดงตัวโหลดข้อมูลระหว่างที่กำลังดึงข้อมูล
+- มีการแสดงข้อความที่เหมาะสมเมื่อไม่มีข้อมูล
+- เพิ่มการล็อกข้อมูลเพื่อง่ายต่อการดีบัก
+
+## แก้ไขปัญหาจำนวนเตียงว่างไม่เปลี่ยนตามวันที่เลือก (27 พฤษภาคม 2567)
+
+### ปัญหาที่พบ
+- หัวข้อ "จำนวนเตียงว่าง" ไม่เปลี่ยนแปลงตามวันที่ที่เลือกจากปฏิทิน
+- สาเหตุเกิดจากฟังก์ชัน `calculateBedSummary` ใช้วันที่จาก `effectiveDateRange.end` แทนที่จะใช้ `selectedDate`
+- ทำให้ข้อมูลที่แสดงไม่สอดคล้องกับวันที่ผู้ใช้เลือก
+
+### การแก้ไข
+1. แก้ไขฟังก์ชัน `calculateBedSummary` ให้ใช้ `selectedDate` แทน `effectiveDateRange.end`:
+   ```javascript
+   // แก้ไขจาก
+   const currentDateString = format(effectiveDateRange.end, 'yyyy-MM-dd');
+   
+   // เป็น
+   const currentDateString = selectedDate;
+   ```
+
+2. ปรับปรุง dependency array ของ `useCallback` ให้ใช้ `selectedDate` แทน `effectiveDateRange`:
+   ```javascript
+   // แก้ไขจาก
+   }, [effectiveDateRange, wards]);
+   
+   // เป็น
+   }, [selectedDate, wards]);
+   ```
+
+3. เพิ่มข้อความแสดงวันที่ในส่วนของหัวข้อ "จำนวนเตียง" เพื่อให้ผู้ใช้เห็นว่ากำลังดูข้อมูลได้อย่างชัดเจน
+
+### ผลลัพธ์
+- แก้ไขปัญหาเรียบร้อยแล้ว ข้อมูลจำนวนเตียงว่างจะเปลี่ยนตามวันที่ที่ผู้ใช้เลือก
+- ผู้ใช้สามารถเห็นวันที่ที่กำลังดูข้อมูลได้อย่างชัดเจน

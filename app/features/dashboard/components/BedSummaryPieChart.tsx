@@ -32,11 +32,25 @@ export interface WardBedData {
 
 interface BedSummaryPieChartProps {
   data: BedSummaryData | WardBedData[];
+  isLoading?: boolean; // เพิ่ม prop รับสถานะการโหลดข้อมูล
 }
 
-const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
+const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading = false }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
+
+  // แสดง loading state หากกำลังโหลดข้อมูล
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
+        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+          กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
+        </p>
+      </div>
+    );
+  }
 
   // ใช้ logInfo แทน console.log เพื่อความปลอดภัย
   // logInfo('BedSummaryPieChart received data:', JSON.parse(JSON.stringify(data)));
@@ -164,7 +178,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
       const { name, value, unavailable, isUnavailable, totalBeds, plannedDischarge } = payload[0].payload;
       
       // กรณีไม่มีข้อมูล (ค่าทั้งหมดเป็น 0)
-      if (value === 0 && unavailable === 0) {
+      if (value === 0 && (unavailable === undefined || unavailable === 0)) {
         return (
           <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded shadow-md">
             <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -221,18 +235,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     
     // กรณีไม่มีข้อมูล (ไม่มีหรือว่างเปล่า)
     if (!payload || payload.length === 0) {
-      return (
-        <div className="pt-4">
-          <ul className="flex flex-wrap gap-x-4 gap-y-2 justify-start">
-            <li className="flex items-center">
-              <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: NO_AVAILABLE_BEDS_COLOR }} />
-              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                ไม่มีข้อมูล: <span className="font-semibold text-yellow-500 dark:text-yellow-400">ไม่พบข้อมูลสำหรับวันที่เลือก</span>
-              </span>
-            </li>
-          </ul>
-        </div>
-      );
+      return null; // ไม่ต้องแสดง Legend ถ้าไม่มีข้อมูล เพื่อลดความซ้ำซ้อน
     }
     
     // กรณีทุกค่าเป็น 0 (ไม่มีข้อมูลจริง)
@@ -240,9 +243,6 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
     if (allZeroValues) {
       return (
         <div className="pt-4">
-          <div className="mb-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-xs rounded-md inline-block">
-            ⚠️ ไม่พบข้อมูลสำหรับวันที่เลือก กรุณาเลือกวันที่มีการบันทึกข้อมูล
-          </div>
           <ul className="flex flex-wrap gap-x-4 gap-y-2 justify-start">
             {payload.map((entry: any, index: number) => (
               <li key={`item-${index}`} className="flex items-center">
@@ -279,7 +279,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
       <div className="text-center mb-3">
         <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
           {totalAvailableBeds > 0 ? 'จำนวนเตียงว่าง' : 
-           (totalUnavailableBeds > 0 ? 'จำนวนเตียงไม่ว่าง' : 'ไม่มีข้อมูลจำนวนเตียง')}
+           (totalUnavailableBeds > 0 ? 'จำนวนเตียงไม่ว่าง' : 'จำนวนเตียง')}
         </h3>
         {totalAvailableBeds > 0 ? (
           <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -294,7 +294,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data }) => {
           </p>
         ) : (
           <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            <span className="text-yellow-500 dark:text-yellow-400 font-medium">ไม่พบข้อมูลสำหรับวันที่เลือก</span> กรุณาเลือกวันที่มีการบันทึกข้อมูล หรือตรวจสอบการอนุมัติจากหัวหน้า
+            <span className="text-yellow-500 dark:text-yellow-400 font-medium">ไม่มีข้อมูลเตียง</span>
           </p>
         )}
       </div>
