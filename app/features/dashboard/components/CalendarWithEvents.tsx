@@ -196,20 +196,25 @@ const CalendarWithEvents: React.FC<CalendarWithEventsProps> = ({
             
             // แสดงสีตามสถานะวันนั้นๆ
             let statusColor = '';
+            let dotColor = '';
             if (dayEvents.length > 0) {
               const event = dayEvents[0]; // ใช้อีเว้นท์แรก
               switch (event.color) {
                 case 'purple': // รายงานที่อนุมัติแล้ว
                   statusColor = 'bg-purple-100 dark:bg-purple-900/30';
+                  dotColor = 'bg-purple-500';
                   break;
                 case 'emerald': // รายงานสมบูรณ์
                   statusColor = 'bg-emerald-100 dark:bg-emerald-900/30';
+                  dotColor = 'bg-emerald-500';
                   break;
                 case 'yellow': // รายงานฉบับร่าง
                   statusColor = 'bg-yellow-100 dark:bg-yellow-900/30';
+                  dotColor = 'bg-yellow-500';
                   break;
                 default:
                   statusColor = '';
+                  dotColor = 'bg-sky-500';
               }
             }
             
@@ -232,7 +237,7 @@ const CalendarWithEvents: React.FC<CalendarWithEventsProps> = ({
                 
                 {dayEvents.length > 0 && (
                   <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
-                    <div className={`w-2.5 h-2.5 rounded-full bg-${dayEvents[0].color}-500`}></div>
+                    <div className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></div>
                   </div>
                 )}
               </div>

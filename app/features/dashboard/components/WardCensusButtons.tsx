@@ -20,12 +20,29 @@ const WardCensusButtons: React.FC<WardCensusButtonsProps> = ({
   onActionSelect,
   isRegularUser = false
 }) => {
-  // สำหรับผู้ใช้ทั่วไป ให้แสดงเฉพาะ ward ของตัวเอง
+  // แสดงทุกแผนก (รวม Ward6)
   const displayedWards = wards;
+  
+  // เพิ่มปุ่มแสดงทุกแผนกสำหรับแอดมิน
+  const showAllDepartmentsButton = !isRegularUser;
   
   return (
     <div className="mb-6">
       <div className="flex flex-wrap gap-2">
+        {/* ปุ่มแสดงทุกแผนกสำหรับแอดมิน */}
+        {showAllDepartmentsButton && (
+          <button
+            onClick={() => onWardSelect("")}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors 
+              ${!selectedWardId
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+              }`}
+          >
+            ทุกแผนก
+          </button>
+        )}
+        
         {/* แสดงปุ่มเลือก Ward เฉพาะเมื่อไม่ใช่ผู้ใช้ทั่วไป หรือมี Ward มากกว่า 1 Ward */}
         {(!isRegularUser || displayedWards.length > 1) && displayedWards.map((ward) => (
           <button

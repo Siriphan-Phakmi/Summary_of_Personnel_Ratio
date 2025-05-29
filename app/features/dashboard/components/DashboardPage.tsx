@@ -14,6 +14,7 @@ import { COLLECTION_SUMMARIES, COLLECTION_WARDFORMS } from '@/app/features/ward-
 import { getApprovedSummariesByDateRange } from '@/app/features/ward-form/services/approvalServices/dailySummary';
 import { useTheme } from 'next-themes';
 import { Timestamp } from 'firebase/firestore';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Local components
 import { 
@@ -580,7 +581,7 @@ const getWardFormsByDateAndWard = async (
 };
 
 // ฟังก์ชันสำหรับดึงข้อมูลสรุปรวม 24 ชั่วโมง
-const fetchTotalStats = async (startDateString: string, endDateString: string, user?: User | null) => {
+const fetchTotalStats = async (startDateString: string, endDateString: string, user?: User | null, wardId?: string) => {
   console.log(`[fetchTotalStats] Fetching total stats for date range: ${startDateString} - ${endDateString}`);
   
   try {
@@ -595,8 +596,11 @@ const fetchTotalStats = async (startDateString: string, endDateString: string, u
       where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED])
     );
 
-    // ถ้าไม่ใช่ Admin ให้กรองข้อมูลตาม ward ของ user ด้วย
-    if (user && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.DEVELOPER && user.floor) {
+    // กรองข้อมูลตาม ward ที่เลือกถ้ามี, หากไม่มีและไม่ใช่ Admin ให้กรองตาม ward ของ user
+    if (wardId) {
+      formsQuery = query(formsQuery, where('wardId', '==', wardId.toUpperCase()));
+      console.log(`[fetchTotalStats] Filtering by selected ward: ${wardId.toUpperCase()}`);
+    } else if (user && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.DEVELOPER && user.floor) {
       formsQuery = query(formsQuery, where('wardId', '==', user.floor.toUpperCase()));
       console.log(`[fetchTotalStats] Filtering by user floor: ${user.floor.toUpperCase()}`);
     }
@@ -919,6 +923,17 @@ const getThaiDayName = (dateString: string): string => {
   }
 };
 
+// เพิ่ม interface สำหรับข้อมูลกราฟเส้นรายวัน
+interface DailyPatientData {
+  date: string;
+  displayDate: string;
+  morningPatientCount: number;
+  nightPatientCount: number;
+  totalPatientCount: number;
+  wardId: string;
+  wardName: string;
+}
+
 function DashboardPage() {
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -950,6 +965,10 @@ function DashboardPage() {
   const [markers, setMarkers] = useState<CalendarMarker[]>([]);
   const [pieChartData, setPieChartData] = useState<PieChartDataItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<Event[]>([]);
+  const [dailyPatientData, setDailyPatientData] = useState<DailyPatientData[]>([]);
+  const [dateRangeForDailyChart, setDateRangeForDailyChart] = useState('7days');
+  const [customStartDate, setCustomStartDate] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   // state สำหรับเก็บข้อมูลจำนวนเตียงระหว่างเวรเช้า-ดึก
   const [bedCensusData, setBedCensusData] = useState<WardCensusData[]>([]);
@@ -959,7 +978,7 @@ function DashboardPage() {
   const wardSummaryRef = React.useRef<HTMLDivElement>(null);
   const patientTrendRef = React.useRef<HTMLDivElement>(null);
 
-  // ตัวแปรสำหรับตรวจสอบว่าผู้ใช้เป็นผู้ใช้ทั่วไปหรือไม่
+  // ตรวจสอบว่าผู้ใช้เป็นผู้ใช้ทั่วไปหรือไม่
   const isRegularUser = useMemo(() => {
     return user?.role !== UserRole.ADMIN && 
            user?.role !== UserRole.SUPER_ADMIN && 
@@ -1015,6 +1034,35 @@ function DashboardPage() {
 
   // อัพเดทเวลามีการเปลี่ยนแปลง Ward ที่เลือก
   const handleSelectWard = (wardId: string) => {
+    // ถ้า wardId เป็นค่าว่าง ให้แสดงทุกแผนก
+    if (wardId === "") {
+      setSelectedWardId(null);
+      console.log(`[handleSelectWard] Selecting all departments`);
+      
+      // โหลดข้อมูลแนวโน้มของทุกแผนกเมื่อเลือกแสดงทุกแผนก
+      setTrendData([]); // ล้างข้อมูลเดิมก่อน
+      const fetchTrend = async () => {
+        try {
+          const trends = await fetchPatientTrends(
+            effectiveDateRange.start, 
+            effectiveDateRange.end, 
+            undefined, // ไม่ระบุ wardId เพื่อดึงข้อมูลทุกแผนก
+            false, // ไม่ดึงข้อมูลทั้งหมด
+            user, // ส่ง user เข้าไป
+            wards // ส่ง wards ที่กรองแล้วเข้าไป
+          );
+          setTrendData(trends);
+        } catch (error) {
+          console.error('[handleSelectWard] Error fetching trend data:', error);
+        }
+      };
+      fetchTrend();
+      
+      // ไม่ต้อง scroll ไปที่ส่วนเปรียบเทียบ เพราะไม่มีแผนกที่เลือก
+      patientTrendRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    
     // ถ้าผู้ใช้ทั่วไปและ wardId ไม่ตรงกับ ward ของผู้ใช้ ให้ข้ามการทำงาน
     if (isRegularUser && user?.floor && user.floor.toUpperCase() !== wardId.toUpperCase()) {
       console.log(`[handleSelectWard] Regular user (${user?.floor}) cannot select different ward (${wardId})`);
@@ -1128,10 +1176,18 @@ function DashboardPage() {
             setSelectedWardId(userWard.id);
             console.log(`[loadWards] Regular user: Auto-selecting user's ward: ${userWard.id}`);
           } else if (userDashboardWards.length > 0) {
-            setSelectedWardId(userDashboardWards[0].id);
+            // เลือก ward แรกที่ไม่ใช่ Ward6
+            const firstNonWard6 = userDashboardWards.find(w => w.id?.toUpperCase() !== 'WARD6');
+            if (firstNonWard6 && firstNonWard6.id) {
+              setSelectedWardId(firstNonWard6.id);
+            } else {
+              setSelectedWardId(userDashboardWards[0].id);
+            }
           }
-        } else if (userDashboardWards.length > 0) {
-          setSelectedWardId(userDashboardWards[0].id);
+        } else {
+          // สำหรับแอดมิน ไม่เลือก ward ใดเป็นค่าเริ่มต้น เพื่อให้แสดงข้อมูลทุกแผนก
+          setSelectedWardId(null);
+          console.log(`[loadWards] Admin user: Not selecting any ward by default to show all departments`);
         }
       } catch (err) {
         console.error('[DashboardPage] Error loading wards:', err);
@@ -1373,7 +1429,7 @@ function DashboardPage() {
         
         // totalStats ควรดึงข้อมูลของวันล่าสุดในช่วงที่เลือก หรือวันปัจจุบันถ้าเป็น "แสดงทั้งหมด"
         const statsDate = fetchAllTime ? format(new Date(), 'yyyy-MM-dd') : format(effectiveDateRange.end, 'yyyy-MM-dd');
-        const stats = await fetchTotalStats(statsDate, statsDate, user); // ส่ง user เข้าไป
+        const stats = await fetchTotalStats(statsDate, statsDate, user, selectedWardId || undefined); // ส่ง user และ selectedWardId เข้าไป
         setTotalStats(stats);
       } catch (err) {
         console.error('[DashboardPage] Error fetching ward summary data:', err);
@@ -1383,7 +1439,7 @@ function DashboardPage() {
     };
     
     fetchSummaryData();
-  }, [effectiveDateRange, user, wards, dateRange]);
+  }, [effectiveDateRange, user, wards, dateRange, selectedWardId]);
         
   // ดึงข้อมูลแนวโน้มผู้ป่วย
   useEffect(() => {
@@ -1574,7 +1630,7 @@ function DashboardPage() {
       setWardSummaryData(summaryData);
       
       // ดึงข้อมูลสถิติทั้งหมด
-      const stats = await fetchTotalStats(startDateForSummary, endDateForSummary, user); // ใช้ช่วงวันที่ที่ถูกต้อง
+      const stats = await fetchTotalStats(startDateForSummary, endDateForSummary, user, selectedWardId || undefined); // รวม selectedWardId
       setTotalStats(stats);
       
       // ดึงข้อมูล Census
@@ -1860,6 +1916,274 @@ function DashboardPage() {
     }
   }, [calculateBedSummary, summaryDataList]);
 
+  // เพิ่ม useEffect ใหม่เพื่อดึงข้อมูลสถานะสำหรับปฏิทิน
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchCalendarMarkers = async () => {
+      try {
+        setLoading(true);
+        // ดึงข้อมูลสถานะจาก wardForms ในเดือนปัจจุบัน
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth();
+        const firstDayOfMonth = format(new Date(currentYear, currentMonth, 1), 'yyyy-MM-dd');
+        const lastDayOfMonth = format(endOfMonth(new Date(currentYear, currentMonth, 1)), 'yyyy-MM-dd');
+        
+        // ดึงข้อมูลจาก collection wardForms
+        const formsRef = collection(db, COLLECTION_WARDFORMS);
+        const q = query(
+          formsRef,
+          where('dateString', '>=', firstDayOfMonth),
+          where('dateString', '<=', lastDayOfMonth),
+          orderBy('dateString', 'asc')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        // จัดกลุ่มข้อมูลตามวันที่และสถานะสูงสุด
+        const dateStatusMap = new Map<string, string>();
+        
+        querySnapshot.forEach(doc => {
+          const data = doc.data() as WardForm;
+          const dateString = data.dateString;
+          const status = data.status;
+          
+          if (!dateString) return;
+          
+          // อัปเดตสถานะเฉพาะถ้าเป็นสถานะที่สูงกว่าหรือยังไม่มีข้อมูล
+          if (!dateStatusMap.has(dateString)) {
+            dateStatusMap.set(dateString, status);
+          } else {
+            const currentStatus = dateStatusMap.get(dateString);
+            // ตรวจสอบและอัปเดตสถานะตามลำดับความสำคัญ
+            if (
+              (currentStatus === FormStatus.DRAFT && (status === FormStatus.FINAL || status === FormStatus.APPROVED)) ||
+              (currentStatus === FormStatus.FINAL && status === FormStatus.APPROVED)
+            ) {
+              dateStatusMap.set(dateString, status);
+            }
+          }
+        });
+        
+        // แปลงข้อมูลเป็น markers
+        const calendarMarkers: CalendarMarker[] = [];
+        
+        dateStatusMap.forEach((status, date) => {
+          let markerStatus: 'draft' | 'final' | 'approved';
+          
+          switch(status) {
+            case FormStatus.APPROVED:
+              markerStatus = 'approved';
+              break;
+            case FormStatus.FINAL:
+              markerStatus = 'final';
+              break;
+            default:
+              markerStatus = 'draft';
+          }
+          
+          calendarMarkers.push({
+            date,
+            status: markerStatus
+          });
+        });
+        
+        setMarkers(calendarMarkers);
+        
+        // แปลง markers เป็น events สำหรับปฏิทิน
+        const events: Event[] = calendarMarkers.map(marker => {
+          let color: 'purple' | 'sky' | 'emerald' | 'yellow';
+          let title: string;
+          
+          switch(marker.status) {
+            case 'approved':
+              color = 'purple';
+              title = 'รายงานที่อนุมัติแล้ว';
+              break;
+            case 'final':
+              color = 'emerald';
+              title = 'รายงานสมบูรณ์';
+              break;
+            default:
+              color = 'yellow';
+              title = 'รายงานฉบับร่าง';
+          }
+          
+          return {
+            id: `marker-${marker.date}`,
+            title: title,
+            description: `สถานะการรายงานประจำวันที่ ${marker.date}`,
+            date: marker.date,
+            startTime: '00:00',
+            endTime: '23:59',
+            color: color
+          };
+        });
+        
+        setCalendarEvents(events);
+      } catch (error) {
+        console.error('[fetchCalendarMarkers] Error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCalendarMarkers();
+  }, [user]);
+
+  // แก้ไข useEffect สำหรับการทำงานของ calendarEvents
+  useEffect(() => {
+    if (markers.length > 0) {
+      // แปลง markers เป็น calendarEvents
+      const events: Event[] = markers.map(marker => {
+        let color: 'purple' | 'sky' | 'emerald' | 'yellow' = 'sky';
+        let title = 'รายงาน';
+        
+        switch(marker.status) {
+          case 'approved':
+            color = 'purple';
+            title = 'รายงานที่อนุมัติแล้ว';
+            break;
+          case 'final':
+            color = 'emerald';
+            title = 'รายงานสมบูรณ์';
+            break;
+          case 'draft':
+            color = 'yellow';
+            title = 'รายงานฉบับร่าง';
+            break;
+        }
+        
+        return {
+          id: `marker-${marker.date}`,
+          title: title,
+          description: `สถานะการรายงานประจำวันที่ ${marker.date}`,
+          date: marker.date,
+          startTime: '00:00',
+          endTime: '23:59',
+          color: color
+        };
+      });
+      
+      setCalendarEvents(events);
+    }
+  }, [markers]);
+
+  // ดึงข้อมูลผู้ป่วยรายวันย้อนหลัง
+  const fetchDailyPatientData = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      // กำหนดช่วงวันที่ตามที่เลือก
+      let startDateStr: string;
+      let endDateStr = format(new Date(), 'yyyy-MM-dd');
+      
+      switch (dateRangeForDailyChart) {
+        case '7days':
+          startDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+          break;
+        case '30days':
+          startDateStr = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+          break;
+        case 'custom':
+          startDateStr = customStartDate;
+          endDateStr = customEndDate;
+          break;
+        default:
+          startDateStr = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+      }
+      
+      const startDate = parseISO(startDateStr);
+      const endDate = parseISO(endDateStr);
+      
+      // กำหนด wardId ตามสิทธิ์การเข้าถึง
+      let wardIdToFetch: string | undefined;
+      
+      if (selectedWardId) {
+        // ถ้ามีการเลือก ward ใช้ ward ที่เลือก
+        wardIdToFetch = selectedWardId;
+      } else if (isRegularUser && user.floor) {
+        // ถ้าเป็น User ทั่วไป ใช้ ward ของตัวเอง
+        wardIdToFetch = user.floor;
+      }
+      
+      // ดึงข้อมูลแนวโน้ม
+      const trendData = await fetchPatientTrends(
+        startDate,
+        endDate,
+        wardIdToFetch,
+        false,
+        user,
+        wards
+      );
+      
+      // แปลงข้อมูลเป็นรูปแบบที่ใช้กับกราฟ
+      const dailyData: DailyPatientData[] = [];
+      
+      if (wardIdToFetch) {
+        // กรณีเลือก ward เดียว
+        for (const item of trendData) {
+          // หาข้อมูล ward ที่ต้องการ
+          const wardData = item.wardData && item.wardData[wardIdToFetch.toUpperCase()];
+          
+          if (wardData) {
+            // แปลงรูปแบบวันที่ DD/MM เป็น YYYY-MM-DD
+            const dateParts = item.date.split('/');
+            const month = parseInt(dateParts[1]);
+            const day = parseInt(dateParts[0]);
+            const year = new Date().getFullYear();
+            
+            dailyData.push({
+              date: `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
+              displayDate: item.date,
+              morningPatientCount: wardData.patientCount,
+              nightPatientCount: wardData.patientCount,
+              totalPatientCount: wardData.patientCount,
+              wardId: wardIdToFetch.toUpperCase(),
+              wardName: wardData.wardName
+            });
+          }
+        }
+      } else {
+        // กรณี admin ดูทุก ward
+        for (const item of trendData) {
+          // แปลงรูปแบบวันที่ DD/MM เป็น YYYY-MM-DD
+          const dateParts = item.date.split('/');
+          const month = parseInt(dateParts[1]);
+          const day = parseInt(dateParts[0]);
+          const year = new Date().getFullYear();
+          
+          dailyData.push({
+            date: `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
+            displayDate: item.date,
+            morningPatientCount: item.patientCount / 2,
+            nightPatientCount: item.patientCount / 2,
+            totalPatientCount: item.patientCount,
+            wardId: 'ALL',
+            wardName: 'ทุกแผนก'
+          });
+        }
+      }
+      
+      // เรียงข้อมูลตามวันที่
+      dailyData.sort((a, b) => a.date.localeCompare(b.date));
+      
+      setDailyPatientData(dailyData);
+    } catch (error) {
+      console.error('[fetchDailyPatientData] Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [customEndDate, customStartDate, dateRangeForDailyChart, isRegularUser, selectedWardId, user, wards]);
+
+  // ดึงข้อมูลผู้ป่วยรายวันเมื่อมีการเปลี่ยนแปลงตัวแปรที่เกี่ยวข้อง
+  useEffect(() => {
+    if (user) {
+      fetchDailyPatientData();
+    }
+  }, [fetchDailyPatientData, user, dateRangeForDailyChart, customStartDate, customEndDate, selectedWardId]);
 
   // แสดงหน้า Dashboard
   return (
@@ -1953,7 +2277,7 @@ function DashboardPage() {
                       fetchAllWardCensus(dateStr),
                       
                       // โหลดข้อมูล stats
-                      fetchTotalStats(dateStr, dateStr),
+                      fetchTotalStats(dateStr, dateStr, user, selectedWardId || undefined),
                       
                       // คำนวณข้อมูลเตียง
                       calculateBedSummary()
@@ -2094,7 +2418,9 @@ function DashboardPage() {
               ) : bedCensusData.length > 0 ? (
                 <div className="w-full" style={{ height: Math.max(400, Math.min(720, bedCensusData.length * 56)) }}>
                   <EnhancedBarChart 
-                    data={bedCensusData} // แสดงข้อมูลทุกแผนกเสมอ ไม่กรองเฉพาะแผนกของผู้ใช้
+                    data={selectedWardId
+                      ? bedCensusData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
+                      : bedCensusData}
                     selectedWardId={selectedWardId || undefined}
                     onSelectWard={handleSelectWard}
                     showShiftData={true}
@@ -2144,9 +2470,12 @@ function DashboardPage() {
                     </div>
                   ) : pieChartData && pieChartData.length > 0 ? (
                     <BedSummaryPieChart 
-                      data={(isRegularUser && user?.floor 
-                        ? pieChartData.filter(ward => ward.id.toUpperCase() === user.floor?.toUpperCase())
-                        : pieChartData).map(item => {
+                      data={(selectedWardId
+                        ? pieChartData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
+                        : isRegularUser && user?.floor
+                          ? pieChartData.filter(item => item.id.toUpperCase() === user.floor?.toUpperCase())
+                          : pieChartData
+                        ).map(item => {
                           // แปลงข้อมูลก่อนส่งไปยัง component
                           const formattedItem = {
                             id: item.id,
@@ -2182,53 +2511,28 @@ function DashboardPage() {
             </div>
           </div>
           
-          {/* Patient Trend Chart - ย้ายมาก่อนตารางข้อมูลรวม */}
-          <div className="mb-6" ref={patientTrendRef}>
-            <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-              </svg>
-              แนวโน้มผู้ป่วย
-              {selectedWardId && selectedWard ? (
-                <span className="ml-2 text-sm font-medium text-blue-500 dark:text-blue-400">
-                  แผนก {selectedWard.wardName}
-                </span>
-              ) : (
-                <span className="ml-2 text-sm font-medium text-purple-500 dark:text-purple-400">
-                  ทุกแผนก
-                </span>
-              )}
-              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                {format(parseISO(startDate), 'dd/MM/yyyy')} - {format(parseISO(endDate), 'dd/MM/yyyy')}
-              </span>
+          {/* Patient Census ทุกแผนก หรือเฉพาะแผนกที่เลือก */}
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
+              Chart Patient Census (คงพยาบาล) {selectedWardId && selectedWard ? `แผนก ${selectedWard.wardName}` : 'ทุกแผนก'}
             </h2>
             <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-              {trendData.length > 0 ? (
-                <div className="h-96">
-                  <PatientTrendChart 
-                    data={trendData} 
-                    wardName={selectedWardId && selectedWard ? selectedWard.wardName : "ทุกแผนก"}
-                    allWards={wards}
-                    onWardSelect={handleSelectWard}
-                  />
-                </div>
-              ) : (
-                <div className="h-80">
-                  <PatientTrendChart 
-                    data={[]} 
-                    wardName={selectedWardId && selectedWard ? selectedWard.wardName : "ทุกแผนก"}
-                    allWards={wards}
-                    onWardSelect={handleSelectWard}
-                  />
-                </div>
-              )}
-              
-              {/* เพิ่มคำอธิบายสำหรับปุ่มสลับการแสดงผล */}
-              <div className="flex justify-center mt-4">
-                <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded-full">
-                  กดปุ่ม "แสดงแยกแผนก" เพื่อดูแนวโน้มแยกตามแผนก
-                </div>
-              </div>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={
+                    selectedWardId && selectedWard
+                      ? bedCensusData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
+                      : bedCensusData
+                  } margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
+                  <XAxis dataKey="wardName" tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} />
+                  <YAxis tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} />
+                  <Tooltip formatter={(value: number) => `${value} คน`} labelFormatter={(label) => `แผนก ${label}`} />
+                  <Legend verticalAlign="top" />
+                  <Line type="monotone" dataKey="morningPatientCount" name="คงพยาบาล ทั้งวัน กะเช้า" stroke="#3b82f6" activeDot={{ r: 8 }} />
+                  <Line type="monotone" dataKey="nightPatientCount" name="คงพยาบาล ทั้งวัน กะดึก" stroke="#f97316" />
+                  <Line type="monotone" dataKey="patientCount" name="คงพยาบาล ทั้งวัน รวมเวรเช้า-ดึก" stroke="#10b981" />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
           
@@ -2242,12 +2546,14 @@ function DashboardPage() {
                   <div className="h-full">
                     {/* ใช้ tableData ที่สร้างจาก useEffect แทน async IIFE */}
                     <WardSummaryTable 
-                      data={isRegularUser && user?.floor
-                        ? tableData.filter(item => 
-                            item.id.toUpperCase() === user.floor?.toUpperCase() || 
-                            item.id === 'GRAND_TOTAL'
-                          )
-                        : tableData}
+                      data={selectedWardId
+                        ? tableData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
+                        : isRegularUser && user?.floor
+                          ? tableData.filter(item => 
+                              item.id.toUpperCase() === user.floor?.toUpperCase() || 
+                              item.id === 'GRAND_TOTAL'
+                            )
+                          : tableData}
                       selectedWardId={selectedWardId}
                       onSelectWard={handleSelectWard}
                       title="ตารางข้อมูลรวมทั้งหมด"
@@ -2490,6 +2796,88 @@ function DashboardPage() {
                       </select>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* กราฟเส้นแสดงจำนวนผู้ป่วยรายวัน */}
+          <div className="mb-6">
+            <div className="flex flex-wrap items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                ข้อมูลผู้ป่วยรายวัน {selectedWardId && selectedWard ? `แผนก ${selectedWard.wardName}` : isRegularUser && user?.floor ? `แผนก ${wards.find(w => w.id?.toUpperCase() === user.floor?.toUpperCase())?.wardName || user.floor}` : 'ทุกแผนก'}
+              </h2>
+              
+              <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+                <select
+                  value={dateRangeForDailyChart}
+                  onChange={(e) => setDateRangeForDailyChart(e.target.value)}
+                  className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="7days">7 วันล่าสุด</option>
+                  <option value="30days">30 วันล่าสุด</option>
+                  <option value="custom">กำหนดเอง</option>
+                </select>
+                
+                {dateRangeForDailyChart === 'custom' && (
+                  <>
+                    <input 
+                      type="date" 
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input 
+                      type="date" 
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={fetchDailyPatientData}
+                      className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      แสดง
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : dailyPatientData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={dailyPatientData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
+                    <XAxis 
+                      dataKey="displayDate" 
+                      tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }}
+                      label={{ value: 'วันที่', position: 'bottom', fill: theme === 'dark' ? '#d1d5db' : '#4b5563', dy: 10 }}
+                    />
+                    <YAxis 
+                      tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }}
+                      label={{ value: 'จำนวนผู้ป่วย', angle: -90, position: 'left', fill: theme === 'dark' ? '#d1d5db' : '#4b5563', dx: -10 }}
+                    />
+                    <Tooltip formatter={(value: number) => `${value} คน`} />
+                    <Legend verticalAlign="top" />
+                    <Line type="monotone" dataKey="morningPatientCount" name="คงพยาบาล ทั้งวัน กะเช้า" stroke="#3b82f6" activeDot={{ r: 8 }} />
+                    <Line type="monotone" dataKey="nightPatientCount" name="คงพยาบาล ทั้งวัน กะดึก" stroke="#f97316" />
+                    <Line type="monotone" dataKey="totalPatientCount" name="คงพยาบาล ทั้งวัน รวมเวรเช้า-ดึก" stroke="#10b981" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-64">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">ไม่พบข้อมูล</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+                    ไม่พบข้อมูลผู้ป่วยในช่วงเวลาที่เลือก กรุณาเลือกช่วงเวลาอื่น
+                  </p>
                 </div>
               )}
             </div>

@@ -97,14 +97,14 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
     if (typeof window !== 'undefined') {
       try {
         const savedPreference = localStorage.getItem('dashboardShowWardDetails');
-        // ถ้ามีค่าเก็บไว้ ให้ใช้ค่านั้น แต่ถ้าไม่มีให้ค่าเริ่มต้นเป็น true
+        // ถ้ามีค่าเก็บไว้ ให้ใช้ค่านั้น แต่ถ้าไม่มีให้ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
         return savedPreference !== null ? savedPreference === 'true' : true;
       } catch (error) {
         console.error('Error reading display mode preference:', error);
-        return true;
+        return true; // ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
       }
     }
-    return true;
+    return true; // ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
   });
   
   if (!data || data.length === 0) {

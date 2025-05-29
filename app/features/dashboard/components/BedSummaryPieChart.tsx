@@ -278,7 +278,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
     <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
       <div className="text-center mb-3">
         <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
-          {totalAvailableBeds > 0 ? 'จำนวนเตียงว่าง' : 
+          {totalAvailableBeds > 0 ? 'Pie จำนวนเตียงว่าง' : 
            (totalUnavailableBeds > 0 ? 'จำนวนเตียงไม่ว่าง' : 'จำนวนเตียง')}
         </h3>
         {totalAvailableBeds > 0 ? (
