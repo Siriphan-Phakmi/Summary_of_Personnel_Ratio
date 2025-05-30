@@ -190,13 +190,12 @@ const fetchPatientTrends = async (startDate: Date, endDate: Date, wardId?: strin
       logInfo(`[fetchPatientTrends] User Role: ${user.role}. Fetching trends for own floor: ${formattedWardId}`);
     } else {
       // กรณี Admin หรือไม่ได้ระบุ wardId และไม่ใช่ User ทั่วไป (ต้องการดูข้อมูลแยกทุก ward)
-      const allWardsToFetch = (user && (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER)) 
-                              ? await getAllWards() // Admin ดึงจาก getAllWards
-                              : currentWards || []; // User ทั่วไปใช้ currentWards ที่ส่งเข้ามา (กรองสิทธิ์แล้ว)
+      // ใช้ currentWards ที่ส่งเข้ามาจากภายนอกแทนการดึงจาก getAllWards เพื่อให้ข้อมูลสอดคล้องกับสิทธิ์ผู้ใช้
+      const allWardsToFetch: Ward[] = currentWards || [];
       
       // ดึงข้อมูลสำหรับแต่ละ ward
       const wardPromises = allWardsToFetch
-        .filter((ward: Ward) => ward.id && DASHBOARD_WARDS.includes(ward.id.toUpperCase())) // เพิ่ม type Ward
+        .filter((ward: Ward) => ward.id && DASHBOARD_WARDS.some(dw => dw.toUpperCase() === ward.id.toUpperCase()))
         .map(async (ward: Ward) => { // เพิ่ม type Ward
           if (!ward.id) return [];
           
@@ -2185,6 +2184,89 @@ function DashboardPage() {
     }
   }, [fetchDailyPatientData, user, dateRangeForDailyChart, customStartDate, customEndDate, selectedWardId]);
 
+  // State สำหรับ Chart Patient Census (trend per ward)
+  const [selectedTrendWards, setSelectedTrendWards] = useState<string[]>([]);
+  const wardColors: Record<string, string> = {
+    CCU: '#8884d8', ICU: '#82ca9d', LR: '#ffc658', NSY: '#ff7300',
+    Ward10B: '#8dd1e1', Ward11: '#d084d0', Ward12: '#ffb347', Ward6: '#67b7dc',
+    Ward7: '#a4de6c', Ward8: '#ffc0cb', Ward9: '#87ceeb', WardGI: '#dda0dd'
+  };
+  // ตั้งค่า default selectedTrendWards เมื่อโหลด wards
+  useEffect(() => {
+    if (wards.length > 0) {
+      const defaults = isRegularUser && user?.floor
+        ? [user.floor.toUpperCase()]
+        : wards.map(w => w.id?.toUpperCase() || '');
+      setSelectedTrendWards(defaults);
+    }
+  }, [wards, isRegularUser, user]);
+  const toggleTrendWard = (wardId: string) => {
+    setSelectedTrendWards(prev =>
+      prev.includes(wardId)
+        ? prev.filter(w => w !== wardId)
+        : [...prev, wardId]
+    );
+  };
+  // Prepare data for trend chart
+  const trendChartData = useMemo(() => {
+    return trendData.map(item => {
+      const row: Record<string, any> = { date: item.date };
+      selectedTrendWards.forEach(wardId => {
+        row[wardId] = item.wardData?.[wardId]?.patientCount ?? null;
+      });
+      return row;
+    });
+  }, [trendData, selectedTrendWards]);
+
+  // State สำหรับกำหนดช่วงวันที่ใน Chart Patient Census Trend
+  const [trendDateRange, setTrendDateRange] = useState<{ start: number; end: number }>({ start: 1, end: 31 });
+  const [customTrendStart, setCustomTrendStart] = useState<string>('1');
+  const [customTrendEnd, setCustomTrendEnd] = useState<string>('31');
+  const setQuickTrendDateRange = (start: number, end: number) => {
+    setTrendDateRange({ start, end });
+    setCustomTrendStart(start.toString());
+    setCustomTrendEnd(end.toString());
+  };
+  const applyCustomTrendDateRange = () => {
+    const start = Math.max(1, Math.min(31, parseInt(customTrendStart, 10) || 1));
+    const end = Math.max(start, Math.min(31, parseInt(customTrendEnd, 10) || 31));
+    setTrendDateRange({ start, end });
+  };
+  // กรองข้อมูล trendChartData ตามช่วงวันที่ที่เลือก
+  const filteredTrendChartData = useMemo(() => {
+    return trendChartData.filter(item => {
+      const day = parseInt(item.date.split('/')[0], 10);
+      return day >= trendDateRange.start && day <= trendDateRange.end;
+    });
+  }, [trendChartData, trendDateRange]);
+
+  // ดึงข้อมูล trend ใหม่ตามวันที่ที่ผู้ใช้เลือกใน Trend panel
+  useEffect(() => {
+    if (!user || wards.length === 0) return;
+    const year = new Date().getFullYear();
+    const month = new Date().getMonth();
+    const startDateObj = startOfDay(new Date(year, month, trendDateRange.start));
+    const endDateObj = endOfDay(new Date(year, month, trendDateRange.end));
+    (async () => {
+      setLoading(true);
+      try {
+        const newTrendData = await fetchPatientTrends(
+          startDateObj,
+          endDateObj,
+          undefined,
+          false,
+          user,
+          wards
+        );
+        setTrendData(newTrendData);
+      } catch (error) {
+        console.error('[DashboardPage] Error fetching trend data for chart:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [trendDateRange, user, wards]);
+
   // แสดงหน้า Dashboard
   return (
     <div className="flex flex-col min-h-screen">
@@ -2234,7 +2316,10 @@ function DashboardPage() {
                     className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
-                    onClick={() => setCurrentView(ViewType.SUMMARY)}
+                    onClick={() => {
+                      handleDateRangeChange('custom');
+                      setCurrentView(ViewType.SUMMARY);
+                    }}
                     className="px-2 py-1 rounded-md text-sm font-medium bg-blue-600 text-white"
                   >
                     ตกลง
@@ -2514,25 +2599,79 @@ function DashboardPage() {
           {/* Patient Census ทุกแผนก หรือเฉพาะแผนกที่เลือก */}
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
-              Chart Patient Census (คงพยาบาล) {selectedWardId && selectedWard ? `แผนก ${selectedWard.wardName}` : 'ทุกแผนก'}
+              Chart Patient Census (คงพยาบาล) Trend
             </h2>
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={
-                    selectedWardId && selectedWard
-                      ? bedCensusData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
-                      : bedCensusData
-                  } margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <div className="flex gap-6 h-[calc(100vh/3)]">
+              {/* Ward selection panel */}
+              <div className="w-64 bg-white dark:bg-gray-800 rounded-lg shadow p-4 overflow-auto">
+                <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-4">Ward Selection</h3>
+                <div className="space-y-2">
+                  {wards.map(w => (
+                    <label key={w.id} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTrendWards.includes(w.id?.toUpperCase() || '')}
+                        onChange={() => toggleTrendWard(w.id?.toUpperCase() || '')}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <div className="w-4 h-4 rounded" style={{ backgroundColor: wardColors[w.id?.toUpperCase() || ''] }} />
+                      <span className="text-gray-700 dark:text-gray-200 font-medium">{w.wardName}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
+                  <p className="mb-2">Selected: {selectedTrendWards.length} wards</p>
+                  <button onClick={() => setSelectedTrendWards(wards.map(w => w.id?.toUpperCase() || ''))} className="w-full mb-2 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600">
+                    Select All
+                  </button>
+                  <button onClick={() => setSelectedTrendWards([])} className="w-full px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600">
+                    Clear All
+                  </button>
+                </div>
+                {/* Date Range Section */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Date Range</h3>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <button onClick={() => setQuickTrendDateRange(1, 7)} className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">1-7</button>
+                    <button onClick={() => setQuickTrendDateRange(8, 15)} className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">8-15</button>
+                    <button onClick={() => setQuickTrendDateRange(16, 23)} className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">16-23</button>
+                    <button onClick={() => setQuickTrendDateRange(24, 31)} className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600">24-31</button>
+                    <button onClick={() => setQuickTrendDateRange(27, 29)} className="px-2 py-1 bg-purple-500 text-white rounded text-xs hover:bg-purple-600">27-29</button>
+                    <button onClick={() => setQuickTrendDateRange(1, 31)} className="px-2 py-1 bg-indigo-500 text-white rounded text-xs hover:bg-indigo-600">All Days</button>
+                  </div>
+                  <div className="flex gap-2 mb-2">
+                    <input type="number" min="1" max="31" value={customTrendStart} onChange={e => setCustomTrendStart(e.target.value)} className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-xs" placeholder="Start" />
+                    <span className="self-center text-gray-500 dark:text-gray-400">-</span>
+                    <input type="number" min="1" max="31" value={customTrendEnd} onChange={e => setCustomTrendEnd(e.target.value)} className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-xs" placeholder="End" />
+                  </div>
+                  <button onClick={applyCustomTrendDateRange} className="w-full px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600">Apply Range</button>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-2">Current: Day {trendDateRange.start} - {trendDateRange.end}</div>
+                </div>
+              </div>
+              {/* Trend chart area */}
+              <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={filteredTrendChartData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#374151' : '#e5e7eb'} />
-                  <XAxis dataKey="wardName" tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} />
-                  <YAxis tick={{ fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} />
-                  <Tooltip formatter={(value: number) => `${value} คน`} labelFormatter={(label) => `แผนก ${label}`} />
+                    <XAxis dataKey="date" stroke={theme === 'dark' ? '#d1d5db' : '#4b5563'} tick={{ fontSize: 11, fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} angle={-45} textAnchor="end" />
+                    <YAxis stroke={theme === 'dark' ? '#d1d5db' : '#4b5563'} tick={{ fontSize: 11, fill: theme === 'dark' ? '#d1d5db' : '#4b5563' }} />
+                    <Tooltip formatter={(value: number) => `${value} คน`} />
                   <Legend verticalAlign="top" />
-                  <Line type="monotone" dataKey="morningPatientCount" name="คงพยาบาล ทั้งวัน กะเช้า" stroke="#3b82f6" activeDot={{ r: 8 }} />
-                  <Line type="monotone" dataKey="nightPatientCount" name="คงพยาบาล ทั้งวัน กะดึก" stroke="#f97316" />
-                  <Line type="monotone" dataKey="patientCount" name="คงพยาบาล ทั้งวัน รวมเวรเช้า-ดึก" stroke="#10b981" />
+                    {selectedTrendWards.map(wardId => (
+                      <Line
+                        key={wardId}
+                        type="monotone"
+                        dataKey={wardId}
+                        name={wards.find(w => w.id?.toUpperCase() === wardId)?.wardName || wardId}
+                        stroke={wardColors[wardId]}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        connectNulls={false}
+                      />
+                    ))}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             </div>
           </div>
           
