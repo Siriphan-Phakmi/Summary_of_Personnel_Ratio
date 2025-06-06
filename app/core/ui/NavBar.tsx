@@ -274,10 +274,10 @@ const NavBar = () => {
             {/* Database Management - แสดงเฉพาะกับ Developer เท่านั้น */}
             {isDeveloper && (
               <NavLink 
-                href="/admin/database" 
-                active={isActive('/admin/database')} 
+                href="/admin/dev-tools" 
+                active={isActive('/admin/dev-tools')} 
                 icon={<FiServer />} 
-                text="Database Management" 
+                text="Dev-Tools" 
               />
             )}
           </div>
@@ -350,11 +350,11 @@ const NavBar = () => {
             {/* Database Management - แสดงเฉพาะกับ Developer เท่านั้น */}
             {isDeveloper && (
               <MobileNavLink 
-                href="/admin/database" 
-                active={isActive('/admin/database')} 
+                href="/admin/dev-tools"
+                active={isActive('/admin/dev-tools')}
                 icon={<FiServer />} 
-                text="Database Management" 
-                onClick={() => setIsMenuOpen(false)} 
+                text="Dev-Tools"
+                onClick={toggleMenu}
               />
             )}
           </div>

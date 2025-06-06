@@ -106,13 +106,13 @@ export default function LoginPage() {
         // ล้าง CSRF token
         sessionStorage.removeItem('csrfToken');
         
-        // ล้าง cache อื่นๆ ที่อาจเกี่ยวข้องกับการ login
+        // ล้าง cache อื่นๆ ที่อาจเกี่ยวข้องกับ auth
         const authCookiesToClear = ['authToken', 'userData'];
         authCookiesToClear.forEach(cookieName => {
           document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
         });
         
-        // หากมีการใช้ แคชอื่นๆ ที่เกี่ยวข้องกับ auth ลองตรวจสอบและล้างเพิ่มเติม
+        // ล้าง cache อื่นๆ ที่อาจเกี่ยวข้องกับ auth ลองตรวจสอบและล้างเพิ่มเติม
         if (rememberMe === false) {
           localStorage.removeItem('lastLoginUser');
         }
@@ -137,7 +137,7 @@ export default function LoginPage() {
       } else if (user.username === 'admin') {
         router.push('/census/approval');
       } else if (user.username === 'bbee') {
-        router.push('/admin/database');
+        router.push('/admin/dev-tools');
       } else {
         // กรณีเป็น username อื่นๆ ให้ใช้ role ในการเปลี่ยนเส้นทาง
         switch (user.role) {
@@ -145,7 +145,7 @@ export default function LoginPage() {
             router.push('/census/approval');
             break;
           case 'developer':
-            router.push('/admin/database');
+            router.push('/admin/dev-tools');
             break;
           default: // user role
             router.push('/census/form');

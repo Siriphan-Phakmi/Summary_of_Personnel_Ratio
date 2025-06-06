@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 import Link from 'next/link';
-import { FiUserPlus, FiDatabase, FiClipboard, FiServer, FiActivity } from 'react-icons/fi';
+import { FiUserPlus, FiClipboard, FiServer, FiActivity } from 'react-icons/fi';
 
 // This page acts as an Admin Dashboard with links to admin features
 export default function AdminRedirectPage() {
@@ -19,8 +19,11 @@ export default function AdminRedirectPage() {
           // Not logged in, redirect to login
           router.push('/login');
         }
-      } else if (user.role !== 'admin' && user.role !== 'developer') {
-        // Non-admin logged-in users go back to home
+      } else if (user.role === 'developer') {
+        // Developer users automatically go to dev-tools
+        router.push('/admin/dev-tools');
+      } else if (user.role !== 'admin') {
+        // Non-admin/non-developer logged-in users go back to home
         router.push('/home');
       }
     }
@@ -35,8 +38,8 @@ export default function AdminRedirectPage() {
     );
   }
   
-  // If authenticated as admin/developer, show the admin dashboard
-  if (user && (user.role === 'admin' || user.role === 'developer')) {
+  // If authenticated as admin, show the admin dashboard
+  if (user && user.role === 'admin') {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
         <div className="container mx-auto px-4 py-8">
@@ -54,17 +57,6 @@ export default function AdminRedirectPage() {
               </div>
             </Link>
             
-            {/* Database Management */}
-            <Link href="/admin/database" className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
-              <div className="flex items-start">
-                <FiDatabase className="text-4xl text-green-500 dark:text-green-400 mr-4" />
-                <div>
-                  <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">จัดการฐานข้อมูล</h2>
-                  <p className="text-gray-600 dark:text-gray-400">ตั้งค่าและจัดการฐานข้อมูลของระบบ</p>
-                </div>
-              </div>
-            </Link>
-            
             {/* Log Viewer */}
             <Link href="/admin/logs" className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
               <div className="flex items-start">
@@ -76,7 +68,7 @@ export default function AdminRedirectPage() {
               </div>
             </Link>
             
-            {/* Dev Tools */}
+            {/* Dev Tools - Only for Developer */}
             {user.role === 'developer' && (
               <Link href="/admin/dev-tools" className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 transform hover:-translate-y-1">
                 <div className="flex items-start">
@@ -94,6 +86,6 @@ export default function AdminRedirectPage() {
     );
   }
   
-  // Return null while redirect is happening
+  // Return null while redirect is happening for non-admin/non-developer roles
   return null; 
 } 

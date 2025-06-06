@@ -184,3 +184,14 @@
 
 ### การแก้ไขล่าสุด (พฤษภาคม 2568)
 - [x] แก้ไขคอมโพเนนต์ `WardCensusButtons.tsx` ไม่ให้แสดงปุ่มเลือก Ward6 ตามข้อกำหนดใหม่ (การกรอง Ward6 ออกจากปุ่มเลือก) 
+
+### การแก้ไขล่าสุด (กรกฎาคม 2567)
+
+- [x] **ลบระบบ "Database Management"**:
+  - [x] ลบโฟลเดอร์ `app/admin/database` และไฟล์ที่เกี่ยวข้องทั้งหมด
+  - [x] แก้ไขไฟล์ `app/admin/page.tsx` โดยลบลิงก์ "Database Management" ออก
+  - [x] แก้ไขไฟล์ `app/admin/page.tsx` เพื่อให้ผู้ใช้ `role: 'developer'` ถูกเปลี่ยนเส้นทางอัตโนมัติไปยัง `/admin/dev-tools` หลังจาก Login
+- [x] **ยืนยันฟังก์ชัน "dev-tools"**: 
+  - [x] ตรวจสอบและยืนยันว่า `app/admin/dev-tools/page.tsx` และ API endpoint `/api/dev/generate-mock-data` มีฟังก์ชันการสร้างข้อมูลจำลอง WardForm และอัปเดต Patient Census ตามที่ต้องการครบถ้วน
+  - [x] เปลี่ยนข้อความเมนู "dev-tools" เป็น "Dev-Tools"
+  - [x] แก้ไขให้ข้อมูลที่ถูก Generate ด้วย Mock Data Generator แสดงในหน้า Dashboard ได้ โดยแก้ไขฟังก์ชัน `getApprovedSummariesByDateRange` ให้ตรวจสอบและสร้าง DailySummary จากข้อมูล WardForm ที่ถูก Generate ทั้งกะเช้าและกะดึก

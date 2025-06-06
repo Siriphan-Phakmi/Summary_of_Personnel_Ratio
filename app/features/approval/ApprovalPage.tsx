@@ -261,7 +261,7 @@ const IndexErrorMessage = ({ error }: { error?: unknown }) => {
           <ol className="text-sm text-yellow-700 dark:text-yellow-400 list-decimal pl-5 space-y-1">
             <li>เข้าไปที่ Firebase Console และสร้าง Index ที่จำเป็น</li>
             <li>หรือใช้ Firebase CLI สั่ง <code className="bg-yellow-100 dark:bg-yellow-900/40 px-1 rounded">firebase deploy --only firestore:indexes</code></li>
-            <li>ดูวิธีการแก้ไขเพิ่มเติมได้ที่ <a href="/admin/database" className="text-blue-600 dark:text-blue-400 underline">หน้าจัดการฐานข้อมูล</a></li>
+            <li>ดูวิธีการแก้ไขเพิ่มเติมได้ที่ <a href="/admin/dev-tools" className="text-blue-600 dark:text-blue-400 underline">Dev-Tools</a></li>
           </ol>
         </div>
         <p className="mt-3 text-sm italic text-yellow-600 dark:text-yellow-500">
@@ -563,7 +563,7 @@ export default function ApprovalPage() {
         setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ');
       }
       
-      // ในกรณีเกิดข้อผิดพลาด ให้ล้างข้อมูลเก่า
+      // ในกรณีเกิดข้อผิด ให้ล้างข้อมูลเก่า
       setForms([]);
       } finally {
         setLoading(false);

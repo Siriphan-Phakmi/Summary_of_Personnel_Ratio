@@ -1038,24 +1038,45 @@ function DashboardPage() {
       setSelectedWardId(null);
       console.log(`[handleSelectWard] Selecting all departments`);
       
-      // โหลดข้อมูลแนวโน้มของทุกแผนกเมื่อเลือกแสดงทุกแผนก
-      setTrendData([]); // ล้างข้อมูลเดิมก่อน
-      const fetchTrend = async () => {
+      // แสดง loading indicator
+      setLoading(true);
+      
+      // โหลดข้อมูลทั้งหมดใหม่
+      (async () => {
         try {
-          const trends = await fetchPatientTrends(
+          // ดึงข้อมูลทั้งหมดพร้อมกัน
+          const promises = [
+            // โหลดข้อมูล census
+            fetchAllWardCensus(selectedDate),
+            
+            // โหลดข้อมูล stats
+            fetchTotalStats(startDate, endDate, user, undefined),
+            
+            // โหลดข้อมูลแนวโน้มของทุกแผนก
+            fetchPatientTrends(
             effectiveDateRange.start, 
             effectiveDateRange.end, 
             undefined, // ไม่ระบุ wardId เพื่อดึงข้อมูลทุกแผนก
             false, // ไม่ดึงข้อมูลทั้งหมด
             user, // ส่ง user เข้าไป
             wards // ส่ง wards ที่กรองแล้วเข้าไป
-          );
+            ).then(trends => {
           setTrendData(trends);
+              return trends;
+            })
+          ];
+          
+          await Promise.all(promises);
+          logInfo(`[handleSelectWard] Successfully loaded all data for all departments`);
+          
+          // เรียกฟังก์ชันดึงข้อมูลผู้ป่วยรายวันหลังจากการดึงข้อมูลอื่นๆ เสร็จสิ้น
+          await fetchDailyPatientData();
         } catch (error) {
-          console.error('[handleSelectWard] Error fetching trend data:', error);
+          logError('[handleSelectWard] Error loading data:', error);
+        } finally {
+          setLoading(false);
         }
-      };
-      fetchTrend();
+      })();
       
       // ไม่ต้อง scroll ไปที่ส่วนเปรียบเทียบ เพราะไม่มีแผนกที่เลือก
       patientTrendRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1072,26 +1093,47 @@ function DashboardPage() {
     if (isAdmin || hasAccessToWard(wardId, wards)) {
       setSelectedWardId(wardId);
       
-      // โหลดข้อมูลใหม่เมื่อเลือก ward
+      // แสดง loading indicator
+      setLoading(true);
+      
+      // โหลดข้อมูลทั้งหมดใหม่
+      (async () => {
+        try {
+          // ดึงข้อมูล ward form และ summary ก่อน
       if (selectedDate) {
-        fetchWardForms(wardId, selectedDate);
+            await getWardFormsByDateAndWard(wardId, selectedDate);
       }
       
-      // ดึงข้อมูลแนวโน้มใหม่เมื่อเลือก ward
-      setTrendData([]); // ล้างข้อมูลเดิมก่อน
-        const fetchTrend = async () => {
-          try {
-            const trends = await fetchPatientTrends(
+          // ดึงข้อมูลทั้งหมดพร้อมกัน
+          const promises = [
+            // โหลดข้อมูล census
+            fetchAllWardCensus(selectedDate),
+            
+            // โหลดข้อมูล stats
+            fetchTotalStats(startDate, endDate, user, wardId),
+            
+            // โหลดข้อมูลแนวโน้ม
+            fetchPatientTrends(
               effectiveDateRange.start, 
               effectiveDateRange.end, 
               wardId
-            );
+            ).then(trends => {
             setTrendData(trends);
+              return trends;
+            })
+          ];
+          
+          await Promise.all(promises);
+          logInfo(`[handleSelectWard] Successfully loaded all data for ward ${wardId}`);
+          
+          // เรียกฟังก์ชันดึงข้อมูลผู้ป่วยรายวันหลังจากการดึงข้อมูลอื่นๆ เสร็จสิ้น
+          await fetchDailyPatientData();
           } catch (error) {
-            console.error('[handleSelectWard] Error fetching trend data:', error);
+          logError('[handleSelectWard] Error loading data:', error);
+        } finally {
+          setLoading(false);
           }
-        };
-        fetchTrend();
+      })();
       
       // หลังจากเลือก ward ทำการเลื่อนไปที่ส่วนเปรียบเทียบ
         shiftComparisonRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -2226,11 +2268,65 @@ function DashboardPage() {
     setTrendDateRange({ start, end });
     setCustomTrendStart(start.toString());
     setCustomTrendEnd(end.toString());
+    
+    // เพิ่มการโหลดข้อมูล trend ใหม่เมื่อเลือกช่วงวันที่แบบเร็ว
+    const year = new Date().getFullYear();
+    const month = new Date().getMonth();
+    const startDateObj = startOfDay(new Date(year, month, start));
+    const endDateObj = endOfDay(new Date(year, month, end));
+    
+    // เริ่มโหลดข้อมูลใหม่
+    setLoading(true);
+    (async () => {
+      try {
+        const newTrendData = await fetchPatientTrends(
+          startDateObj,
+          endDateObj,
+          undefined,
+          false,
+          user,
+          wards
+        );
+        setTrendData(newTrendData);
+        logInfo(`[QuickTrendDateRange] Successfully loaded trend data for ${format(startDateObj, 'yyyy-MM-dd')} to ${format(endDateObj, 'yyyy-MM-dd')}`);
+      } catch (error) {
+        logError('[QuickTrendDateRange] Error fetching trend data for chart:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
   const applyCustomTrendDateRange = () => {
     const start = Math.max(1, Math.min(31, parseInt(customTrendStart, 10) || 1));
     const end = Math.max(start, Math.min(31, parseInt(customTrendEnd, 10) || 31));
     setTrendDateRange({ start, end });
+    
+    // เพิ่มการโหลดข้อมูล trend ใหม่เมื่อกดปุ่ม Apply Range
+    const year = new Date().getFullYear();
+    const month = new Date().getMonth();
+    const startDateObj = startOfDay(new Date(year, month, start));
+    const endDateObj = endOfDay(new Date(year, month, end));
+    
+    // เริ่มโหลดข้อมูลใหม่
+    setLoading(true);
+    (async () => {
+      try {
+        const newTrendData = await fetchPatientTrends(
+          startDateObj,
+          endDateObj,
+          undefined,
+          false,
+          user,
+          wards
+        );
+        setTrendData(newTrendData);
+        logInfo(`[CustomTrendDateRange] Successfully loaded trend data for ${format(startDateObj, 'yyyy-MM-dd')} to ${format(endDateObj, 'yyyy-MM-dd')}`);
+      } catch (error) {
+        logError('[CustomTrendDateRange] Error fetching trend data for chart:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
   // กรองข้อมูล trendChartData ตามช่วงวันที่ที่เลือก
   const filteredTrendChartData = useMemo(() => {
@@ -2319,6 +2415,55 @@ function DashboardPage() {
                     onClick={() => {
                       handleDateRangeChange('custom');
                       setCurrentView(ViewType.SUMMARY);
+                      
+                      // เพิ่มการโหลดข้อมูลอีกครั้งหลังจากตั้งค่าวันที่
+                      const loadingTimer = setTimeout(() => setLoading(true), 300);
+                      
+                      // โหลดข้อมูลทั้งหมดใหม่
+                      (async () => {
+                        try {
+                          const dateStr = format(parseISO(endDate), 'yyyy-MM-dd');
+                          logInfo(`[CustomDateRange] Loading data for date range ${startDate} to ${endDate}`);
+                          
+                          // รวมการเรียก API ทั้งหมดเข้าด้วยกัน
+                          const promises = [
+                            // โหลดข้อมูล ward forms (ถ้ามีการเลือก ward)
+                            selectedWardId ? getWardFormsByDateAndWard(selectedWardId, dateStr) : Promise.resolve(null),
+                            
+                            // โหลดข้อมูล census
+                            fetchAllWardCensus(dateStr),
+                            
+                            // โหลดข้อมูล stats
+                            fetchTotalStats(startDate, endDate, user, selectedWardId || undefined),
+                            
+                            // โหลดข้อมูล trend
+                            fetchPatientTrends(
+                              parseISO(startDate),
+                              parseISO(endDate),
+                              selectedWardId || undefined,
+                              false,
+                              user,
+                              wards
+                            ).then(data => {
+                              setTrendData(data);
+                              return data;
+                            })
+                          ];
+                          
+                          // รอให้ทุก promise ทำงานเสร็จ
+                          await Promise.all(promises);
+                          
+                          // โหลดข้อมูลผู้ป่วยรายวันหลังจากข้อมูลอื่นโหลดเสร็จ
+                          await fetchDailyPatientData();
+                          
+                          logInfo("[CustomDateRange] Data loading completed successfully");
+                        } catch (error) {
+                          logError("[CustomDateRange] Error loading data:", error);
+                        } finally {
+                          clearTimeout(loadingTimer);
+                          setLoading(false);
+                        }
+                      })();
                     }}
                     className="px-2 py-1 rounded-md text-sm font-medium bg-blue-600 text-white"
                   >
@@ -2973,7 +3118,100 @@ function DashboardPage() {
                       className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
-                      onClick={fetchDailyPatientData}
+                      onClick={() => {
+                        // แสดง loading indicator
+                        setLoading(true);
+                        
+                        // กำหนดช่วงวันที่ตามที่เลือก
+                        const startDateObj = parseISO(customStartDate);
+                        const endDateObj = parseISO(customEndDate);
+                        
+                        // โหลดข้อมูลใหม่
+                        (async () => {
+                          try {
+                            // กำหนด wardId ตามสิทธิ์การเข้าถึง
+                            let wardIdToFetch: string | undefined;
+                            
+                            if (selectedWardId) {
+                              // ถ้ามีการเลือก ward ใช้ ward ที่เลือก
+                              wardIdToFetch = selectedWardId;
+                            } else if (isRegularUser && user?.floor) {
+                              // ถ้าเป็น User ทั่วไป ใช้ ward ของตัวเอง
+                              wardIdToFetch = user.floor;
+                            }
+                            
+                            // ดึงข้อมูลแนวโน้ม
+                            const newTrendData = await fetchPatientTrends(
+                              startDateObj,
+                              endDateObj,
+                              wardIdToFetch,
+                              false,
+                              user,
+                              wards
+                            );
+                            
+                            // แปลงข้อมูลเป็นรูปแบบที่ใช้กับกราฟ
+                            const dailyData: DailyPatientData[] = [];
+                            
+                            if (wardIdToFetch) {
+                              // กรณีเลือก ward เดียว
+                              for (const item of newTrendData) {
+                                // หาข้อมูล ward ที่ต้องการ
+                                const wardData = item.wardData && item.wardData[wardIdToFetch.toUpperCase()];
+                                
+                                if (wardData) {
+                                  // แปลงรูปแบบวันที่ DD/MM เป็น YYYY-MM-DD
+                                  const dateParts = item.date.split('/');
+                                  const month = parseInt(dateParts[1]);
+                                  const day = parseInt(dateParts[0]);
+                                  const year = new Date().getFullYear();
+                                  
+                                  dailyData.push({
+                                    date: `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
+                                    displayDate: item.date,
+                                    morningPatientCount: wardData.patientCount,
+                                    nightPatientCount: wardData.patientCount,
+                                    totalPatientCount: wardData.patientCount,
+                                    wardId: wardIdToFetch.toUpperCase(),
+                                    wardName: wardData.wardName
+                                  });
+                                }
+                              }
+                            } else {
+                              // กรณี admin ดูทุก ward
+                              for (const item of newTrendData) {
+                                // แปลงรูปแบบวันที่ DD/MM เป็น YYYY-MM-DD
+                                const dateParts = item.date.split('/');
+                                const month = parseInt(dateParts[1]);
+                                const day = parseInt(dateParts[0]);
+                                const year = new Date().getFullYear();
+                                
+                                dailyData.push({
+                                  date: `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`,
+                                  displayDate: item.date,
+                                  morningPatientCount: item.patientCount / 2,
+                                  nightPatientCount: item.patientCount / 2,
+                                  totalPatientCount: item.patientCount,
+                                  wardId: 'ALL',
+                                  wardName: 'ทุกแผนก'
+                                });
+                              }
+                            }
+                            
+                            // เรียงข้อมูลตามวันที่
+                            dailyData.sort((a, b) => a.date.localeCompare(b.date));
+                            
+                            // อัพเดทข้อมูล
+                            setDailyPatientData(dailyData);
+                            
+                            logInfo(`[DailyPatientData] Successfully loaded data from ${format(startDateObj, 'yyyy-MM-dd')} to ${format(endDateObj, 'yyyy-MM-dd')}`);
+                          } catch (error) {
+                            logError('[DailyPatientData] Error loading data:', error);
+                          } finally {
+                            setLoading(false);
+                          }
+                        })();
+                      }}
                       className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       แสดง
