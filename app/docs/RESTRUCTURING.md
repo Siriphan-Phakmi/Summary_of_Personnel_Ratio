@@ -92,3 +92,75 @@ app/
 2. การพัฒนาฟีเจอร์ใหม่ทำได้สะดวกขึ้น เพราะมีโครงสร้างที่ชัดเจน
 3. การบำรุงรักษาโค้ดระยะยาวมีประสิทธิภาพมากขึ้น
 4. ลดความซับซ้อนของการนำทางในโค้ด (code navigation) สำหรับนักพัฒนา 
+
+## การปรับโครงสร้างไฟล์ DashboardPage.tsx (2024-07-05)
+
+ไฟล์ `DashboardPage.tsx` มีขนาดใหญ่เกินไป (2441 บรรทัด) ทำให้ยากต่อการบำรุงรักษาและทำความเข้าใจ จึงมีแผนโยกย้ายโค้ดเพื่อลดขนาดไฟล์ ดังนี้:
+
+### 1. แยก Custom Hooks ไปยัง `/hooks`
+
+| Custom Hook | หน้าที่ | ไฟล์ปลายทาง |
+|-------------|---------|-------------|
+| `useDateRangeEffect` | จัดการการเปลี่ยนแปลงช่วงวันที่ | `hooks/useDateRangeEffect.ts` |
+| `useBedSummaryData` | จัดการข้อมูลสรุปเตียง | `hooks/useBedSummaryData.ts` |
+
+### 2. แยก Utility Functions ไปยัง `/utils`
+
+| Utility Function | หน้าที่ | ไฟล์ปลายทาง |
+|------------------|---------|-------------|
+| `getThaiDayName` | แปลงวันที่เป็นชื่อวันภาษาไทย | `utils/dateUtils.ts` |
+| `logInfo`, `logError` | บันทึกข้อความลงใน console | `utils/loggingUtils.ts` |
+| `hasAccessToWard` | ตรวจสอบสิทธิ์การเข้าถึง ward | `utils/loggingUtils.ts` |
+
+### 3. แยก Service Functions ไปยัง `/services`
+
+| Service Function | หน้าที่ | ไฟล์ปลายทาง |
+|------------------|---------|-------------|
+| `fetchWardForms` | ดึงข้อมูลแบบฟอร์มสำหรับ ward ที่เลือก | `services/dashboardDataService.ts` |
+
+### 4. แยก UI Components ไปยัง `/components`
+
+| Component | หน้าที่ | ไฟล์ปลายทาง |
+|-----------|---------|-------------|
+| `DashboardHeader` | แสดงส่วนหัวของ Dashboard | `components/DashboardHeader.tsx` |
+| `DashboardCalendar` | แสดงปฏิทินใน Dashboard | `components/DashboardCalendar.tsx` |
+| `PatientCensusSection` | แสดงข้อมูล Patient Census | `components/PatientCensusSection.tsx` |
+
+## ผลการดำเนินการ (2024-07-06)
+
+ได้ดำเนินการแยกส่วนต่างๆ ของโค้ดออกจาก DashboardPage.tsx แล้วดังนี้:
+
+### Custom Hooks ที่สร้างเสร็จแล้ว
+- ✅ `hooks/useDateRangeEffect.ts` - จัดการการเปลี่ยนแปลงช่วงวันที่
+- ✅ `hooks/useBedSummaryData.ts` - จัดการข้อมูลสรุปเตียง
+
+### Utility Functions ที่สร้างเสร็จแล้ว
+- ✅ `utils/dateUtils.ts` - ฟังก์ชันที่เกี่ยวข้องกับวันที่
+- ✅ `utils/loggingUtils.ts` - ฟังก์ชันการบันทึกและตรวจสอบสิทธิ์
+- ✅ `utils/index.ts` - export ฟังก์ชันทั้งหมด
+
+### Service Functions ที่สร้างเสร็จแล้ว
+- ✅ `services/dashboardDataService.ts` - ฟังก์ชันดึงข้อมูล Dashboard
+
+### UI Components ที่สร้างเสร็จแล้ว
+- ✅ `components/DashboardHeader.tsx` - ส่วนหัวของ Dashboard
+- ✅ `components/DashboardCalendar.tsx` - ปฏิทินใน Dashboard
+- ✅ `components/PatientCensusSection.tsx` - ข้อมูล Patient Census
+
+### การอัปเดต Export
+- ✅ `components/index.ts` - รวมการ export ทั้งหมดให้เป็นระเบียบ
+
+## ขั้นตอนต่อไป
+
+1. ปรับแก้ไขไฟล์ `DashboardPage.tsx` ให้ใช้ component, hook และ utility ที่แยกออกไป
+2. ทดสอบการทำงานของแต่ละส่วน
+3. แยกส่วนที่เหลือของ DashboardPage.tsx ออกเป็น component ย่อยๆ เพิ่มเติม
+4. ลดขนาดของไฟล์ DashboardPage.tsx ให้เหลือไม่เกิน 500 บรรทัด
+
+## ประโยชน์ที่ได้รับ
+
+1. โค้ดอ่านง่ายขึ้น แต่ละไฟล์มีหน้าที่ชัดเจน
+2. บำรุงรักษาง่ายขึ้น แก้ไขแต่ละส่วนได้โดยไม่กระทบส่วนอื่น
+3. นำกลับมาใช้ใหม่ได้ (reusable) ในส่วนอื่นของแอปพลิเคชัน
+4. ทำงานเป็นทีมได้ดีขึ้น แต่ละคนสามารถทำงานกับส่วนต่างๆ ได้อย่างอิสระ
+5. ทดสอบง่ายขึ้น สามารถเขียน unit test สำหรับแต่ละส่วนได้แยกกัน

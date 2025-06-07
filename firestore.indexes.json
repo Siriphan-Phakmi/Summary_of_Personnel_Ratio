@@ -54,35 +54,6 @@
       ]
     },
     {
-      "collectionGroup": "wardForms",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "dateString", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "username", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "email", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "role", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "wards",
       "queryScope": "COLLECTION",
       "fields": [
@@ -163,6 +134,14 @@
         { "fieldPath": "wardId", "order": "ASCENDING" },
         { "fieldPath": "allFormsApproved", "order": "ASCENDING" },
         { "fieldPath": "dateString", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "wardForms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     }
   ],

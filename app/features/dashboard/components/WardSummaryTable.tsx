@@ -1,48 +1,31 @@
 'use client';
 
 import React from 'react';
-
-interface WardFormSummary {
-  patientCensus: number;
-  nurseManager: number;
-  rn: number;
-  pn: number;
-  wc: number;
-  newAdmit: number;
-  transferIn: number;
-  referIn: number;
-  discharge: number;
-  transferOut: number;
-  referOut: number;
-  dead: number;
-  available: number;
-  unavailable: number;
-  plannedDischarge: number;
-}
-
-interface WardSummaryData {
-  id: string;
-  wardName: string;
-  morningShift?: WardFormSummary;
-  nightShift?: WardFormSummary;
-  totalData: WardFormSummary;
-}
-
-interface WardSummaryTableProps {
-  data: WardSummaryData[];
-  selectedWardId: string | null;
-  onSelectWard: (wardId: string) => void;
-  title?: string;
-  isRegularUser?: boolean;
-}
+import { WardSummaryTableProps } from './types/componentInterfaces';
+import { WardFormSummary, WardSummaryDataWithShifts } from './types';
 
 const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   data,
   selectedWardId,
   onSelectWard,
   title = 'ตารางข้อมูลรวมทั้งหมด',
-  isRegularUser = false
+  loading,
 }) => {
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-bold text-center border-b border-gray-200 dark:border-gray-700 pb-4 text-gray-800 dark:text-white">
+          {title}
+        </h2>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600 dark:text-gray-300">กำลังโหลดข้อมูลตาราง...</p>
+        </div>
+      </div>
+    );
+  }
+
   const renderShiftRow = (
     wardId: string,
     wardName: string,
@@ -206,7 +189,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
       <h2 className="text-xl font-bold p-4 text-center border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white">
-        {isRegularUser ? 'ข้อมูลหอผู้ป่วยของคุณ' : title}
+        {title}
       </h2>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -266,7 +249,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {data.map((ward) => {
+            {data.map((ward: WardSummaryDataWithShifts) => {
               const isSelected = selectedWardId === ward.id;
               const onClick = () => onSelectWard(ward.id);
               

@@ -289,80 +289,6 @@
 - ทดสอบการแสดงผลในกรณีที่มีเฉพาะข้อมูลเตียงไม่ว่าง
 - ตรวจสอบความถูกต้องของการแสดงผลทั้งในโหมดสว่างและโหมดมืด
 
-## แก้ไขปัญหา Pie Chart ไม่แสดงข้อมูล (27 พฤษภาคม 2567)
-
-### ปัญหาที่พบ
-- Pie Chart ไม่แสดงข้อมูล แม้ว่าจะมีการเรียกใช้ `calculateBedSummary` เพื่อดึงข้อมูลมาแสดง
-- สาเหตุเกิดจากการเรียกใช้ฟังก์ชัน async (`calculateBedSummary`) ใน useEffect โดยไม่มีการจัดการ Promise อย่างเหมาะสม
-- การส่งข้อมูลไปยัง `BedSummaryPieChart` ไม่ทำงานตามที่คาดหวังเมื่อไม่มีข้อมูล
-
-### การแก้ไข
-1. ปรับการเรียกใช้ฟังก์ชัน `calculateBedSummary` ใน useEffect ให้รองรับ async/await ผ่าน IIFE:
-   ```javascript
-   useEffect(() => {
-     if (user && wards.length > 0) {
-       (async () => {
-         try {
-           setLoading(true);
-           await calculateBedSummary();
-           // log success
-         } catch (error) {
-           // log error
-         } finally {
-           setLoading(false);
-         }
-       })();
-     }
-   }, [calculateBedSummary, selectedDate, selectedWardId, user, wards]);
-   ```
-
-2. ปรับการเรียกใช้ฟังก์ชัน `calculateBedSummary` ในฟังก์ชัน `onDateChange`:
-   ```javascript
-   (async () => {
-     try {
-       setLoading(true);
-       await calculateBedSummary();
-       // log success
-     } catch (error) {
-       // log error
-     } finally {
-       setLoading(false);
-     }
-   })();
-   ```
-
-3. ปรับปรุงการแสดงผลเมื่อไม่มีข้อมูล:
-   - แสดงตัวโหลดข้อมูลระหว่างที่กำลังโหลด
-   - ส่งข้อมูลดัมมี่ไปยัง BedSummaryPieChart เมื่อไม่มีข้อมูล เพื่อให้ component แสดงผลข้อความ "ไม่พบข้อมูล"
-
-4. เพิ่มการตรวจสอบข้อมูลก่อนส่งไปยัง BedSummaryPieChart:
-   ```javascript
-   (isRegularUser && user?.floor 
-     ? pieChartData.filter(ward => ward.id.toUpperCase() === user.floor?.toUpperCase())
-     : pieChartData).map(item => {
-       // แปลงข้อมูลก่อนส่งไปยัง component
-       const formattedItem = {
-         id: item.id,
-         wardName: item.wardName,
-         available: item.value,
-         unavailable: item.unavailable || 0,
-         plannedDischarge: item.plannedDischarge || 0
-       };
-       
-       // ตรวจสอบข้อมูลในโหมด development
-       if (process.env.NODE_ENV !== 'production') {
-         console.log("[PieChart Item]", JSON.stringify(formattedItem));
-       }
-       return formattedItem;
-     })
-   ```
-
-### ผลลัพธ์
-- Pie Chart สามารถแสดงข้อมูลได้อย่างถูกต้อง
-- ระบบแสดงตัวโหลดข้อมูลระหว่างที่กำลังดึงข้อมูล
-- มีการแสดงข้อความที่เหมาะสมเมื่อไม่มีข้อมูล
-- เพิ่มการล็อกข้อมูลเพื่อง่ายต่อการดีบัก
-
 ## แก้ไขปัญหาจำนวนเตียงว่างไม่เปลี่ยนตามวันที่เลือก (27 พฤษภาคม 2567)
 
 ### ปัญหาที่พบ
@@ -397,3 +323,39 @@
 
 ## การปรับปรุงเพิ่มเติม (พฤษภาคม 2568)
 - กรองไม่ให้แสดงปุ่มเลือก Ward6 ใน `WardCensusButtons.tsx` ตามข้อกำหนดใหม่
+
+# บันทึกการแก้ไขปัญหา Error ในไฟล์ที่เกี่ยวข้องกับ Dashboard
+
+## วันที่แก้ไข (ล่าสุด)
+วันที่: _วันที่ปัจจุบัน_
+
+## ปัญหาที่พบและแก้ไขล่าสุด
+
+### 1. Error เกี่ยวกับ Type ในไฟล์ types.ts
+- **ปัญหา**: Re-exporting a type when 'isolatedModules' is enabled requires using 'export type'
+- **วิธีแก้ไข**: เปลี่ยนการ export จาก `export { DashboardSummary }` เป็น `export type { DashboardSummary }`
+- **ไฟล์**: app/features/dashboard/components/types.ts
+
+### 2. Error เกี่ยวกับ Property ที่ไม่มีใน interface ในไฟล์ dailySummary.ts
+- **ปัญหา**: ใช้ property `isMockData` แต่ใน DailySummary interface มีแค่ `isDummyData`
+- **วิธีแก้ไข**: เปลี่ยนการใช้ `isMockData` เป็น `isDummyData` ทั้งหมดในไฟล์
+- **ไฟล์**: app/features/ward-form/services/approvalServices/dailySummary.ts
+- **รายละเอียด**:
+  - เปลี่ยนการกำหนดค่า property จาก `isMockData` เป็น `isDummyData`
+  - เปลี่ยนการอัปเดต object จาก `updates.isMockData` เป็น `updates.isDummyData`
+  - เปลี่ยนเงื่อนไขใน query จาก `where('isMockData', '==', true)` เป็น `where('isDummyData', '==', true)`
+
+### 3. Error เกี่ยวกับตัวแปรที่ไม่ได้ประกาศ
+- **ปัญหา**: ใช้ตัวแปร `dateString` ในบริบทที่ไม่ได้ประกาศ
+- **วิธีแก้ไข**: แก้ไขข้อความในการแสดง error log โดยลบการอ้างอิงถึง `dateString`
+- **ไฟล์**: app/features/ward-form/services/approvalServices/dailySummary.ts
+
+## ผลลัพธ์
+- แก้ไข TypeScript Error ทั้งหมดในไฟล์ที่เกี่ยวข้อง
+- ทำให้โค้ดสอดคล้องกับ interface ที่กำหนด
+- แก้ไขการใช้ตัวแปรที่ไม่ได้ประกาศในขอบเขตที่ถูกต้อง
+
+## การปรับปรุงในอนาคต
+- ควรพิจารณาการปรับปรุง interface ให้มีความสอดคล้องกันในทุกส่วนของโค้ด
+- พิจารณาการใช้ type guard เพื่อตรวจสอบความถูกต้องของข้อมูล
+- ใช้ TypeScript utility types เช่น `Partial`, `Omit`, `Pick` ให้เหมาะสมกับการใช้งาน

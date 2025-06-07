@@ -2,19 +2,17 @@
 
 import React from 'react';
 import { format, parseISO } from 'date-fns';
-import { WardSummaryDashboardProps } from './types';
+import { WardSummaryDashboardProps } from './types/componentInterfaces';
 import ShiftSummary from './ShiftSummary';
 import PatientCensusCalculation from './PatientCensusCalculation';
 
 const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
-  date,
-  wards,
-  selectedWardId,
-  onSelectWard,
-  summary,
-  loading
+  summaryData,
+  loading,
+  selectedDate
 }) => {
-  const selectedWard = wards.find(ward => ward.id === selectedWardId);
+  // เนื่องจาก component นี้ตอนนี้แสดงข้อมูลของทุก ward ที่อยู่ใน summaryData
+  // จึงไม่จำเป็นต้องมี selectedWardId หรือ onSelectWard อีกต่อไป
   
   return (
     <div className="space-y-6">
@@ -27,120 +25,84 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
         </div>
       )}
       
-      {!loading && selectedWard && summary && (
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+      {!loading && summaryData && summaryData.length > 0 && (
+        summaryData.map(summary => (
+          <div key={summary.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
           <h2 className="text-xl font-bold mb-4 text-center">
-            <span className="block sm:inline">{selectedWard.wardName}</span> <span className="block sm:inline">- วันที่ {date ? format(parseISO(date), 'dd/MM/yyyy') : ''}</span>
+              <span className="block sm:inline">{summary.wardName}</span> <span className="block sm:inline">- วันที่ {selectedDate ? format(parseISO(selectedDate), 'dd/MM/yyyy') : ''}</span>
           </h2>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-center mb-6">
             <div>
               <p className="text-base sm:text-lg font-medium">รวม (ทั้งวัน):</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                {summary.nightForm?.patientCensus ?? summary.morningForm?.patientCensus ?? 'N/A'}
+                  {summary.nightShift?.patientCensus ?? summary.morningShift?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
               <p className="text-base sm:text-lg font-medium">กะเช้า:</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                {summary.morningForm?.calculatedCensus ?? summary.morningForm?.patientCensus ?? 'N/A'}
+                  {summary.morningShift?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
               <p className="text-base sm:text-lg font-medium">กะดึก:</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                {summary.nightForm?.calculatedCensus ?? summary.nightForm?.patientCensus ?? 'N/A'}
+                  {summary.nightShift?.patientCensus ?? 'N/A'}
               </p>
             </div>
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 gap-y-6 mb-6">
             {/* กะเช้า */}
-            {summary.morningForm && (
+              {summary.morningShift && (
               <ShiftSummary
                 title="กะเช้า"
-                patientCensus={summary.morningForm.calculatedCensus || summary.morningForm.patientCensus}
-                nurseManager={summary.morningForm.nurseManager}
-                rn={summary.morningForm.rn}
-                pn={summary.morningForm.pn}
-                wc={summary.morningForm.wc}
-                newAdmit={summary.morningForm.newAdmit}
-                transferIn={summary.morningForm.transferIn}
-                referIn={summary.morningForm.referIn}
-                discharge={summary.morningForm.discharge}
-                transferOut={summary.morningForm.transferOut}
-                referOut={summary.morningForm.referOut}
-                dead={summary.morningForm.dead}
-                admitTotal={summary.morningForm.admitTotal}
-                dischargeTotal={summary.morningForm.dischargeTotal}
+                  patientCensus={summary.morningShift.patientCensus}
+                  nurseManager={summary.morningShift.nurseManager}
+                  rn={summary.morningShift.rn}
+                  pn={summary.morningShift.pn}
+                  wc={summary.morningShift.wc}
+                  newAdmit={summary.morningShift.newAdmit}
+                  transferIn={summary.morningShift.transferIn}
+                  referIn={summary.morningShift.referIn}
+                  discharge={summary.morningShift.discharge}
+                  transferOut={summary.morningShift.transferOut}
+                  referOut={summary.morningShift.referOut}
+                  dead={summary.morningShift.dead}
+                  admitTotal={(summary.morningShift.newAdmit || 0) + (summary.morningShift.transferIn || 0) + (summary.morningShift.referIn || 0)}
+                  dischargeTotal={(summary.morningShift.discharge || 0) + (summary.morningShift.transferOut || 0) + (summary.morningShift.referOut || 0) + (summary.morningShift.dead || 0)}
               />
             )}
             
             {/* กะดึก */}
-            {summary.nightForm && (
+              {summary.nightShift && (
               <ShiftSummary
                 title="กะดึก"
-                patientCensus={summary.nightForm.calculatedCensus || summary.nightForm.patientCensus}
-                nurseManager={summary.nightForm.nurseManager}
-                rn={summary.nightForm.rn}
-                pn={summary.nightForm.pn}
-                wc={summary.nightForm.wc}
-                newAdmit={summary.nightForm.newAdmit}
-                transferIn={summary.nightForm.transferIn}
-                referIn={summary.nightForm.referIn}
-                discharge={summary.nightForm.discharge}
-                transferOut={summary.nightForm.transferOut}
-                referOut={summary.nightForm.referOut}
-                dead={summary.nightForm.dead}
-                admitTotal={summary.nightForm.admitTotal}
-                dischargeTotal={summary.nightForm.dischargeTotal}
-              />
-            )}
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-            {summary.morningForm && (
-              <PatientCensusCalculation 
-                formData={{
-                  initialCensus: summary.morningForm.initialPatientCensus || summary.morningForm.patientCensus,
-                  admitTotal: summary.morningForm.admitTotal || 0,
-                  dischargeTotal: summary.morningForm.dischargeTotal || 0,
-                  calculatedCensus: summary.morningForm.calculatedCensus || summary.morningForm.patientCensus
-                }}
-                shiftTitle="กะเช้า"
-              />
-            )}
-            
-            {summary.nightForm && (
-              <PatientCensusCalculation 
-                formData={{
-                  initialCensus: summary.nightForm.initialPatientCensus || summary.nightForm.patientCensus,
-                  admitTotal: summary.nightForm.admitTotal || 0,
-                  dischargeTotal: summary.nightForm.dischargeTotal || 0,
-                  calculatedCensus: summary.nightForm.calculatedCensus || summary.nightForm.patientCensus
-                }}
-                shiftTitle="กะดึก"
-              />
-            )}
-            
-            {(summary.morningForm || summary.nightForm) && (
-              <PatientCensusCalculation 
-                formData={{
-                  initialCensus: summary.morningForm?.patientCensus || 0,
-                  admitTotal: (summary.morningForm?.admitTotal || 0) + (summary.nightForm?.admitTotal || 0),
-                  dischargeTotal: (summary.morningForm?.dischargeTotal || 0) + (summary.nightForm?.dischargeTotal || 0),
-                  calculatedCensus: summary.nightForm?.patientCensus || summary.morningForm?.patientCensus || 0
-                }}
-                shiftTitle="ทั้งวัน"
+                  patientCensus={summary.nightShift.patientCensus}
+                  nurseManager={summary.nightShift.nurseManager}
+                  rn={summary.nightShift.rn}
+                  pn={summary.nightShift.pn}
+                  wc={summary.nightShift.wc}
+                  newAdmit={summary.nightShift.newAdmit}
+                  transferIn={summary.nightShift.transferIn}
+                  referIn={summary.nightShift.referIn}
+                  discharge={summary.nightShift.discharge}
+                  transferOut={summary.nightShift.transferOut}
+                  referOut={summary.nightShift.referOut}
+                  dead={summary.nightShift.dead}
+                  admitTotal={(summary.nightShift.newAdmit || 0) + (summary.nightShift.transferIn || 0) + (summary.nightShift.referIn || 0)}
+                  dischargeTotal={(summary.nightShift.discharge || 0) + (summary.nightShift.transferOut || 0) + (summary.nightShift.referOut || 0) + (summary.nightShift.dead || 0)}
               />
             )}
           </div>
         </div>
+        ))
       )}
       
-      {!loading && selectedWard && !summary && (
+      {!loading && (!summaryData || summaryData.length === 0) && (
         <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow text-center">
-          <p className="text-gray-500">ไม่พบข้อมูลสำหรับ {selectedWard.wardName} ในวันที่เลือก</p>
+          <p className="text-gray-500">ไม่พบข้อมูลสรุปในวันที่เลือก</p>
         </div>
       )}
     </div>

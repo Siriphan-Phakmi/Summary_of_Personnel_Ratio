@@ -3,18 +3,63 @@
  * รวมการ export ของ types ทั้งหมดสำหรับ dashboard
  */
 
-// Re-export จากแต่ละไฟล์ย่อย
-export * from './button-types';
-export * from './chart-types';
-export * from './form-types';
-export * from './component-types';
-// ใช้ re-export ที่ชัดเจนเพื่อหลีกเลี่ยงความขัดแย้งกับ DashboardSummary จาก form-types
+// Import types from componentInterfaces.ts
+import type {
+  UserForChartSection,
+  DashboardHeaderProps,
+  StatisticsSummaryProps,
+  DashboardCalendarProps,
+  WardSummaryTableProps,
+  ShiftComparisonPanelProps,
+  WardSummaryDashboardProps,
+  PatientTrendChartProps as PatientTrendChartPropsFromInterface,
+  WardCensusButtonsProps,
+  ChartSectionProps
+} from './componentInterfaces';
+
+// Re-export with 'export type' syntax
 export type { 
-  WardFormData,
-  // ไม่ re-export DashboardSummary จาก interface-types เพื่อหลีกเลี่ยงความซ้ำซ้อน
+  UserForChartSection,
+  DashboardHeaderProps,
+  StatisticsSummaryProps,
+  DashboardCalendarProps,
+  WardSummaryTableProps,
+  ShiftComparisonPanelProps,
+  WardSummaryDashboardProps,
+  PatientTrendChartPropsFromInterface,
+  WardCensusButtonsProps,
+  ChartSectionProps
+};
+
+// Import types from chart-types.ts
+import type {
+  EnhancedBarChartProps,
+  EnhancedPieChartProps,
+  PatientTrendData,
+  PatientTrendChartProps as PatientTrendChartPropsFromChart,
+  PieChartDataItem
+} from './chart-types';
+
+export type {
+  EnhancedBarChartProps,
+  EnhancedPieChartProps,
+  PatientTrendData,
+  PatientTrendChartPropsFromChart,
+  PieChartDataItem
+};
+
+// Import types from interface-types.ts
+import type {
+  DashboardSummary,
+  WardFormData
 } from './interface-types';
 
-// Export types ที่ใช้ทั่วไปใน dashboard
+export type {
+  DashboardSummary,
+  WardFormData
+};
+
+// Common types used across dashboard components
 export interface WardCensusData {
   id: string;
   wardName: string;
@@ -27,3 +72,18 @@ export type CalendarMarker = {
   date: string; 
   status: 'draft' | 'final' | 'approved' 
 }; 
+
+export interface TrendData {
+  date: string;
+  patientCount: number;
+  admitCount: number;
+  dischargeCount: number;
+  wardData?: {
+    [wardId: string]: {
+      wardName: string;
+      patientCount: number;
+      admitCount: number;
+      dischargeCount: number;
+    }
+  };
+} 

@@ -8,7 +8,24 @@ import PatientTrendChart from './PatientTrendChart';
 import WardSummaryTable from './WardSummaryTable';
 import ShiftComparisonPanel from './ShiftComparisonPanel';
 import CalendarWithEvents from './CalendarWithEvents';
+import BedSummaryPieChart from './BedSummaryPieChart';
+import FormStatusBadge from './FormStatusBadge';
+import ShiftBadge from './ShiftBadge';
+import WardSummaryCard from './WardSummaryCard';
+import ShiftComparisonChart from './ShiftComparisonChart';
+import PatientCensusCalculation from './PatientCensusCalculation';
+import WardButton from './WardButton';
+import ShiftSummary from './ShiftSummary';
+import WardSummaryGrid from './WardSummaryGrid';
+import WardSummaryDashboard from './WardSummaryDashboard';
+import NoDataMessage from './NoDataMessage';
+import WardCensusButtons from './WardCensusButtons';
+import DashboardHeader from './DashboardHeader';
+import DashboardCalendar from './DashboardCalendar';
+import PatientCensusSection from './PatientCensusSection';
+import RefactoredDashboardPage from './RefactoredDashboardPage';
 
+// Export all components
 export {
   DashboardPage,
   WardDataTable,
@@ -19,20 +36,27 @@ export {
   PatientTrendChart,
   WardSummaryTable,
   ShiftComparisonPanel,
-  CalendarWithEvents
+  CalendarWithEvents,
+  BedSummaryPieChart,
+  FormStatusBadge,
+  ShiftBadge,
+  WardSummaryCard,
+  ShiftComparisonChart,
+  PatientCensusCalculation,
+  WardButton,
+  ShiftSummary,
+  WardSummaryGrid,
+  WardSummaryDashboard,
+  NoDataMessage,
+  WardCensusButtons,
+  DashboardHeader,
+  DashboardCalendar,
+  PatientCensusSection,
+  RefactoredDashboardPage
 };
 
-export { default as FormStatusBadge } from './FormStatusBadge';
-export { default as ShiftBadge } from './ShiftBadge';
-export { default as WardSummaryCard } from './WardSummaryCard';
-export { default as ShiftComparisonChart } from './ShiftComparisonChart';
-export { default as PatientCensusCalculation } from './PatientCensusCalculation';
-export { default as WardButton } from './WardButton';
-export { default as ShiftSummary } from './ShiftSummary';
-export { default as WardSummaryGrid } from './WardSummaryGrid';
-export { default as WardSummaryDashboard } from './WardSummaryDashboard';
-export { default as NoDataMessage } from './NoDataMessage';
-export { default as WardCensusButtons } from './WardCensusButtons';
+// Export types
+export * from './types';
 
-// Types
-export * from './types'; 
+// Export section components
+export * from './sections'; 

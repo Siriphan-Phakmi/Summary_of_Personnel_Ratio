@@ -1,14 +1,39 @@
 import { Timestamp } from 'firebase/firestore';
 import { Ward } from '@/app/core/types/ward';
 
-export interface DashboardSummary {
+// นำเข้า DashboardSummary จาก types/form-types.ts แทนการประกาศซ้ำ
+import { DashboardSummary } from './types/form-types';
+
+// ส่งออก DashboardSummary ที่นำเข้ามา
+export type { DashboardSummary };
+
+// เพิ่ม interface จาก DashboardPage.tsx
+export interface WardCensusData {
+  id: string;
+  wardName: string;
+  patientCount: number;
+  morningPatientCount?: number;
+  nightPatientCount?: number;
+}
+
+// ประเภทของการดูข้อมูล
+export enum ViewType {
+  SUMMARY = 'summary',
+  WARD_DETAIL = 'ward_detail'
+}
+
+// นำเข้า type สำหรับ markers
+export type CalendarMarker = { date: string; status: 'draft' | 'final' | 'approved' };
+
+// เพิ่ม interface สำหรับข้อมูลกราฟเส้นรายวัน
+export interface DailyPatientData {
+  date: string;
+  displayDate: string;
   wardId: string;
   wardName: string;
-  date: Date | Timestamp;
-  dateString: string;
-  morningForm?: WardFormData;
-  nightForm?: WardFormData;
-  dailyPatientCensus: number;
+  morningPatientCount: number;
+  nightPatientCount: number;
+  totalPatientCount: number;
 }
 
 export interface WardFormData {

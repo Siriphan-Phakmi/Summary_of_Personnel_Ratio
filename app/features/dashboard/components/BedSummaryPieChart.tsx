@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTheme } from 'next-themes';
 
@@ -35,6 +35,25 @@ interface BedSummaryPieChartProps {
   isLoading?: boolean; // เพิ่ม prop รับสถานะการโหลดข้อมูล
 }
 
+// กำหนดสีให้สดใสสำหรับแต่ละ ward - ย้ายออกมาเป็น constant ด้านนอก
+const COLORS = [
+  '#FFD700', // สีเหลืองทอง (4A)
+  '#87CEEB', // สีฟ้าอ่อน (9B)
+  '#FFA07A', // สีส้มอ่อน (7B)
+  '#FFB6C1', // สีชมพูอ่อน (10B)
+  '#DDA0DD', // สีม่วงอ่อน (11B)
+  '#98FB98', // สีเขียวอ่อน (SEMI-ICU 10B)
+  '#FF7F50', // สีส้มแดง (SEMI-ICU 8B)
+  '#00BFFF', // สีฟ้าสด (8B)
+  '#32CD32', // สีเขียวสด
+  '#FF69B4', // สีชมพูสด
+  '#9370DB', // สีม่วง
+  '#20B2AA', // สีเขียวฟ้า
+];
+
+// สีสำหรับกรณีไม่มีเตียงว่าง
+const NO_AVAILABLE_BEDS_COLOR = '#D3D3D3'; // Light gray
+
 const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading = false }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
@@ -43,7 +62,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
   if (isLoading) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
+        <div className="rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
         <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
           กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
@@ -52,82 +71,91 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
     );
   }
 
-  // ใช้ logInfo แทน console.log เพื่อความปลอดภัย
-  // logInfo('BedSummaryPieChart received data:', JSON.parse(JSON.stringify(data)));
-
-  // กำหนดสีให้สดใสสำหรับแต่ละ ward
-  const COLORS = [
-    '#FFD700', // สีเหลืองทอง (4A)
-    '#87CEEB', // สีฟ้าอ่อน (9B)
-    '#FFA07A', // สีส้มอ่อน (7B)
-    '#FFB6C1', // สีชมพูอ่อน (10B)
-    '#DDA0DD', // สีม่วงอ่อน (11B)
-    '#98FB98', // สีเขียวอ่อน (SEMI-ICU 10B)
-    '#FF7F50', // สีส้มแดง (SEMI-ICU 8B)
-    '#00BFFF', // สีฟ้าสด (8B)
-    '#32CD32', // สีเขียวสด
-    '#FF69B4', // สีชมพูสด
-    '#9370DB', // สีม่วง
-    '#20B2AA', // สีเขียวฟ้า
-  ];
-
-  // สีสำหรับกรณีไม่มีเตียงว่าง
-  const NO_AVAILABLE_BEDS_COLOR = '#D3D3D3'; // Light gray
-
-  // ตรวจสอบว่าข้อมูลเป็นอาร์เรย์หรือไม่
-  const isMultipleWards = Array.isArray(data);
-  
-  let chartData: any[] = [];
-  let totalAvailableBeds = 0;
-  let totalUnavailableBeds = 0;
-  let totalBeds = 0;
-  
-  // สร้างข้อมูลสำหรับแสดงบนกราฟ
-  if (isMultipleWards) {
-    // กรณีข้อมูลเป็นอาร์เรย์ของ WardBedData
-    // แสดงข้อมูลทุกแผนก ไม่ว่าจะมีเตียงว่างหรือไม่
-    chartData = (data as WardBedData[])
-      .map((ward, index) => {
-        const availableBeds = ward.available || 0;
-        const unavailableBeds = ward.unavailable || 0;
-        
-        totalAvailableBeds += availableBeds;
-        totalUnavailableBeds += unavailableBeds;
-        totalBeds += availableBeds + unavailableBeds;
-        
-        return {
-          id: ward.id,
-          name: ward.wardName || ward.id,
-          value: availableBeds,
+  // ใช้ useMemo เพื่อลดการคำนวณใหม่เมื่อ data ไม่เปลี่ยนแปลง
+  const { chartData, pieChartData, totalAvailableBeds, totalUnavailableBeds, totalBeds } = useMemo(() => {
+    // ตรวจสอบว่าข้อมูลเป็นอาร์เรย์หรือไม่
+    const isMultipleWards = Array.isArray(data);
+    
+    let chartData: any[] = [];
+    let totalAvailableBeds = 0;
+    let totalUnavailableBeds = 0;
+    let totalBeds = 0;
+    
+    // สร้างข้อมูลสำหรับแสดงบนกราฟ
+    if (isMultipleWards) {
+      // กรณีข้อมูลเป็นอาร์เรย์ของ WardBedData
+      chartData = (data as WardBedData[])
+        .map((ward, index) => {
+          const availableBeds = ward.available || 0;
+          const unavailableBeds = ward.unavailable || 0;
+          
+          totalAvailableBeds += availableBeds;
+          totalUnavailableBeds += unavailableBeds;
+          totalBeds += availableBeds + unavailableBeds;
+          
+          return {
+            id: ward.id,
+            name: ward.wardName || ward.id,
+            value: availableBeds,
+            unavailable: unavailableBeds,
+            totalBeds: availableBeds + unavailableBeds,
+            plannedDischarge: ward.plannedDischarge || 0,
+            color: availableBeds > 0 ? COLORS[index % COLORS.length] : NO_AVAILABLE_BEDS_COLOR,
+          };
+        });
+    } else {
+      // กรณีข้อมูลเป็น BedSummaryData แบบเดิม
+      const singleData = data as BedSummaryData;
+      
+      // รองรับทั้ง availableBeds (จาก dailySummaries) และ available (จาก wardForm)
+      const availableBeds = singleData.available || singleData.availableBeds || 0;
+      const unavailableBeds = singleData.unavailable || singleData.unavailableBeds || 0;
+      
+      totalAvailableBeds = availableBeds;
+      totalUnavailableBeds = unavailableBeds;
+      totalBeds = availableBeds + unavailableBeds;
+      
+      chartData = [
+        { 
+          name: singleData.wardName || 'เตียงว่าง', 
+          value: availableBeds, 
           unavailable: unavailableBeds,
           totalBeds: availableBeds + unavailableBeds,
-          plannedDischarge: ward.plannedDischarge || 0,
-          color: availableBeds > 0 ? COLORS[index % COLORS.length] : NO_AVAILABLE_BEDS_COLOR,
-        };
-      });
-  } else {
-    // กรณีข้อมูลเป็น BedSummaryData แบบเดิม
-    const singleData = data as BedSummaryData;
+          plannedDischarge: singleData.plannedDischarge || 0,
+          color: availableBeds > 0 ? COLORS[0] : NO_AVAILABLE_BEDS_COLOR
+        }
+      ];
+    }
+
+    // เตรียมข้อมูลสำหรับกราฟวงกลม
+    let pieChartData: any[] = [];
     
-    // รองรับทั้ง availableBeds (จาก dailySummaries) และ available (จาก wardForm)
-    const availableBeds = singleData.available || singleData.availableBeds || 0;
-    const unavailableBeds = singleData.unavailable || singleData.unavailableBeds || 0;
-    
-    totalAvailableBeds = availableBeds;
-    totalUnavailableBeds = unavailableBeds;
-    totalBeds = availableBeds + unavailableBeds;
-    
-    chartData = [
-      { 
-        name: singleData.wardName || 'เตียงว่าง', 
-        value: availableBeds, 
-        unavailable: unavailableBeds,
-        totalBeds: availableBeds + unavailableBeds,
-        plannedDischarge: singleData.plannedDischarge || 0,
-        color: availableBeds > 0 ? COLORS[0] : NO_AVAILABLE_BEDS_COLOR
-      }
-    ];
-  }
+    // ถ้าไม่มีเตียงว่างเลย ให้แสดงเป็นกราฟวงกลมที่แสดงเฉพาะเตียงไม่ว่าง
+    if (totalAvailableBeds === 0 && totalUnavailableBeds > 0) {
+      // สร้างข้อมูลสำหรับแสดงเฉพาะเตียงที่ไม่ว่าง
+      pieChartData = chartData.map(item => ({
+        id: item.id,
+        name: item.name,
+        value: item.unavailable,
+        totalBeds: item.totalBeds,
+        color: NO_AVAILABLE_BEDS_COLOR,
+        isUnavailable: true, // เพิ่ม flag เพื่อระบุว่าเป็นข้อมูลเตียงไม่ว่าง
+      }));
+    } else {
+      // กรณีมีเตียงว่าง ให้ใช้ข้อมูลเตียงว่างตามปกติ
+      pieChartData = chartData.map(item => ({
+        id: item.id,
+        name: item.name,
+        value: item.value,
+        unavailable: item.unavailable,
+        totalBeds: item.totalBeds,
+        plannedDischarge: item.plannedDischarge,
+        color: item.color,
+      }));
+    }
+
+    return { chartData, pieChartData, totalAvailableBeds, totalUnavailableBeds, totalBeds };
+  }, [data]);
 
   // ถ้าไม่มีข้อมูลเลยหรือทั้ง available และ unavailable เป็น 0 ให้แสดงข้อความแจ้งเตือน
   if (chartData.length === 0 || (totalAvailableBeds === 0 && totalUnavailableBeds === 0)) {
@@ -144,36 +172,10 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
     );
   }
 
-  // เตรียมข้อมูลสำหรับกราฟวงกลม
-  let pieChartData: any[] = [];
-  
-  // ถ้าไม่มีเตียงว่างเลย ให้แสดงเป็นกราฟวงกลมที่แสดงเฉพาะเตียงไม่ว่าง
-  if (totalAvailableBeds === 0 && totalUnavailableBeds > 0) {
-    // สร้างข้อมูลสำหรับแสดงเฉพาะเตียงที่ไม่ว่าง
-    pieChartData = chartData.map(item => ({
-      id: item.id,
-      name: item.name,
-      value: item.unavailable,
-      totalBeds: item.totalBeds,
-      color: NO_AVAILABLE_BEDS_COLOR,
-      isUnavailable: true, // เพิ่ม flag เพื่อระบุว่าเป็นข้อมูลเตียงไม่ว่าง
-    }));
-  } else {
-    // กรณีมีเตียงว่าง ให้ใช้ข้อมูลเตียงว่างตามปกติ
-    pieChartData = chartData.map(item => ({
-      id: item.id,
-      name: item.name,
-      value: item.value,
-      unavailable: item.unavailable,
-      totalBeds: item.totalBeds,
-      plannedDischarge: item.plannedDischarge,
-      color: item.color,
-    }));
-  }
-
   const textColor = isDarkMode ? '#e5e7eb' : '#1f2937';
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  // แยก component เพื่อป้องกันการ re-render ที่ไม่จำเป็น
+  const CustomTooltip = React.memo(({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const { name, value, unavailable, isUnavailable, totalBeds, plannedDischarge } = payload[0].payload;
       
@@ -228,11 +230,10 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
       );
     }
     return null;
-  };
+  });
 
-  const renderLegend = (props: any) => {
-    const { payload } = props;
-    
+  // แยก component สำหรับ Legend เพื่อป้องกันการ re-render ที่ไม่จำเป็น
+  const RenderLegend = React.memo(({ payload }: any) => {
     // กรณีไม่มีข้อมูล (ไม่มีหรือว่างเปล่า)
     if (!payload || payload.length === 0) {
       return null; // ไม่ต้องแสดง Legend ถ้าไม่มีข้อมูล เพื่อลดความซ้ำซ้อน
@@ -272,7 +273,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
         </ul>
       </div>
     );
-  };
+  });
 
   return (
     <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
@@ -299,85 +300,25 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
         )}
       </div>
       
-      <div className="flex-grow flex items-center justify-center" style={{ minHeight: '200px' }}>
-        <ResponsiveContainer width="100%" height="100%" className="max-h-[350px] sm:max-h-[450px]">
+      <div className="flex-1">
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={pieChartData}
               cx="50%"
               cy="50%"
-              innerRadius={0}
-              outerRadius={{
-                // ปรับขนาดตามหน้าจอ
-                base: '55%',
-                sm: '60%',
-                md: '65%',
-                lg: '65%',
-                xl: '65%',
-              }[typeof window !== 'undefined' ? (window.innerWidth < 640 ? 'base' : window.innerWidth < 768 ? 'sm' : window.innerWidth < 1024 ? 'md' : window.innerWidth < 1280 ? 'lg' : 'xl') : 'md']}
-              fill="#8884d8"
-              paddingAngle={2}
-              dataKey="value"
-              label={({ name, value, x, y, cx, cy }) => {
-                // แสดงเฉพาะกรณีที่มีค่ามากกว่า 0
-                if (value <= 0) return null;
-                
-                // คำนวณตำแหน่งป้ายชื่อให้ถูกต้อง
-                const RADIAN = Math.PI / 180;
-                const radius = 25 + 12; // ระยะห่างจากขอบของกราฟ
-                const innerRadius = 0;  // ตำแหน่งเริ่มต้นของป้ายชื่อ
-                
-                // ปรับขนาดกรอบตามหน้าจอ
-                const boxWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 20 : 24;
-                const boxHeight = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 20;
-                const borderRadius = 4;
-                
-                // คำนวณตำแหน่งที่ถูกต้อง
-                const rectX = x - boxWidth / 2;
-                const rectY = y - boxHeight / 2;
-                
-                // สร้างป้ายกำกับที่มีพื้นหลังสีเข้มเพื่อให้เห็นข้อความชัดเจน
-                return (
-                  <g>
-                    <rect
-                      x={rectX}
-                      y={rectY}
-                      width={boxWidth}
-                      height={boxHeight}
-                      rx={borderRadius}
-                      ry={borderRadius}
-                      fill={isDarkMode ? "#4B5563" : "#374151"}
-                      opacity={0.9}
-                    />
-                    <text
-                      x={x}
-                      y={y}
-                      textAnchor="middle"
-                      fill="#FFFFFF"
-                      fontSize={typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12}
-                      fontWeight="bold"
-                      dominantBaseline="middle"
-                    >
-                      {value}
-                    </text>
-                  </g>
-                );
-              }}
               labelLine={false}
-              isAnimationActive={true}
-              animationDuration={800}
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+              isAnimationActive={false} // ปิด animation เพื่อลดการกระพริบ
             >
               {pieChartData.map((entry, index) => (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={entry.color} 
-                  stroke={isDarkMode ? '#374151' : '#f8fafc'}
-                  strokeWidth={0.5}
-                />
+                <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
-            <Legend content={renderLegend} />
+            <Legend content={<RenderLegend />} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -385,4 +326,4 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
   );
 };
 
-export default BedSummaryPieChart; 
+export default React.memo(BedSummaryPieChart); 

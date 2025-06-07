@@ -4,29 +4,8 @@ import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Ward } from '@/app/core/types/ward';
 import { useTheme } from 'next-themes';
-
-export interface TrendData {
-  date: string;
-  patientCount: number;
-  admitCount: number;
-  dischargeCount: number;
-  wardData?: {
-    [wardId: string]: {
-      wardName: string;
-      patientCount: number;
-      admitCount: number;
-      dischargeCount: number;
-    }
-  };
-}
-
-interface PatientTrendChartProps {
-  data: TrendData[];
-  title?: string;
-  wardName?: string;
-  allWards?: Ward[];
-  onWardSelect?: (wardId: string) => void;
-}
+import { PatientTrendChartProps } from './types/componentInterfaces';
+import { TrendData } from './types/index';
 
 const WARD_COLORS = [
   '#3b82f6', // blue
@@ -85,10 +64,9 @@ const processWardTrendData = (wards: Ward[], chartData: any[]): { lines: LineCon
 
 const PatientTrendChart: React.FC<PatientTrendChartProps> = ({ 
   data, 
-  title, 
-  wardName, 
-  allWards = [],
-  onWardSelect
+  loading,
+  selectedWardId,
+  onSelectWard,
 }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
@@ -107,6 +85,16 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
     return true; // ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
   });
   
+  if (loading) {
+    return (
+      <div className="text-center p-6 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm animate-pulse">
+        <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded w-3/4 mx-auto mb-4"></div>
+        <div className="h-64 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/2 mx-auto mt-4"></div>
+      </div>
+    );
+  }
+  
   if (!data || data.length === 0) {
     return (
       <div className="text-center p-6 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
@@ -116,29 +104,9 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-gray-700 dark:text-gray-300 font-medium">ไม่มีข้อมูลแนวโน้มผู้ป่วย{wardName ? ` แผนก${wardName}` : ''}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">กรุณาเลือกแผนกหรือช่วงวันที่อื่น</p>
+          <p className="text-gray-700 dark:text-gray-300 font-medium">ไม่มีข้อมูลแนวโน้มผู้ป่วย</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">กรุณาเลือกช่วงวันที่อื่น</p>
         </div>
-        
-        {allWards && allWards.length > 0 && onWardSelect && (
-          <div className="mt-4 max-w-xs mx-auto">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-3">
-              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">เลือกแผนกเพื่อดูข้อมูล</p>
-            </div>
-            <select 
-              className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              onChange={(e) => onWardSelect(e.target.value)}
-              defaultValue=""
-            >
-              <option value="">ทุกแผนก</option>
-              {allWards.map(ward => (
-                <option key={ward.id} value={ward.id || ''}>
-                  {ward.wardName}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
     );
   }
@@ -148,7 +116,7 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
     date: item.date,
     'จำนวนผู้ป่วย': item.patientCount,
     'รับเข้า': item.admitCount,
-    'จำหน่าย': item.dischargeCount
+    'จำหน่าย': 'dischargeCount' in item ? item.dischargeCount : 0 // Ensure dischargeCount exists
     };
 
     if (item.wardData && typeof item.wardData === 'object') {
@@ -157,18 +125,16 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
           baseData[`แผนก_${wardId}`] = item.wardData[wardId].patientCount;
         }
       });
-    } else {
-      allWards.forEach(ward => {
-        if (ward.id) {
-          baseData[`แผนก_${ward.id}`] = item.patientCount / Math.max(allWards.length, 1);
-        }
-      });
     }
 
     return baseData;
   });
 
-  const { lines, useWardLines } = processWardTrendData(allWards, data);
+  const allWards = data.length > 0 && data[0].wardData 
+    ? Object.values(data[0].wardData).map((wd: any) => ({ id: wd.wardName, wardName: wd.wardName })) 
+    : [];
+
+  const { lines, useWardLines } = processWardTrendData(allWards as Ward[], data);
 
   const colors = {
     patientCount: isDarkMode ? '#60a5fa' : '#3b82f6',
@@ -213,12 +179,10 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
     }
     return null;
   };
-
-  const isAllWardsView = wardName === 'ทุกแผนก';
   
   const handleWardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (onWardSelect) {
-      onWardSelect(e.target.value);
+    if (onSelectWard) {
+      onSelectWard(e.target.value);
     }
   };
   
@@ -253,13 +217,8 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
             tickFormatter={valueFormatter}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ paddingTop: '10px' }} 
-            iconSize={8}
-            iconType="circle"
-          />
-          
-          {wardLines.map((line, index) => (
+          <Legend />
+          {wardLines.map(line => (
             <Line
               key={line.dataKey}
               type="monotone"
@@ -292,108 +251,33 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
           tickFormatter={valueFormatter}
         />
         <Tooltip content={<CustomTooltip />} />
-        <Legend wrapperStyle={{ paddingTop: '10px' }} />
-        
-        <Line
-          type="monotone"
-          dataKey="จำนวนผู้ป่วย"
-          stroke={colors.patientCount}
-          activeDot={{ r: 8 }}
-          dot={{ r: 3 }}
-          strokeWidth={2}
-        />
-        <Line
-          type="monotone"
-          dataKey="รับเข้า"
-          stroke={colors.admitCount}
-          activeDot={{ r: 6 }}
-          dot={{ r: 2 }}
-          strokeWidth={1.5}
-        />
-        <Line
-          type="monotone"
-          dataKey="จำหน่าย"
-          stroke={colors.dischargeCount}
-          activeDot={{ r: 6 }}
-          dot={{ r: 2 }}
-          strokeWidth={1.5}
-        />
+        <Legend />
+        <Line type="monotone" dataKey="จำนวนผู้ป่วย" name="จำนวนผู้ป่วย" stroke={colors.patientCount} strokeWidth={2} activeDot={{ r: 8 }} />
+        <Line type="monotone" dataKey="รับเข้า" name="รับเข้า" stroke={colors.admitCount} strokeWidth={1.5} />
+        <Line type="monotone" dataKey="จำหน่าย" name="จำหน่าย" stroke={colors.dischargeCount} strokeWidth={1.5} />
       </LineChart>
     );
   };
   
   return (
-    <div className="w-full">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-4">
-        {title && <h3 className="text-lg font-semibold text-center text-gray-700 dark:text-gray-300">{title}</h3>}
-        
-        <div className="flex items-center mt-2 md:mt-0 space-x-4">
-        {allWards && allWards.length > 0 && onWardSelect && (
-            <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600 dark:text-gray-300">เลือกแผนก:</span>
-            <select 
-              className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              onChange={handleWardChange}
-              value={isAllWardsView ? '' : wardName ? allWards.find(w => w.wardName === wardName)?.id || '' : ''}
-            >
-              <option value="">ทุกแผนก</option>
-              {allWards.map(ward => (
-                <option key={ward.id} value={ward.id || ''}>
-                  {ward.wardName}
-                </option>
-              ))}
-            </select>
-            </div>
-          )}
-          
-          {isAllWardsView && allWards.length > 1 && (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+          แนวโน้มผู้ป่วย
+        </h3>
+        {useWardLines && (
             <button
               onClick={toggleDisplayMode}
-              className={`px-3 py-1 rounded-md text-xs font-medium ${
-                showWardDetails 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white'
-              }`}
+          className="px-3 py-1 text-sm font-medium rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               {showWardDetails ? 'แสดงภาพรวม' : 'แสดงแยกแผนก'}
             </button>
           )}
           </div>
-      </div>
-      
-      {wardName && (
-        <div className={`mb-4 px-4 py-2 rounded-md text-center 
-            ${isAllWardsView 
-              ? 'bg-purple-50 dark:bg-purple-900/20' 
-              : 'bg-blue-50 dark:bg-blue-900/20'}`}
-        >
-          <span className={`font-medium 
-            ${isAllWardsView 
-              ? 'text-purple-600 dark:text-purple-300' 
-              : 'text-blue-600 dark:text-blue-300'}`}
-          >
-            {isAllWardsView 
-              ? 'แสดงข้อมูลภาพรวมของทุกแผนก' 
-              : `แสดงข้อมูลเฉพาะแผนก ${wardName}`}
-          </span>
-          
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {isAllWardsView 
-              ? 'ข้อมูลเป็นการรวมยอดของทุกแผนกในช่วงวันที่เลือก' 
-              : 'ข้อมูลแสดงการเคลื่อนไหวของผู้ป่วยเฉพาะแผนกที่เลือก'}
-          </div>
-        </div>
-      )}
-      <div className="mb-4 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded-md">
-        <p>กราฟแสดงแนวโน้มจำนวนผู้ป่วยแยกตามแผนก สามารถคลิกที่ชื่อแผนกในคำอธิบายเพื่อแสดง/ซ่อนเส้นกราฟของแต่ละแผนก</p>
-      </div>
-      <div className="h-64 md:h-80">
-        <ResponsiveContainer width="100%" height="100%">
+      <div style={{ width: '100%', height: 300 }}>
+        <ResponsiveContainer>
           {renderLineChart(chartData, lines, useWardLines, showWardDetails)}
         </ResponsiveContainer>
-      </div>
-      <div className="text-xs text-gray-500 dark:text-gray-400 text-right mt-2">
-        {data.length > 0 ? `แสดงข้อมูล ${data.length} วัน` : ''}
       </div>
     </div>
   );

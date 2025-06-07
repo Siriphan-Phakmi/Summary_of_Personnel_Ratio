@@ -112,11 +112,11 @@ export const checkAndCreateDailySummary = async (
     // แปลงวันที่เป็น Date object ถ้าเป็น Timestamp
     const formDate = date instanceof Timestamp ? date.toDate() : new Date(date);
     const dateString = format(formDate, 'yyyy-MM-dd');
-    const formattedDateForId = format(formDate, 'yyyyMMdd'); // สำหรับใช้ใน ID
     
     console.log(`[checkAndCreateDailySummary] Started for ward ${wardId}, date ${dateString}`);
     
     // สร้าง ID ที่แน่นอนสำหรับเอกสารสรุป เพื่อให้ใช้ setDoc แทน addDoc
+    const formattedDateForId = format(formDate, 'yyyyMMdd'); // สำหรับใช้ใน ID
     const summaryId = `${wardId}_d${formattedDateForId}`;
     console.log(`[checkAndCreateDailySummary] Generated summaryId: ${summaryId}`);
     
@@ -226,7 +226,7 @@ export const checkAndCreateDailySummary = async (
         plannedDischarge: (nightForm?.plannedDischarge || 0) || (morningForm?.plannedDischarge || 0),
         
         // ตรวจสอบว่าข้อมูลนี้มาจาก mock data หรือไม่
-        isMockData: morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator',
+        isDummyData: morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator',
         
         // สถานะการอนุมัติแบบฟอร์ม - อัปเดตให้เป็น true เมื่อฟอร์มทั้งสองกะถูกอนุมัติแล้ว
         allFormsApproved: morningForm?.status === FormStatus.APPROVED && nightForm?.status === FormStatus.APPROVED,
@@ -325,9 +325,9 @@ export const checkAndCreateDailySummary = async (
         updates.plannedDischarge = (nightForm.plannedDischarge || 0) || existingSummary.plannedDischarge || 0;
       }
       
-      // อัปเดตสถานะ allFormsApproved และ isMockData
+      // อัปเดตสถานะ allFormsApproved และ isDummyData
       updates.allFormsApproved = (morningForm?.status === FormStatus.APPROVED && nightForm?.status === FormStatus.APPROVED);
-      updates.isMockData = (morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator');
+      updates.isDummyData = (morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator');
       
       // หากมีการเปลี่ยนแปลงใดๆ ให้อัปเดตเอกสาร
       if (Object.keys(updates).length > 1) { // 1 คือ updatedAt
@@ -377,7 +377,7 @@ export const checkAndCreateDailySummary = async (
     
     console.log(`[checkAndCreateDailySummary] Completed process for ward ${wardId}, date ${dateString}`);
   } catch (error) {
-    console.error(`[checkAndCreateDailySummary] Error for ward ${wardId}, date ${dateString}:`, error);
+    console.error(`[checkAndCreateDailySummary] Error for ward ${wardId}, date:`, error);
     throw error;
   }
 };
@@ -524,7 +524,7 @@ export const updateDailySummary = async (
         plannedDischarge: (nightForm.plannedDischarge || 0) || (morningForm.plannedDischarge || 0),
         
         // ตรวจสอบว่าข้อมูลนี้มาจาก mock data หรือไม่
-        isMockData: morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator',
+        isDummyData: morningForm?.createdBy === 'mock_data_generator' || nightForm?.createdBy === 'mock_data_generator',
         
         // สถานะการอนุมัติแบบฟอร์ม - อัปเดตให้เป็น true เมื่อฟอร์มทั้งสองกะถูกอนุมัติแล้ว
         allFormsApproved: morningForm?.status === FormStatus.APPROVED && nightForm?.status === FormStatus.APPROVED,
@@ -618,7 +618,7 @@ export const getApprovedSummariesByDateRange = async (
       where('wardId', '==', wardId.toUpperCase()),
       where('dateString', '>=', startDateStringForQuery),
       where('dateString', '<=', endDateStringForQuery),
-      where('isMockData', '==', true),
+      where('isDummyData', '==', true),
       orderBy('dateString', 'desc')
     );
     const snapshotMockData = await getDocs(qMockData);
