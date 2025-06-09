@@ -65,3 +65,16 @@ export interface WardFormData {
   /** จำนวนผู้ป่วยเริ่มต้น */
   initialPatientCensus?: number;
 } 
+
+/**
+ * Data structure for daily patient counts, used in comparison views.
+ */
+export interface DailyPatientData {
+  date: string;
+  displayDate: string;
+  wardId: string;
+  wardName: string;
+  morningPatientCount: number;
+  nightPatientCount: number;
+  totalPatientCount: number;
+} 

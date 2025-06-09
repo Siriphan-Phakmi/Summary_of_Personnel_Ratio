@@ -1,3 +1,5 @@
+import { Timestamp, FieldValue } from 'firebase/firestore';
+
 /**
  * User roles for role-based access control
  */
@@ -32,17 +34,13 @@ export enum ShiftType {
 /**
  * Timestamp type ที่รองรับทั้ง Firestore Timestamp, serverTimestamp และ string
  */
-export type TimestampField = string | Date | {
-  toDate?: () => Date;
-  seconds?: number;
-  nanoseconds?: number;
-} | {
-  _seconds?: number;
-  _nanoseconds?: number;
-} | null | {
-  isEqual?: Function;
-  valueOf?: Function;
-};
+export type TimestampField =
+  | string
+  | Date
+  | Timestamp
+  | FieldValue
+  | { toDate(): Date; seconds: number; nanoseconds: number }
+  | null;
 
 /**
  * Type สำหรับ ServerTimestamp ที่ใช้กับ Firestore
@@ -60,7 +58,7 @@ export type ServerTimestampType = {
  */
 export interface User {
   uid: string;
-  role: UserRole | string;
+  role: UserRole;
   floor?: string | null;
   firstName?: string;
   username?: string;

@@ -1,6 +1,8 @@
 import { Ward } from '@/app/core/types/ward';
 import { User } from '@/app/core/types/user';
-import { CalendarMarker, DailyPatientData, WardSummaryDataWithShifts, TrendData } from './index';
+import { CalendarMarker, TrendData } from './index';
+import { WardSummaryDataWithShifts } from './form-types';
+import { DailyPatientData } from './interface-types';
 import { PieChartDataItem } from '../EnhancedPieChart';
 
 // User interface สำหรับ ChartSection

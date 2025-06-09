@@ -12,13 +12,13 @@ import {
   Timestamp, 
   limit, 
   setDoc,
-  documentId
+  documentId,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
 import { User, TimestampField } from '@/app/core/types/user';
 import { format, parse } from 'date-fns';
-import { toast } from 'react-hot-toast';
 import { createServerTimestamp } from '@/app/core/utils/timestampUtils';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 import { formatDateYMD } from '@/app/core/utils/dateUtils';
@@ -30,7 +30,7 @@ import {
 } from './constants';
 import { checkAndCreateDailySummary, updateDailySummary } from './approvalServices/dailySummary';
 import { isEqual } from 'lodash';
-import { logSystemError } from '@/app/core/utils/logUtils';
+import { Logger, logSystemError } from '@/app/core/utils/logger';
 import { updateDailySummaryApprovalStatus } from './approvalServices/approvalForms';
 
 /**
@@ -179,8 +179,8 @@ export const getWardForm = async (
   const wardId = wardIdInput.toUpperCase();
   
   const callContext = new Error().stack?.split('\n')[2]?.trim() || 'unknown caller'; 
-  console.log(`[getWardForm ENTRY] Called by: ${callContext}`);
-  console.log(`[getWardForm PARAMS] date=${date?.toDate().toISOString()}, shift=${shift}, originalWardId=${wardIdInput}, usedWardId=${wardId}`);
+  Logger.info(`[getWardForm ENTRY] Called by: ${callContext}`);
+  Logger.info(`[getWardForm PARAMS] date=${date?.toDate().toISOString()}, shift=${shift}, originalWardId=${wardIdInput}, usedWardId=${wardId}`);
   
   try {
     const dateString = format(date.toDate(), 'yyyy-MM-dd');
@@ -191,7 +191,7 @@ export const getWardForm = async (
     const finalDocIdPattern = `${wardId}_${shiftPrefix}_final_d`;
     const approvedDocIdPattern = `${wardId}_${shiftPrefix}_approved_d`;
     
-    console.log(`[getWardForm ${wardId}/${shift}] Checking document ID patterns:\n- Draft: ${draftDocIdPattern}\n- Final: ${finalDocIdPattern}\n- Approved: ${approvedDocIdPattern}`);
+    Logger.info(`[getWardForm ${wardId}/${shift}] Checking document ID patterns:\n- Draft: ${draftDocIdPattern}\n- Final: ${finalDocIdPattern}\n- Approved: ${approvedDocIdPattern}`);
     
     // Query ข้อมูลตามรูปแบบใหม่ (ใช้ dateString และ wardId ตามปกติ)
     const q = query(
@@ -201,9 +201,9 @@ export const getWardForm = async (
       where('wardId', '==', wardId)
     );
     
-    console.log(`[getWardForm ${wardId}/${shift}] Query parameters: dateString=${dateString}, shift=${shift}, wardId=${wardId}`);
+    Logger.info(`[getWardForm ${wardId}/${shift}] Query parameters: dateString=${dateString}, shift=${shift}, wardId=${wardId}`);
     const querySnapshot = await getDocs(q);
-    console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for direct query: ${querySnapshot.size}`);
+    Logger.info(`[getWardForm ${wardId}/${shift}] Query snapshot size for direct query: ${querySnapshot.size}`);
 
     // ถ้าพบข้อมูลจาก Query หลัก
     if (!querySnapshot.empty) {
@@ -218,52 +218,52 @@ export const getWardForm = async (
 
       // ถ้าพบเอกสารตามรูปแบบใหม่
       if (filteredDocs.length > 0) {
-        console.log(`[getWardForm ${wardId}/${shift}] Found ${filteredDocs.length} documents matching new ID pattern.`);
+        Logger.info(`[getWardForm ${wardId}/${shift}] Found ${filteredDocs.length} documents matching new ID pattern.`);
         
         // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
         const approvedDoc = filteredDocs.find(doc => doc.status === FormStatus.APPROVED);
         if (approvedDoc) {
-          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by new pattern: ${approvedDoc.id}`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by new pattern: ${approvedDoc.id}`);
           return approvedDoc;
         }
         const finalDoc = filteredDocs.find(doc => doc.status === FormStatus.FINAL);
         if (finalDoc) {
-          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by new pattern: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by new pattern: ID=${finalDoc.id}, Status=${finalDoc.status}`);
           return finalDoc;
         }
         const draftDoc = filteredDocs.find(doc => doc.status === FormStatus.DRAFT);
         if (draftDoc) {
-          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by new pattern: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by new pattern: ID=${draftDoc.id}, Status=${draftDoc.status}`);
           return draftDoc;
         }
       }
       
       // ถ้าไม่พบตามรูปแบบใหม่ ให้ใช้รูปแบบเดิมเป็น fallback
-      console.log(`[getWardForm ${wardId}/${shift}] Falling back to original pattern search.`);
+      Logger.info(`[getWardForm ${wardId}/${shift}] Falling back to original pattern search.`);
       
       // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
       const approvedDoc = docs.find(doc => doc.status === FormStatus.APPROVED);
       if (approvedDoc) {
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by query: ${approvedDoc.id}`);
+        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by query: ${approvedDoc.id}`);
         return approvedDoc;
       }
       const finalDoc = docs.find(doc => doc.status === FormStatus.FINAL);
       if (finalDoc) {
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
         return finalDoc;
       }
       const draftDoc = docs.find(doc => doc.status === FormStatus.DRAFT);
       if (draftDoc) {
-        console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
         return draftDoc;
       }
       // Fallback: return the first doc if specific statuses aren't found
-      console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first document by query (no specific status match): ID=${docs[0].id}, Status=${docs[0].status}`);
+      Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found first document by query (no specific status match): ID=${docs[0].id}, Status=${docs[0].status}`);
       return docs[0];
     } 
     
     // หากไม่พบข้อมูลหลัก ลองค้นหาเพิ่มเติม (ไม่จำเป็นต้องปรับส่วนนี้มากนัก เพราะเป็น fallback)
-    console.log(`[getWardForm ${wardId}/${shift}] No direct hits from primary query, trying secondary query for date=${dateString}, wardId=${wardId}`);
+    Logger.info(`[getWardForm ${wardId}/${shift}] No direct hits from primary query, trying secondary query for date=${dateString}, wardId=${wardId}`);
     
     try {
       // Query โดยไม่ระบุ shift เพื่อดึงข้อมูลทั้งหมดของวันและ ward นั้น
@@ -274,11 +274,11 @@ export const getWardForm = async (
       );
       
       const secondarySnapshot = await getDocs(secondaryQuery);
-      console.log(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`);
+      Logger.info(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`);
       
       if (!secondarySnapshot.empty) {
         const secondaryDocs = secondarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
-        console.log(`[getWardForm ${wardId}/${shift}] Found ${secondaryDocs.length} documents from secondary query.`);
+        Logger.info(`[getWardForm ${wardId}/${shift}] Found ${secondaryDocs.length} documents from secondary query.`);
         
         // กรองเอกสารที่ตรงกับ shift ที่ต้องการและมีรูปแบบ ID ใหม่
         const matchingShiftWithPattern = secondaryDocs.filter(doc => {
@@ -286,20 +286,20 @@ export const getWardForm = async (
         });
         
         if (matchingShiftWithPattern.length > 0) {
-          console.log(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftWithPattern.length} matching documents with new ID pattern from secondary query.`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftWithPattern.length} matching documents with new ID pattern from secondary query.`);
           const approvedDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.APPROVED);
           if (approvedDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED with new pattern by secondary query: ${approvedDoc.id}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED with new pattern by secondary query: ${approvedDoc.id}`);
             return approvedDoc;
           }
           const finalDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.FINAL);
           if (finalDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL with new pattern by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL with new pattern by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
             return finalDoc;
           }
           const draftDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.DRAFT);
           if (draftDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT with new pattern by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT with new pattern by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
             return draftDoc;
           }
         }
@@ -307,36 +307,36 @@ export const getWardForm = async (
         // Fallback to original pattern (ถ้าไม่พบรูปแบบใหม่)
         const matchingShiftDocs = secondaryDocs.filter(doc => doc.shift === shift);
         if (matchingShiftDocs.length > 0) {
-          console.log(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftDocs.length} matching shift documents from secondary query.`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftDocs.length} matching shift documents from secondary query.`);
           const approvedDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.APPROVED);
           if (approvedDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by secondary query: ${approvedDoc.id}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by secondary query: ${approvedDoc.id}`);
             return approvedDoc;
           }
           const finalDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.FINAL);
           if (finalDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
             return finalDoc;
           }
           const draftDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.DRAFT);
           if (draftDoc) {
-            console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
+            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
             return draftDoc;
           }
-          console.log(`[getWardForm ${wardId}/${shift}] RETURN: Found first matching shift document by secondary query: ID=${matchingShiftDocs[0].id}, Status=${matchingShiftDocs[0].status}`);
+          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found first matching shift document by secondary query: ID=${matchingShiftDocs[0].id}, Status=${matchingShiftDocs[0].status}`);
           return matchingShiftDocs[0];
         }
       }
     } catch (secondaryQueryError) {
-      console.error(`[getWardForm ${wardId}/${shift}] Error in secondary query:`, secondaryQueryError);
+      Logger.error(`[getWardForm ${wardId}/${shift}] Error in secondary query:`, secondaryQueryError);
       // Continue to return null if both methods fail
     }
     
-    console.log(`[getWardForm ${wardId}/${shift}] RETURN: No data found after all checks.`);
+    Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: No data found after all checks.`);
     return null;
     
   } catch (error) {
-    console.error(`[getWardForm ${wardId}/${shift}] Global Error retrieving form:`, error);
+    Logger.error(`[getWardForm ${wardId}/${shift}] Global Error retrieving form:`, error);
     throw error;
   }
 };
@@ -351,64 +351,37 @@ export const getLatestPreviousNightForm = async (
   date: Date, 
   wardId: string
 ): Promise<WardForm | null> => {
-  if (!date || !wardId) {
-    console.error("getLatestPreviousNightForm: Missing required parameters", { date, wardId });
-    return null;
-  }
+  Logger.info(`[getLatestPreviousNightForm] Finding previous night form for date: ${date.toISOString()}, ward: ${wardId}`);
+  
+  // ค้นหาย้อนหลังไป 3 วันเพื่อความปลอดภัย
+  const startDate = startOfDay(subDays(date, 3));
+  const endDate = endOfDay(subDays(date, 1));
   
   try {
-    const previousDate = subDays(date, 1);
-    const previousDateString = formatDateYMD(previousDate);
-    const normalizedWardId = wardId.toUpperCase();
-
-    console.log(`[getLatestPrevNight] Querying for latest previous night: wardId=${normalizedWardId}, dateString=${previousDateString}`);
-
     const q = query(
       collection(db, COLLECTION_WARDFORMS),
-      where('wardId', '==', normalizedWardId),
-      where('dateString', '==', previousDateString),
+      where('wardId', '==', wardId),
       where('shift', '==', ShiftType.NIGHT),
-      orderBy('updatedAt', 'desc'), // Order by last update time
+      where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED]),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate),
+      orderBy('date', 'desc'),
       limit(1)
     );
 
-    const snapshot = await getDocs(q);
+    const querySnapshot = await getDocs(q);
 
-    if (!snapshot.empty) {
-      const doc = snapshot.docs[0];
-      const data = doc.data() as WardForm;
-      console.log(`[getLatestPrevNight] Found form: ID=${doc.id}, Status=${data.status}`);
-      
-      // Convert Timestamps
-      const convertTimestamp = (tsField: any): Date | null => {
-         if (!tsField) return null;
-         if (tsField instanceof Date) return tsField;
-         if (tsField instanceof Timestamp) return tsField.toDate();
-          if (tsField && typeof tsField.seconds === 'number') {
-           return new Timestamp(tsField.seconds, tsField.nanoseconds ?? 0).toDate();
-         }
-         if (typeof tsField === 'object' && '_seconds' in tsField) {
-             return new Timestamp((tsField as any)._seconds, (tsField as any)._nanoseconds).toDate();
-         }
-         try { return new Date(tsField); } catch { return null;}
-      };
-
-      return {
-        ...data,
-        id: doc.id,
-        date: convertTimestamp(data.date),
-        createdAt: convertTimestamp(data.createdAt),
-        updatedAt: convertTimestamp(data.updatedAt),
-        finalizedAt: convertTimestamp(data.finalizedAt),
-        approvedAt: convertTimestamp(data.approvedAt),
-      };
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      Logger.info(`[getLatestPreviousNightForm] Found previous night form: ${doc.id}`);
+      return { id: doc.id, ...doc.data() } as WardForm;
     } else {
-      console.log(`[getLatestPrevNight] No form found for previous night.`);
+      Logger.info(`[getLatestPreviousNightForm] No previous night form found within the last 3 days.`);
       return null;
     }
   } catch (error) {
-    console.error('Error fetching latest previous night shift form:', error);
-    logSystemError(error as Error, 'getLatestPreviousNightForm', undefined, `wardId: ${wardId}, date: ${formatDateYMD(date)}`);
+    const message = `เกิดข้อผิดพลาดในการดึงข้อมูลเวรดึกก่อนหน้าของวอร์ด ${wardId}`;
+    Logger.error(message, error, { showToast: true });
     return null;
   }
 };
@@ -442,7 +415,7 @@ export const checkMorningShiftFormStatus = async (
       isDraft: morningForm.isDraft
     };
   } catch (error) {
-    console.error('Error checking morning shift form status:', error);
+    Logger.error('Error checking morning shift form status:', error);
     throw error;
   }
 };
@@ -468,11 +441,15 @@ export const calculateMorningCensus = (
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   // ฟังก์ชันช่วยในการแปลงค่าให้เป็นตัวเลขที่ถูกต้อง
-  const safeNumber = (value: any): number => {
-    if (value === undefined || value === null || value === '' || isNaN(Number(value))) {
-      return 0;
+  const safeNumber = (value: unknown): number => {
+    if (typeof value === 'number' && !isNaN(value)) {
+      return value;
     }
-    return Number(value);
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
   };
 
   let initialValue: number;
@@ -492,7 +469,7 @@ export const calculateMorningCensus = (
   const discharges = safeNumber(inputData.discharge) + safeNumber(inputData.transferOut) + safeNumber(inputData.referOut) + safeNumber(inputData.dead);
   const calculatedCensus = Math.max(0, initialValue + admissions - discharges);
 
-  console.log(`[calculateMorningCensus] initialValue=${initialValue}, admissions=${admissions}, discharges=${discharges}, result=${calculatedCensus}`);
+  Logger.info(`[calculateMorningCensus] initialValue=${initialValue}, admissions=${admissions}, discharges=${discharges}, result=${calculatedCensus}`);
   
   return {
     initialPatientCensus: initialValue, // ค่าเริ่มต้นจากกะดึกของวันก่อนหน้า
@@ -520,16 +497,20 @@ export const calculateNightShiftCensus = (
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   // ฟังก์ชันช่วยในการแปลงค่าให้เป็นตัวเลขที่ถูกต้อง
-  const safeNumber = (value: any): number => {
-    if (value === undefined || value === null || value === '' || isNaN(Number(value))) {
-      return 0;
+  const safeNumber = (value: unknown): number => {
+    if (typeof value === 'number' && !isNaN(value)) {
+      return value;
     }
-    return Number(value);
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
   };
 
   // ตรวจสอบว่ามีข้อมูลที่จำเป็นครบถ้วนหรือไม่
   if (morningForm.patientCensus === undefined && morningForm.calculatedCensus === undefined) {
-    console.error('Missing required data for calculation: morningForm.patientCensus or morningForm.calculatedCensus');
+    Logger.error('Missing required data for calculation: morningForm.patientCensus or morningForm.calculatedCensus');
     return {initialPatientCensus: 0, calculatedCensus: 0, patientCensus: 0};
   }
   
@@ -552,7 +533,7 @@ export const calculateNightShiftCensus = (
   // คำนวณจำนวนผู้ป่วยที่คงเหลือในกะดึก
   const calculatedCensus = Math.max(0, initialValue + nightAdmissions - nightDischarges);
 
-  console.log(`[calculateNightShiftCensus] initialValue=${initialValue}, nightAdmissions=${nightAdmissions}, nightDischarges=${nightDischarges}, result=${calculatedCensus}`);
+  Logger.info(`[calculateNightShiftCensus] initialValue=${initialValue}, nightAdmissions=${nightAdmissions}, nightDischarges=${nightDischarges}, result=${calculatedCensus}`);
   
   return {
     initialPatientCensus: initialValue, // ค่าเริ่มต้นจากกะเช้า
@@ -596,6 +577,39 @@ const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus
 };
 
 /**
+ * Normalizes a date input from various possible formats into a standard Date object,
+ * or throws an error if the input is invalid or missing.
+ * @param dateInput The date to normalize (Timestamp, Date, or string).
+ * @returns A Date object.
+ * @throws An error if the date is invalid or missing.
+ */
+const normalizeDateOrThrow = (dateInput: TimestampField | undefined): Date => {
+  if (!dateInput) throw new Error('Date is required.');
+
+  if (dateInput instanceof Timestamp) {
+    return dateInput.toDate();
+  }
+  if (dateInput instanceof Date) {
+    return dateInput;
+  }
+  if (typeof dateInput === 'string') {
+    // Handles ISO strings and YYYY-MM-DD. Appending T00:00:00Z for date-only strings
+    // prevents timezone shifts during parsing.
+    const dateStr = dateInput.includes('T') ? dateInput : dateInput + 'T00:00:00Z';
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  // Handle Firestore Timestamp-like objects that aren't instances of Timestamp
+  if (typeof dateInput === 'object' && 'seconds' in dateInput && typeof dateInput.seconds === 'number' && 'nanoseconds' in dateInput && typeof dateInput.nanoseconds === 'number') {
+      return new Timestamp(dateInput.seconds, dateInput.nanoseconds).toDate();
+  }
+  
+  throw new Error(`Invalid date format: ${JSON.stringify(dateInput)}`);
+};
+
+/**
  * Finalizes the morning shift form.
  * Uses setDoc with a custom ID.
  */
@@ -604,56 +618,18 @@ export const finalizeMorningShiftForm = async (
   user: User
 ): Promise<string> => {
   try {
+    // Basic validation
     if (!formData.wardId || !formData.shift || !formData.date) {
-      throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
+      throw new Error('Ward ID, shift, and date are required to finalize the form.');
     }
     const wardId = formData.wardId.toUpperCase();
 
-    let dataForValidation: Partial<WardForm> = { ...formData, wardId: wardId };
-    if (!dataForValidation.wardName) {
-      try {
-        const wardDocRef = query(collection(db, COLLECTION_WARDS), where("wardId", "==", wardId));
-        const wardQuerySnap = await getDocs(wardDocRef);
-        if (!wardQuerySnap.empty) {
-          dataForValidation.wardName = wardQuerySnap.docs[0].data().wardName as string;
-        }
-      } catch (err) {
-        console.warn('Cannot fetch wardName for validation:', err);
-      }
-    }
-    const validationResult = validateFormData(dataForValidation);
-    if (!validationResult.isValid) {
-      throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
-    }
-
-    let dateObjForId: Date;
-    if (formData.date instanceof Timestamp) {
-      dateObjForId = formData.date.toDate();
-    } else if (formData.date instanceof Date) {
-      dateObjForId = formData.date;
-    } else if (typeof formData.date === 'string') {
-      dateObjForId = new Date(formData.date + 'T00:00:00Z');
-      if (isNaN(dateObjForId.getTime())) {
-        throw new Error('Invalid date string format in formData for ID generation');
-      }
-    } else {
-      throw new Error('Invalid or missing date in formData for ID generation');
-    }
-    const dateStr = formatDateYMD(dateObjForId);
-
-    // Generate new FINAL document ID with timestamp
-    const baseFinalId = generateWardFormId(
-      wardId,
-      ShiftType.MORNING, 
-      FormStatus.FINAL,
-          Timestamp.fromDate(dateObjForId) 
-      );
-    const timeStrFinal = format(new Date(), 'HHmmss');
-    const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
-    console.log(`[finalizeMorning] Creating new FINAL document with ID: ${documentIdToUse}`);
-
-    // Try to fetch previous night shift form to calculate census
-    const prevDate = subDays(dateObjForId, 1);
+    // Normalize date and get date string
+    const dateObj = normalizeDateOrThrow(formData.date);
+    const dateStr = formatDateYMD(dateObj);
+    
+    // We need the previous night's form to calculate the initial census
+    const prevDate = subDays(dateObj, 1);
     const previousNightForm = await getLatestPreviousNightForm(prevDate, wardId);
     
     // Calculate census values
@@ -671,15 +647,56 @@ export const finalizeMorningShiftForm = async (
     
     const censusValues = calculateMorningCensus(previousNightForm, inputData);
 
+    let dataForValidation: Partial<WardForm> = { 
+      ...formData, 
+      wardId: wardId,
+      patientCensus: censusValues.patientCensus,
+      initialPatientCensus: censusValues.initialPatientCensus,
+      calculatedCensus: censusValues.calculatedCensus
+    };
+    
+    if (!dataForValidation.wardName) {
+      try {
+        const wardDocRef = query(collection(db, COLLECTION_WARDFORMS), where("wardId", "==", wardId));
+        const wardQuerySnap = await getDocs(wardDocRef);
+        if (!wardQuerySnap.empty) {
+          dataForValidation.wardName = wardQuerySnap.docs[0].data().wardName as string;
+        }
+      } catch (err) {
+        Logger.info('Cannot fetch wardName for validation:', err);
+      }
+    }
+    const validationResult = validateFormData(dataForValidation);
+    if (!validationResult.isValid) {
+      throw new Error(`Validation failed: ${validationResult.errors ? JSON.stringify(validationResult.errors) : validationResult.missingFields.join(', ')}`);
+    }
+
+    // Final check on census values
+    if (formData.shift === ShiftType.MORNING && censusValues.calculatedCensus !== formData.patientCensus) {
+        Logger.info(`Census mismatch for morning shift. User input: ${formData.patientCensus}, Calculated: ${censusValues.calculatedCensus}. Overriding with calculated value.`);
+        formData.patientCensus = censusValues.calculatedCensus;
+    }
+
+    // Generate new FINAL document ID with timestamp
+    const baseFinalId = generateWardFormId(
+      wardId,
+      ShiftType.MORNING, 
+      FormStatus.FINAL,
+      Timestamp.fromDate(dateObj) 
+      );
+    const timeStrFinal = format(new Date(), 'HHmmss');
+    const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
+    Logger.info(`[finalizeMorning] Creating new FINAL document with ID: ${documentIdToUse}`);
+
     // Prepare data to save
     const dataToSave: Partial<WardForm> = {
       ...formData,
       id: documentIdToUse,
       wardId: wardId,
-      wardName: dataForValidation.wardName || '',
+      wardName: dataForValidation.wardName,
       status: FormStatus.FINAL,
       isDraft: false,
-      date: Timestamp.fromDate(dateObjForId),
+      date: Timestamp.fromDate(dateObj),
       dateString: dateStr,
       initialPatientCensus: censusValues.initialPatientCensus,
       calculatedCensus: censusValues.calculatedCensus,
@@ -702,19 +719,22 @@ export const finalizeMorningShiftForm = async (
 
     // Save the data using setDoc with merge: true
     await setDoc(docRef, dataToSave, { merge: true });
-    console.log(`[finalizeMorning] Successfully saved document: ${documentIdToUse}`);
+    Logger.info(`[finalizeMorning] Successfully saved document: ${documentIdToUse}`);
 
     try {
-      await checkAndCreateDailySummary(dateObjForId, wardId, dataToSave.wardName || '');
-      console.log('Daily summary checked/created for morning form');
+      await checkAndCreateDailySummary(dateObj, wardId, dataToSave.wardName || '');
+      Logger.info(`[finalizeMorning] Daily summary checked/created for ${documentIdToUse}`);
     } catch (summaryError) {
-      console.error('Error checking/creating daily summary:', summaryError);
+      Logger.error(`[finalizeMorning] Failed to create/update daily summary:`, summaryError);
+      // ไม่ต้อง throw error ออกไป ให้ process เดินต่อได้
     }
 
     return documentIdToUse;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[finalizeMorningShiftForm] Error:', errorMessage, error);
+    const message = (error instanceof Error && error.message.startsWith('Validation failed:'))
+      ? `ข้อมูลไม่สมบูรณ์: ${error.message.replace('Validation failed: ', '')}`
+      : 'เกิดข้อผิดพลาดในการสรุปผลกะเช้า';
+    Logger.error(message, error, { showToast: true });
     throw error;
   }
 };
@@ -730,26 +750,12 @@ export const saveDraftWardForm = async (
   user: User
 ): Promise<string> => {
   try {
-    // Basic validations
     if (!formData.wardId || !formData.shift || !formData.date) {
       throw new Error('ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบข้อมูล wardId, shift และ date');
     }
     const wardId = formData.wardId.toUpperCase();
     
-    // Convert date to appropriate format
-    let dateObj: Date;
-    if (formData.date instanceof Timestamp) {
-      dateObj = formData.date.toDate();
-    } else if (formData.date instanceof Date) {
-        dateObj = formData.date;
-    } else if (typeof formData.date === 'string') {
-      dateObj = new Date(formData.date + 'T00:00:00Z');
-      if (isNaN(dateObj.getTime())) {
-        throw new Error('Invalid date string format');
-        }
-    } else {
-      throw new Error('Invalid date format');
-    }
+    const dateObj = normalizeDateOrThrow(formData.date);
     const dateStr = formatDateYMD(dateObj);
 
     // คำนวณ Patient Census ตามช่วงเวลาของวัน
@@ -829,11 +835,11 @@ export const saveDraftWardForm = async (
     // Save to Firestore
     const docRef = doc(db, COLLECTION_WARDFORMS, docId);
     await setDoc(docRef, dataToSave, { merge: true });
-    console.log(`Draft saved with ID: ${docId}, shift: ${formData.shift}, date: ${dateStr}`);
+    Logger.info(`Draft saved with ID: ${docId}, shift: ${formData.shift}, date: ${dateStr}`);
 
     return docId;
   } catch (error) {
-    console.error('Error saving draft form:', error);
+    Logger.error('เกิดข้อผิดพลาดในการบันทึกฉบับร่าง', error, { showToast: true });
     throw error;
   }
 };
@@ -853,23 +859,11 @@ export const finalizeNightShiftForm = async (
     const wardId = formData.wardId.toUpperCase();
 
     // We need to fetch morning form first for census calculation
-    let dateObjForId: Date;
-    if (formData.date instanceof Timestamp) {
-      dateObjForId = formData.date.toDate();
-    } else if (formData.date instanceof Date) {
-      dateObjForId = formData.date;
-    } else if (typeof formData.date === 'string') {
-      dateObjForId = new Date(formData.date + 'T00:00:00Z');
-      if (isNaN(dateObjForId.getTime())) {
-        throw new Error('Invalid date string format in formData for ID generation');
-      }
-    } else {
-      throw new Error('Invalid or missing date in formData for ID generation');
-    }
-    const dateStr = formatDateYMD(dateObjForId);
+    const dateObj = normalizeDateOrThrow(formData.date);
+    const dateStr = formatDateYMD(dateObj);
 
     // Fetch the morning shift form to get starting census
-    const morningFormTimestamp = Timestamp.fromDate(dateObjForId);
+    const morningFormTimestamp = Timestamp.fromDate(dateObj);
     const morningForm = await getWardForm(morningFormTimestamp, ShiftType.MORNING, wardId);
     if (!morningForm) {
       throw new Error(`Morning shift form not found for this date (${dateStr}). Please complete morning shift first.`);
@@ -905,12 +899,12 @@ export const finalizeNightShiftForm = async (
           dataForValidation.wardName = wardQuerySnap.docs[0].data().wardName as string;
         }
       } catch (err) {
-        console.warn('Cannot fetch wardName for validation:', err);
+        Logger.info('Cannot fetch wardName for validation:', err);
       }
     }
     const validationResult = validateFormData(dataForValidation);
     if (!validationResult.isValid) {
-      throw new Error(`Validation failed: ${validationResult.missingFields.join(', ')}`);
+      throw new Error(`Validation failed: ${validationResult.errors ? JSON.stringify(validationResult.errors) : validationResult.missingFields.join(', ')}`);
     }
 
       // Generate new FINAL document ID with timestamp
@@ -918,11 +912,11 @@ export const finalizeNightShiftForm = async (
       wardId,
       ShiftType.NIGHT, 
       FormStatus.FINAL,
-      Timestamp.fromDate(dateObjForId) 
+      Timestamp.fromDate(dateObj) 
     );
     const timeStrFinal = format(new Date(), 'HHmmss');
     const documentIdToUse = `${baseFinalId}_t${timeStrFinal}`;
-    console.log(`[finalizeNight] Creating new FINAL document with ID: ${documentIdToUse}`);
+    Logger.info(`[finalizeNight] Creating new FINAL document with ID: ${documentIdToUse}`);
 
     // Prepare data to save
     const dataToSave: Partial<WardForm> = {
@@ -932,7 +926,7 @@ export const finalizeNightShiftForm = async (
       wardName: dataForValidation.wardName || '',
       status: FormStatus.FINAL,
       isDraft: false,
-      date: Timestamp.fromDate(dateObjForId),
+      date: Timestamp.fromDate(dateObj),
       dateString: dateStr,
       initialPatientCensus: censusValues.initialPatientCensus,
       calculatedCensus: censusValues.calculatedCensus,
@@ -955,32 +949,44 @@ export const finalizeNightShiftForm = async (
 
     // Save the data using setDoc
     await setDoc(docRef, dataToSave, { merge: true });
-    console.log(`[finalizeNight] Successfully saved document: ${documentIdToUse}`);
+    Logger.info(`[finalizeNight] Successfully saved document: ${documentIdToUse}`);
+    
+    // Delete the original draft form if it exists
+    if (formData.id && formData.id.includes('_draft_')) {
+      try {
+        const draftDocRef = doc(db, COLLECTION_WARDFORMS, formData.id);
+        await deleteDoc(draftDocRef);
+        Logger.info(`[finalizeNight] Successfully deleted draft form: ${formData.id}`);
+      } catch (deleteError) {
+        Logger.error(`[finalizeNight] Failed to delete original draft form ${formData.id}:`, deleteError);
+      }
+    }
     
     try {
       // ตรวจสอบและสร้าง/อัปเดตข้อมูลสรุปประจำวัน
-      await checkAndCreateDailySummary(dateObjForId, wardId, dataToSave.wardName || '');
-      console.log(`[finalizeNight] Daily summary checked/created for ${documentIdToUse}`);
+      await checkAndCreateDailySummary(dateObj, wardId, dataToSave.wardName || '');
+      Logger.info(`[finalizeNight] Daily summary checked/created for ${documentIdToUse}`);
       
       // ตรวจสอบสถานะการอนุมัติของทั้งสองกะ
-      const morningShiftInfo = await checkMorningShiftFormStatus(dateObjForId, wardId);
+      const morningShiftInfo = await checkMorningShiftFormStatus(dateObj, wardId);
       const morningFormStatus = morningShiftInfo?.status;
-      console.log(`[finalizeNight] Morning form status: ${morningFormStatus}`);
+      Logger.info(`[finalizeNight] Morning form status: ${morningFormStatus}`);
       
       // ถ้ากะเช้าได้รับการอนุมัติแล้ว ให้อัปเดตสถานะการอนุมัติทั้งหมดเป็น true
       if (morningFormStatus === FormStatus.APPROVED) {
-        await updateDailySummaryApprovalStatus(dateObjForId, wardId, true);
-        console.log(`[finalizeNight] Both forms are approved, updated daily summary approval status`);
+        await updateDailySummaryApprovalStatus(dateObj, wardId, true);
+        Logger.info(`[finalizeNight] Both forms are approved, updated daily summary approval status`);
       }
     } catch (summaryError) {
-      console.error('[finalizeNight] Error checking/creating daily summary:', summaryError);
-      // ไม่ทำ throw เพื่อให้การบันทึกหลักสำเร็จไปก่อน
+      Logger.error('[finalizeNight] Failed to update daily summary:', summaryError);
     }
 
     return documentIdToUse;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[finalizeNightShiftForm] Error:', errorMessage, error);
+    const message = (error instanceof Error && error.message.startsWith('Validation failed:'))
+      ? `ข้อมูลไม่สมบูรณ์: ${error.message.replace('Validation failed: ', '')}`
+      : 'เกิดข้อผิดพลาดในการสรุปผลกะดึก';
+    Logger.error(message, error, { showToast: true });
     throw error;
   }
 };
@@ -999,7 +1005,7 @@ export const getLatestDraftForm = async (
     // Normalize wardId to uppercase
     const normalizedWardId = wardId.toUpperCase();
     
-    console.log(`[getLatestDraftForm] Querying for latest draft for ward ${normalizedWardId} by user ${user.uid}`);
+    Logger.info(`[getLatestDraftForm] Querying for latest draft for ward ${normalizedWardId} by user ${user.uid}`);
 
     // สร้าง query
     const wardFormsRef = collection(db, COLLECTION_WARDFORMS);
@@ -1015,14 +1021,14 @@ export const getLatestDraftForm = async (
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
-       console.log(`[getLatestDraftForm] No draft found for ward ${normalizedWardId} by user ${user.uid}`);
+       Logger.info(`[getLatestDraftForm] No draft found for ward ${normalizedWardId} by user ${user.uid}`);
       return null;
     }
     
     const docSnapshot = querySnapshot.docs[0];
     const formData = docSnapshot.data() as WardForm;
     
-     console.log(`[getLatestDraftForm] Found draft form ID: ${docSnapshot.id}`);
+     Logger.info(`[getLatestDraftForm] Found draft form ID: ${docSnapshot.id}`);
 
     return {
       ...formData,
@@ -1033,8 +1039,8 @@ export const getLatestDraftForm = async (
       // updatedAt: formData.updatedAt instanceof Timestamp ? formData.updatedAt.toDate() : formData.updatedAt,
     };
   } catch (error) {
-    console.error('Error getting latest draft form:', error);
-    throw error; // Re-throw error for handling in the hook
+    Logger.error('เกิดข้อผิดพลาดในการดึงข้อมูลฉบับร่างล่าสุด', error, { showToast: true });
+    throw error;
   }
 };
 
@@ -1106,7 +1112,7 @@ export const getWardFormsByWardAndDate = async (
     
     return forms;
   } catch (error) {
-    console.error('Error getting ward forms:', error);
+    Logger.error('เกิดข้อผิดพลาดในการดึงข้อมูลแบบฟอร์ม', error, { showToast: true });
     throw error;
   }
 };
@@ -1182,8 +1188,8 @@ export const getPreviousDayLastForm = async (
       updatedAt: updatedAtField
     };
   } catch (error) {
-    console.error('Error getting previous day form:', error);
-    throw error;
+    Logger.error('เกิดข้อผิดพลาดในการดึงข้อมูลฟอร์มของวันก่อนหน้า', error, { showToast: true });
+    return null;
   }
 };
 
@@ -1197,19 +1203,19 @@ export const getSummaryForWard = async (date: Date, wardId: string): Promise<{
     const morningForm = await getWardForm(timestamp, ShiftType.MORNING, wardId);
     
     if (!morningForm) {
-      console.log(`[getSummaryForWard] No morning form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
+      Logger.info(`[getSummaryForWard] No morning form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
     }
     
     const nightForm = await getWardForm(timestamp, ShiftType.NIGHT, wardId);
     
     if (!nightForm) {
-      console.log(`[getSummaryForWard] No night form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
+      Logger.info(`[getSummaryForWard] No night form found for ward ${wardId} on ${format(date, 'yyyy-MM-dd')}`);
     }
     
     return { morningForm, nightForm };
   } catch (error) {
-    console.error(`[getSummaryForWard] Error getting summary for ward ${wardId}:`, error);
-    throw error;
+    Logger.error(`[getSummaryForWard] Error getting summary for ward ${wardId}:`, error);
+    return { morningForm: null, nightForm: null };
   }
 };
 
@@ -1232,22 +1238,22 @@ export const getShiftStatusesForDay = async (
   const morningShiftPrefix = 'm'; // รูปแบบใหม่ใช้ 'm' แทน 'morning'
   const nightShiftPrefix = 'n';   // รูปแบบใหม่ใช้ 'n' แทน 'night'
 
-  console.log(`[getShiftStatusesForDay] Fetching statuses for ward: ${wardId}, date: ${dateString} (Original: ${wardIdInput})`);
+  Logger.info(`[getShiftStatusesForDay] Checking statuses for ward ${wardId} on ${dateString}`);
 
   try {
     // ค้นหาข้อมูลแบบฟอร์มกะเช้า
     const morningForm = await getWardForm(dateTimestamp, ShiftType.MORNING, wardId);
     morningStatus = morningForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}, Pattern: ${wardId}_${morningShiftPrefix}_`);
+    Logger.info(`[getShiftStatusesForDay] Morning form found: ${morningForm ? morningForm.id : 'null'}, Status: ${morningStatus}, Pattern: ${wardId}_${morningShiftPrefix}_`);
 
     // ค้นหาข้อมูลแบบฟอร์มกะดึก
     const nightForm = await getWardForm(dateTimestamp, ShiftType.NIGHT, wardId);
     nightStatus = nightForm?.status ?? null;
-    console.log(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}, Pattern: ${wardId}_${nightShiftPrefix}_`);
+    Logger.info(`[getShiftStatusesForDay] Night form found: ${nightForm ? nightForm.id : 'null'}, Status: ${nightStatus}, Pattern: ${wardId}_${nightShiftPrefix}_`);
 
     // ถ้ายังไม่พบแบบฟอร์ม ลองค้นหาโดยตรงด้วย query เพื่อครอบคลุมทั้งรูปแบบเก่าและใหม่
     if (!morningStatus && !nightStatus) {
-      console.log(`[getShiftStatusesForDay] No forms found with getWardForm, trying direct query`);
+      Logger.info(`[getShiftStatusesForDay] No forms found with getWardForm, trying direct query`);
       
       const formsQuery = query(
         collection(db, 'wardForms'),
@@ -1258,7 +1264,7 @@ export const getShiftStatusesForDay = async (
       const querySnapshot = await getDocs(formsQuery);
       if (!querySnapshot.empty) {
         const docs = querySnapshot.docs.map(doc => ({ id: doc.id || '', ...doc.data() } as WardForm));
-        console.log(`[getShiftStatusesForDay] Direct query found ${docs.length} documents`);
+        Logger.info(`[getShiftStatusesForDay] Direct query found ${docs.length} documents`);
         
         // กรองเฉพาะฟอร์มกะเช้า
         const morningDocs = docs.filter(doc => doc.shift === ShiftType.MORNING);
@@ -1268,7 +1274,7 @@ export const getShiftStatusesForDay = async (
           const final = morningDocs.find(doc => doc.status === FormStatus.FINAL);
           const draft = morningDocs.find(doc => doc.status === FormStatus.DRAFT);
           morningStatus = approved?.status || final?.status || draft?.status || null;
-          console.log(`[getShiftStatusesForDay] Morning status from direct query: ${morningStatus}`);
+          Logger.info(`[getShiftStatusesForDay] Morning status from direct query: ${morningStatus}`);
         }
         
         // กรองเฉพาะฟอร์มกะดึก
@@ -1279,20 +1285,17 @@ export const getShiftStatusesForDay = async (
           const final = nightDocs.find(doc => doc.status === FormStatus.FINAL);
           const draft = nightDocs.find(doc => doc.status === FormStatus.DRAFT);
           nightStatus = approved?.status || final?.status || draft?.status || null;
-          console.log(`[getShiftStatusesForDay] Night status from direct query: ${nightStatus}`);
+          Logger.info(`[getShiftStatusesForDay] Night status from direct query: ${nightStatus}`);
         }
       }
     }
   } catch (error) {
-    // ตรวจสอบว่าเป็น Error object ก่อนส่ง
-    const logError = error instanceof Error ? error : new Error(`Unknown error in getShiftStatusesForDay: ${error}`);
-    // แปลง context object เป็น string
-    const contextString = `Date: ${dateString}, WardID: ${wardId}`;
-    logSystemError(logError, 'Error in getShiftStatusesForDay', contextString);
+    const logError = error instanceof Error ? error : new Error(`Unknown error in getShiftStatusesForDay: ${String(error)}`);
+    logSystemError(logError, 'getShiftStatusesForDay', { wardId: wardId, date: dateString });
     morningStatus = null; 
     nightStatus = null;
   }
 
-  console.log(`[getShiftStatusesForDay] Final statuses - Morning: ${morningStatus}, Night: ${nightStatus}`);
+  Logger.info(`[getShiftStatusesForDay] Final statuses - Morning: ${morningStatus}, Night: ${nightStatus}`);
   return { morningStatus, nightStatus };
 }; 

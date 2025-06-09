@@ -164,7 +164,7 @@
 - ลบการใช้ข้อมูลดัมมี่ (defaultTotal และ defaultUnavailable) ที่ทำให้เข้าใจผิด
 - ปรับปรุงเงื่อนไขการตรวจสอบข้อมูล โดยแสดงข้อความแจ้งเตือนเมื่อทั้ง available และ unavailable เป็น 0
 
-### แก้ไขปัญหา Text Element ที่แสดงผิดตำแหน่ง
+### แก้ไขปัญหาที่แสดงผิดตำแหน่ง
 - แก้ไขการแสดงผล Label ของกราฟวงกลมที่มีปัญหา text element ผิดตำแหน่ง
 - ปรับปรุงการคำนวณตำแหน่ง x, y ของ text ให้ถูกต้อง โดยใช้พารามิเตอร์ที่ส่งมาจาก recharts
 - แก้ไขการสร้าง rect และ text element ให้อยู่ในตำแหน่งที่ถูกต้อง
@@ -315,3 +315,18 @@
 
 ## ข้อควรระวัง
 การเปลี่ยนแปลงครั้งนี้เป็นเพียงการปรับโครงสร้างโค้ด ไม่ได้เปลี่ยนแปลงฟังก์ชันการทำงาน ดังนั้นผู้ใช้จะไม่สังเกตเห็นความแตกต่างใดๆ ในการใช้งาน
+
+## สรุปการทำงานวันนี้ (กรกฎาคม 2024)
+
+### การปรับโครงสร้าง TypeScript Interfaces
+- **ปัญหา**: พบข้อผิดพลาด TypeScript ที่เกี่ยวข้องกับ `isolatedModules` และ `export type` รวมถึงโครงสร้าง interface ที่กระจัดกระจายและซ้ำซ้อนในส่วนของ Dashboard components.
+- **การแก้ไข**:
+    - [x] **จัดระเบียบ Interface**: แยก Interface ออกเป็นไฟล์เฉพาะทางเพื่อความเป็นระเบียบและง่ายต่อการจัดการ
+        - [x] สร้าง `app/features/dashboard/components/types/interface-types.ts` สำหรับเก็บ shared data interfaces (เช่น `WardSummary`, `PatientTrend`).
+        - [x] สร้าง `app/features/dashboard/components/types/componentInterfaces.ts` สำหรับเก็บ props interfaces ของคอมโพเนนท์โดยเฉพาะ (เช่น `EnhancedBarChartProps`, `BedSummaryPieChartProps`).
+    - [x] **แก้ไขการ Export**: ปรับปรุงไฟล์ `app/features/dashboard/components/types/index.ts` ให้ทำการ `export type` จากไฟล์ใหม่ทั้งหมด เพื่อแก้ปัญหา `isolatedModules` และทำให้การ import มีประสิทธิภาพ
+    - [x] **ลดความซ้ำซ้อน**: รวม interface ที่ซ้ำซ้อนกันและจัดระเบียบให้ง่ายต่อการบำรุงรักษา
+- **ผลลัพธ์**:
+    - แก้ไขข้อผิดพลาดของ TypeScript ได้สำเร็จ
+    - โครงสร้างโค้ดในส่วนของ types มีความชัดเจนและเป็นระเบียบมากขึ้น
+    - ลดความซ้ำซ้อนของโค้ดและเพิ่มความสามารถในการบำรุงรักษาในระยะยาว

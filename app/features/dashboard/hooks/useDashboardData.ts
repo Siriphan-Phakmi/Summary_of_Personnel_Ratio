@@ -9,9 +9,9 @@ import {
   fetchTotalStats,
   fetchAllWardSummaryData
 } from '../services';
-import { logInfo, logError } from '../utils';
 import { WardSummaryData, WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
+import { Logger } from '@/app/core/utils/logger';
 
 interface TotalStats {
   opd24hr: number;
@@ -57,7 +57,7 @@ export const useDashboardData = (
         const censusMap = await fetchAllWardCensus(selectedDate);
         setWardCensusMap(censusMap);
       } catch (err) {
-        logError('[useDashboardData] Error fetching ward census data:', err);
+        Logger.error('[useDashboardData] Error fetching ward census data:', err);
       } finally {
         setLoading(false);
       }
@@ -91,7 +91,7 @@ export const useDashboardData = (
         const stats = await fetchTotalStats(statsDate, statsDate, user, undefined); // ส่ง user และ selectedWardId เข้าไป
         setTotalStats(stats);
       } catch (err) {
-        logError('[useDashboardData] Error fetching ward summary data:', err);
+        Logger.error('[useDashboardData] Error fetching ward summary data:', err);
         setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
       } finally {
         setLoading(false);
@@ -106,7 +106,7 @@ export const useDashboardData = (
     if (!user || wards.length === 0) return;
     
     try {
-      logInfo('[createTableData] Creating table data...');
+      Logger.info('[createTableData] Creating table data...');
       
       // สร้างข้อมูลสำหรับตาราง
       const results = await Promise.all(
@@ -180,7 +180,7 @@ export const useDashboardData = (
               }
             };
           } catch (error) {
-            logError(`[createTableData] Error processing ward ${ward.id}:`, error);
+            Logger.error(`[createTableData] Error processing ward ${ward.id}:`, error);
             return {
               id: ward.id!,
               wardName: ward.wardName,
@@ -221,8 +221,8 @@ export const useDashboardData = (
           };
           results.forEach(ward => {
             if (ward.morningShift) {
-              Object.keys(total).forEach(key => {
-                (total as any)[key] += (ward.morningShift as any)[key] || 0;
+              (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
+                total[key] += ward.morningShift![key] || 0;
               });
             }
           });
@@ -237,8 +237,8 @@ export const useDashboardData = (
           };
           results.forEach(ward => {
             if (ward.nightShift) {
-              Object.keys(total).forEach(key => {
-                (total as any)[key] += (ward.nightShift as any)[key] || 0;
+              (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
+                total[key] += ward.nightShift![key] || 0;
               });
             }
           });
@@ -251,9 +251,9 @@ export const useDashboardData = (
             transferOut: 0, referOut: 0, dead: 0, available: 0,
             unavailable: 0, plannedDischarge: 0
           };
-          summaryDataList.forEach(ward => {
-            Object.keys(total).forEach(key => {
-              (total as any)[key] += (ward as any)[key] || 0;
+          results.forEach(ward => {
+            (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
+              total[key] += ward.totalData[key] || 0;
             });
           });
           return total;
@@ -262,7 +262,7 @@ export const useDashboardData = (
       
       setTableData([...results, grandTotal]);
     } catch (error) {
-      logError('[createTableData] Error:', error);
+      Logger.error('[createTableData] Unexpected error:', error);
       setTableData([]);
     }
   }, [selectedDate, summaryDataList, user, wards]);
@@ -283,7 +283,7 @@ export const useDashboardData = (
       const startDateForSummary = fetchAllTime ? '1970-01-01' : startDate;
       const endDateForSummary = endDate;
 
-      logInfo(`[refreshData] Refreshing data for dateRange=${dateRange}, start=${startDateForSummary}, end=${endDateForSummary}`);
+      Logger.info(`[refreshData] Refreshing data for dateRange=${dateRange}, start=${startDateForSummary}, end=${endDateForSummary}`);
 
       // ดึงข้อมูลสรุปทั้งหมด
       // ส่ง flag fetchAllTime เข้าไปใน fetchAllWardSummaryData
@@ -301,10 +301,10 @@ export const useDashboardData = (
       // สร้างข้อมูลตาราง
       await createTableData();
       
-      logInfo("[refreshData] All data refreshed successfully");
+      Logger.info("[refreshData] All data refreshed successfully");
 
     } catch (error) {
-      logError('[refreshData] Error:', error);
+      Logger.error('[refreshData] Error:', error);
       setError('เกิดข้อผิดพลาดในการรีเฟรชข้อมูล กรุณาลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);

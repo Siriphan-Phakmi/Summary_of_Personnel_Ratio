@@ -1,99 +1,94 @@
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
+import toast from 'react-hot-toast';
 
-/**
- * บันทึกการทำงานของ API
+  /**
+ * A centralized logging utility for the application.
+ * It handles logging to the console during development,
+ * showing user-facing toasts, and sending error reports
+ * to a monitoring service in production.
  */
-export const apiLogger = {
-  /**
-   * บันทึกข้อมูลเมื่อเริ่มต้น request
-   * @param endpoint ชื่อ endpoint
-   * @param params พารามิเตอร์
-   * @returns เวลาเริ่มต้น
-   */
-  requestStart: (endpoint: string, params: any) => {
-    console.log(`[API Request] ${endpoint} - Started`, params);
-    return Date.now();
-  },
+export class Logger {
+  private static isDevelopment = process.env.NODE_ENV === 'development';
   
   /**
-   * บันทึกข้อมูลเมื่อจบ request
-   * @param endpoint ชื่อ endpoint
-   * @param startTime เวลาเริ่มต้น
-   * @param success สถานะความสำเร็จ
+   * Logs informational messages. Only outputs to the console in development.
+   * @param message The main message to log.
+   * @param data Additional data to log with the message.
    */
-  requestEnd: (endpoint: string, startTime: number, success: boolean) => {
-    const duration = Date.now() - startTime;
-    console.log(`[API Request] ${endpoint} - ${success ? 'Success' : 'Failed'} - Duration: ${duration}ms`);
-    
-    // ส่งข้อมูลไปยังระบบ analytics หรือ monitoring ได้
-    if (process.env.NEXT_PUBLIC_API_LOGGING === 'true') {
-      try {
-        addDoc(collection(db, 'apiLogs'), {
-          endpoint,
-          duration,
-          success,
-          timestamp: Timestamp.now()
-        }).catch(logError => {
-          console.error('[Logger] Failed to log API request:', logError);
-        });
-      } catch (error) {
-        console.error('[Logger] Error logging API request:', error);
-      }
-    }
-  },
-  
-  /**
-   * บันทึกข้อผิดพลาด
-   * @param endpoint ชื่อ endpoint
-   * @param error ข้อผิดพลาด
-   */
-  error: (endpoint: string, error: any) => {
-    console.error(`[API Error] ${endpoint}:`, error);
-    
-    // บันทึกข้อผิดพลาดลง Firestore หรือระบบ error tracking
-    if (process.env.NEXT_PUBLIC_ERROR_LOGGING === 'true') {
-      try {
-        addDoc(collection(db, 'errorLogs'), {
-          endpoint,
-          error: error.message || String(error),
-          stack: error.stack || '',
-          timestamp: Timestamp.now()
-        }).catch(logError => {
-          console.error('[Logger] Failed to log error:', logError);
-        });
-      } catch (logError) {
-        console.error('[Logger] Error logging error:', logError);
-      }
+  static info(message: string, ...data: any[]): void {
+    if (this.isDevelopment) {
+      console.log(`[INFO] ${message}`, ...data);
     }
   }
-};
+
+  /**
+   * Logs error messages.
+   * In development, it logs to the console.
+   * It can optionally show a toast to the user.
+   * @param message The user-friendly error message to display.
+   * @param error The actual error object or details.
+   * @param options Configuration for the log, e.g., { showToast: true }.
+   */
+  static error(message: string, error?: any, options?: { showToast?: boolean }): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (this.isDevelopment) {
+      console.error(`[ERROR] ${message}`, { error: errorMessage, details: error });
+      }
+
+    if (options?.showToast) {
+      toast.error(message);
+    }
+    
+    // In a real production environment, this is where you would send
+    // the error to a service like Sentry, LogRocket, or a custom backend.
+    // this.sendToMonitoringService(message, error);
+  }
+
+  /**
+   * Logs success messages.
+   * Can optionally show a success toast to the user.
+   * @param message The success message to display.
+   * @param options Configuration for the log, e.g., { showToast: true }.
+   */
+  static success(message: string, options?: { showToast?: boolean }): void {
+    if (this.isDevelopment) {
+      console.log(`[SUCCESS] ${message}`);
+    }
+    if (options?.showToast) {
+      toast.success(message);
+    }
+  }
+}
 
 /**
- * สำหรับบันทึกข้อมูลการใช้งานระบบอื่นๆ
+ * Logs a detailed system-level error to Firestore for backend monitoring.
+ * This should be used in catch blocks for critical operations.
+ * @param error The Error object that was caught.
+ * @param component The name of the component or function where the error occurred.
+ * @param context Additional context (e.g., user ID, state) to aid in debugging.
  */
-export const appLogger = {
-  /**
-   * บันทึกการเข้าใช้งานหน้าต่างๆ
-   * @param page ชื่อหน้า
-   * @param userId รหัสผู้ใช้
-   */
-  pageView: (page: string, userId?: string) => {
-    console.log(`[PageView] ${page}${userId ? ` - User: ${userId}` : ''}`);
+export const logSystemError = (error: Error, component: string, context?: Record<string, any>) => {
+  const message = `An unexpected error occurred in ${component}.`;
+  // Log the error to the console for immediate visibility during development
+  Logger.error(message, error, { showToast: false }); 
     
-    // บันทึกข้อมูลลง Firestore
-    if (process.env.NEXT_PUBLIC_USAGE_LOGGING === 'true') {
+  // Send the detailed error to Firestore for persistent logging
+  if (process.env.NEXT_PUBLIC_ERROR_LOGGING === 'true') {
       try {
-        addDoc(collection(db, 'pageViews'), {
-          page,
-          userId: userId || 'anonymous',
-          timestamp: Timestamp.now()
-        }).catch(error => {
-          console.error('[Logger] Failed to log page view:', error);
+      addDoc(collection(db, 'systemErrorLogs'), {
+        component,
+        errorMessage: error.message,
+        stack: error.stack,
+        context: context || {},
+        timestamp: Timestamp.now(),
+      }).catch(logError => {
+        // This is a critical failure in the logging system itself
+        console.error('[Logger] CRITICAL: Failed to log system error to Firestore:', logError);
         });
-      } catch (error) {
-        console.error('[Logger] Error logging page view:', error);
-      }
+    } catch (logError) {
+      console.error('[Logger] CRITICAL: Exception during system error logging:', logError);
     }
   }
 }; 
