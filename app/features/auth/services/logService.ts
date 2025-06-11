@@ -1,8 +1,6 @@
 import { User } from '@/app/core/types/user';
 import {
-    logLogin as utilsLogLogin,
-    logLogout as utilsLogLogout,
-    addLogEntry as utilsAddLogEntry,
+    addLogEntry,
     SYSTEM_LOGS_COLLECTION,
     LogType,
     getDeviceInfo,
@@ -80,7 +78,7 @@ export const logLogin = async (
     });
     
     // บันทึก log ในฐานข้อมูล
-    await utilsAddLogEntry({
+    await addLogEntry({
       type: LogType.AUTH_LOGIN,
       userId: user.uid,
       username: user.username,
@@ -136,7 +134,7 @@ export const logLogout = async (
     });
     
     // บันทึก log ในฐานข้อมูล
-    await utilsAddLogEntry({
+    await addLogEntry({
       type: LogType.AUTH_LOGOUT,
       userId: user.uid,
       username: user.username,
@@ -201,8 +199,8 @@ export const logPageAccess = async (
     });
     
     // บันทึก log ในฐานข้อมูล
-    await utilsAddLogEntry({
-      type: 'page.access',
+    await addLogEntry({
+      type: LogType.PAGE_ACCESS,
       userId: user.uid,
       username: user.username,
       details,

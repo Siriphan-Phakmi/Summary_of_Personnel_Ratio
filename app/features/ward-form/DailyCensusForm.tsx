@@ -317,7 +317,7 @@ export default function DailyCensusForm() {
 
   // Render UI
   return (
-    <ProtectedPage requiredRole={['nurse', 'user', 'admin', 'developer']}>
+    <ProtectedPage requiredRole={[UserRole.NURSE, UserRole.VIEWER, UserRole.ADMIN, UserRole.DEVELOPER]}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <NavBar />
         <div className="container mx-auto px-4 py-8">

@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import firestoreIndexes from '@/app/config/firestore-indexes.json';
+import firestoreIndexes from '@/firestore.indexes.json';
 import { collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
 
 /**

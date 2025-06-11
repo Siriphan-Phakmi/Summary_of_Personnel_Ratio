@@ -10,14 +10,18 @@ import { FiEdit2, FiCheckCircle, FiClock, FiX } from 'react-icons/fi';
  */
 const useStatusStyles = () => {
   /**
-   * Map status to CSS class
+   * Map status to Tailwind CSS classes
    */
   const getStatusClass = (status: FormStatus | null): string => {
-    if (status === FormStatus.APPROVED) return 'shift-approved';
-    if (status === FormStatus.FINAL) return 'shift-pending';
-    if (status === FormStatus.DRAFT) return 'shift-draft';
-    if (status === FormStatus.REJECTED) return 'shift-rejected';
-    return 'shift-none';
+    if (status === FormStatus.APPROVED) 
+      return 'border-emerald-500 shadow-[0_0_0_1px_rgba(16,185,129,0.2)] relative';
+    if (status === FormStatus.FINAL) 
+      return 'border-amber-500 shadow-[0_0_0_1px_rgba(245,158,11,0.2)] relative';
+    if (status === FormStatus.DRAFT) 
+      return 'border-gray-500 shadow-[0_0_0_1px_rgba(107,114,128,0.2)] relative';
+    if (status === FormStatus.REJECTED) 
+      return 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)] relative';
+    return 'relative';
   };
 
   /**
@@ -43,13 +47,13 @@ const useStatusStyles = () => {
   };
 
   /**
-   * Map status to React icon
+   * Map status to React icon with Tailwind classes
    */
-  const getStatusIcon = (status: FormStatus | null, baseClassName = 'mr-2 h-4 w-4 status-icon'): React.ReactNode | null => {
+  const getStatusIcon = (status: FormStatus | null, baseClassName = 'mr-2 h-4 w-4'): React.ReactNode | null => {
     const draftClasses = baseClassName;
     const approvedClasses = `${baseClassName} text-green-500`;
-    const finalClasses = `${baseClassName} text-yellow-500`;
-    const rejectedClasses = `${baseClassName} text-red-500`;
+    const finalClasses = `${baseClassName} text-yellow-500 animate-pulse`;
+    const rejectedClasses = `${baseClassName} text-red-500 group-hover:animate-[shake_0.5s_ease-in-out]`;
 
     if (status === FormStatus.DRAFT) {
       return <FiEdit2 className={draftClasses} aria-label="สถานะร่าง" />;

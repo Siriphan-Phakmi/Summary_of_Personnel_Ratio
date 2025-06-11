@@ -10,7 +10,9 @@ export enum UserRole {
   VIEWER = 'viewer',
   SUPER_ADMIN = 'super_admin',
   DEVELOPER = 'developer',
-  APPROVER = 'approver'
+  APPROVER = 'approver',
+  WARD_CLERK = 'ward_clerk',
+  SUPERVISOR = 'supervisor'
 }
 
 /**
@@ -71,4 +73,5 @@ export interface User {
   lastActive?: TimestampField;
   active?: boolean;
   approveWardIds?: string[]; // รายการ ID ของวอร์ดที่ผู้ใช้มีสิทธิ์อนุมัติ
+  password?: string; // เพิ่มเพื่อรองรับการใช้งานจาก app/features/auth/types/user.ts
 }

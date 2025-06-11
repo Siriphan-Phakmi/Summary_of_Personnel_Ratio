@@ -94,6 +94,6 @@ export * from './component-types';
 export * from './form-types';
 export * from './interface-types';
 
-// Specific exports that might not be covered by the above
-export type { CalendarMarker, TrendData } from './chart-types';
-export type { WardCensusData } from './component-types'; 
+// ตัดออกเนื่องจาก types เหล่านี้ได้ประกาศในไฟล์นี้แล้ว
+// export type { CalendarMarker, TrendData } from './chart-types';
+// export type { WardCensusData } from './component-types'; 

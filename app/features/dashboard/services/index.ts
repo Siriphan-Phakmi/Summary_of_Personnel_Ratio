@@ -8,5 +8,9 @@ export { refreshData, fetchWardForms };
 export * from './patientTrendService';
 export * from './summaryService';
 export * from './wardDataService';
-export * from './wardFormService';
+
+// Export specific functions from wardFormService to avoid naming conflicts
+import { getWardFormsByDateAndWard, fetchAllWardCensus } from './wardFormService';
+export { getWardFormsByDateAndWard, fetchAllWardCensus };
+
 export * from './wardSummaryService'; 

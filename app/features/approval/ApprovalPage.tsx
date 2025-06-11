@@ -67,7 +67,7 @@ const FormDetailsModal: React.FC<FormDetailsModalProps> = ({ form, isOpen, onClo
   if (!form) return null;
   
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="รายละเอียดแบบฟอร์ม" size="3xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="รายละเอียดแบบฟอร์ม" size="xl">
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4 border-b pb-4 dark:border-gray-700">
           <div>

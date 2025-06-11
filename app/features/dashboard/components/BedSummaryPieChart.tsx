@@ -58,19 +58,6 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
 
-  // แสดง loading state หากกำลังโหลดข้อมูล
-  if (isLoading) {
-    return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
-        <div className="rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
-        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
-          กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
-        </p>
-      </div>
-    );
-  }
-
   // ใช้ useMemo เพื่อลดการคำนวณใหม่เมื่อ data ไม่เปลี่ยนแปลง
   const { chartData, pieChartData, totalAvailableBeds, totalUnavailableBeds, totalBeds } = useMemo(() => {
     // ตรวจสอบว่าข้อมูลเป็นอาร์เรย์หรือไม่
@@ -157,6 +144,19 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
     return { chartData, pieChartData, totalAvailableBeds, totalUnavailableBeds, totalBeds };
   }, [data]);
 
+  // แสดง loading state หากกำลังโหลดข้อมูล
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+        <div className="rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
+        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">กำลังโหลดข้อมูล</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">
+          กำลังดึงข้อมูลเตียงจากระบบ โปรดรอสักครู่...
+        </p>
+      </div>
+    );
+  }
+
   // ถ้าไม่มีข้อมูลเลยหรือทั้ง available และ unavailable เป็น 0 ให้แสดงข้อความแจ้งเตือน
   if (chartData.length === 0 || (totalAvailableBeds === 0 && totalUnavailableBeds === 0)) {
     return (
@@ -231,6 +231,9 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
     }
     return null;
   });
+  
+  // กำหนด displayName
+  CustomTooltip.displayName = 'CustomTooltip';
 
   // แยก component สำหรับ Legend เพื่อป้องกันการ re-render ที่ไม่จำเป็น
   const RenderLegend = React.memo(({ payload }: any) => {
@@ -274,6 +277,9 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
       </div>
     );
   });
+  
+  // กำหนด displayName
+  RenderLegend.displayName = 'RenderLegend';
 
   return (
     <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">

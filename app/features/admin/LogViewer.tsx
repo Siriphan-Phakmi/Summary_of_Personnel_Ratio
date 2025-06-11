@@ -8,6 +8,7 @@ import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { LogLevel, SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION } from '@/app/core/utils/logUtils';
 import { cleanupOldLogs } from '@/app/core/utils/logUtils';
+import { UserRole } from '@/app/core/types/user';
 
 interface LogEntry {
   id: string;
@@ -126,14 +127,14 @@ export default function LogViewer() {
 
   if (loading) {
     return (
-      <ProtectedPage requiredRole="admin">
+      <ProtectedPage requiredRole={UserRole.ADMIN}>
         <div className="p-4">กำลังโหลดบันทึกระบบ...</div>
       </ProtectedPage>
     );
   }
 
   return (
-    <ProtectedPage requiredRole="admin">
+    <ProtectedPage requiredRole={UserRole.ADMIN}>
       <div className="p-4">
         <h2 className="text-2xl font-bold mb-4">บันทึกการทำงานของระบบ</h2>
         

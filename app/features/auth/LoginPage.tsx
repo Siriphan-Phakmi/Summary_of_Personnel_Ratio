@@ -131,23 +131,40 @@ export default function LoginPage() {
     if (user && authStatus === 'authenticated') {
       console.log(`Redirecting logged-in user (${user.role}, ${user.username}) to appropriate page`);
       
+      // แสดงข้อมูล user ที่ได้รับมาเพื่อตรวจสอบ
+      console.log("User data in LoginPage:", {
+        uid: user.uid,
+        username: user.username,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        floor: user.floor
+      });
+      
       // ตรวจสอบและเปลี่ยนเส้นทางตาม username
       if (user.username === 'test') {
+        console.log('Redirecting test user to /census/form');
         router.push('/census/form');
       } else if (user.username === 'admin') {
+        console.log('Redirecting admin user to /census/approval');
         router.push('/census/approval');
       } else if (user.username === 'bbee') {
+        console.log('Redirecting bbee user to /admin/dev-tools');
         router.push('/admin/dev-tools');
       } else {
         // กรณีเป็น username อื่นๆ ให้ใช้ role ในการเปลี่ยนเส้นทาง
+        console.log(`Checking role for user ${user.username}: ${user.role}`);
         switch (user.role) {
           case 'admin':
+            console.log('Redirecting admin role to /census/approval');
             router.push('/census/approval');
             break;
           case 'developer':
+            console.log('Redirecting developer role to /admin/dev-tools');
             router.push('/admin/dev-tools');
             break;
           default: // user role
+            console.log('Redirecting other role to /census/form');
             router.push('/census/form');
             break;
         }
@@ -205,23 +222,18 @@ export default function LoginPage() {
 
   // Generate CSRF token on component load
   useEffect(() => {
-    const fetchCsrfToken = async () => {
       try {
-        // เรียก API เพื่อรับ CSRF token จากเซิร์ฟเวอร์
-        const response = await fetch('/api/auth/csrf');
-        const data = await response.json();
-        if (data.csrfToken) {
-          console.log('Received CSRF token from server');
-          setCsrfToken(data.csrfToken);
-        } else {
-          console.error('Failed to receive CSRF token');
-        }
-      } catch (error) {
-        console.error('Error fetching CSRF token:', error);
+        // ใช้ฟังก์ชัน generateCSRFToken จาก authUtils โดยตรง
+        const token = generateCSRFToken();
+      console.log('Generated CSRF token locally:', token ? 'success' : 'failed');
+        setCsrfToken(token);
+      // บันทึกลงใน sessionStorage อีกครั้งเพื่อให้แน่ใจ
+      if (token && typeof window !== 'undefined') {
+        sessionStorage.setItem('csrfToken', token);
       }
-    };
-    
-    fetchCsrfToken();
+      } catch (error) {
+        console.error('Error generating CSRF token:', error);
+      }
   }, []);
 
   // Handle login form submission
@@ -243,8 +255,14 @@ export default function LoginPage() {
       }
 
       console.log(`Attempting to login with username: ${username}, CSRF token: ${csrfToken ? 'exists' : 'missing'}`);
-      await login(username, password); // login now returns boolean, but redirect is handled by useEffect
-      console.log('[LoginPage] Login function called. Waiting for authStatus change...');
+      const success = await login(username, password); // login returns boolean
+      if (!success) {
+        const errorMsg = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบหรือฝ่ายการพยาบาล';
+        setLocalError(errorMsg);
+        showErrorToast(errorMsg);
+        return;
+      }
+      console.log('[LoginPage] Login successful, waiting for authStatus change...');
       
     } catch (err: any) {
       console.error('[LoginPage] handleSubmit unexpected error:', err);
@@ -382,7 +400,7 @@ export default function LoginPage() {
 
         <div className="mt-4 text-center text-base text-gray-600 dark:text-gray-400">
           <p>In case of inaccessibility, please contact the system administrator.</p>
-          <p>By signing in, you acknowledge and accept the hospital's internal policies.</p>
+          <p>By signing in, you acknowledge and accept the hospital&apos;s internal policies.</p>
         </div>
 
         <div className="mt-3 text-center text-base text-gray-500">

@@ -1,23 +1,8 @@
-import { TimestampField } from './user';
+import { TimestampField, ShiftType, FormStatus } from './user';
 import { Timestamp } from 'firebase/firestore';
 
-/**
- * ประเภทกะการทำงาน
- */
-export enum ShiftType {
-  MORNING = 'morning',
-  NIGHT = 'night'
-}
-
-/**
- * สถานะของแบบฟอร์ม
- */
-export enum FormStatus {
-  DRAFT = 'draft',
-  FINAL = 'final',
-  APPROVED = 'approved',
-  REJECTED = 'rejected'
-}
+// Re-export types ที่จำเป็น เพื่อให้ไฟล์อื่นสามารถ import จาก ./ward ได้
+export { ShiftType, FormStatus };
 
 /**
  * ข้อมูลพื้นฐานของแผนก (Ward)

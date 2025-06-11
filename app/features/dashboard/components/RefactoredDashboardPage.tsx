@@ -393,6 +393,8 @@ function RefactoredDashboardPage() {
               data={tableData}
               loading={dataLoading}
               totalStats={totalStats} 
+              selectedWardId={selectedWardId || ''}
+              onSelectWard={handleSelectWard}
             />
           </div>
         </div>

@@ -1,7 +1,8 @@
+import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
 import './globals.css';
-import { ThemeProvider } from '@/app/features/theme';
-import { AuthProvider } from '@/app/features/auth';
+import ThemeProvider from '@/app/features/theme/ThemeProvider';
+import { AuthProvider } from '@/app/features/auth/AuthContext';
 import { LoadingProvider } from '@/app/core/components/Loading';
 import { Toaster } from 'react-hot-toast';
 import { ThemeToggle } from '@/app/core/ui';
@@ -38,10 +39,15 @@ export default function RootLayout({
             <AuthProvider>
               {/* Initialize Firestore Indexes */}
               <FirestoreIndexInitializer />
-              <div className="fixed bottom-4 right-4 z-50 flex flex-row items-center space-x-2 md:flex-col md:items-end md:space-x-0 md:space-y-1">
+              
+              {/* แก้ไขส่วนนี้ โดยแยก div เป็นสองส่วนและกำหนดตำแหน่งที่ต่างกัน */}
+              <div className="fixed bottom-4 right-4 z-50">
                 <ThemeToggle />
+              </div>
+              <div className="fixed bottom-20 right-4 z-50">
                 <VersionAndTime />
               </div>
+              
               {children}
               <Toaster 
                 position="top-right"

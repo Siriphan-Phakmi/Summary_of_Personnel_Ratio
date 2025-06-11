@@ -36,6 +36,54 @@ export enum NotificationType {
   SYSTEM = 'system'
 }
 
+// รูปแบบพื้นฐานสำหรับการสร้างการแจ้งเตือนต่างๆ
+export interface NotificationTemplate {
+  type: NotificationType;
+  getTitleAndMessage: (params: any) => { title: string; message: string };
+  getActionUrl: (params: any) => string;
+}
+
+// กำหนด templates สำหรับการแจ้งเตือนแต่ละประเภท
+const notificationTemplates: Record<NotificationType, NotificationTemplate> = {
+  [NotificationType.APPROVAL_REQUIRED]: {
+    type: NotificationType.APPROVAL_REQUIRED,
+    getTitleAndMessage: ({ wardName }) => ({
+      title: 'รอการอนุมัติ',
+      message: `มีแบบฟอร์มใหม่จากวอร์ด ${wardName} รอการอนุมัติ`
+    }),
+    getActionUrl: ({ formId }) => `/census/approval?formId=${formId}`
+  },
+  [NotificationType.FORM_APPROVED]: {
+    type: NotificationType.FORM_APPROVED,
+    getTitleAndMessage: ({ wardName }) => ({
+      title: 'แบบฟอร์มได้รับการอนุมัติ',
+      message: `แบบฟอร์มของวอร์ด ${wardName} ได้รับการอนุมัติแล้ว`
+    }),
+    getActionUrl: ({ formId }) => `/census/form?formId=${formId}`
+  },
+  [NotificationType.FORM_REJECTED]: {
+    type: NotificationType.FORM_REJECTED,
+    getTitleAndMessage: ({ wardName, reason }) => ({
+      title: 'แบบฟอร์มถูกปฏิเสธ',
+      message: `แบบฟอร์มของวอร์ด ${wardName} ถูกปฏิเสธ: ${reason}`
+    }),
+    getActionUrl: ({ formId }) => `/census/form?formId=${formId}`
+  },
+  [NotificationType.SUMMARY_REQUIRED]: {
+    type: NotificationType.SUMMARY_REQUIRED,
+    getTitleAndMessage: ({ wardName, dateStr }) => ({
+      title: 'สรุปรายวันยังไม่เสร็จสมบูรณ์',
+      message: `กรุณาตรวจสอบและทำสรุปรายวันสำหรับวอร์ด ${wardName} วันที่ ${dateStr}`
+    }),
+    getActionUrl: ({ wardId, dateStr }) => `/census/summary?wardId=${wardId}&date=${dateStr}`
+  },
+  [NotificationType.SYSTEM]: {
+    type: NotificationType.SYSTEM,
+    getTitleAndMessage: ({ title, message }) => ({ title, message }),
+    getActionUrl: ({ url }) => url || ''
+  }
+};
+
 class NotificationService {
   private notificationsRef = collection(db, 'notifications');
 
@@ -46,6 +94,16 @@ class NotificationService {
    */
   async createNotification(notification: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): Promise<string> {
     try {
+      // ตรวจสอบข้อมูลที่จำเป็น
+      if (!notification.title || !notification.message || !notification.type) {
+        throw new Error('Missing required notification fields');
+      }
+      
+      // ตรวจสอบรายการผู้รับ
+      if (!notification.recipientIds || !Array.isArray(notification.recipientIds) || notification.recipientIds.length === 0) {
+        console.warn('Creating notification without recipients');
+      }
+
       // เพิ่มข้อมูลเพิ่มเติมสำหรับการแจ้งเตือน
       const newNotification = {
         ...notification,
@@ -59,6 +117,40 @@ class NotificationService {
       console.error('Error creating notification:', error);
       throw error;
     }
+  }
+
+  /**
+   * สร้างการแจ้งเตือนตาม template ที่กำหนด
+   * @param type ประเภทการแจ้งเตือน
+   * @param params พารามิเตอร์สำหรับการสร้างการแจ้งเตือน
+   * @param recipientIds รายการ ID ของผู้รับ
+   * @param createdBy ID ของผู้สร้างการแจ้งเตือน
+   * @returns ID ของการแจ้งเตือนที่สร้าง
+   */
+  async createNotificationFromTemplate(
+    type: NotificationType,
+    params: any,
+    recipientIds: string[],
+    createdBy: string
+  ): Promise<string> {
+    const template = notificationTemplates[type];
+    if (!template) {
+      throw new Error(`Notification template not found for type: ${type}`);
+    }
+
+    const { title, message } = template.getTitleAndMessage(params);
+    const actionUrl = template.getActionUrl(params);
+    const relatedDocId = params.formId || params.relatedDocId || '';
+
+    return this.createNotification({
+      title,
+      message,
+      recipientIds,
+      type,
+      relatedDocId,
+      createdBy,
+      actionUrl
+    });
   }
 
   /**
@@ -77,15 +169,12 @@ class NotificationService {
     approverIds: string[],
     createdBy: string
   ): Promise<string> {
-    return this.createNotification({
-      title: 'รอการอนุมัติ',
-      message: `มีแบบฟอร์มใหม่จากวอร์ด ${wardName} รอการอนุมัติ`,
-      recipientIds: approverIds,
-      type: NotificationType.APPROVAL_REQUIRED,
-      relatedDocId: formId,
-      createdBy,
-      actionUrl: `/census/approval?formId=${formId}`
-    });
+    return this.createNotificationFromTemplate(
+      NotificationType.APPROVAL_REQUIRED,
+      { formId, wardId, wardName },
+      approverIds,
+      createdBy
+    );
   }
 
   /**
@@ -104,15 +193,12 @@ class NotificationService {
     recipientIds: string[],
     approvedBy: string
   ): Promise<string> {
-    return this.createNotification({
-      title: 'แบบฟอร์มได้รับการอนุมัติ',
-      message: `แบบฟอร์มของวอร์ด ${wardName} ได้รับการอนุมัติแล้ว`,
+    return this.createNotificationFromTemplate(
+      NotificationType.FORM_APPROVED,
+      { formId, wardId, wardName },
       recipientIds,
-      type: NotificationType.FORM_APPROVED,
-      relatedDocId: formId,
-      createdBy: approvedBy,
-      actionUrl: `/census/form?formId=${formId}`
-    });
+      approvedBy
+    );
   }
 
   /**
@@ -133,15 +219,12 @@ class NotificationService {
     recipientIds: string[],
     rejectedBy: string
   ): Promise<string> {
-    return this.createNotification({
-      title: 'แบบฟอร์มถูกปฏิเสธ',
-      message: `แบบฟอร์มของวอร์ด ${wardName} ถูกปฏิเสธ: ${reason}`,
+    return this.createNotificationFromTemplate(
+      NotificationType.FORM_REJECTED,
+      { formId, wardId, wardName, reason },
       recipientIds,
-      type: NotificationType.FORM_REJECTED,
-      relatedDocId: formId,
-      createdBy: rejectedBy,
-      actionUrl: `/census/form?formId=${formId}`
-    });
+      rejectedBy
+    );
   }
 
   /**
@@ -162,15 +245,12 @@ class NotificationService {
   ): Promise<string> {
     const dateStr = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
     
-    return this.createNotification({
-      title: 'สรุปรายวันยังไม่เสร็จสมบูรณ์',
-      message: `กรุณาตรวจสอบและทำสรุปรายวันสำหรับวอร์ด ${wardName} วันที่ ${dateStr}`,
+    return this.createNotificationFromTemplate(
+      NotificationType.SUMMARY_REQUIRED,
+      { wardId, wardName, dateStr },
       recipientIds,
-      type: NotificationType.SUMMARY_REQUIRED,
-      relatedDocId: `${wardId}_${dateStr}`,
-      createdBy,
-      actionUrl: `/census/summary?wardId=${wardId}&date=${dateStr}`
-    });
+      createdBy
+    );
   }
 
   /**
@@ -289,6 +369,11 @@ class NotificationService {
    */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
+      if (!notificationId) {
+        console.warn('markAsRead called with empty notificationId');
+        return false;
+      }
+
       const notificationRef = doc(db, 'notifications', notificationId);
       await updateDoc(notificationRef, {
         isRead: true
@@ -307,6 +392,11 @@ class NotificationService {
    */
   async markMultipleAsRead(notificationIds: string[]): Promise<number> {
     try {
+      if (!notificationIds || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+        console.warn('markMultipleAsRead called with empty notificationIds array');
+        return 0;
+      }
+
       let successCount = 0;
       
       // ทำการอัปเดททีละรายการ
@@ -336,9 +426,21 @@ class NotificationService {
    */
   async markAllAsRead(userId: string): Promise<number> {
     try {
+      if (!userId) {
+        console.warn('markAllAsRead called with empty userId');
+        return 0;
+      }
+
       // ดึงการแจ้งเตือนที่ยังไม่ได้อ่านของผู้ใช้
       const unreadNotifications = await this.getUnreadNotifications(userId);
-      const notificationIds = unreadNotifications.map(notification => notification.id!);
+      
+      if (unreadNotifications.length === 0) {
+        return 0;
+      }
+      
+      const notificationIds = unreadNotifications
+        .filter(notification => notification.id)
+        .map(notification => notification.id!);
       
       return await this.markMultipleAsRead(notificationIds);
     } catch (error) {

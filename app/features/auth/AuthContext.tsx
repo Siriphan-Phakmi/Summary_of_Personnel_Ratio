@@ -58,10 +58,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Wrap checkRole with useCallback
   const checkRole = useCallback((requiredRole?: string | string[]) => {
-    if (!user || authStatus !== 'authenticated') return false;
-    if (!requiredRole) return true; // No specific role required
+    if (!user || authStatus !== 'authenticated') {
+      devLog(`Role check failed: No authenticated user found`);
+      return false;
+    }
+    
+    if (!requiredRole) {
+      devLog(`Role check passed: No specific role required`);
+      return true; // No specific role required
+    }
+    
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    return roles.includes(user.role);
+    const hasRole = roles.includes(user.role);
+    
+    devLog(`Role check: User role '${user.role}' against required roles [${roles.join(', ')}] - Result: ${hasRole ? 'PASS' : 'FAIL'}`);
+    
+    return hasRole;
   }, [user, authStatus]); // Dependencies for checkRole
 
   // --- Helper Functions ---
@@ -129,51 +141,110 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthStatus('loading'); // Set to loading while checking
     setError(null);
     try {
-      devLog('Calling /api/auth/session to verify token...');
-      const response = await fetch('/api/auth/session', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        credentials: 'include',
-      });
-      devLog(`Session API response status: ${response.status}`);
+      // ใช้ Firebase Auth โดยตรงแทนการเรียก API
+      devLog('Checking user session from localStorage/cookie...');
+      
+      // ตรวจสอบจาก localStorage หรือ cookie
+      const authService = AuthService.getInstance();
+      
+      // 1. ดึง auth_token จาก cookie
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
+      
+      // 2. ดึงข้อมูล user จาก cookie
+      const userDataCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('user_data='))
+        ?.split('=')[1];
+        
+      let userDataFromCookie = null;
+      if (userDataCookie) {
+        try {
+          userDataFromCookie = JSON.parse(decodeURIComponent(userDataCookie));
+          devLog(`Found user data in cookie: ${userDataFromCookie.username}, role: ${userDataFromCookie.role}`);
+        } catch (e) {
+          devLog(`Error parsing user data from cookie: ${e}`);
+        }
+      }
 
-      if (response.ok) {
-        const data = await response.json();
-        devLog(`Session API response data: authenticated=${data.authenticated}`);
-        if (data.authenticated && data.user) {
-          devLog(`Valid session found for user: ${data.user.username}. Setting state.`);
-          setUser(data.user);
+      if (token) {
+        // ถ้ามี token ให้ตรวจสอบว่ายังใช้ได้หรือไม่
+        const userData = await authService.checkAuth(token);
+        
+        if (userData) {
+          devLog(`Valid session found for user: ${userData.username || userData.uid}. Setting state.`);
+          
+          // ถ้าได้ userData จาก authService ให้ใช้ข้อมูลนั้น
+          setUser(userData);
+          setAuthStatus('authenticated');
+          resetInactivityTimer();
+          setupActivityCheck();
+        } else if (userDataFromCookie) {
+          // กรณีที่ authService ไม่สามารถหาข้อมูลได้ แต่มีข้อมูลใน cookie
+          // ให้ใช้ข้อมูลจาก cookie แทน (อาจเกิดจาก token ยังไม่หมดอายุแต่ server มีปัญหา)
+          devLog(`Using user data from cookie as fallback: ${userDataFromCookie.username}`);
+          setUser(userDataFromCookie);
           setAuthStatus('authenticated');
           resetInactivityTimer();
           setupActivityCheck();
         } else {
-          // API returned 200 OK but authenticated: false
-          devLog('Session API reported unauthenticated. Clearing user state.');
+          // Token ไม่ถูกต้องหรือหมดอายุ และไม่มีข้อมูลใน cookie
+          devLog('Session token invalid or expired. Clearing user state.');
           setUser(null);
           setAuthStatus('unauthenticated');
           clearTimers();
+          
+          // ล้าง cookies ที่หมดอายุ
+          document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
+      } else if (userDataFromCookie) {
+        // กรณีที่ไม่มี token แต่มีข้อมูล user ใน cookie
+        // อาจเกิดจากการเปลี่ยน page หรือรีเฟรช
+        devLog(`No token but found user data in cookie: ${userDataFromCookie.username}`);
+        
+        // ใช้ข้อมูลจาก cookie และทำการตรวจสอบ
+        const verifiedUser = await authService.checkAuth(userDataFromCookie.uid);
+        
+        if (verifiedUser) {
+          // ถ้าตรวจสอบแล้วพบว่ามีผู้ใช้อยู่จริง
+          devLog(`Verified user data from database: ${verifiedUser.username}`);
+          setUser(verifiedUser);
+          setAuthStatus('authenticated');
+          resetInactivityTimer();
+          setupActivityCheck();
+          
+          // สร้าง token ใหม่
+          document.cookie = `auth_token=${verifiedUser.uid}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+        } else {
+          // ถ้าตรวจสอบแล้วไม่พบ ให้ใช้ข้อมูลจาก cookie เป็น fallback
+          devLog(`Could not verify user with database, using cookie data: ${userDataFromCookie.username}`);
+          setUser(userDataFromCookie);
+          setAuthStatus('authenticated');
+          resetInactivityTimer();
+          setupActivityCheck();
         }
       } else {
-        // Response not OK (e.g., 401 Unauthorized, 500 Internal Server Error)
-        const errorText = await response.text();
-        devLog(`Session API request failed with status ${response.status}. Error: ${errorText}. Clearing user state.`);
+        // ไม่พบ token
+        devLog('No session token found. User is unauthenticated.');
         setUser(null);
         setAuthStatus('unauthenticated');
         clearTimers();
-        // Optionally redirect on specific errors like 401
-        if (response.status === 401 && pathname !== '/login') {
-          devLog('Redirecting to login page due to 401 from session check.');
-          router.push('/login');
-        }
       }
     } catch (err) {
-      devLog(`Error during checkSession fetch: ${err}`);
+      devLog(`Error during checkSession: ${err}`);
       setError('เกิดข้อผิดพลาดในการตรวจสอบเซสชัน');
       setUser(null);
       setAuthStatus('unauthenticated');
       clearTimers();
+      
+      // ล้าง token ที่อาจมีปัญหา
+      if (typeof document !== 'undefined') {
+        document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      }
     }
   }, [pathname, router, resetInactivityTimer, setupActivityCheck, clearTimers]);
 
@@ -182,38 +253,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthStatus('loading');
     setError(null);
     try {
-      // 1. Get CSRF token
-      devLog('Fetching CSRF token...');
-      const csrfRes = await fetch('/api/auth/csrf');
-      if (!csrfRes.ok) {
-        throw new Error('Failed to fetch CSRF token');
+      // 1. Get CSRF token (from sessionStorage or generate new one)
+      devLog('Getting CSRF token...');
+      let csrfToken;
+      if (typeof window !== 'undefined') {
+        csrfToken = sessionStorage.getItem('csrfToken');
+        if (!csrfToken) {
+          // ถ้าไม่มีใน sessionStorage ให้สร้างใหม่
+          const { generateCSRFToken } = await import('@/app/core/utils/authUtils');
+          csrfToken = generateCSRFToken();
+          sessionStorage.setItem('csrfToken', csrfToken);
+        }
       }
-      const { csrfToken } = await csrfRes.json();
-      devLog('CSRF token fetched: OK');
+      devLog('CSRF token acquired: ' + (csrfToken ? 'OK' : 'Failed'));
 
-      // 2. Attempt login
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ username, password, csrfToken }),
-      });
-      devLog(`Login API response status: ${response.status}`);
+      // 2. Attempt login using Firebase Auth directly
+      const authService = AuthService.getInstance();
+      const result = await authService.login(username, password);
+      
+      devLog(`Login result: ${JSON.stringify(result)}`);
 
-      const data = await response.json();
-      devLog(`Login API response data: success=${data.success}, user=${data.user?.username}`);
-
-      if (response.ok && data.success && data.user) {
-        devLog(`Login successful for user: ${data.user.username}`);
-        setUser(data.user);
+      if (result.success && result.user) {
+        devLog(`Login successful for user: ${result.user.username || result.user.uid}, role: ${result.user.role}`);
+        
+        // บันทึกข้อมูลผู้ใช้ลง cookie และ localStorage
+        if (typeof document !== 'undefined') {
+          // บันทึก token ลง cookie (ใช้ user.uid เป็น token)
+          document.cookie = `auth_token=${result.user.uid}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+          
+          // บันทึกข้อมูล user ลง cookie (ในรูปแบบ JSON string)
+          const userData = JSON.stringify({
+            uid: result.user.uid,
+            username: result.user.username,
+            role: result.user.role,
+            firstName: result.user.firstName,
+            lastName: result.user.lastName,
+            floor: result.user.floor
+          });
+          document.cookie = `user_data=${encodeURIComponent(userData)}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+          
+          // บันทึกข้อมูลใน localStorage สำรอง
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('auth_token_backup', result.user.uid);
+            localStorage.setItem('user_data_backup', userData);
+            localStorage.setItem('auth_expires', new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString());
+          }
+          
+          // บันทึกสถานะว่ายังอยู่ใน session เดียวกัน
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('is_browser_session', 'true');
+            sessionStorage.setItem('lastUsername', username);
+          }
+        }
+        
+        setUser(result.user);
         setAuthStatus('authenticated');
         resetInactivityTimer();
         setupActivityCheck();
         return true;
       } else {
-        const errorMessage = data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+        const errorMessage = result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
         devLog(`Login failed: ${errorMessage}`);
         setError(errorMessage);
         setUser(null);
@@ -242,18 +341,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       if (currentUser) {
-        devLog(`Calling logout API for user: ${currentUser.username}`);
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            userId: currentUser.uid,
-            username: currentUser.username,
-            role: currentUser.role
-          }),
-        });
+        devLog(`Logging out user: ${currentUser.username || currentUser.uid}`);
+        // ใช้ AuthService โดยตรง
+        const authService = AuthService.getInstance();
+        await authService.logout(currentUser);
       } else {
         devLog('No current user, proceeding with client-side logout.');
+      }
+      
+      // ล้าง cookies ทั้งหมด
+      if (typeof document !== 'undefined') {
+        document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+        document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+      }
+      
+      // ล้าง localStorage backup
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('auth_token_backup');
+        localStorage.removeItem('user_data_backup');
+        localStorage.removeItem('auth_expires');
+      }
+      
+      // ล้าง sessionStorage
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('is_browser_session');
+        sessionStorage.removeItem('csrfToken');
+        // ไม่ต้องล้าง lastUsername เพื่อความสะดวกในการล็อกอินครั้งต่อไป
       }
       
       // Always clear client state regardless of API call success
@@ -267,6 +380,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Still clear client state even if API fails
       setUser(null);
       setAuthStatus('unauthenticated');
+      
+      // ล้าง cookies ทั้งหมดแม้ API จะล้มเหลว
+      if (typeof document !== 'undefined') {
+        document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+        document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+      }
+      
       router.push('/login');
     } finally {
       setIsLoggingOut(false);
@@ -294,20 +414,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logoutType: 'browser_close' // Indicate reason for logout
         });
 
-        // Use sendBeacon for a higher chance of delivery on unload
+        // ไม่ใช้ sendBeacon เพื่อป้องกันการล็อกเอาท์เมื่อรีเฟรช
+        devLog('Skipping automatic logout on page refresh/navigation.');
+        
+        // สร้าง flag ไว้บอกว่านี่เป็นการรีเฟรชไม่ใช่การปิดแท็บ
         try {
-          const blob = new Blob([logoutData], { type: 'application/json' });
-          // ***** Comment out the sendBeacon call to prevent logout on refresh *****
-          /*
-          if (navigator.sendBeacon('/api/auth/logout', blob)) {
-            devLog('Logout beacon successfully queued.');
-          } else {
-            devLog('Logout beacon failed to queue (navigator.sendBeacon returned false).');
+          if (typeof sessionStorage !== 'undefined') {
+            // ตั้งค่า refresh flag ที่จะถูกตรวจสอบเมื่อโหลดหน้าใหม่
+            sessionStorage.setItem('is_page_refresh', 'true');
+            // ตั้งเวลาให้ flag หมดอายุหลังจาก 5 วินาที
+            setTimeout(() => {
+              sessionStorage.removeItem('is_page_refresh');
+            }, 5000);
           }
-          */
-          devLog('Skipping sendBeacon call in beforeunload handler to prevent logout on refresh.'); // Add log
         } catch (e) {
-          devLog(`Error related to beacon (now skipped): ${e}`);
+          devLog(`Error setting refresh flag: ${e}`);
         }
 
         // Trigger browser's confirmation dialog
@@ -340,7 +461,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Effect for initial session check and activity listeners
   useEffect(() => {
     devLog(`Initial AuthProvider effect running.`);
-    // Check session only on initial mount
+    
+    // ตรวจสอบว่านี่เป็นการรีเฟรชหรือไม่
+    const isRefresh = typeof sessionStorage !== 'undefined' && 
+                      sessionStorage.getItem('is_page_refresh') === 'true';
+    
+    if (isRefresh) {
+      devLog('Detected page refresh, will preserve session');
+      // ล้าง flag
+      sessionStorage.removeItem('is_page_refresh');
+    }
+    
+    // Check session on initial mount
       checkSession();
 
     // Set up activity listeners

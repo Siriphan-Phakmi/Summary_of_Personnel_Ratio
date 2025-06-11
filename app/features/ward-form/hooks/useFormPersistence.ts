@@ -360,7 +360,7 @@ export const useFormPersistence = ({
       } else {
           showSafeToast(`บันทึกร่างไม่สำเร็จ: ${errorMessage}`, 'error', { id: `save-draft-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
-      logSystemError(error as Error, 'performSaveDraft', user?.uid, user?.username);
+      logSystemError(error as Error, 'performSaveDraft');
       // Log user activity for draft save error
       logUserActivity(
         user?.uid || '',
@@ -532,7 +532,7 @@ export const useFormPersistence = ({
       } else {
           showSafeToast(`บันทึกข้อมูลสมบูรณ์ไม่สำเร็จ: ${errorMessage}`, 'error', { id: `save-final-error-${selectedWard}-${selectedDate}-${selectedShift}` });
       }
-      logSystemError(error as Error, 'handleFinalizeForm', user?.uid, user?.username);
+      logSystemError(error as Error, 'handleFinalizeForm');
     } finally {
       setIsSaving(false);
       setTimeout(() => {

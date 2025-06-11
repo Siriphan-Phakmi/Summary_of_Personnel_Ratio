@@ -44,11 +44,11 @@ const ConfirmZeroValuesModal: React.FC<ConfirmZeroValuesModalProps> = ({
           </ul>
           <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md border border-blue-100 dark:border-blue-800">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>หมายเหตุ:</strong> ค่า 0 เป็นค่าที่ถูกต้องและยอมรับได้ หากคุณต้องการบันทึกค่านี้ กรุณากด "ยืนยันการบันทึก"
+              <strong>หมายเหตุ:</strong> ค่า 0 เป็นค่าที่ถูกต้องและยอมรับได้ หากคุณต้องการบันทึกค่านี้ กรุณากด &quot;ยืนยันการบันทึก&quot;
             </p>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
-            กรุณาตรวจสอบว่าข้อมูลถูกต้องก่อนยืนยัน หากต้องการแก้ไข กรุณากด "ยกเลิก"
+            กรุณาตรวจสอบว่าข้อมูลถูกต้องก่อนยืนยัน หากต้องการแก้ไข กรุณากด &quot;ยกเลิก&quot;
           </p>
         </div>
         <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-3">
