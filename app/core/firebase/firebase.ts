@@ -61,15 +61,15 @@ const getFirebaseConfig = (): FirebaseConfig => {
       'For production, please set up proper environment variables in .env.local file.'
     );
     
-    // Development config สำหรับใช้ในการพัฒนาเท่านั้น
+    // ใช้ค่า dummy สำหรับการพัฒนา - ไม่ควรใช้ค่าจริงในโค้ด
     return {
-      apiKey: "AIzaSyB9sZFJSn8cvkos5fys147VpqJc5ASorA4",
-      authDomain: "manpower-patient-summary.firebaseapp.com",
-      projectId: "manpower-patient-summary",
-      storageBucket: "manpower-patient-summary.firebasestorage.app",
-      messagingSenderId: "644057496880",
-      appId: "1:644057496880:web:6270efc29187b9c025dcf5",
-      databaseURL: "https://manpower-patient-summary-default-rtdb.asia-southeast1.firebasedatabase.app"
+      apiKey: "dummy-dev-api-key",
+      authDomain: "example-dev-app.firebaseapp.com",
+      projectId: "example-dev-app",
+      storageBucket: "example-dev-app.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:0000000000000000000000",
+      databaseURL: "https://example-dev-app-default-rtdb.firebaseio.com"
     };
   }
   
@@ -103,7 +103,7 @@ try {
   
   // ตรวจสอบว่าใช้ค่า dummy หรือไม่ และไม่ใช่ development config
   const isDummyConfig = firebaseConfig.apiKey === "dummy-api-key-for-development-only";
-  const isDevConfig = process.env.NODE_ENV === 'development' && firebaseConfig.projectId === "manpower-patient-summary";
+  const isDevConfig = process.env.NODE_ENV === 'development' && firebaseConfig.apiKey === "dummy-dev-api-key";
   
   if (isDummyConfig && !isDevConfig) {
     console.error(`
@@ -135,7 +135,7 @@ https://console.firebase.google.com/project/_/settings/general
     
     // Log initialization details only in development mode
     if (process.env.NODE_ENV === 'development') {
-      console.log('Firebase connection initialized');
+    console.log('Firebase connection initialized');
       console.log('Firebase config project ID:', firebaseConfig.projectId);
       
       if (isDevConfig) {

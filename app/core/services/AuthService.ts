@@ -50,7 +50,7 @@ export class AuthService {
       }
 
       const userData = userDoc.data() as UserWithPassword;
-      
+
       // บันทึกข้อมูลที่ได้รับจาก Firestore เพื่อตรวจสอบ
       Logger.info(`User data retrieved from Firestore for ${username}: uid=${userData.uid}, role=${userData.role}`);
 
