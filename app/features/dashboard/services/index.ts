@@ -10,7 +10,17 @@ export * from './summaryService';
 export * from './wardDataService';
 
 // Export specific functions from wardFormService to avoid naming conflicts
-import { getWardFormsByDateAndWard, fetchAllWardCensus } from './wardFormService';
-export { getWardFormsByDateAndWard, fetchAllWardCensus };
+import { getWardFormsByDateAndWard } from './wardFormService';
+export { getWardFormsByDateAndWard };
+
+// Export functions from dashboardHelpers
+export { 
+  fetchAllWardCensusForDashboard as fetchAllWardCensus,
+  hasWardAccess,
+  filterWardsByUserAccess,
+  transformWardDataForDisplay,
+  isValidDate,
+  createUserFriendlyErrorMessage
+} from './dashboardHelpers';
 
 export * from './wardSummaryService'; 

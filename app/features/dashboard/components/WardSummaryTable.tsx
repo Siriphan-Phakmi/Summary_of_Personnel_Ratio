@@ -3,6 +3,7 @@
 import React from 'react';
 import { WardSummaryTableProps } from './types/componentInterfaces';
 import { WardFormSummary, WardSummaryDataWithShifts } from './types';
+import LoadingSpinner from '@/app/core/components/LoadingSpinner';
 
 const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   data,
@@ -18,10 +19,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
         <h2 className="text-xl font-bold text-center border-b border-gray-200 dark:border-gray-700 pb-4 text-gray-800 dark:text-white">
           {title}
         </h2>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <p className="ml-4 text-gray-600 dark:text-gray-300">กำลังโหลดข้อมูลตาราง...</p>
-        </div>
+        <LoadingSpinner message="กำลังโหลดข้อมูลตาราง..." size="md" className="h-64" />
       </div>
     );
   }

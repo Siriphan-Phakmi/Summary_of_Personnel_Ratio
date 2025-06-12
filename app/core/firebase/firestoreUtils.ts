@@ -67,10 +67,10 @@ export async function safeQuery<T = DocumentData>(
   let lastError: any = null;
   
   for (let attempt = 1; attempt <= retryCount; attempt++) {
-    try {
+  try {
       Logger.info(`[safeQuery-${context}] Attempt ${attempt}/${retryCount} for collection: ${collectionPath}`);
       
-      const q = query(collection(db, collectionPath), ...constraints);
+    const q = query(collection(db, collectionPath), ...constraints);
       const querySnapshot: QuerySnapshot<DocumentData> = await getDocs(q);
       
       const results = querySnapshot.docs.map(doc => ({
@@ -80,11 +80,11 @@ export async function safeQuery<T = DocumentData>(
       
       Logger.info(`[safeQuery-${context}] Success! Retrieved ${results.length} documents`);
       return results;
-      
+    
     } catch (error: any) {
       lastError = error;
       Logger.error(`[safeQuery-${context}] Attempt ${attempt}/${retryCount} failed:`, error);
-      
+    
       // ถ้าเป็น index error ให้จัดการ
       if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
         Logger.info(`[safeQuery-${context}] Handling index error...`);
@@ -104,9 +104,9 @@ export async function safeQuery<T = DocumentData>(
       if (!isOfflineError(error) || attempt === retryCount) {
         const message = getErrorMessage(error, context);
         Logger.error(`[safeQuery-${context}] Final failure:`, message);
-        throw error;
-      }
-    }
+    throw error;
+  }
+}
   }
   
   // ถ้าถึงจุดนี้แสดงว่า retry หมดแล้วและเป็น offline error

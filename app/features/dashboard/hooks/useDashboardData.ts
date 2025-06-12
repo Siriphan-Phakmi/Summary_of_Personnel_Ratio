@@ -12,6 +12,15 @@ import {
 import { WardSummaryData, WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
 import { Logger } from '@/app/core/utils/logger';
+// Import helper functions
+import {
+  createTableDataFromWards,
+  calculateDashboardStats,
+  processBedCensusDataForChart,
+  filterAccessibleWards,
+  validateAndFormatDate,
+  createDashboardErrorMessage
+} from './useDashboardDataHelpers';
 
 interface TotalStats {
   opd24hr: number;
@@ -58,6 +67,7 @@ export const useDashboardData = (
         setWardCensusMap(censusMap);
       } catch (err) {
         Logger.error('[useDashboardData] Error fetching ward census data:', err);
+        setError(createDashboardErrorMessage(err, 'fetchCensusData'));
       } finally {
         setLoading(false);
       }
@@ -92,7 +102,7 @@ export const useDashboardData = (
         setTotalStats(stats);
       } catch (err) {
         Logger.error('[useDashboardData] Error fetching ward summary data:', err);
-        setError('ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+        setError(createDashboardErrorMessage(err, 'fetchSummaryData'));
       } finally {
         setLoading(false);
       }
@@ -106,107 +116,7 @@ export const useDashboardData = (
     if (!user || wards.length === 0) return;
     
     try {
-      Logger.info('[createTableData] Creating table data...');
-      
-      // สร้างข้อมูลสำหรับตาราง
-      const results = await Promise.all(
-        wards.filter(ward => ward.id).map(async ward => {
-          try {
-            // ดึงข้อมูลจาก wardForms
-            const { morning, night } = await getWardFormsByDateAndWard(ward.id!, selectedDate);
-            
-            // ข้อมูลจาก dailySummaries
-            const summaryResult = await getDailySummary(ward.id!, selectedDate);
-            
-            const morningData = morning || summaryResult.morning;
-            const morningShift: WardFormSummary | undefined = morning ? {
-              patientCensus: morning.patientCensus || 0,
-              nurseManager: morning.nurseManager || 0,
-              rn: morning.rn || 0,
-              pn: morning.pn || 0,
-              wc: morning.wc || 0,
-              newAdmit: morning.newAdmit || 0,
-              transferIn: morning.transferIn || 0,
-              referIn: morning.referIn || 0,
-              discharge: morning.discharge || 0,
-              transferOut: morning.transferOut || 0,
-              referOut: morning.referOut || 0,
-              dead: morning.dead || 0,
-              available: morning.available || 0,
-              unavailable: morning.unavailable || 0,
-              plannedDischarge: morning.plannedDischarge || 0
-            } : undefined;
-            
-            const nightData = night || summaryResult.night;
-            const nightShift: WardFormSummary | undefined = night ? {
-              patientCensus: night.patientCensus || 0,
-              nurseManager: night.nurseManager || 0,
-              rn: night.rn || 0,
-              pn: night.pn || 0,
-              wc: night.wc || 0,
-              newAdmit: night.newAdmit || 0,
-              transferIn: night.transferIn || 0,
-              referIn: night.referIn || 0,
-              discharge: night.discharge || 0,
-              transferOut: night.transferOut || 0,
-              referOut: night.referOut || 0,
-              dead: night.dead || 0,
-              available: night.available || 0,
-              unavailable: night.unavailable || 0,
-              plannedDischarge: night.plannedDischarge || 0
-            } : undefined;
-            
-            return {
-              id: ward.id!,
-              wardName: ward.wardName,
-              morningShift,
-              nightShift,
-              totalData: {
-                patientCensus: morningShift?.patientCensus || nightShift?.patientCensus || 0,
-                nurseManager: morningShift?.nurseManager || nightShift?.nurseManager || 0,
-                rn: morningShift?.rn || nightShift?.rn || 0,
-                pn: morningShift?.pn || nightShift?.pn || 0,
-                wc: morningShift?.wc || nightShift?.wc || 0,
-                newAdmit: morningShift?.newAdmit || nightShift?.newAdmit || 0,
-                transferIn: morningShift?.transferIn || nightShift?.transferIn || 0,
-                referIn: morningShift?.referIn || nightShift?.referIn || 0,
-                discharge: morningShift?.discharge || nightShift?.discharge || 0,
-                transferOut: morningShift?.transferOut || nightShift?.transferOut || 0,
-                referOut: morningShift?.referOut || nightShift?.referOut || 0,
-                dead: morningShift?.dead || nightShift?.dead || 0,
-                available: morningShift?.available || nightShift?.available || 0,
-                unavailable: morningShift?.unavailable || nightShift?.unavailable || 0,
-                plannedDischarge: morningShift?.plannedDischarge || nightShift?.plannedDischarge || 0
-              }
-            };
-          } catch (error) {
-            Logger.error(`[createTableData] Error processing ward ${ward.id}:`, error);
-            return {
-              id: ward.id!,
-              wardName: ward.wardName,
-              morningShift: undefined,
-              nightShift: undefined,
-              totalData: {
-                patientCensus: 0,
-                nurseManager: 0,
-                rn: 0,
-                pn: 0,
-                wc: 0,
-                newAdmit: 0,
-                transferIn: 0,
-                referIn: 0,
-                discharge: 0,
-                transferOut: 0,
-                referOut: 0,
-                dead: 0,
-                available: 0,
-                unavailable: 0,
-                plannedDischarge: 0
-              }
-            };
-          }
-        })
-      );
+      const results = await createTableDataFromWards(wards, selectedDate, user);
       
       // เพิ่ม Grand Total
       const grandTotal: WardSummaryDataWithShifts = {
@@ -264,6 +174,7 @@ export const useDashboardData = (
     } catch (error) {
       Logger.error('[createTableData] Unexpected error:', error);
       setTableData([]);
+      setError(createDashboardErrorMessage(error, 'createTableData'));
     }
   }, [selectedDate, summaryDataList, user, wards]);
 
@@ -275,6 +186,8 @@ export const useDashboardData = (
   // ฟังก์ชันสำหรับรีเฟรชข้อมูลทั้งหมด
   const refreshData = useCallback(async (selectedWardId?: string | null) => {
     setLoading(true);
+    setError(null);
+    
     try {
       if (!user || wards.length === 0) return;
 
@@ -305,7 +218,7 @@ export const useDashboardData = (
 
     } catch (error) {
       Logger.error('[refreshData] Error:', error);
-      setError('เกิดข้อผิดพลาดในการรีเฟรชข้อมูล กรุณาลองใหม่อีกครั้ง');
+      setError(createDashboardErrorMessage(error, 'refreshData'));
     } finally {
       setLoading(false);
     }

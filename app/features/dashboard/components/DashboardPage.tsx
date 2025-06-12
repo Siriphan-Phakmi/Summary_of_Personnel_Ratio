@@ -45,6 +45,7 @@ import WardCensusButtons from './WardCensusButtons';
 import WardSummaryDashboard from './WardSummaryDashboard';
 import { ChartSection, StatisticsSummary } from './sections';
 import CalendarWithEvents, { Event } from './CalendarWithEvents';
+import LoadingSpinner from '@/app/core/components/LoadingSpinner';
 
 // Import types
 import { PieChartDataItem } from './EnhancedPieChart';
@@ -172,11 +173,7 @@ function DashboardPage() {
   }, [wardCensusMap, wards]);
 
   if (loading || dataLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-xl font-semibold">กำลังโหลดข้อมูล...</div>
-      </div>
-    );
+    return <LoadingSpinner message="กำลังโหลดข้อมูลแดชบอร์ด..." size="lg" fullScreen />;
   }
 
   if (error || dataError) {

@@ -1,0 +1,291 @@
+import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
+import { User, TimestampField } from '@/app/core/types/user';
+import { Timestamp } from 'firebase/firestore';
+import { format, parse } from 'date-fns';
+
+/**
+ * แปลงวันที่จากรูปแบบ string เป็น Date object
+ * @param dateStr วันที่ในรูปแบบ string (YYYY-MM-DD)
+ * @returns Date object
+ */
+export const parseDate = (dateStr: string): Date => {
+  return parse(dateStr, 'yyyy-MM-dd', new Date());
+};
+
+/**
+ * ตรวจสอบความครบถ้วนของข้อมูลแบบฟอร์ม
+ * @param formData ข้อมูลแบบฟอร์มที่ต้องการตรวจสอบ
+ * @returns ผลการตรวจสอบ {isValid: boolean, missingFields: string[], errors: Record<string, string>}
+ */
+export const validateFormData = (formData: Partial<WardForm>): {
+  isValid: boolean;
+  missingFields: string[];
+  errors: Record<string, string>;
+} => {
+  // Define required fields (excluding comment)
+  const requiredNumericFields: (keyof WardForm)[] = [
+    'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
+    'newAdmit', 'transferIn', 'referIn',
+    'transferOut', 'referOut', 'discharge', 'dead',
+    'available', 'unavailable', 'plannedDischarge'
+  ];
+
+  const requiredStringFields: (keyof WardForm)[] = [
+    'recorderFirstName', 'recorderLastName'
+  ];
+
+  // Fields that are always required (part of basic structure)
+  const alwaysRequired: (keyof WardForm)[] = [
+      'wardId', 'wardName', 'date', 'shift'
+  ];
+
+  let isValid = true;
+  const missingFields: string[] = [];
+  const errors: Record<string, string> = {}; 
+
+  // Check always required fields first
+  alwaysRequired.forEach(field => {
+      if (formData[field] === undefined || formData[field] === null || formData[field] === '') {
+          isValid = false;
+          missingFields.push(field);
+          errors[field] = 'ข้อมูลพื้นฐาน (เช่น วอร์ด, วันที่, กะ) ไม่ควรว่าง'; 
+      }
+  });
+
+  // Check required numeric fields with stricter validation
+  requiredNumericFields.forEach(field => {
+    const value = formData[field];
+    
+    // Check if value is undefined, null, or not a number
+    if (value === undefined || value === null) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
+      return;
+    }
+    
+    // Convert to number for validation
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // Check if it's a valid number
+    if (isNaN(Number(numValue))) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องเป็นตัวเลขเท่านั้น)';
+      return;
+    }
+    
+    // Check if it's negative
+    if (Number(numValue) < 0) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ติดลบ)';
+      return;
+    }
+    
+    // Additional validation for specific fields
+    if (field === 'patientCensus' && Number(numValue) === 0) {
+      // Add a warning but don't invalidate - some wards might truly have 0 patients
+      errors[field] = 'คงพยาบาลมีค่าเป็น 0 โปรดตรวจสอบว่าถูกต้อง';
+    }
+  });
+
+  // Check required string fields with better validation
+  requiredStringFields.forEach(field => {
+    const value = formData[field];
+    
+    // Check if exists
+    if (!value || typeof value !== 'string') {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง';
+      return;
+    }
+    
+    // Check if it contains only whitespace
+    if (value.trim() === '') {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ไม่ควรเป็นช่องว่างเท่านั้น)';
+      return;
+    }
+    
+    // Check for minimum length
+    if (value.trim().length < 2) {
+      isValid = false;
+      missingFields.push(field);
+      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ต้องมีความยาวอย่างน้อย 2 ตัวอักษร)';
+      return;
+    }
+  });
+
+  // Check if comment is too long (optional field)
+  if (formData.comment && typeof formData.comment === 'string' && formData.comment.length > 500) {
+    isValid = false;
+    errors['comment'] = 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
+  }
+
+  // Return validation result
+  return {
+    isValid,
+    missingFields,
+    errors
+  };
+};
+
+/**
+ * คำนวณจำนวนผู้ป่วยกะเช้าจากข้อมูลกะดึกของวันก่อน
+ */
+export const calculateMorningCensus = (
+  previousNightForm: WardForm | null,
+  inputData: {
+    patientCensus?: number;
+    initialPatientCensus?: number;
+    newAdmit: number;
+    transferIn: number;
+    referIn: number;
+    discharge: number;
+    transferOut: number;
+    referOut: number;
+    dead: number;
+  }
+): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
+  
+  const safeNumber = (value: unknown): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    if (typeof value === 'number') {
+      return isNaN(value) ? 0 : value;
+    }
+    return 0;
+  };
+
+  // ใช้จำนวนผู้ป่วยคงเหลือจากกะดึกวันก่อน หรือ 0 ถ้าไม่มีข้อมูล
+  const initialPatientCensus = previousNightForm ? safeNumber(previousNightForm.patientCensus) : 0;
+  
+  // คำนวณจำนวนผู้ป่วยโดยใช้สูตร: 
+  // คงเหลือ = จำนวนเริ่มต้น + รับเข้า - จำหน่าย
+  const totalAdmissions = safeNumber(inputData.newAdmit) + safeNumber(inputData.transferIn) + safeNumber(inputData.referIn);
+  const totalDischarges = safeNumber(inputData.discharge) + safeNumber(inputData.transferOut) + safeNumber(inputData.referOut) + safeNumber(inputData.dead);
+  const calculatedCensus = initialPatientCensus + totalAdmissions - totalDischarges;
+
+  // ให้ความสำคัญกับค่าที่ผู้ใช้กรอก ถ้ามี
+  const finalPatientCensus = inputData.patientCensus !== undefined && inputData.patientCensus !== null 
+    ? safeNumber(inputData.patientCensus) 
+    : calculatedCensus;
+
+  return {
+    initialPatientCensus,
+    calculatedCensus,
+    patientCensus: Math.max(0, finalPatientCensus) // ป้องกันค่าติดลบ
+  };
+};
+
+/**
+ * คำนวณจำนวนผู้ป่วยกะดึก
+ */
+export const calculateNightShiftCensus = (
+  morningForm: WardForm,
+  nightShiftData: {
+    newAdmit: number;
+    transferIn: number;
+    referIn: number;
+    discharge: number;
+    transferOut: number;
+    referOut: number;
+    dead: number;
+  }
+): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
+  
+  const safeNumber = (value: unknown): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    if (typeof value === 'number') {
+      return isNaN(value) ? 0 : value;
+    }
+    return 0;
+  };
+
+  // ใช้จำนวนผู้ป่วยคงเหลือจากกะเช้า
+  const initialPatientCensus = safeNumber(morningForm.patientCensus);
+  
+  // คำนวณจำนวนผู้ป่วยโดยใช้สูตร: 
+  // คงเหลือ = จำนวนเริ่มต้น + รับเข้า - จำหน่าย
+  const totalAdmissions = safeNumber(nightShiftData.newAdmit) + safeNumber(nightShiftData.transferIn) + safeNumber(nightShiftData.referIn);
+  const totalDischarges = safeNumber(nightShiftData.discharge) + safeNumber(nightShiftData.transferOut) + safeNumber(nightShiftData.referOut) + safeNumber(nightShiftData.dead);
+  const calculatedCensus = initialPatientCensus + totalAdmissions - totalDischarges;
+
+  return {
+    initialPatientCensus,
+    calculatedCensus,
+    patientCensus: Math.max(0, calculatedCensus) // ป้องกันค่าติดลบ
+  };
+};
+
+/**
+ * สร้าง ID สำหรับแบบฟอร์ม
+ */
+export const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus, dateInput: TimestampField): string => {
+  try {
+    // Handle null/undefined case
+    if (!dateInput) {
+      const timestamp = Date.now();
+      return `${wardId}_${shift}_${status}_${timestamp}`;
+    }
+    
+    const date = dateInput instanceof Timestamp ? dateInput.toDate() : 
+                 dateInput instanceof Date ? dateInput : new Date(dateInput as string);
+    const formattedDate = format(date, 'yyyyMMdd');
+    const shiftCode = shift === 'morning' ? 'M' : 'N';
+    const statusCode = status === FormStatus.DRAFT ? 'D' : status === FormStatus.FINAL ? 'F' : 'A';
+    const timestamp = Date.now().toString().slice(-4); // ใช้ 4 หลักสุดท้ายของ timestamp
+    
+    return `${wardId}_${formattedDate}_${shiftCode}${statusCode}_${timestamp}`;
+  } catch (error) {
+    console.error('[generateWardFormId] Error:', error);
+    // Fallback ID
+    const timestamp = Date.now();
+    return `${wardId}_${shift}_${status}_${timestamp}`;
+  }
+};
+
+/**
+ * แปลงวันที่เป็น Date object หรือ throw error
+ */
+export const normalizeDateOrThrow = (dateInput: TimestampField | undefined): Date => {
+  if (!dateInput) {
+    throw new Error('วันที่ไม่ถูกต้อง: ไม่ได้ระบุวันที่');
+  }
+
+  try {
+    if (dateInput instanceof Timestamp) {
+      return dateInput.toDate();
+    }
+    
+    if (typeof dateInput === 'string') {
+      const parsedDate = new Date(dateInput);
+      if (isNaN(parsedDate.getTime())) {
+        throw new Error(`วันที่ไม่ถูกต้อง: ${dateInput}`);
+      }
+      return parsedDate;
+    }
+    
+    if (dateInput instanceof Date) {
+      if (isNaN(dateInput.getTime())) {
+        throw new Error('วันที่ไม่ถูกต้อง: วันที่เป็น Invalid Date');
+      }
+      return dateInput;
+    }
+    
+    throw new Error(`วันที่ไม่ถูกต้อง: ประเภทข้อมูลไม่รองรับ (${typeof dateInput})`);
+  } catch (error) {
+    console.error('[normalizeDateOrThrow] Error normalizing date:', error);
+    throw error;
+  }
+}; 

@@ -1,11 +1,6 @@
 import { 
   collection, 
   doc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
   addDoc, 
   updateDoc, 
   serverTimestamp, 
@@ -13,9 +8,15 @@ import {
   limit, 
   setDoc,
   documentId,
-  deleteDoc
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
+import { safeQuery, safeGetDoc } from '@/app/core/firebase/firestoreUtils';
 import { WardForm, ShiftType, FormStatus, Ward } from '@/app/core/types/ward';
 import { User, TimestampField } from '@/app/core/types/user';
 import { format, parse } from 'date-fns';
@@ -41,136 +42,18 @@ import {
   getLatestDraftFormWithRetry,
   getWardFormsByWardAndDateWithRetry
 } from './wardFormQueries';
-
-/**
- * แปลงวันที่จากรูปแบบ string เป็น Date object
- * @param dateStr วันที่ในรูปแบบ string (YYYY-MM-DD)
- * @returns Date object
- */
-const parseDate = (dateStr: string): Date => {
-  return parse(dateStr, 'yyyy-MM-dd', new Date());
-};
-
-/**
- * ตรวจสอบความครบถ้วนของข้อมูลแบบฟอร์ม
- * @param formData ข้อมูลแบบฟอร์มที่ต้องการตรวจสอบ
- * @returns ผลการตรวจสอบ {isValid: boolean, missingFields: string[], errors: Record<string, string>}
- */
-export const validateFormData = (formData: Partial<WardForm>): {
-  isValid: boolean;
-  missingFields: string[];
-  errors: Record<string, string>;
-} => {
-  // Define required fields (excluding comment)
-  const requiredNumericFields: (keyof WardForm)[] = [
-    'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
-    'newAdmit', 'transferIn', 'referIn',
-    'transferOut', 'referOut', 'discharge', 'dead',
-    'available', 'unavailable', 'plannedDischarge'
-  ];
-
-  const requiredStringFields: (keyof WardForm)[] = [
-    'recorderFirstName', 'recorderLastName'
-  ];
-
-  // Fields that are always required (part of basic structure)
-  const alwaysRequired: (keyof WardForm)[] = [
-      'wardId', 'wardName', 'date', 'shift'
-  ];
-
-  let isValid = true;
-  const missingFields: string[] = [];
-  const errors: Record<string, string> = {}; 
-
-  // Check always required fields first
-  alwaysRequired.forEach(field => {
-      if (formData[field] === undefined || formData[field] === null || formData[field] === '') {
-          isValid = false;
-          missingFields.push(field);
-          errors[field] = 'ข้อมูลพื้นฐาน (เช่น วอร์ด, วันที่, กะ) ไม่ควรว่าง'; 
-      }
-  });
-
-  // Check required numeric fields with stricter validation
-  requiredNumericFields.forEach(field => {
-    const value = formData[field];
-    
-    // Check if value is undefined, null, or not a number
-    if (value === undefined || value === null) {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ว่างและไม่ติดลบ)';
-      return;
-    }
-    
-    // Convert to number for validation
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    
-    // Check if it's a valid number
-    if (isNaN(Number(numValue))) {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องเป็นตัวเลขเท่านั้น)';
-      return;
-    }
-    
-    // Check if it's negative
-    if (Number(numValue) < 0) {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกตัวเลขให้ถูกต้อง (ต้องไม่ติดลบ)';
-      return;
-    }
-    
-    // Additional validation for specific fields
-    if (field === 'patientCensus' && Number(numValue) === 0) {
-      // Add a warning but don't invalidate - some wards might truly have 0 patients
-      errors[field] = 'คงพยาบาลมีค่าเป็น 0 โปรดตรวจสอบว่าถูกต้อง';
-    }
-  });
-
-  // Check required string fields with better validation
-  requiredStringFields.forEach(field => {
-    const value = formData[field];
-    
-    // Check if exists
-    if (!value || typeof value !== 'string') {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง';
-      return;
-    }
-    
-    // Check if it contains only whitespace
-    if (value.trim() === '') {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ไม่ควรเป็นช่องว่างเท่านั้น)';
-      return;
-    }
-    
-    // Check for minimum length
-    if (value.trim().length < 2) {
-      isValid = false;
-      missingFields.push(field);
-      errors[field] = 'กรุณากรอกข้อมูลให้ถูกต้อง (ต้องมีความยาวอย่างน้อย 2 ตัวอักษร)';
-      return;
-    }
-  });
-
-  // Check if comment is too long (optional field)
-  if (formData.comment && typeof formData.comment === 'string' && formData.comment.length > 500) {
-    isValid = false;
-    errors['comment'] = 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
-  }
-
-  // Return validation result
-  return {
-    isValid,
-    missingFields,
-    errors
-  };
-};
+import { 
+  fetchAllWardCensusWithOfflineHandling 
+} from './wardFormServiceQueries';
+// Import helper functions
+import {
+  parseDate,
+  validateFormData,
+  calculateMorningCensus,
+  calculateNightShiftCensus,
+  generateWardFormId,
+  normalizeDateOrThrow
+} from './wardFormHelpers';
 
 /**
  * ดึงข้อมูลแบบฟอร์มตามวันที่ กะ และแผนก
@@ -236,194 +119,11 @@ export const checkMorningShiftFormStatus = async (
   }
 };
 
-/**
- * คำนวณ Patient Census สำหรับกะเช้าโดยอัตโนมัติจากข้อมูลกะดึกของวันก่อนหน้า
- * @param previousNightForm แบบฟอร์มกะดึกของวันก่อนหน้า
- * @param inputData ข้อมูลกะเช้าที่ป้อน
- * @returns จำนวนผู้ป่วยที่คำนวณแล้ว
- */
-export const calculateMorningCensus = (
-  previousNightForm: WardForm | null,
-  inputData: {
-    patientCensus?: number;
-    initialPatientCensus?: number;
-    newAdmit: number;
-    transferIn: number;
-    referIn: number;
-    discharge: number;
-    transferOut: number;
-    referOut: number;
-    dead: number;
-  }
-): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
-  // ฟังก์ชันช่วยในการแปลงค่าให้เป็นตัวเลขที่ถูกต้อง
-  const safeNumber = (value: unknown): number => {
-    if (typeof value === 'number' && !isNaN(value)) {
-      return value;
-    }
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? 0 : parsed;
-    }
-    return 0;
-  };
+// calculateMorningCensus is now imported from wardFormHelpers.ts
 
-  let initialValue: number;
-  
-  // กรณีไม่มีข้อมูลกะดึกของวันก่อนหน้า ใช้ค่าที่ผู้ใช้ป้อนโดยตรง
-  if (!previousNightForm || previousNightForm.patientCensus === undefined) {
-    // ลำดับการพิจารณา: initialPatientCensus (ถ้ามี) > patientCensus > 0
-    initialValue = inputData.initialPatientCensus !== undefined ? safeNumber(inputData.initialPatientCensus) : 
-                  (inputData.patientCensus !== undefined ? safeNumber(inputData.patientCensus) : 0);
-  } else {
-  // ถ้ามีข้อมูลกะดึกของวันก่อนหน้า ให้ใช้ค่า patientCensus จากกะดึกของวันก่อนหน้า
-    initialValue = safeNumber(previousNightForm.patientCensus);
-  }
-  
-  // คำนวณยอดผู้ป่วยจากการรับเข้า-จำหน่าย
-  const admissions = safeNumber(inputData.newAdmit) + safeNumber(inputData.transferIn) + safeNumber(inputData.referIn);
-  const discharges = safeNumber(inputData.discharge) + safeNumber(inputData.transferOut) + safeNumber(inputData.referOut) + safeNumber(inputData.dead);
-  const calculatedCensus = Math.max(0, initialValue + admissions - discharges);
+// calculateNightShiftCensus is now imported from wardFormHelpers.ts
 
-  Logger.info(`[calculateMorningCensus] initialValue=${initialValue}, admissions=${admissions}, discharges=${discharges}, result=${calculatedCensus}`);
-  
-  return {
-    initialPatientCensus: initialValue, // ค่าเริ่มต้นจากกะดึกของวันก่อนหน้า
-    calculatedCensus: calculatedCensus, // ค่าที่คำนวณได้จากการรับเข้า-จำหน่าย
-    patientCensus: calculatedCensus // ค่าสุดท้ายที่ใช้แสดงผล (เท่ากับค่าที่คำนวณได้)
-  };
-};
-
-/**
- * คำนวณ Patient Census สำหรับกะดึกโดยอัตโนมัติจากข้อมูลกะเช้า
- * @param morningForm แบบฟอร์มกะเช้า
- * @param nightShiftData ข้อมูลกะดึกที่ป้อนเพิ่มเติม
- * @returns จำนวนผู้ป่วยที่คำนวณแล้ว
- */
-export const calculateNightShiftCensus = (
-  morningForm: WardForm,
-  nightShiftData: {
-    newAdmit: number;
-    transferIn: number;
-    referIn: number;
-    discharge: number;
-    transferOut: number;
-    referOut: number;
-    dead: number;
-  }
-): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
-  // ฟังก์ชันช่วยในการแปลงค่าให้เป็นตัวเลขที่ถูกต้อง
-  const safeNumber = (value: unknown): number => {
-    if (typeof value === 'number' && !isNaN(value)) {
-      return value;
-    }
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? 0 : parsed;
-    }
-    return 0;
-  };
-
-  // ตรวจสอบว่ามีข้อมูลที่จำเป็นครบถ้วนหรือไม่
-  if (morningForm.patientCensus === undefined && morningForm.calculatedCensus === undefined) {
-    Logger.error('Missing required data for calculation: morningForm.patientCensus or morningForm.calculatedCensus');
-    return {initialPatientCensus: 0, calculatedCensus: 0, patientCensus: 0};
-  }
-  
-  // ใช้ค่าที่คำนวณได้จากกะเช้าหากมี หรือใช้ค่า patientCensus จากกะเช้า
-  const initialValue = morningForm.calculatedCensus !== undefined ? safeNumber(morningForm.calculatedCensus) : safeNumber(morningForm.patientCensus);
-  
-  // ผู้ป่วยเข้ากะดึก (รับใหม่ + ย้ายเข้า + ส่งตัวเข้า)
-  const nightAdmissions = 
-    safeNumber(nightShiftData.newAdmit) + 
-    safeNumber(nightShiftData.transferIn) + 
-    safeNumber(nightShiftData.referIn);
-  
-  // ผู้ป่วยออกกะดึก (จำหน่าย + ย้ายออก + ส่งตัวออก + เสียชีวิต)
-  const nightDischarges = 
-    safeNumber(nightShiftData.discharge) + 
-    safeNumber(nightShiftData.transferOut) + 
-    safeNumber(nightShiftData.referOut) + 
-    safeNumber(nightShiftData.dead);
-  
-  // คำนวณจำนวนผู้ป่วยที่คงเหลือในกะดึก
-  const calculatedCensus = Math.max(0, initialValue + nightAdmissions - nightDischarges);
-
-  Logger.info(`[calculateNightShiftCensus] initialValue=${initialValue}, nightAdmissions=${nightAdmissions}, nightDischarges=${nightDischarges}, result=${calculatedCensus}`);
-  
-  return {
-    initialPatientCensus: initialValue, // ค่าเริ่มต้นจากกะเช้า
-    calculatedCensus: calculatedCensus, // ค่าที่คำนวณได้
-    patientCensus: calculatedCensus // ค่าสุดท้ายที่ใช้แสดงผล (เท่ากับค่าที่คำนวณได้)
-  };
-};
-
-/**
- * Helper function to generate custom document ID
- * @param wardId รหัสแผนก
- * @param shift กะ
- * @param status สถานะของแบบฟอร์ม
- * @param date วันที่
- * @returns รหัสแบบฟอร์มที่สร้างขึ้นมา
- */
-const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus, dateInput: TimestampField): string => {
-  // Convert timestamp object to date
-  let dateObj: Date;
-  if (dateInput instanceof Timestamp) {
-    dateObj = dateInput.toDate();
-  } else if (dateInput instanceof Date) {
-    dateObj = dateInput;
-  } else {
-    throw new Error('Invalid timestamp format for ID generation');
-  }
-
-  // Format date as YYYYMMDD
-  const dateStr = formatDateYMD(dateObj);
-  
-  // Use shift as prefix for distinctions ('m' for morning, 'n' for night)
-  const shiftPrefix = shift === ShiftType.MORNING ? 'm' : 'n';
-  
-  // Create different ID structures for draft vs. final/approved
-  if (status === FormStatus.DRAFT) {
-    return `${wardId}_${shiftPrefix}_draft_d${dateStr}`;
-  } else {
-    // Final, Approved, or Rejected forms
-    return `${wardId}_${shiftPrefix}_${status.toLowerCase()}_d${dateStr}`;
-  }
-};
-
-/**
- * Normalizes a date input from various possible formats into a standard Date object,
- * or throws an error if the input is invalid or missing.
- * @param dateInput The date to normalize (Timestamp, Date, or string).
- * @returns A Date object.
- * @throws An error if the date is invalid or missing.
- */
-const normalizeDateOrThrow = (dateInput: TimestampField | undefined): Date => {
-  if (!dateInput) throw new Error('Date is required.');
-
-  if (dateInput instanceof Timestamp) {
-    return dateInput.toDate();
-  }
-  if (dateInput instanceof Date) {
-    return dateInput;
-  }
-  if (typeof dateInput === 'string') {
-    // Handles ISO strings and YYYY-MM-DD. Appending T00:00:00Z for date-only strings
-    // prevents timezone shifts during parsing.
-    const dateStr = dateInput.includes('T') ? dateInput : dateInput + 'T00:00:00Z';
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date;
-    }
-  }
-  // Handle Firestore Timestamp-like objects that aren't instances of Timestamp
-  if (typeof dateInput === 'object' && 'seconds' in dateInput && typeof dateInput.seconds === 'number' && 'nanoseconds' in dateInput && typeof dateInput.nanoseconds === 'number') {
-      return new Timestamp(dateInput.seconds, dateInput.nanoseconds).toDate();
-  }
-  
-  throw new Error(`Invalid date format: ${JSON.stringify(dateInput)}`);
-};
+// generateWardFormId and normalizeDateOrThrow are now imported from wardFormHelpers.ts
 
 /**
  * Finalizes the morning shift form.
@@ -1178,39 +878,11 @@ export const getWardFormsByDateAndWardForDashboard = async (
 };
 
 /**
- * ดึงข้อมูล Census ของทุกแผนก
+ * ดึงข้อมูล Census ของทุกแผนก (พร้อม offline handling)
  * @param dateString วันที่ในรูปแบบ YYYY-MM-DD
  * @returns Map ของจำนวนผู้ป่วยแยกตามแผนก
  */
 export const fetchAllWardCensus = async (dateString: string): Promise<Map<string, number>> => {
-  try {
-    if (!dateString) {
-      return new Map();
-    }
-
-    const censusMap = new Map<string, number>();
-    
-    // ดึงข้อมูลแบบฟอร์มของทุกแผนกในวันที่กำหนด
-    const formsQuery = query(
-      collection(db, COLLECTION_WARDFORMS),
-      where('date', '==', dateString),
-      where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED])
-    );
-    
-    const querySnapshot = await getDocs(formsQuery);
-    querySnapshot.forEach(doc => {
-      const data = doc.data();
-      const wardId = data.wardId?.toUpperCase();
-      
-      if (wardId) {
-        // ใช้ข้อมูลล่าสุดเสมอ
-        censusMap.set(wardId, data.patientCensus || 0);
-      }
-    });
-    
-    return censusMap;
-  } catch (error) {
-    Logger.error(`[fetchAllWardCensus] Error fetching census data for date ${dateString}:`, error);
-    return new Map();
-  }
+  // ใช้ function ที่มี offline handling แทน
+  return await fetchAllWardCensusWithOfflineHandling(dateString);
 }; 

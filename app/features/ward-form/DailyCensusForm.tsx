@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import { showErrorToast, showSuccessToast, showSafeToast } from '@/app/core/utils/toastUtils';
 import { logUserActivity } from '@/app/core/utils/logUtils';
 import { useLoading } from '@/app/core/hooks/useLoading';
+import { useOptimizedLoading } from '@/app/core/hooks/useOptimizedLoading';
+import LoadingSpinner from '@/app/core/components/LoadingSpinner';
 import { FiSave, FiCheckSquare } from 'react-icons/fi';
 
 // Import Hooks
@@ -34,49 +36,48 @@ import { UserRole } from '@/app/core/types/user';
 export default function DailyCensusForm() {
   const { user: currentUser } = useAuth();
   const { showLoading, hideLoading } = useLoading();
+  const optimizedLoading = useOptimizedLoading({ debounceMs: 200, cacheTimeMs: 30000 });
   const [wards, setWards] = useState<Ward[]>([]);
   const [selectedWard, setSelectedWard] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [isWardLoading, setIsWardLoading] = useState(false);
   const [reloadDataTrigger, setReloadDataTrigger] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // --- NEW State for Actual Shift Statuses ---
   const [actualMorningStatus, setActualMorningStatus] = useState<FormStatus | null>(null);
   const [actualNightStatus, setActualNightStatus] = useState<FormStatus | null>(null);
-  const [isStatusLoading, setIsStatusLoading] = useState(false);
 
-  // Load wards once
+  // Load wards with caching
   useEffect(() => {
     const loadWards = async () => {
       if (!currentUser) return;
 
+      // Load wards without caching optimization for now (to prevent errors)
+      // Future enhancement: implement proper caching
+
       try {
-        setIsWardLoading(true);
+        optimizedLoading.setLoading('wards', true);
         const userWards = await getWardsByUserPermission(currentUser);
+        
         setWards(userWards);
 
-        // เช็คว่าเป็น NURSE หรือ VIEWER หรือไม่
+        // Auto-select ward based on user role
         if ((currentUser.role === UserRole.NURSE || currentUser.role === UserRole.VIEWER) && currentUser.floor) {
-          // ค้นหา ward ที่ตรงกับ user.floor
           const userWard = userWards.find(ward => ward.id === currentUser.floor);
           if (userWard) {
-            // ตั้งค่า ward และล็อคการเปลี่ยนแปลง
             setSelectedWard(userWard.id);
-            // ไม่ต้องถามเพิ่มเติม เนื่องจากมีเพียง ward เดียวที่สามารถเข้าถึงได้
           } else {
             console.warn(`[DailyCensusForm] User with floor ${currentUser.floor} does not have access to that ward.`);
             showErrorToast('คุณไม่มีสิทธิ์ในการเข้าถึงแผนกที่กำหนดไว้');
           }
         } else if (userWards.length > 0) {
-          // สำหรับผู้ใช้อื่นๆ ให้เลือกแผนกแรก
           setSelectedWard(userWards[0].id);
         }
       } catch (error) {
         console.error('Error loading wards:', error);
         showErrorToast('ไม่สามารถโหลดข้อมูลแผนกได้');
       } finally {
-        setIsWardLoading(false);
+        optimizedLoading.setLoading('wards', false);
       }
     };
     loadWards();
@@ -102,7 +103,7 @@ export default function DailyCensusForm() {
 
     const fetchStatuses = async () => {
       console.log(`[DailyCensusForm FetchStatus] Fetching statuses for Business Ward ID: ${selectedBusinessWardId}, Date: ${selectedDate}`);
-      setIsStatusLoading(true);
+      optimizedLoading.setLoading('statuses', true);
       try {
         const targetDate = new Date(selectedDate + 'T00:00:00');
         // Log before calling the service
@@ -120,7 +121,7 @@ export default function DailyCensusForm() {
         setActualMorningStatus(null); // Reset on error
         setActualNightStatus(null);
       } finally {
-        setIsStatusLoading(false);
+        optimizedLoading.setLoading('statuses', false);
       }
     };
 
@@ -286,7 +287,7 @@ export default function DailyCensusForm() {
   };
 
   // Combine overall page loading state
-  const isPageLoading = isWardLoading || isStatusLoading; // isDataLoading is handled within the form area
+  const isPageLoading = optimizedLoading.isLoading('wards') || optimizedLoading.isLoading('statuses'); // isDataLoading is handled within the form area
 
   // --- Determine button disabled states based on new logic ---
   // Combine form read-only state with saving state for general disabling
@@ -324,10 +325,7 @@ export default function DailyCensusForm() {
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">บันทึกข้อมูล</h1>
 
           {isPageLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-              <span>Loading Ward/Status...</span> {/* Added text */} 
-            </div>
+            <LoadingSpinner message="กำลังโหลดข้อมูลแผนกและสถานะ..." size="lg" />
           ) : (
             <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 border border-gray-200 dark:border-gray-700">
               {/* Ward and Date Selection */}
@@ -383,10 +381,7 @@ export default function DailyCensusForm() {
 
                {/* Show data loading indicator within the form area */} 
                {isDataLoading && (
-                   <div className="flex justify-center items-center h-32">
-                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-                       <span>Loading form data...</span>
-                   </div>
+                   <LoadingSpinner message="กำลังโหลดข้อมูลฟอร์ม..." size="md" className="h-32" />
                )}
 
               {/* Census Input Fields Component */} 

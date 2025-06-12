@@ -1,5 +1,5 @@
 import { WardForm, ShiftType } from '@/app/core/types/ward';
-import { validateFormData } from '../services/wardFormService';
+import { validateFormData } from '../services/wardFormHelpers';
 
 /**
  * Helper functions for ward form data management

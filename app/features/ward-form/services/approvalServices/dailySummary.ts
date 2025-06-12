@@ -1,16 +1,5 @@
-import { collection } from 'firebase/firestore';
-import { doc } from 'firebase/firestore';
-import { getDoc } from 'firebase/firestore';
-import { getDocs } from 'firebase/firestore';
-import { query } from 'firebase/firestore';
-import { where } from 'firebase/firestore';
-import { orderBy } from 'firebase/firestore';
-import { addDoc } from 'firebase/firestore';
-import { updateDoc } from 'firebase/firestore';
-import { serverTimestamp } from 'firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
-import { limit } from 'firebase/firestore';
-import { setDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, serverTimestamp, Timestamp, setDoc, getDocs, query, where, orderBy, limit, getDoc } from 'firebase/firestore';
+import { safeGetDoc } from '@/app/core/firebase/firestoreUtils';
 
 import { db } from '@/app/core/firebase/firebase';
 import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
