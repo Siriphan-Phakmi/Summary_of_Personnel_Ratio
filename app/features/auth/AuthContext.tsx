@@ -135,103 +135,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, 1000 * 60), [resetInactivityTimer]); // Throttle activity reset to once per minute
 
   // --- Main Logic Functions ---
-
   const checkSession = useCallback(async () => {
     devLog('checkSession started');
     setAuthStatus('loading'); // Set to loading while checking
     setError(null);
     try {
-      // ใช้ Firebase Auth โดยตรงแทนการเรียก API
-      devLog('Checking user session from localStorage/cookie...');
+      // ตรวจสอบ session ผ่าน API
+      devLog('Checking session via API...');
       
-      // ตรวจสอบจาก localStorage หรือ cookie
-      const authService = AuthService.getInstance();
-      
-      // 1. ดึง auth_token จาก cookie
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth_token='))
-        ?.split('=')[1];
-      
-      // 2. ดึงข้อมูล user จาก cookie
-      const userDataCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('user_data='))
-        ?.split('=')[1];
-        
-      let userDataFromCookie = null;
-      if (userDataCookie) {
-        try {
-          userDataFromCookie = JSON.parse(decodeURIComponent(userDataCookie));
-          devLog(`Found user data in cookie: ${userDataFromCookie.username}, role: ${userDataFromCookie.role}`);
-        } catch (e) {
-          devLog(`Error parsing user data from cookie: ${e}`);
-        }
+      const response = await fetch('/api/auth/session', {
+        method: 'GET',
+        credentials: 'include', // เพื่อส่ง cookies
+      });
+
+      if (!response.ok) {
+        throw new Error('Session check failed');
       }
 
-      if (token) {
-        // ถ้ามี token ให้ตรวจสอบว่ายังใช้ได้หรือไม่
-        const userData = await authService.checkAuth(token);
-        
-        if (userData) {
-          devLog(`Valid session found for user: ${userData.username || userData.uid}. Setting state.`);
-          
-          // ถ้าได้ userData จาก authService ให้ใช้ข้อมูลนั้น
-          setUser(userData);
-          setAuthStatus('authenticated');
-          resetInactivityTimer();
-          setupActivityCheck();
-        } else if (userDataFromCookie) {
-          // กรณีที่ authService ไม่สามารถหาข้อมูลได้ แต่มีข้อมูลใน cookie
-          // ให้ใช้ข้อมูลจาก cookie แทน (อาจเกิดจาก token ยังไม่หมดอายุแต่ server มีปัญหา)
-          devLog(`Using user data from cookie as fallback: ${userDataFromCookie.username}`);
-          setUser(userDataFromCookie);
-          setAuthStatus('authenticated');
-          resetInactivityTimer();
-          setupActivityCheck();
-        } else {
-          // Token ไม่ถูกต้องหรือหมดอายุ และไม่มีข้อมูลใน cookie
-          devLog('Session token invalid or expired. Clearing user state.');
-          setUser(null);
-          setAuthStatus('unauthenticated');
-          clearTimers();
-          
-          // ล้าง cookies ที่หมดอายุ
-          document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-          document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-        }
-      } else if (userDataFromCookie) {
-        // กรณีที่ไม่มี token แต่มีข้อมูล user ใน cookie
-        // อาจเกิดจากการเปลี่ยน page หรือรีเฟรช
-        devLog(`No token but found user data in cookie: ${userDataFromCookie.username}`);
-        
-        // ใช้ข้อมูลจาก cookie และทำการตรวจสอบ
-        const verifiedUser = await authService.checkAuth(userDataFromCookie.uid);
-        
-        if (verifiedUser) {
-          // ถ้าตรวจสอบแล้วพบว่ามีผู้ใช้อยู่จริง
-          devLog(`Verified user data from database: ${verifiedUser.username}`);
-          setUser(verifiedUser);
-          setAuthStatus('authenticated');
-          resetInactivityTimer();
-          setupActivityCheck();
-          
-          // สร้าง token ใหม่
-          document.cookie = `auth_token=${verifiedUser.uid}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-        } else {
-          // ถ้าตรวจสอบแล้วไม่พบ ให้ใช้ข้อมูลจาก cookie เป็น fallback
-          devLog(`Could not verify user with database, using cookie data: ${userDataFromCookie.username}`);
-          setUser(userDataFromCookie);
-          setAuthStatus('authenticated');
-          resetInactivityTimer();
-          setupActivityCheck();
-        }
+      const result = await response.json();
+      
+      if (result.authenticated && result.user) {
+        devLog(`Valid session found for user: ${result.user.username || result.user.uid}. Setting state.`);
+        setUser(result.user);
+        setAuthStatus('authenticated');
+        resetInactivityTimer();
+        setupActivityCheck();
       } else {
-        // ไม่พบ token
-        devLog('No session token found. User is unauthenticated.');
+        // ไม่มี session หรือ session หมดอายุ
+        devLog('No valid session found. User is unauthenticated.');
         setUser(null);
         setAuthStatus('unauthenticated');
         clearTimers();
+        
+        // ล้าง cookies และ localStorage
+        if (typeof document !== 'undefined') {
+          document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
+        
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('auth_token_backup');
+          localStorage.removeItem('user_data_backup');
+          localStorage.removeItem('auth_expires');
+        }
       }
     } catch (err) {
       devLog(`Error during checkSession: ${err}`);
@@ -247,7 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [pathname, router, resetInactivityTimer, setupActivityCheck, clearTimers]);
-
   const login = async (username: string, password: string): Promise<boolean> => {
     devLog(`Attempting login for: ${username}`);
     setAuthStatus('loading');
@@ -267,21 +212,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       devLog('CSRF token acquired: ' + (csrfToken ? 'OK' : 'Failed'));
 
-      // 2. Attempt login using Firebase Auth directly
-      const authService = AuthService.getInstance();
-      const result = await authService.login(username, password);
-      
-      devLog(`Login result: ${JSON.stringify(result)}`);
+      // 2. Call login API endpoint
+      devLog('Calling login API...');
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          csrfToken,
+        }),
+      });
+
+      const result = await response.json();
+      devLog(`Login API response: ${JSON.stringify(result)}`);
 
       if (result.success && result.user) {
         devLog(`Login successful for user: ${result.user.username || result.user.uid}, role: ${result.user.role}`);
         
-        // บันทึกข้อมูลผู้ใช้ลง cookie และ localStorage
-        if (typeof document !== 'undefined') {
-          // บันทึก token ลง cookie (ใช้ user.uid เป็น token)
-          document.cookie = `auth_token=${result.user.uid}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-          
-          // บันทึกข้อมูล user ลง cookie (ในรูปแบบ JSON string)
+        // บันทึกข้อมูลผู้ใช้ลง localStorage สำรอง
+        if (typeof localStorage !== 'undefined') {
           const userData = JSON.stringify({
             uid: result.user.uid,
             username: result.user.username,
@@ -290,20 +242,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             lastName: result.user.lastName,
             floor: result.user.floor
           });
-          document.cookie = `user_data=${encodeURIComponent(userData)}; path=/; SameSite=Strict${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-          
-          // บันทึกข้อมูลใน localStorage สำรอง
-          if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('auth_token_backup', result.user.uid);
-            localStorage.setItem('user_data_backup', userData);
-            localStorage.setItem('auth_expires', new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString());
-          }
-          
-          // บันทึกสถานะว่ายังอยู่ใน session เดียวกัน
-          if (typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('is_browser_session', 'true');
-            sessionStorage.setItem('lastUsername', username);
-          }
+          localStorage.setItem('auth_token_backup', result.user.uid);
+          localStorage.setItem('user_data_backup', userData);
+          localStorage.setItem('auth_expires', new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString());
+        }
+        
+        // บันทึกสถานะว่ายังอยู่ใน session เดียวกัน
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('is_browser_session', 'true');
+          sessionStorage.setItem('lastUsername', username);
         }
         
         setUser(result.user);
@@ -330,7 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
   };
-
   const logout = useCallback(async () => {
     if (isLoggingOut) return;
     devLog('Starting logout process...');
@@ -342,9 +288,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (currentUser) {
         devLog(`Logging out user: ${currentUser.username || currentUser.uid}`);
-        // ใช้ AuthService โดยตรง
-        const authService = AuthService.getInstance();
-        await authService.logout(currentUser);
+        // เรียก API logout
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: currentUser.uid,
+            username: currentUser.username,
+            role: currentUser.role,
+          }),
+        });
       } else {
         devLog('No current user, proceeding with client-side logout.');
       }

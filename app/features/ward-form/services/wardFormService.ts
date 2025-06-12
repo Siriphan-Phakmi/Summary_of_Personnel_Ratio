@@ -32,6 +32,15 @@ import { checkAndCreateDailySummary, updateDailySummary } from './approvalServic
 import { isEqual } from 'lodash';
 import { Logger, logSystemError } from '@/app/core/utils/logger';
 import { updateDailySummaryApprovalStatus } from './approvalServices/approvalForms';
+// Import the new query function with offline handling
+import { 
+  getWardFormWithRetry,
+  getLatestPreviousNightFormWithRetry,
+  checkMorningShiftFormStatusWithRetry,
+  getShiftStatusesForDayWithRetry,
+  getLatestDraftFormWithRetry,
+  getWardFormsByWardAndDateWithRetry
+} from './wardFormQueries';
 
 /**
  * แปลงวันที่จากรูปแบบ string เป็น Date object
@@ -175,170 +184,8 @@ export const getWardForm = async (
   shift: ShiftType,
   wardIdInput: string
 ): Promise<WardForm | null> => {
-  // <<< แปลงเป็นตัวพิมพ์ใหญ่ทันที >>>
-  const wardId = wardIdInput.toUpperCase();
-  
-  const callContext = new Error().stack?.split('\n')[2]?.trim() || 'unknown caller'; 
-  Logger.info(`[getWardForm ENTRY] Called by: ${callContext}`);
-  Logger.info(`[getWardForm PARAMS] date=${date?.toDate().toISOString()}, shift=${shift}, originalWardId=${wardIdInput}, usedWardId=${wardId}`);
-  
-  try {
-    const dateString = format(date.toDate(), 'yyyy-MM-dd');
-    const shiftPrefix = shift === ShiftType.MORNING ? 'm' : 'n';
-
-    // *** ใช้ shiftPrefix ในการสร้าง ID ตามรูปแบบใหม่ ***
-    const draftDocIdPattern = `${wardId}_${shiftPrefix}_draft_d`;
-    const finalDocIdPattern = `${wardId}_${shiftPrefix}_final_d`;
-    const approvedDocIdPattern = `${wardId}_${shiftPrefix}_approved_d`;
-    
-    Logger.info(`[getWardForm ${wardId}/${shift}] Checking document ID patterns:\n- Draft: ${draftDocIdPattern}\n- Final: ${finalDocIdPattern}\n- Approved: ${approvedDocIdPattern}`);
-    
-    // Query ข้อมูลตามรูปแบบใหม่ (ใช้ dateString และ wardId ตามปกติ)
-    const q = query(
-      collection(db, 'wardForms'),
-      where('dateString', '==', dateString),
-      where('shift', '==', shift),
-      where('wardId', '==', wardId)
-    );
-    
-    Logger.info(`[getWardForm ${wardId}/${shift}] Query parameters: dateString=${dateString}, shift=${shift}, wardId=${wardId}`);
-    const querySnapshot = await getDocs(q);
-    Logger.info(`[getWardForm ${wardId}/${shift}] Query snapshot size for direct query: ${querySnapshot.size}`);
-
-    // ถ้าพบข้อมูลจาก Query หลัก
-    if (!querySnapshot.empty) {
-      const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
-      
-      // เพิ่มการตรวจสอบเพื่อให้แน่ใจว่าเราเลือกเอกสารที่ถูกต้องตามรูปแบบ ID ใหม่
-      // กรองเฉพาะเอกสารที่มี ID ตามรูปแบบใหม่
-      const filteredDocs = docs.filter(doc => {
-        const docId = doc.id || '';
-        return docId.includes(`${wardId}_${shiftPrefix}_`) && docId.includes(`_d${dateString.replace(/-/g, '')}`);
-      });
-
-      // ถ้าพบเอกสารตามรูปแบบใหม่
-      if (filteredDocs.length > 0) {
-        Logger.info(`[getWardForm ${wardId}/${shift}] Found ${filteredDocs.length} documents matching new ID pattern.`);
-        
-        // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
-        const approvedDoc = filteredDocs.find(doc => doc.status === FormStatus.APPROVED);
-        if (approvedDoc) {
-          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by new pattern: ${approvedDoc.id}`);
-          return approvedDoc;
-        }
-        const finalDoc = filteredDocs.find(doc => doc.status === FormStatus.FINAL);
-        if (finalDoc) {
-          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by new pattern: ID=${finalDoc.id}, Status=${finalDoc.status}`);
-          return finalDoc;
-        }
-        const draftDoc = filteredDocs.find(doc => doc.status === FormStatus.DRAFT);
-        if (draftDoc) {
-          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by new pattern: ID=${draftDoc.id}, Status=${draftDoc.status}`);
-          return draftDoc;
-        }
-      }
-      
-      // ถ้าไม่พบตามรูปแบบใหม่ ให้ใช้รูปแบบเดิมเป็น fallback
-      Logger.info(`[getWardForm ${wardId}/${shift}] Falling back to original pattern search.`);
-      
-      // ค้นหาตามลำดับความสำคัญ: APPROVED > FINAL > DRAFT
-      const approvedDoc = docs.find(doc => doc.status === FormStatus.APPROVED);
-      if (approvedDoc) {
-        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by query: ${approvedDoc.id}`);
-        return approvedDoc;
-      }
-      const finalDoc = docs.find(doc => doc.status === FormStatus.FINAL);
-      if (finalDoc) {
-        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
-        return finalDoc;
-      }
-      const draftDoc = docs.find(doc => doc.status === FormStatus.DRAFT);
-      if (draftDoc) {
-        Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
-        return draftDoc;
-      }
-      // Fallback: return the first doc if specific statuses aren't found
-      Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found first document by query (no specific status match): ID=${docs[0].id}, Status=${docs[0].status}`);
-      return docs[0];
-    } 
-    
-    // หากไม่พบข้อมูลหลัก ลองค้นหาเพิ่มเติม (ไม่จำเป็นต้องปรับส่วนนี้มากนัก เพราะเป็น fallback)
-    Logger.info(`[getWardForm ${wardId}/${shift}] No direct hits from primary query, trying secondary query for date=${dateString}, wardId=${wardId}`);
-    
-    try {
-      // Query โดยไม่ระบุ shift เพื่อดึงข้อมูลทั้งหมดของวันและ ward นั้น
-      const secondaryQuery = query(
-        collection(db, 'wardForms'),
-        where('dateString', '==', dateString),
-        where('wardId', '==', wardId)
-      );
-      
-      const secondarySnapshot = await getDocs(secondaryQuery);
-      Logger.info(`[getWardForm ${wardId}/${shift}] Query snapshot size for secondary query: ${secondarySnapshot.size}`);
-      
-      if (!secondarySnapshot.empty) {
-        const secondaryDocs = secondarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm));
-        Logger.info(`[getWardForm ${wardId}/${shift}] Found ${secondaryDocs.length} documents from secondary query.`);
-        
-        // กรองเอกสารที่ตรงกับ shift ที่ต้องการและมีรูปแบบ ID ใหม่
-        const matchingShiftWithPattern = secondaryDocs.filter(doc => {
-          return doc.shift === shift && (doc.id || '').includes(`${wardId}_${shiftPrefix}_`);
-        });
-        
-        if (matchingShiftWithPattern.length > 0) {
-          Logger.info(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftWithPattern.length} matching documents with new ID pattern from secondary query.`);
-          const approvedDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.APPROVED);
-          if (approvedDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED with new pattern by secondary query: ${approvedDoc.id}`);
-            return approvedDoc;
-          }
-          const finalDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.FINAL);
-          if (finalDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL with new pattern by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
-            return finalDoc;
-          }
-          const draftDoc = matchingShiftWithPattern.find(doc => doc.status === FormStatus.DRAFT);
-          if (draftDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT with new pattern by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
-            return draftDoc;
-          }
-        }
-        
-        // Fallback to original pattern (ถ้าไม่พบรูปแบบใหม่)
-        const matchingShiftDocs = secondaryDocs.filter(doc => doc.shift === shift);
-        if (matchingShiftDocs.length > 0) {
-          Logger.info(`[getWardForm ${wardId}/${shift}] Found ${matchingShiftDocs.length} matching shift documents from secondary query.`);
-          const approvedDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.APPROVED);
-          if (approvedDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found APPROVED by secondary query: ${approvedDoc.id}`);
-            return approvedDoc;
-          }
-          const finalDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.FINAL);
-          if (finalDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found FINAL by secondary query: ID=${finalDoc.id}, Status=${finalDoc.status}`);
-            return finalDoc;
-          }
-          const draftDoc = matchingShiftDocs.find(doc => doc.status === FormStatus.DRAFT);
-          if (draftDoc) {
-            Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found DRAFT by secondary query: ID=${draftDoc.id}, Status=${draftDoc.status}`);
-            return draftDoc;
-          }
-          Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: Found first matching shift document by secondary query: ID=${matchingShiftDocs[0].id}, Status=${matchingShiftDocs[0].status}`);
-          return matchingShiftDocs[0];
-        }
-      }
-    } catch (secondaryQueryError) {
-      Logger.error(`[getWardForm ${wardId}/${shift}] Error in secondary query:`, secondaryQueryError);
-      // Continue to return null if both methods fail
-    }
-    
-    Logger.info(`[getWardForm ${wardId}/${shift}] RETURN: No data found after all checks.`);
-    return null;
-    
-  } catch (error) {
-    Logger.error(`[getWardForm ${wardId}/${shift}] Global Error retrieving form:`, error);
-    throw error;
-  }
+  // Use the new retry-enabled function
+  return await getWardFormWithRetry(date, shift, wardIdInput);
 };
 
 /**
@@ -351,39 +198,8 @@ export const getLatestPreviousNightForm = async (
   date: Date, 
   wardId: string
 ): Promise<WardForm | null> => {
-  Logger.info(`[getLatestPreviousNightForm] Finding previous night form for date: ${date.toISOString()}, ward: ${wardId}`);
-  
-  // ค้นหาย้อนหลังไป 3 วันเพื่อความปลอดภัย
-  const startDate = startOfDay(subDays(date, 3));
-  const endDate = endOfDay(subDays(date, 1));
-  
-  try {
-    const q = query(
-      collection(db, COLLECTION_WARDFORMS),
-      where('wardId', '==', wardId),
-      where('shift', '==', ShiftType.NIGHT),
-      where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED]),
-      where('date', '>=', startDate),
-      where('date', '<=', endDate),
-      orderBy('date', 'desc'),
-      limit(1)
-    );
-
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      const doc = querySnapshot.docs[0];
-      Logger.info(`[getLatestPreviousNightForm] Found previous night form: ${doc.id}`);
-      return { id: doc.id, ...doc.data() } as WardForm;
-    } else {
-      Logger.info(`[getLatestPreviousNightForm] No previous night form found within the last 3 days.`);
-      return null;
-    }
-  } catch (error) {
-    const message = `เกิดข้อผิดพลาดในการดึงข้อมูลเวรดึกก่อนหน้าของวอร์ด ${wardId}`;
-    Logger.error(message, error, { showToast: true });
-    return null;
-  }
+  // Use the new retry-enabled function
+  return await getLatestPreviousNightFormWithRetry(date, wardId);
 };
 
 /**

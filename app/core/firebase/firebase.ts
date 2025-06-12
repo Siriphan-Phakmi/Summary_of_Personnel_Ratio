@@ -29,7 +29,9 @@ const validateEnvVariables = (): boolean => {
   const missingVars = requiredVars.filter(varName => !process.env[varName]);
   
   if (missingVars.length > 0) {
-    console.warn('Missing Firebase environment variables:', missingVars);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Missing Firebase environment variables:', missingVars);
+    }
     return false;
   }
   
@@ -39,9 +41,12 @@ const validateEnvVariables = (): boolean => {
 // ใช้ environment variables หรือ fallback เป็น development config
 const getFirebaseConfig = (): FirebaseConfig => {
   const useEnvVars = validateEnvVariables();
-  const isDevelopment = process.env.NODE_ENV === 'development';
   
   if (useEnvVars) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Firebase: Using environment variables configuration');
+    }
+    
     return {
       apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
       authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -53,36 +58,15 @@ const getFirebaseConfig = (): FirebaseConfig => {
     };
   }
   
-  // ในโหมดพัฒนา ใช้ค่า development config
-  if (isDevelopment) {
-    console.warn(
-      '⚠️ Using development Firebase configuration. ' +
-      'This configuration should only be used for local development. ' + 
-      'For production, please set up proper environment variables in .env.local file.'
-    );
-    
-    // ใช้ค่า dummy สำหรับการพัฒนา - ไม่ควรใช้ค่าจริงในโค้ด
-    return {
-      apiKey: "dummy-dev-api-key",
-      authDomain: "example-dev-app.firebaseapp.com",
-      projectId: "example-dev-app",
-      storageBucket: "example-dev-app.appspot.com",
-      messagingSenderId: "000000000000",
-      appId: "1:000000000000:web:0000000000000000000000",
-      databaseURL: "https://example-dev-app-default-rtdb.firebaseio.com"
-    };
+  // ถ้าไม่มี env vars ให้ใช้ dummy config และแจ้งเตือนครั้งเดียว
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('⚠️ Firebase: Using fallback configuration for development');
+  } else {
+    console.error('🚨 Firebase: Missing environment variables in production!');
   }
   
-  // ข้อความแจ้งเตือนเมื่อไม่พบ environment variables ในโหมด production
-  console.error(
-    '🚨 ERROR: Firebase configuration environment variables are missing. ' +
-    'Please set all required variables in .env.local file. ' +
-    'The application will not function correctly without proper configuration.'
-  );
-  
-  // ใช้ค่า dummy ที่ปลอดภัย (สำหรับ production ที่ไม่มี env vars)
   return {
-    apiKey: "dummy-api-key-for-development-only",
+    apiKey: "dummy-api-key",
     authDomain: "example-app.firebaseapp.com",
     projectId: "example-app",
     storageBucket: "example-app.appspot.com",
@@ -101,50 +85,13 @@ let auth: Auth;
 try {
   const firebaseConfig = getFirebaseConfig();
   
-  // ตรวจสอบว่าใช้ค่า dummy หรือไม่ และไม่ใช่ development config
-  const isDummyConfig = firebaseConfig.apiKey === "dummy-api-key-for-development-only";
-  const isDevConfig = process.env.NODE_ENV === 'development' && firebaseConfig.apiKey === "dummy-dev-api-key";
-  
-  if (isDummyConfig && !isDevConfig) {
-    console.error(`
-===================================================================
-🔥 Firebase Initialization Warning 🔥
--------------------------------------------------------------------
-Missing environment variables for Firebase configuration.
-The application is running with dummy configuration and will not
-connect to any Firebase services.
-
-Please create a .env.local file at the project root with these variables:
-NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
-NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://your_project-default-rtdb.firebaseio.com
-
-You can find these values in your Firebase console:
-https://console.firebase.google.com/project/_/settings/general
-===================================================================
-`);
-  }
-
   // Initialize Firebase app
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
     
-    // Log initialization details only in development mode
     if (process.env.NODE_ENV === 'development') {
-    console.log('Firebase connection initialized');
-      console.log('Firebase config project ID:', firebaseConfig.projectId);
-      
-      if (isDevConfig) {
-        console.log('🔧 Running with development Firebase configuration');
-      } else if (isDummyConfig) {
-        console.warn('⚠️ Running with dummy Firebase configuration - functionality will be limited');
-      } else {
-        console.log('✅ Running with environment variables configuration');
-      }
+      console.log('🔥 Firebase initialized successfully');
+      console.log('Project ID:', firebaseConfig.projectId);
     }
   } else {
     app = getApps()[0];
@@ -161,9 +108,10 @@ https://console.firebase.google.com/project/_/settings/general
     connectFirestoreEmulator(db, host, 8080);
     connectDatabaseEmulator(rtdb, host, 9000);
     connectAuthEmulator(auth, `http://${host}:9099`);
+    console.log('🔧 Firebase: Connected to emulators');
   }
 } catch (error) {
-  console.error('Error initializing Firebase:', error);
+  console.error('❌ Firebase initialization error:', error);
   throw error;
 }
 

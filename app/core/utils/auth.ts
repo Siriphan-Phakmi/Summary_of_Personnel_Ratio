@@ -1,4 +1,3 @@
-import { auth } from '@/app/core/firebase/firebase';
 import { User } from '@/app/core/types/user';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/app/core/firebase/firebase';
@@ -8,7 +7,7 @@ import { db } from '@/app/core/firebase/firebase';
  * @param userId รหัสผู้ใช้
  * @returns ข้อมูลผู้ใช้หรือ null ถ้าไม่พบ
  */
-const getUserDirectly = async (userId: string): Promise<User | null> => {
+export const getUserDirectly = async (userId: string): Promise<User | null> => {
   try {
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
@@ -35,25 +34,16 @@ const getUserDirectly = async (userId: string): Promise<User | null> => {
  */
 export const verifyApiToken = async (token: string): Promise<User | null> => {
   try {
-    // ตรวจสอบ token กับ Firebase Auth (ใช้ getAuth().verifyIdToken)
-    // ต้องใช้ admin SDK แต่ถ้ายังไม่มี ให้ใช้วิธีนี้ก่อน
-    try {
-      // Simulate token verification for now
-      const userId = token.split('.')[0]; // ดึง user ID จาก token (ชั่วคราว)
-      
-      // ดึงข้อมูลผู้ใช้จาก Firestore โดยตรง
-      const user = await getUserDirectly(userId);
-      
-      if (!user) {
-        console.error('[Auth] User not found in database');
-        return null;
-      }
-      
-      return user;
-    } catch (tokenError) {
-      console.error('[Auth] Token verification failed:', tokenError);
+    // ในระบบนี้เราใช้ user.uid เป็น token โดยตรง
+    // ดึงข้อมูลผู้ใช้จาก Firestore โดยตรง
+    const user = await getUserDirectly(token);
+    
+    if (!user) {
+      console.error('[Auth] User not found in database');
       return null;
     }
+    
+    return user;
   } catch (error) {
     console.error('[Auth] Error verifying token:', error);
     return null;

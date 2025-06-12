@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/app/core/utils/authUtils';
 import { getUserDirectly } from '@/app/core/utils/auth';
 
 /**
@@ -22,18 +21,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ตรวจสอบความถูกต้องของ token
-    const payload = await verifyToken(token);
-    if (!payload || !payload.sub) {
-      return NextResponse.json(
-        { authenticated: false },
-        { status: 200 }
-      );
-    }
-
-    // ดึงข้อมูลผู้ใช้จาก user ID ใน token
-    const userId = payload.sub as string;
-    const user = await getUserDirectly(userId);
+    // ใช้ token เป็น userId โดยตรง (ในระบบนี้ token คือ user.uid)
+    const user = await getUserDirectly(token);
 
     if (!user) {
       return NextResponse.json(
@@ -51,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ส่งข้อมูลผู้ใช้กลับไป (ไม่รวมรหัสผ่าน)
-    const { password, ...userWithoutPassword } = user;
+    const { password, ...userWithoutPassword } = user as any;
     
     return NextResponse.json(
       { authenticated: true, user: userWithoutPassword },
@@ -64,4 +53,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

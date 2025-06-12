@@ -1,7 +1,24 @@
 'use client';
 
 import React, { ReactNode, useEffect, useRef } from 'react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+
+// Custom X Icon Component
+const XMarkIcon: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
+  <svg 
+    className={className} 
+    fill="none" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      strokeWidth={2} 
+      d="M6 18L18 6M6 6l12 12" 
+    />
+  </svg>
+);
 
 export interface ModalProps {
   isOpen: boolean;
@@ -119,7 +136,7 @@ const Modal: React.FC<ModalProps> = ({
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
                 aria-label="Close"
             >
-                <XMarkIcon className="w-5 h-5" />
+                <XMarkIcon />
             </button>
           )}
           </div>

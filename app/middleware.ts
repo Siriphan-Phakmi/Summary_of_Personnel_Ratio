@@ -18,8 +18,7 @@ const protectedRoutes = [
   '/admin',
   '/census',
   '/home',
-  '/features/dashboard',
-  '/features'
+  '/features',
 ];
 
 // รายการเส้นทางที่ไม่ต้องการการยืนยันตัวตน
@@ -34,6 +33,13 @@ const publicRoutes = [
   '/fonts'
 ];
 
+// เส้นทางที่ต้องการ role เฉพาะ
+const roleBasedRoutes = {
+  '/admin/dev-tools': ['developer', 'super_admin'],
+  '/census/approval': ['admin', 'super_admin', 'developer', 'approver'],
+  '/census/form': ['admin', 'super_admin', 'developer', 'nurse', 'approver', 'ward_clerk']
+};
+
 export function middleware(request: NextRequest) {
   // ดึงเส้นทางของ request
   const { pathname } = request.nextUrl;
@@ -47,39 +53,13 @@ export function middleware(request: NextRequest) {
               
     // Log the request (this will show in terminal)
     console.log(`[BPK-SERVER] Request: ${pathname} from ${ip}`);
-    
-    // Get the user from the cookie if available
-    const authCookie = request.cookies.get('auth_token')?.value;
-    const userCookie = request.cookies.get('user_data')?.value;
-    
-    if (userCookie) {
-      try {
-        // ใช้ type safety มากขึ้นในการ parse user data
-        type UserData = {
-          username?: string;
-          uid?: string;
-          role?: string;
-        };
-        
-        const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
-        const username = userData.username || userData.uid || 'unknown';
-        const role = userData.role || 'unknown';
-        
-        console.log(`[BPK-SERVER] User ${username} (${role}) accessing: ${pathname}`);
-      } catch (error) {
-        console.log(`[BPK-SERVER] Could not parse user data from cookie: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    } else if (authCookie) {
-      console.log(`[BPK-SERVER] Authenticated user (no details) accessing: ${pathname}`);
-    } else {
-      console.log(`[BPK-SERVER] Unauthenticated access to: ${pathname}`);
-    }
   }
   
   // ตรวจสอบการยืนยันตัวตนสำหรับเส้นทางที่ต้องการการป้องกัน
   if (isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
     // ตรวจสอบว่ามี auth token หรือไม่
     const authToken = request.cookies.get('auth_token')?.value;
+    const userCookie = request.cookies.get('user_data')?.value;
     
     if (!authToken) {
       // ถ้าไม่มี token ให้ redirect ไปยังหน้า login
@@ -89,9 +69,37 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     
-    // หมายเหตุ: เราไม่ได้ตรวจสอบความถูกต้องของ token ที่นี่
-    // เพราะ middleware มีข้อจำกัดในการเรียกใช้งาน Firebase
-    // การตรวจสอบความถูกต้องจะทำใน API route และ client-side
+    // ตรวจสอบ role-based access
+    if (userCookie) {
+      try {
+        type UserData = {
+          username?: string;
+          uid?: string;
+          role?: string;
+        };
+        
+        const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
+        const userRole = userData.role;
+        
+        // ตรวจสอบว่าผู้ใช้มีสิทธิ์เข้าถึง path นี้หรือไม่
+        const requiredRoles = getRoleRequirement(pathname);
+        if (requiredRoles && userRole && !requiredRoles.includes(userRole)) {
+          // ไม่มีสิทธิ์ - redirect ตาม role
+          const redirectPath = getRedirectPathByRole(userRole);
+          const url = new URL(redirectPath, request.url);
+          return NextResponse.redirect(url);
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
+          const username = userData.username || userData.uid || 'unknown';
+          console.log(`[BPK-SERVER] User ${username} (${userRole}) accessing: ${pathname}`);
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[BPK-SERVER] Could not parse user data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+    }
   }
   
   // เพิ่ม security headers ให้กับทุก response
@@ -113,6 +121,32 @@ function isProtectedRoute(pathname: string): boolean {
 // ฟังก์ชันตรวจสอบว่าเส้นทางเป็นเส้นทางสาธารณะหรือไม่
 function isPublicRoute(pathname: string): boolean {
   return publicRoutes.some(route => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+// ฟังก์ชันตรวจสอบ role requirement
+function getRoleRequirement(pathname: string): string[] | null {
+  for (const [route, roles] of Object.entries(roleBasedRoutes)) {
+    if (pathname === route || pathname.startsWith(`${route}/`)) {
+      return roles;
+    }
+  }
+  return null;
+}
+
+// ฟังก์ชันหา redirect path ตาม role
+function getRedirectPathByRole(role: string): string {
+  switch (role) {
+    case 'admin':
+    case 'super_admin':
+    case 'developer':
+    case 'approver':
+      return '/census/approval';
+    case 'nurse':
+    case 'ward_clerk':
+      return '/census/form';
+    default:
+      return '/census/form';
+  }
 }
 
 // Only run middleware on specific paths

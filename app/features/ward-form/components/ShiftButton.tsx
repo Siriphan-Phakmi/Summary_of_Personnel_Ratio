@@ -4,7 +4,6 @@ import React from 'react';
 import { ShiftType, FormStatus } from '@/app/core/types/ward';
 import Button from '@/app/core/ui/Button';
 import useStatusStyles from '../hooks/useStatusStyles';
-import '../styles/index.css'; // Import main CSS file
 
 interface ShiftButtonProps {
   shift: ShiftType;
@@ -75,9 +74,9 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
 
   // ฟังก์ชันรวมคลาสพื้นฐานกับคลาสสถานะ
   const getShiftButtonClass = (): string => {
-    const baseClasses = 'flex-1 text-lg py-3 items-center justify-center';
+    const baseClasses = 'flex-1 text-lg py-3 items-center justify-center transition-all duration-200';
     const statusClass = getStatusClass(status);
-    return `${baseClasses} ${statusClass} ${isDisabled ? 'opacity-70' : ''}`;
+    return `${baseClasses} ${statusClass} ${isDisabled ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-md'}`;
   };
 
   return (
@@ -88,8 +87,10 @@ const ShiftButton: React.FC<ShiftButtonProps> = ({
       className={getShiftButtonClass()}
       fullWidth
     >
-      {getShiftStatusIcon()}
-      {getShiftButtonText()}
+      <div className="flex items-center justify-center space-x-2">
+        {getShiftStatusIcon()}
+        <span>{getShiftButtonText()}</span>
+      </div>
     </Button>
   );
 };

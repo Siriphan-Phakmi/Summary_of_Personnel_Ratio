@@ -47,10 +47,8 @@ export class AuthService {
       if (!userDoc.exists()) {
         Logger.info(`Login failed: Username not found - ${username}`);
         return { success: false, error: 'ไม่พบชื่อผู้ใช้ในระบบ' };
-      }
-
-      const userData = userDoc.data() as UserWithPassword;
-
+      }      const userData = userDoc.data() as UserWithPassword;
+      
       // บันทึกข้อมูลที่ได้รับจาก Firestore เพื่อตรวจสอบ
       Logger.info(`User data retrieved from Firestore for ${username}: uid=${userData.uid}, role=${userData.role}`);
 

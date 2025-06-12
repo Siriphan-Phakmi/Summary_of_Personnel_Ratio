@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/features/auth/AuthContext';
-import { FiMenu, FiX, FiHome, FiClipboard, FiLogOut, FiUser, FiSettings } from 'react-icons/fi';
+import { FiMenu, FiX, FiHome, FiClipboard, FiLogOut, FiUser, FiSettings, FiCheckSquare } from 'react-icons/fi';
 import { UserRole } from '@/app/core/types/user';
 import NotificationBell from '@/app/features/notifications/components/NotificationBell';
 import ThemeToggle from './ThemeToggle';
@@ -52,7 +52,8 @@ const NavBar: React.FC = () => {
   };
 
   const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
-  const isApprover = user?.role === UserRole.APPROVER || isAdmin;
+  const isDeveloper = user?.role === UserRole.DEVELOPER;
+  const isApprover = user?.role === UserRole.APPROVER || isAdmin || isDeveloper;
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
@@ -61,37 +62,45 @@ const NavBar: React.FC = () => {
           {/* Logo and desktop navigation */}
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/dashboard" className="font-bold text-xl text-blue-600 dark:text-blue-400">
+              <Link href="/features/dashboard" className="font-bold text-xl text-blue-600 dark:text-blue-400">
                 BPK9 บันทึกอัตรากำลัง
               </Link>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:space-x-2">
               <NavLink
-                href="/dashboard"
+                href="/features/dashboard"
                 icon={<FiHome />}
                 label="หน้าหลัก"
-                isActive={pathname === '/dashboard'}
+                isActive={pathname === '/features/dashboard'}
               />
               <NavLink
-                href="/ward-form"
+                href="/census/form"
                 icon={<FiClipboard />}
                 label="บันทึกข้อมูล"
-                isActive={pathname === '/ward-form'}
+                isActive={pathname === '/census/form'}
               />
               {isApprover && (
                 <NavLink
-                  href="/approval"
-                  icon={<FiClipboard />}
+                  href="/census/approval"
+                  icon={<FiCheckSquare />}
                   label="อนุมัติแบบฟอร์ม"
-                  isActive={pathname === '/approval'}
+                  isActive={pathname === '/census/approval'}
                 />
               )}
-              {isAdmin && (
+              {isDeveloper && (
                 <NavLink
-                  href="/admin"
+                  href="/admin/dev-tools"
                   icon={<FiSettings />}
-                  label="จัดการระบบ"
-                  isActive={pathname?.startsWith('/admin')}
+                  label="Developer Management"
+                  isActive={pathname?.startsWith('/admin/dev-tools')}
+                />
+              )}
+              {(isAdmin || isDeveloper) && (
+                <NavLink
+                  href="/admin/user-management"
+                  icon={<FiUser />}
+                  label="User Management"
+                  isActive={pathname?.startsWith('/admin/user-management')}
                 />
               )}
             </div>
@@ -105,6 +114,9 @@ const NavBar: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   {user.firstName || user.displayName || user.username}
+                </span>
+                <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                  {user.role}
                 </span>
                 <button
                   onClick={handleLogout}
@@ -137,34 +149,43 @@ const NavBar: React.FC = () => {
         <div className="sm:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1">
             <NavLink
-              href="/dashboard"
+              href="/features/dashboard"
               icon={<FiHome />}
               label="หน้าหลัก"
-              isActive={pathname === '/dashboard'}
+              isActive={pathname === '/features/dashboard'}
               onClick={closeMenu}
             />
             <NavLink
-              href="/ward-form"
+              href="/census/form"
               icon={<FiClipboard />}
               label="บันทึกข้อมูล"
-              isActive={pathname === '/ward-form'}
+              isActive={pathname === '/census/form'}
               onClick={closeMenu}
             />
             {isApprover && (
               <NavLink
-                href="/approval"
-                icon={<FiClipboard />}
+                href="/census/approval"
+                icon={<FiCheckSquare />}
                 label="อนุมัติแบบฟอร์ม"
-                isActive={pathname === '/approval'}
+                isActive={pathname === '/census/approval'}
                 onClick={closeMenu}
               />
             )}
-            {isAdmin && (
+            {isDeveloper && (
               <NavLink
-                href="/admin"
+                href="/admin/dev-tools"
                 icon={<FiSettings />}
-                label="จัดการระบบ"
-                isActive={pathname?.startsWith('/admin')}
+                label="Developer Management"
+                isActive={pathname?.startsWith('/admin/dev-tools')}
+                onClick={closeMenu}
+              />
+            )}
+            {(isAdmin || isDeveloper) && (
+              <NavLink
+                href="/admin/user-management"
+                icon={<FiUser />}
+                label="User Management"
+                isActive={pathname?.startsWith('/admin/user-management')}
                 onClick={closeMenu}
               />
             )}
@@ -175,6 +196,9 @@ const NavBar: React.FC = () => {
                     <FiUser className="mr-2 text-gray-500 dark:text-gray-400" />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       {user.firstName || user.displayName || user.username}
+                    </span>
+                    <span className="ml-2 text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                      {user.role}
                     </span>
                   </div>
                   <button
