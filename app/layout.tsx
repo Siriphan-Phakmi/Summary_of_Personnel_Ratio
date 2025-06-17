@@ -1,9 +1,12 @@
 import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
 import './globals.css';
-import ThemeProvider from '@/app/features/theme/ThemeProvider';
-import { AuthProvider } from '@/app/features/auth/AuthContext';
+import { AuthProvider } from '@/app/features/auth';
+import { ThemeProvider } from '@/app/features/theme';
 import { Toaster } from 'react-hot-toast';
+// import NavBar from '@/app/components/ui/NavBar'; // Removed to prevent duplication
+
+const inter = Inter({ subsets: ['latin'] });
 
 // Configure metadata
 export const metadata: Metadata = {
@@ -21,18 +24,19 @@ export const viewport = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/bpk9.ico" sizes="any" />
       </head>
-      <body className="relative min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300">
+      <body className={`${inter.className} bg-gray-50 dark:bg-gray-900`}>
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            {/* <NavBar /> */}
+            <main>{children}</main>
             <Toaster 
               position="top-right"
               gutter={16}

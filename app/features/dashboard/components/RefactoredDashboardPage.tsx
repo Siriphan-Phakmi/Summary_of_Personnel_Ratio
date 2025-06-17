@@ -36,7 +36,6 @@ import { StatisticsSummary, ChartSection } from './sections';
 
 // Import UI components
 import { LoadingScreen, ErrorScreen } from './ui';
-import NavBar from '@/app/components/ui/NavBar';
 
 // A more flexible type for ward filtering
 type WardFilterOption = 'all' | 'my_wards' | string;
@@ -167,7 +166,8 @@ function RefactoredDashboardPage() {
       refreshData(selectedWardId);
       fetchDailyData();
     }
-  }, [wards, selectedWardId, refreshData, fetchDailyData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wards, selectedWardId]);
 
   if (authStatus === 'loading' || loading || dataLoading) {
     return <LoadingScreen />;
@@ -183,7 +183,6 @@ function RefactoredDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <NavBar />
       <div className="container mx-auto p-4">
         <DashboardHeader
           user={user}
