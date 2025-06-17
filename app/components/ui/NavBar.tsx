@@ -41,6 +41,11 @@ const NavBar = () => {
                 Dev Tools
               </Link>
             )}
+            {user && (user.role === 'admin' || user.role === 'developer') && (
+              <Link href="/admin/user-management" className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                User Management
+              </Link>
+            )}
           </div>
 
           <div className="flex items-center space-x-4">
