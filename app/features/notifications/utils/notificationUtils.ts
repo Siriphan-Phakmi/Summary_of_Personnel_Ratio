@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Timestamp } from 'firebase/firestore';
+import { Logger } from '@/app/utils/logger';
 
 /**
  * แปลงและจัดรูปแบบ timestamp เป็นข้อความระยะห่างจากปัจจุบัน
@@ -20,12 +21,12 @@ export const formatTimestamp = (timestamp: Timestamp | null | Date | number | st
       date = timestamp.toDate();
     } else {
       date = new Date();
-      console.warn('Invalid timestamp format:', timestamp);
+      Logger.error('Invalid timestamp format', timestamp);
     }
     
     return formatDistanceToNow(date, { addSuffix: true, locale: th });
   } catch (e) {
-    console.error("Error formatting timestamp:", e, timestamp);
+    Logger.error("Error formatting timestamp", e);
     return 'ไม่ทราบเวลา';
   }
 };

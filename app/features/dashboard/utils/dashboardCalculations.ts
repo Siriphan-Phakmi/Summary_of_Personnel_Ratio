@@ -1,9 +1,8 @@
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { Ward } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
+import { Ward, WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
 import { logInfo, logError } from './loggingUtils';
-import { PieChartDataItem } from '../components/EnhancedPieChart';
+import { PieChartDataItem } from '../components/types/chart-types';
 
 /**
  * คำนวณความสูงที่เหมาะสมสำหรับกราฟแท่ง
@@ -40,53 +39,64 @@ export const calculateBedSummary = async (
         try {
           if (!ward.id) return null;
           
-          // ใช้ selectedDate แทน effectiveDateRange.end
-          const currentDateString = selectedDate;
-          logInfo(`[calculateBedSummary] Getting data for ward ${ward.id} on date ${currentDateString}`);
+          logInfo(`[calculateBedSummary] Getting data for ward ${ward.id} on date ${selectedDate}`);
           
-          // ดึงข้อมูลแบบฟอร์มของ ward ในวันที่เลือก - ดึงทั้ง ward form และ daily summary พร้อมกัน
-          const [wardFormResult, dailySummaryResult] = await Promise.all([
-            getWardFormsByDateAndWard(ward.id, currentDateString),
-            getDailySummary(ward.id, currentDateString)
+          // สร้าง Date object ด้วย new Date() ซึ่งเป็นวิธีมาตรฐานและแก้ปัญหา Linter ได้อย่างแน่นอน
+          const dateForService = new Date(selectedDate);
+
+          // ดึงข้อมูลโดยส่ง Type ให้ถูกต้อง
+          const [wardForms, dailySummaryResult] = await Promise.all([
+            getWardFormsByDateAndWard(dateForService, ward.id),
+            getDailySummary(ward.id, selectedDate)
           ]);
           
           // รวมข้อมูลจาก ward form และ daily summary
-          const { morning: wardFormMorning, night: wardFormNight } = wardFormResult;
+          const wardFormMorning = wardForms.find(form => form.shift === ShiftType.MORNING);
+          const wardFormNight = wardForms.find(form => form.shift === ShiftType.NIGHT);
           const { morning: summaryMorning, night: summaryNight } = dailySummaryResult;
+
+          // แปลงข้อมูล Summary (โครงสร้างเก่า) ให้มี field เหมือน WardForm (โครงสร้างใหม่)
+          const transformedSummaryMorning = summaryMorning ? {
+            availableBeds: summaryMorning.available || 0,
+            occupiedBeds: summaryMorning.unavailable || 0,
+            totalBeds: (summaryMorning.available || 0) + (summaryMorning.unavailable || 0),
+          } : null;
+
+          const transformedSummaryNight = summaryNight ? {
+            availableBeds: summaryNight.available || 0,
+            occupiedBeds: summaryNight.unavailable || 0,
+            totalBeds: (summaryNight.available || 0) + (summaryNight.unavailable || 0),
+          } : null;
           
-          // ใช้ข้อมูลจาก ward form หากมี ถ้าไม่มีให้ใช้จาก daily summary
-          const morning = wardFormMorning || summaryMorning;
-          const night = wardFormNight || summaryNight;
+          // ใช้ข้อมูลจาก ward form หากมี ถ้าไม่มีให้ใช้จาก daily summary ที่แปลงแล้ว
+          const morning = wardFormMorning || transformedSummaryMorning;
+          const night = wardFormNight || transformedSummaryNight;
           
           // ใช้ข้อมูลเวรเช้าเป็นหลัก ถ้าไม่มีให้ใช้เวรดึก
           let availableBeds = 0;
           let unavailableBeds = 0;
-          let plannedDischarge = 0;
           let totalBeds = 0;
           
           if (morning) {
-            availableBeds = morning.available || 0;
-            unavailableBeds = morning.unavailable || 0;
-            plannedDischarge = morning.plannedDischarge || 0;
-            totalBeds = (morning.available || 0) + (morning.unavailable || 0);
+            availableBeds = morning.availableBeds || 0;
+            unavailableBeds = morning.occupiedBeds || 0;
+            totalBeds = morning.totalBeds || 0;
           } else if (night) {
-            availableBeds = night.available || 0;
-            unavailableBeds = night.unavailable || 0;
-            plannedDischarge = night.plannedDischarge || 0;
-            totalBeds = (night.available || 0) + (night.unavailable || 0);
+            availableBeds = night.availableBeds || 0;
+            unavailableBeds = night.occupiedBeds || 0;
+            totalBeds = night.totalBeds || 0;
           }
           
           // ตรวจสอบความถูกต้องของข้อมูล
           if (availableBeds < 0) availableBeds = 0;
           if (unavailableBeds < 0) unavailableBeds = 0;
-          if (plannedDischarge < 0) plannedDischarge = 0;
           
           return {
             id: ward.id,
-            wardName: ward.wardName,
+            wardName: ward.name,
             value: availableBeds,
             unavailable: unavailableBeds,
-            plannedDischarge: plannedDischarge,
+            plannedDischarge: 0,
             total: totalBeds
           };
         } catch (error) {
@@ -94,7 +104,7 @@ export const calculateBedSummary = async (
           // กรณีมีข้อผิดพลาด ให้ส่งข้อมูลว่างเปล่า
           return {
             id: ward.id || 'unknown',
-            wardName: ward.wardName || 'Unknown Ward',
+            wardName: ward.name || 'Unknown Ward',
             value: 0,
             unavailable: 0,
             plannedDischarge: 0,

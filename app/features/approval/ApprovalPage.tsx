@@ -1,89 +1,34 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import NavBar from '@/app/core/ui/NavBar';
-import ProtectedPage from '@/app/core/ui/ProtectedPage';
 import { useAuth } from '@/app/features/auth';
-import Button from '@/app/core/ui/Button';
-import { UserRole } from '@/app/core/types/user';
-import { WardForm, FormStatus, ShiftType } from '@/app/core/types/ward';
-import { formatTimestamp } from '@/app/core/utils/dateUtils';
-import { FiLoader, FiCheckCircle, FiXCircle, FiAlertTriangle, FiExternalLink } from 'react-icons/fi';
+import { UserRole } from '@/app/features/auth/types/user';
+import { WardForm, FormStatus, ShiftType } from '@/app/features/ward-form/types/ward';
+import { formatTimestamp } from '@/app/lib/utils/timestampUtils';
+import { FiLoader, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import NavBar from '@/app/components/ui/NavBar';
+import ProtectedPage from '@/app/components/ui/ProtectedPage';
+import { Button } from '@/app/components/ui/Button';
 
-// Import separated components and hooks
-import { FormDetailsModal, ApprovalStatusBadge } from './components/FormDetailsModal';
-import { ApproveModal, RejectModal } from './components/ApprovalModals';
+// Import separated components and hooks from feature index
+import { 
+  FormDetailsModal, 
+  ApprovalStatusBadge, 
+  IndexErrorMessage,
+  ApproveModal, 
+  RejectModal 
+} from './components';
 import { useApprovalData } from './hooks/useApprovalData';
-
-interface IndexErrorMessageProps {
-  error?: unknown;
-}
-
-const extractIndexUrl = (error: unknown): string | null => {
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const message = String(error.message);
-    const urlMatch = message.match(/https:\/\/console\.firebase\.google\.com[^\s]*/);
-    return urlMatch ? urlMatch[0] : null;
-  }
-  return null;
-};
-
-const IndexErrorMessage: React.FC<IndexErrorMessageProps> = ({ error }) => {
-  const indexUrl = extractIndexUrl(error);
-  
-  return (
-    <div className="flex items-start space-x-3 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 p-4 rounded-md">
-      <FiAlertTriangle className="mt-1 h-6 w-6 flex-shrink-0" />
-      <div className="flex-1">
-        <h3 className="font-semibold mb-2">ต้องสร้าง Firestore Index</h3>
-        <p className="text-sm mb-3">
-          การ query นี้ต้องการ composite index ที่ยังไม่ได้สร้างใน Firestore 
-          คลิกลิงก์ด้านล่างเพื่อสร้าง index อัตโนมัติ
-        </p>
-        {indexUrl && (
-          <a 
-            href={indexUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline font-medium"
-          >
-            <FiExternalLink className="mr-1 h-4 w-4" />
-            สร้าง Index ใน Firebase Console
-          </a>
-        )}
-        <p className="text-xs mt-2 text-amber-500 dark:text-amber-300">
-          หลังจากสร้าง index แล้ว รอสักครู่แล้วรีเฟรชหน้านี้
-        </p>
-      </div>
-    </div>
-  );
-};
-
-const getComparisonTimestamp = (time: any): number => {
-  if (!time) return 0;
-  
-  // ถ้าเป็น Firebase Timestamp
-  if (time && typeof time === 'object' && 'seconds' in time) {
-    return time.seconds;
-  }
-  
-  // ถ้าเป็น Date object
-  if (time instanceof Date) {
-    return Math.floor(time.getTime() / 1000);
-  }
-  
-  // ถ้าเป็นตัวเลข (timestamp)
-  if (typeof time === 'number') {
-    return time > 1e10 ? Math.floor(time / 1000) : time;
-  }
-  
-  return 0;
-};
+import { getComparisonTimestamp } from './utils/approvalUtils';
+import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
 
 export default function ApprovalPage() {
   const { user: currentUser } = useAuth();
 
-  // ใช้ custom hook ที่แยกออกมา
+  // Fetch form configuration from Firestore
+  const { formConfig, loading: isConfigLoading, error: configError } = useFormConfig('approval_form');
+
+  // Use the custom hook
   const {
     forms,
     loading,
@@ -108,7 +53,10 @@ export default function ApprovalPage() {
     handleReject,
   } = useApprovalData({ user: currentUser });
 
-  // เรียงลำดับฟอร์ม
+  // Combine loading states
+  const isPageLoading = loading || isConfigLoading;
+
+  // Sort forms
   const sortedForms = useMemo(() => {
     return [...forms].sort((a, b) => {
       const aTime = getComparisonTimestamp(a.updatedAt || a.createdAt);
@@ -116,6 +64,10 @@ export default function ApprovalPage() {
       return bTime - aTime;
     });
   }, [forms]);
+
+  const labels = formConfig?.labels;
+  const helpers = formConfig?.helpers;
+  const tableHeaders = formConfig?.tableHeaders;
 
   return (
     <ProtectedPage requiredRole={[UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DEVELOPER, UserRole.APPROVER]}>
@@ -127,72 +79,77 @@ export default function ApprovalPage() {
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                  อนุมัติแบบฟอร์ม
+                  {labels?.pageTitle || 'อนุมัติแบบฟอร์ม'}
                 </h1>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
-                  จัดการและอนุมัติแบบฟอร์มที่รอการตรวจสอบ
+                  {labels?.pageDescription || 'จัดการและอนุมัติแบบฟอร์มที่รอการตรวจสอบ'}
                 </p>
               </div>
               <Button
                 onClick={fetchForms}
                 variant="secondary"
-                disabled={loading}
+                disabled={isPageLoading}
               >
-                {loading ? <FiLoader className="animate-spin h-4 w-4 mr-2" /> : null}
-                รีเฟรช
+                {isPageLoading ? <FiLoader className="animate-spin h-4 w-4 mr-2" /> : null}
+                {labels?.refreshButton || 'รีเฟรช'}
               </Button>
             </div>
           </div>
 
           {/* Error States */}
           {isIndexError && <IndexErrorMessage error={error} />}
+          {configError && !isIndexError && (
+             <div className="text-center py-8 text-red-500">
+                <p>Could not load UI configuration: {configError}</p>
+             </div>
+          )}
           
           {/* Content */}
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <div className="overflow-x-auto">
-                {loading && (
+                {isPageLoading && (
                   <div className="text-center py-12">
                     <div className="inline-flex items-center">
                       <FiLoader className="animate-spin h-5 w-5 mr-2 text-blue-500" />
-                      <span>กำลังโหลดข้อมูล...</span>
+                      <span>{helpers?.loadingData || 'กำลังโหลดข้อมูล...'}</span>
                     </div>
                   </div>
                 )}
                 
-                {!loading && error && !isIndexError && (
+                {!isPageLoading && error && !isIndexError && (
                   <div className="text-center py-8 text-red-500">
                     <p>{error}</p>
                   </div>
                 )}
                 
-                {!loading && !error && forms.length === 0 && (
+                {!isPageLoading && !error && forms.length === 0 && (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    <p>ไม่พบแบบฟอร์มที่ตรงตามเงื่อนไข</p>
+                    <p>{helpers?.noItemsFound || 'ไม่พบแบบฟอร์มที่ตรงตามเงื่อนไข'}</p>
                   </div>
                 )}
                 
-                {!loading && !error && sortedForms.length > 0 && (
+                {!isPageLoading && !error && sortedForms.length > 0 && (
                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          วันที่/กะ
+                          {tableHeaders?.dateShift || 'วันที่/กะ'}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          หอผู้ป่วย
+                          {tableHeaders?.ward || 'หอผู้ป่วย'}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          ผู้บันทึก
+                          {tableHeaders?.recordedBy || 'ผู้บันทึก'}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          สถานะ
+                          {tableHeaders?.status || 'สถานะ'}
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          อัปเดตล่าสุด
+                          {tableHeaders?.lastUpdated || 'อัปเดตล่าสุด'}
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          การดำเนินการ
+                          {tableHeaders?.actions || 'การดำเนินการ'}
                         </th>
                       </tr>
                     </thead>
@@ -205,7 +162,8 @@ export default function ApprovalPage() {
                                 {formatTimestamp(form.date, 'dd/MM/yyyy')}
                               </div>
                               <div className="text-gray-500 dark:text-gray-400">
-                                กะ{form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}
+                                {labels?.shiftPrefix || 'กะ'}
+                                {form.shift === ShiftType.MORNING ? (labels?.shiftMorning || 'เช้า') : (labels?.shiftNight || 'ดึก')}
                               </div>
                             </div>
                           </td>
@@ -216,7 +174,7 @@ export default function ApprovalPage() {
                             {form.recorderFirstName} {form.recorderLastName}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <ApprovalStatusBadge status={form.status} />
+                            <ApprovalStatusBadge status={form.status} config={formConfig?.statusBadges} />
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                             {formatTimestamp(form.updatedAt || form.createdAt, 'dd/MM/yyyy HH:mm')}
@@ -228,7 +186,7 @@ export default function ApprovalPage() {
                                 variant="secondary"
                                 onClick={() => openDetailsModal(form)}
                               >
-                                ดูรายละเอียด
+                                {labels?.viewDetailsButton || 'ดูรายละเอียด'}
                               </Button>
                               {form.status === FormStatus.FINAL && (
                                 <>
@@ -239,16 +197,16 @@ export default function ApprovalPage() {
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                   >
                                     <FiCheckCircle className="h-4 w-4 mr-1" />
-                                    อนุมัติ
+                                    {labels?.approveButton || 'อนุมัติ'}
                                   </Button>
                                   <Button
                                     size="sm"
-                                    variant="danger"
+                                    variant="destructive"
                                     onClick={() => openRejectModal(form)}
                                     className="bg-red-600 hover:bg-red-700 text-white"
                                   >
                                     <FiXCircle className="h-4 w-4 mr-1" />
-                                    ปฏิเสธ
+                                    {labels?.rejectButton || 'ปฏิเสธ'}
                                   </Button>
                                 </>
                               )}
@@ -269,6 +227,7 @@ export default function ApprovalPage() {
           form={selectedFormForDetails}
           isOpen={showDetailsModal}
           onClose={closeDetailsModal}
+          modalConfig={formConfig?.modal}
         />
 
         <ApproveModal
@@ -276,6 +235,7 @@ export default function ApprovalPage() {
           isOpen={showApproveModal}
           onClose={closeApproveModal}
           onConfirm={handleApprove}
+          modalConfig={formConfig?.modal}
         />
 
         <RejectModal
@@ -285,6 +245,7 @@ export default function ApprovalPage() {
           rejectReason={rejectReason}
           setRejectReason={setRejectReason}
           onConfirm={handleReject}
+          modalConfig={formConfig?.modal}
         />
       </div>
     </ProtectedPage>

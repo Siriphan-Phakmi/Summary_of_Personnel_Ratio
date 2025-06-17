@@ -1,5 +1,5 @@
-import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
-import { User, TimestampField } from '@/app/core/types/user';
+import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
 import { Timestamp } from 'firebase/firestore';
 import { format, parse } from 'date-fns';
 
@@ -22,12 +22,12 @@ export const validateFormData = (formData: Partial<WardForm>): {
   missingFields: string[];
   errors: Record<string, string>;
 } => {
-  // Define required fields (excluding comment)
+  // Define required fields based on current WardForm interface
   const requiredNumericFields: (keyof WardForm)[] = [
-    'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
-    'newAdmit', 'transferIn', 'referIn',
-    'transferOut', 'referOut', 'discharge', 'dead',
-    'available', 'unavailable', 'plannedDischarge'
+    'patientCensus', 'admitted', 'discharged', 
+    'transferredIn', 'transferredOut', 'deaths',
+    'onLeave', 'absconded', 'totalBeds',
+    'availableBeds', 'occupiedBeds'
   ];
 
   const requiredStringFields: (keyof WardForm)[] = [
@@ -119,10 +119,10 @@ export const validateFormData = (formData: Partial<WardForm>): {
     }
   });
 
-  // Check if comment is too long (optional field)
-  if (formData.comment && typeof formData.comment === 'string' && formData.comment.length > 500) {
+  // Check if rejectionReason is too long (optional field)
+  if (formData.rejectionReason && typeof formData.rejectionReason === 'string' && formData.rejectionReason.length > 500) {
     isValid = false;
-    errors['comment'] = 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
+    errors['rejectionReason'] = 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
   }
 
   // Return validation result
@@ -140,14 +140,11 @@ export const calculateMorningCensus = (
   previousNightForm: WardForm | null,
   inputData: {
     patientCensus?: number;
-    initialPatientCensus?: number;
-    newAdmit: number;
-    transferIn: number;
-    referIn: number;
-    discharge: number;
-    transferOut: number;
-    referOut: number;
-    dead: number;
+    admitted: number;
+    discharged: number;
+    transferredIn: number;
+    transferredOut: number;
+    deaths: number;
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   
@@ -168,8 +165,8 @@ export const calculateMorningCensus = (
   
   // คำนวณจำนวนผู้ป่วยโดยใช้สูตร: 
   // คงเหลือ = จำนวนเริ่มต้น + รับเข้า - จำหน่าย
-  const totalAdmissions = safeNumber(inputData.newAdmit) + safeNumber(inputData.transferIn) + safeNumber(inputData.referIn);
-  const totalDischarges = safeNumber(inputData.discharge) + safeNumber(inputData.transferOut) + safeNumber(inputData.referOut) + safeNumber(inputData.dead);
+  const totalAdmissions = safeNumber(inputData.admitted) + safeNumber(inputData.transferredIn);
+  const totalDischarges = safeNumber(inputData.discharged) + safeNumber(inputData.transferredOut) + safeNumber(inputData.deaths);
   const calculatedCensus = initialPatientCensus + totalAdmissions - totalDischarges;
 
   // ให้ความสำคัญกับค่าที่ผู้ใช้กรอก ถ้ามี
@@ -190,13 +187,11 @@ export const calculateMorningCensus = (
 export const calculateNightShiftCensus = (
   morningForm: WardForm,
   nightShiftData: {
-    newAdmit: number;
-    transferIn: number;
-    referIn: number;
-    discharge: number;
-    transferOut: number;
-    referOut: number;
-    dead: number;
+    admitted: number;
+    discharged: number;
+    transferredIn: number;
+    transferredOut: number;
+    deaths: number;
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   
@@ -217,8 +212,8 @@ export const calculateNightShiftCensus = (
   
   // คำนวณจำนวนผู้ป่วยโดยใช้สูตร: 
   // คงเหลือ = จำนวนเริ่มต้น + รับเข้า - จำหน่าย
-  const totalAdmissions = safeNumber(nightShiftData.newAdmit) + safeNumber(nightShiftData.transferIn) + safeNumber(nightShiftData.referIn);
-  const totalDischarges = safeNumber(nightShiftData.discharge) + safeNumber(nightShiftData.transferOut) + safeNumber(nightShiftData.referOut) + safeNumber(nightShiftData.dead);
+  const totalAdmissions = safeNumber(nightShiftData.admitted) + safeNumber(nightShiftData.transferredIn);
+  const totalDischarges = safeNumber(nightShiftData.discharged) + safeNumber(nightShiftData.transferredOut) + safeNumber(nightShiftData.deaths);
   const calculatedCensus = initialPatientCensus + totalAdmissions - totalDischarges;
 
   return {
@@ -231,7 +226,7 @@ export const calculateNightShiftCensus = (
 /**
  * สร้าง ID สำหรับแบบฟอร์ม
  */
-export const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus, dateInput: TimestampField): string => {
+export const generateWardFormId = (wardId: string, shift: ShiftType, status: FormStatus, dateInput: Date | Timestamp | string): string => {
   try {
     // Handle null/undefined case
     if (!dateInput) {
@@ -258,7 +253,7 @@ export const generateWardFormId = (wardId: string, shift: ShiftType, status: For
 /**
  * แปลงวันที่เป็น Date object หรือ throw error
  */
-export const normalizeDateOrThrow = (dateInput: TimestampField | undefined): Date => {
+export const normalizeDateOrThrow = (dateInput: Date | Timestamp | string | undefined): Date => {
   if (!dateInput) {
     throw new Error('วันที่ไม่ถูกต้อง: ไม่ได้ระบุวันที่');
   }

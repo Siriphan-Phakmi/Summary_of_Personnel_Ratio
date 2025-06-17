@@ -1,7 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 
 /**
  * สำหรับ development mode เท่านั้น - ใช้สำหรับการ log ข้อมูล

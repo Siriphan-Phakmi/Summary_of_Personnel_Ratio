@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Button } from '@/app/core/ui';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Button } from '@/app/components/ui/Button';
 import { useAuth } from '@/app/features/auth';
 import { useNotificationBell } from '../hooks/useNotificationBell';
 import { BellIcon, NotificationIcon } from './NotificationIcon';
@@ -38,6 +38,7 @@ const NotificationBell: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Memoized handlers for better performance
   const handleToggleDropdown = () => setIsOpen(prev => !prev);
 
   const handleNotificationClick = (notification: any) => {
@@ -51,6 +52,49 @@ const NotificationBell: React.FC = () => {
     e.preventDefault();
     markAsRead(notificationId);
   };
+
+  // Memoized notification list for performance
+  const notificationList = useMemo(() => (
+    notifications.length > 0 ? (
+      <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+        {notifications.map((notification) => (
+          <li key={notification.id} className={getNotificationItemClassName(notification.isRead)}>
+            <a
+              {...getNotificationLinkProps(notification.actionUrl)}
+              onClick={() => handleNotificationClick(notification)}
+              className="block text-sm"
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex items-center mb-1">
+                  <NotificationIcon type={notification.type} />
+                  <span className={getNotificationTitleClassName(notification.isRead)}>
+                    {notification.title}
+                  </span>
+                </div>
+                {!notification.isRead && notification.id && (
+                  <button 
+                    onClick={(e) => handleMarkAsReadClick(e, notification.id!)}
+                    className="text-xs text-blue-500 hover:underline ml-2 whitespace-nowrap"
+                    aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
+                  >
+                    อ่านแล้ว
+                  </button>
+                )}
+              </div>
+              <p className={getNotificationMessageClassName(notification.isRead)}>
+                {notification.message}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                {formatTimestamp(notification.createdAt)}
+              </p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <div className="p-4 text-center text-gray-500 dark:text-gray-400">ไม่มีการแจ้งเตือน</div>
+    )
+  ), [notifications, handleNotificationClick, handleMarkAsReadClick]);
 
   // Don't render if user not logged in
   if (!user) return null;
@@ -86,47 +130,7 @@ const NotificationBell: React.FC = () => {
             <div className="p-4 text-center text-red-500">เกิดข้อผิดพลาด: {error}</div>
           )}
           
-          {!isLoading && !error && notifications.length === 0 && (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">ไม่มีการแจ้งเตือน</div>
-          )}
-          
-          {!isLoading && !error && notifications.length > 0 && (
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-              {notifications.map((notification) => (
-                <li key={notification.id} className={getNotificationItemClassName(notification.isRead)}>
-                  <a
-                    {...getNotificationLinkProps(notification.actionUrl)}
-                    onClick={() => handleNotificationClick(notification)}
-                    className="block text-sm"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center mb-1">
-                        <NotificationIcon type={notification.type} />
-                        <span className={getNotificationTitleClassName(notification.isRead)}>
-                          {notification.title}
-                        </span>
-                      </div>
-                      {!notification.isRead && notification.id && (
-                        <button 
-                          onClick={(e) => handleMarkAsReadClick(e, notification.id!)}
-                          className="text-xs text-blue-500 hover:underline ml-2 whitespace-nowrap"
-                          aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
-                        >
-                          อ่านแล้ว
-                        </button>
-                      )}
-                    </div>
-                    <p className={getNotificationMessageClassName(notification.isRead)}>
-                      {notification.message}
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      {formatTimestamp(notification.createdAt)}
-                    </p>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
+          {!isLoading && !error && notificationList}
         </div>
       )}
     </div>

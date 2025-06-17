@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import { WardForm } from '@/app/features/ward-form/types/ward';
 
 /**
  * ข้อมูลสรุปของแผนกสำหรับหน้า Dashboard
@@ -13,58 +14,12 @@ export interface DashboardSummary {
   /** วันที่ในรูปแบบข้อความ */
   dateString: string;
   /** ข้อมูลแบบฟอร์มกะเช้า */
-  morningForm?: WardFormData;
+  morningForm?: WardForm;
   /** ข้อมูลแบบฟอร์มกะดึก */
-  nightForm?: WardFormData;
+  nightForm?: WardForm;
   /** จำนวนผู้ป่วยรวมทั้งวัน */
   dailyPatientCensus: number;
 }
-
-/**
- * ข้อมูลในแบบฟอร์มของแผนก
- */
-export interface WardFormData {
-  /** รหัสแบบฟอร์ม */
-  id?: string;
-  /** จำนวนผู้ป่วย */
-  patientCensus: number;
-  /** จำนวนผู้ป่วยที่คำนวณได้ */
-  calculatedCensus?: number;
-  /** จำนวนหัวหน้าเวร */
-  nurseManager: number;
-  /** จำนวนพยาบาลวิชาชีพ */
-  rn: number;
-  /** จำนวนพยาบาลเทคนิค */
-  pn: number;
-  /** จำนวนผู้ช่วยพยาบาล */
-  wc: number;
-  /** จำนวนรับใหม่ */
-  newAdmit: number;
-  /** จำนวนรับย้าย */
-  transferIn: number;
-  /** จำนวนรับ refer */
-  referIn: number;
-  /** จำนวนจำหน่าย */
-  discharge: number;
-  /** จำนวนส่งย้าย */
-  transferOut: number;
-  /** จำนวนส่ง refer */
-  referOut: number;
-  /** จำนวนเสียชีวิต */
-  dead: number;
-  /** จำนวนเตียงว่าง */
-  available: number;
-  /** จำนวนเตียงไม่ว่าง */
-  unavailable: number;
-  /** จำนวนที่วางแผนจำหน่าย */
-  plannedDischarge: number;
-  /** จำนวนรับเข้ารวม */
-  admitTotal?: number;
-  /** จำนวนจำหน่ายรวม */
-  dischargeTotal?: number;
-  /** จำนวนผู้ป่วยเริ่มต้น */
-  initialPatientCensus?: number;
-} 
 
 /**
  * Data structure for daily patient counts, used in comparison views.
@@ -77,4 +32,28 @@ export interface DailyPatientData {
   morningPatientCount: number;
   nightPatientCount: number;
   totalPatientCount: number;
+}
+
+/**
+ * Data structure for shift-specific summaries.
+ */
+export interface ShiftSummaryData {
+  patientCensus: number;
+  admitted: number;
+  discharged: number;
+  transferredIn: number;
+  transferredOut: number;
+  deaths: number;
+}
+
+/**
+ * Represents the comprehensive summary data for a ward, including both shifts.
+ * This is used for the main summary table.
+ */
+export interface WardSummaryDataWithShifts {
+  wardId: string;
+  wardName: string;
+  morningShiftData: ShiftSummaryData;
+  nightShiftData: ShiftSummaryData;
+  totalData: ShiftSummaryData;
 } 

@@ -1,6 +1,6 @@
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/app/core/firebase/firebase';
-import { User } from '@/app/core/types/user';
+import { db } from '@/app/lib/firebase/firebase';
+import { User } from '@/app/features/auth/types/user';
 
 /**
  * ดึงข้อมูลผู้ใช้จาก Firestore ด้วย user ID

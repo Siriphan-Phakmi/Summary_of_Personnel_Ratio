@@ -28,14 +28,7 @@ export interface EnhancedBarChartProps {
  */
 export interface EnhancedPieChartProps {
   /** ข้อมูลสำหรับแสดงในกราฟวงกลม */
-  data: {
-    /** รหัสแผนก */
-    id: string;
-    /** ชื่อแผนก */
-    wardName: string;
-    /** จำนวนผู้ป่วย */
-    patientCount: number;
-  }[];
+  data: PieChartDataItem[];
   /** รหัสแผนกที่เลือก */
   selectedWardId: string | null;
   /** ฟังก์ชันเมื่อเลือกแผนก */
@@ -74,12 +67,14 @@ export interface PieChartDataItem {
   id: string;
   /** ชื่อแผนก */
   wardName: string;
+  /** ชื่อสำหรับแสดงใน chart */
+  name?: string;
   /** จำนวนเตียงว่าง */
   value: number;
   /** จำนวนเตียงทั้งหมด */
-  total: number;
+  total?: number;
   /** จำนวนเตียงไม่ว่าง */
-  unavailable: number;
+  unavailable?: number;
   /** จำนวนเตียงที่วางแผนจำหน่าย */
-  plannedDischarge: number;
+  plannedDischarge?: number;
 } 

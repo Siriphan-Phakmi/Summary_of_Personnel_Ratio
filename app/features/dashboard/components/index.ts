@@ -1,7 +1,6 @@
-import DashboardPage from './DashboardPage';
+import RefactoredDashboardPage from './RefactoredDashboardPage';
 import WardDataTable from './WardDataTable';
 import WardSummaryStats from './WardSummaryStats';
-import ShiftComparison from './ShiftComparison';
 import EnhancedBarChart from './EnhancedBarChart';
 import EnhancedPieChart from './EnhancedPieChart';
 import PatientTrendChart from './PatientTrendChart';
@@ -23,14 +22,12 @@ import WardCensusButtons from './WardCensusButtons';
 import DashboardHeader from './DashboardHeader';
 import DashboardCalendar from './DashboardCalendar';
 import PatientCensusSection from './PatientCensusSection';
-import RefactoredDashboardPage from './RefactoredDashboardPage';
 
 // Export all components
 export {
-  DashboardPage,
+  RefactoredDashboardPage,
   WardDataTable,
   WardSummaryStats,
-  ShiftComparison,
   EnhancedBarChart,
   EnhancedPieChart,
   PatientTrendChart,
@@ -52,11 +49,12 @@ export {
   DashboardHeader,
   DashboardCalendar,
   PatientCensusSection,
-  RefactoredDashboardPage
 };
 
 // Export types
 export * from './types';
 
 // Export section components
-export * from './sections'; 
+export * from './sections';
+
+export { default as DashboardPage } from './RefactoredDashboardPage'; 

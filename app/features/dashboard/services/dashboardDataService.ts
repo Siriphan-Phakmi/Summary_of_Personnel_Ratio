@@ -1,7 +1,7 @@
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
-import { DashboardSummary, WardFormData } from '../components/types/interface-types';
+import { User } from '@/app/features/auth/types/user';
+import { Ward, WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
+import { DashboardSummary } from '../components/types/interface-types';
 import { getWardFormsByDateAndWard, getDailySummary } from './index';
 import { fetchTotalStats, fetchAllWardCensus, fetchPatientTrends } from './index';
 import { logInfo, logError } from '../utils';
@@ -30,25 +30,27 @@ export const fetchWardForms = async (
     logInfo(`[fetchWardForms] Selected Date:`, date);
     logInfo(`[fetchWardForms] Using dailySummaries:`, useDailySummaries);
     
-    let morning: WardFormData | null = null;
-    let night: WardFormData | null = null;
+    let morning: WardForm | null = null;
+    let night: WardForm | null = null;
     
     if (useDailySummaries) {
       // ลองดึงข้อมูลจาก dailySummaries ก่อน
       const summaryResult = await getDailySummary(wardId, date);
-      morning = summaryResult.morning;
-      night = summaryResult.night;
+      morning = summaryResult.morning as WardForm | null;
+      night = summaryResult.night as WardForm | null;
       
       // ถ้าไม่พบข้อมูลใน dailySummaries ให้ลองดึงจาก wardForms
       if (!morning && !night) {
         logInfo('[fetchWardForms] No data found in dailySummaries. Falling back to wardForms...');
-        const formsResult = await getWardFormsByDateAndWard(wardId, date);
-        morning = formsResult.morning;
-        night = formsResult.night;
+        const formsResult = await getWardFormsByDateAndWard(new Date(date), wardId);
+        morning = formsResult.find(form => form.shift === ShiftType.MORNING) || null;
+        night = formsResult.find(form => form.shift === ShiftType.NIGHT) || null;
       }
     } else {
       // ดึงข้อมูลจากแบบฟอร์มโดยตรง
-      const { morning: morningForm, night: nightForm } = await getWardFormsByDateAndWard(wardId, date);
+      const formsResult = await getWardFormsByDateAndWard(new Date(date), wardId);
+      const morningForm = formsResult.find(form => form.shift === ShiftType.MORNING) || null;
+      const nightForm = formsResult.find(form => form.shift === ShiftType.NIGHT) || null;
       morning = morningForm;
       night = nightForm;
     }

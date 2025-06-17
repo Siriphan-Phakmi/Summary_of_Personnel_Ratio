@@ -5,9 +5,9 @@ import {
 } from '../services';
 import { logError, calculateBedSummary } from '../utils';
 import { CalendarMarker } from '../components/types';
-import { PieChartDataItem } from '../components/EnhancedPieChart';
+import { PieChartDataItem } from '../components/types/chart-types';
 import { Event } from '../components/CalendarWithEvents';
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 
 export const useDataFetching = (
   selectedDate: string, 

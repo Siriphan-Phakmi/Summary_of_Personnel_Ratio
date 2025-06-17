@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { User, UserRole } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { fetchPatientTrends } from '../services/patientTrendService';
 import { logInfo, logError } from '../utils/loggingUtils';
 

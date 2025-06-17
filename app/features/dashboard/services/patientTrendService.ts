@@ -1,15 +1,14 @@
 'use client';
 
-import { db } from '@/app/core/firebase/firebase';
+import { db } from '@/app/lib/firebase/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { COLLECTION_SUMMARIES } from '@/app/features/ward-form/services/constants';
 import { format, parseISO, isEqual } from 'date-fns';
-import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { logError, logInfo } from '../utils/loggingUtils';
 import { getAllWards } from './wardDataService';
 import { DailyPatientData } from '../components/types';
-import { UserRole } from '@/app/core/types/user';
 import { subDays } from 'date-fns';
 
 /**
@@ -99,7 +98,7 @@ export const fetchPatientTrends = async (
       
       // หาชื่อ ward
       const ward = wards.find(w => w.id?.toUpperCase() === dataWardId?.toUpperCase());
-      const wardName = ward?.wardName || dataWardId || 'Unknown';
+      const wardName = ward?.name || dataWardId || 'Unknown';
       
       // สร้างหรืออัปเดตข้อมูลของ ward
       if (!dateEntry.wardData[dataWardId]) {

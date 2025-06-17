@@ -11,18 +11,17 @@ import {
   getDocs,
   orderBy
 } from 'firebase/firestore';
-import { db } from '@/app/core/firebase/firebase';
-import { WardForm, FormStatus, FormApproval } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
-import { ApprovalHistoryRecord } from '@/app/core/types/approval';
+import { db } from '@/app/lib/firebase/firebase';
+import { WardForm, FormStatus, FormApproval } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
+import { ApprovalHistoryRecord } from '@/app/features/ward-form/types/approval';
 import { 
   COLLECTION_WARDFORMS, 
   COLLECTION_APPROVALS, 
   COLLECTION_SUMMARIES, 
   COLLECTION_HISTORY 
 } from '../constants';
-import { checkAndCreateDailySummary } from './dailySummary';
-import { createServerTimestamp } from '@/app/core/utils/dateUtils';
+import { checkAndCreateDailySummary } from './dailySummaryService';
 import { format } from 'date-fns';
 
 /**
@@ -99,12 +98,12 @@ export const approveForm = async (
       formId,
       wardId: formData.wardId,
       wardName: formData.wardName,
-        date: formDateForHistory, // Use the converted timestamp
+      date: formDateForHistory, // Use the converted timestamp
       shift: formData.shift,
-        action: 'APPROVED',
-        actorUid: approver.uid,
-        actorName: `${approver.firstName || ''} ${approver.lastName || ''}`.trim(),
-        timestamp: Timestamp.fromDate(now), // Use consistent client-side time for history record if needed, or serverTime
+      action: 'APPROVED',
+      actorUid: approver.uid,
+      actorName: `${approver.firstName || ''} ${approver.lastName || ''}`.trim(),
+      timestamp: Timestamp.fromDate(now), // Use consistent client-side time for history record if needed, or serverTime
     };
     // Use setDoc with custom ID instead of addDoc
     await setDoc(doc(db, COLLECTION_HISTORY, customHistoryId), historyRecord);

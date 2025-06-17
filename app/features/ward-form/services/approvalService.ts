@@ -3,9 +3,9 @@
  * @description Service หลักสำหรับการจัดการการอนุมัติข้อมูลและสรุปรายวัน
  */
 
-import { User, UserRole } from '@/app/core/types/user';
-import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
-import { DailySummary, ApprovalRecord } from '@/app/core/types/approval';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
+import { DailySummary } from '@/app/features/ward-form/types/approval';
 import { format } from 'date-fns';
 
 // นำเข้าฟังก์ชันจากโมดูลย่อย
@@ -14,7 +14,6 @@ import {
   rejectForm, 
   getPendingForms, 
   getPendingFormsByUserPermission,
-  updateDailySummary,
   getDailySummaries
 } from './approvalServices/index';
 
@@ -71,15 +70,16 @@ export const getApprovalsByUserPermission = async (
  * @param formId รหัสแบบฟอร์ม
  * @param approver ข้อมูลผู้อนุมัติ
  * @param modifiedData ข้อมูลที่แก้ไขก่อนอนุมัติ (ถ้ามี)
- * @returns รหัสของการอนุมัติ
+ * @returns Promise ที่ resolve เมื่อทำเสร็จ
  */
 export const approveWardForm = async (
   formId: string,
   approver: User,
   modifiedData?: Partial<WardForm>
-): Promise<string> => {
+): Promise<void> => {
   try {
-    return await approveForm(formId, approver, modifiedData);
+    // approveForm is expected to be void
+    await approveForm(formId, approver, modifiedData);
   } catch (error) {
     console.error('Error approving ward form:', error);
     throw error;
@@ -91,78 +91,18 @@ export const approveWardForm = async (
  * @param formId รหัสแบบฟอร์ม
  * @param approver ข้อมูลผู้อนุมัติ
  * @param reason เหตุผลในการปฏิเสธ
- * @returns รหัสของการปฏิเสธ
+ * @returns Promise ที่ resolve เมื่อทำเสร็จ
  */
 export const rejectWardForm = async (
   formId: string,
   approver: User,
   reason: string
-): Promise<string> => {
+): Promise<void> => {
   try {
-    return await rejectForm(formId, approver, reason);
+    // Corrected to pass the full User object as expected by rejectForm
+    await rejectForm(formId, reason, approver);
   } catch (error) {
     console.error('Error rejecting ward form:', error);
-    throw error;
-  }
-};
-
-/**
- * บันทึกข้อมูลสรุป 24 ชั่วโมง
- * @param date วันที่
- * @param wardId รหัสแผนก
- * @param morningForm ข้อมูลแบบฟอร์มกะเช้า
- * @param nightForm ข้อมูลแบบฟอร์มกะดึก
- * @param user ข้อมูลผู้บันทึก
- * @param summaryData ข้อมูลสรุป 24 ชั่วโมง
- * @returns รหัสของข้อมูลสรุป
- */
-export const saveDailySummary = async (
-  date: Date,
-  wardId: string,
-  morningForm: WardForm,
-  nightForm: WardForm,
-  user: User,
-  summaryData: {
-    opd24hr: number;
-    oldPatient: number;
-    newPatient: number;
-    admit24hr: number;
-    supervisorFirstName: string;
-    supervisorLastName: string;
-  }
-): Promise<string> => {
-  try {
-    // สร้างข้อมูลสำหรับอัพเดท
-    const updateData: Partial<DailySummary> = {
-      // ข้อมูลผู้ป่วย 24 ชั่วโมง
-      opd24hr: summaryData.opd24hr,
-      oldPatient: summaryData.oldPatient,
-      newPatient: summaryData.newPatient,
-      admit24hr: summaryData.admit24hr,
-      
-      // ข้อมูลผู้บันทึก
-      supervisorFirstName: summaryData.supervisorFirstName,
-      supervisorLastName: summaryData.supervisorLastName,
-      
-      // อัพเดทข้อมูลการบันทึก
-      finalizedAt: new Date(),
-      finalizedBy: user.uid,
-      
-      // สถานะการสรุป
-      summaryCompleted: true
-    } as Partial<DailySummary>;
-    
-    // บันทึกข้อมูลสรุป
-    return await updateDailySummary(
-      date,
-      wardId,
-      morningForm,
-      nightForm,
-      user,
-      updateData
-    );
-  } catch (error) {
-    console.error('Error saving daily summary:', error);
     throw error;
   }
 };

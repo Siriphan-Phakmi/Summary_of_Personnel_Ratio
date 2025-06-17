@@ -1,9 +1,9 @@
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { WardCensusData, DailyPatientData } from '../components/types';
 import { logInfo, logError } from './loggingUtils';
 import { parseISO, format, subDays } from 'date-fns';
 import { fetchPatientTrends } from '../services/patientTrendService';
-import { User, UserRole } from '@/app/core/types/user';
+import { User, UserRole } from '@/app/features/auth/types/user';
 
 /**
  * รายชื่อแผนกที่ต้องการให้แสดงใน Dashboard

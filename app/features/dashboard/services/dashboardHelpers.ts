@@ -1,9 +1,9 @@
 'use client';
 
-import { Ward, WardForm } from '@/app/core/types/ward';
-import { User, UserRole } from '@/app/core/types/user';
+import { Ward, WardForm } from '@/app/features/ward-form/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { fetchAllWardCensus as fetchAllWardCensusFromWardForm } from '@/app/features/ward-form/services/wardFormService';
-import { Logger } from '@/app/core/utils/logger';
+import { Logger } from '@/app/lib/utils/logger';
 
 /**
  * ดึงข้อมูล Census ของทุก Ward สำหรับ Dashboard
@@ -15,8 +15,17 @@ export const fetchAllWardCensusForDashboard = async (selectedDate: string): Prom
     Logger.info(`[fetchAllWardCensusForDashboard] Fetching census data for date: ${selectedDate}`);
     
     // ใช้ function จาก ward-form service ที่มี offline handling แล้ว
-    const censusMap = await fetchAllWardCensusFromWardForm(selectedDate);
+    // ฟังก์ชันนี้ไม่ต้องการพารามิเตอร์ และจะ trả về ข้อมูลล่าสุดเสมอ
+    const censusData = await fetchAllWardCensusFromWardForm();
     
+    // แปลง array of objects เป็น Map
+    const censusMap = new Map<string, number>();
+    censusData.forEach(item => {
+      if (item && item.wardId && typeof item.patientCensus === 'number') {
+        censusMap.set(item.wardId, item.patientCensus);
+      }
+    });
+
     Logger.info(`[fetchAllWardCensusForDashboard] Successfully fetched census data for ${censusMap.size} wards`);
     return censusMap;
     
@@ -85,12 +94,12 @@ export const calculateTotalStats = (forms: WardForm[]) => {
   
   forms.forEach(form => {
     if (form.patientCensus) stats.totalPatients += form.patientCensus;
-    if (form.newAdmit) stats.totalAdmissions += form.newAdmit;
-    if (form.discharge) stats.totalDischarges += form.discharge;
-    if (form.dead) stats.totalDeaths += form.dead;
+    if (form.admitted) stats.totalAdmissions += form.admitted;
+    if (form.discharged) stats.totalDischarges += form.discharged;
+    if (form.deaths) stats.totalDeaths += form.deaths;
     
     // คำนวณ admit24hr
-    const admissions = (form.newAdmit || 0) + (form.transferIn || 0) + (form.referIn || 0);
+    const admissions = (form.admitted || 0) + (form.transferredIn || 0);
     stats.admit24hr += admissions;
   });
   
@@ -110,62 +119,28 @@ export const transformWardDataForDisplay = (
   nightForm: WardForm | null
 ) => {
   const morningShift = morningForm ? {
-    patientCensus: morningForm.patientCensus || 0,
-    nurseManager: morningForm.nurseManager || 0,
-    rn: morningForm.rn || 0,
-    pn: morningForm.pn || 0,
-    wc: morningForm.wc || 0,
-    newAdmit: morningForm.newAdmit || 0,
-    transferIn: morningForm.transferIn || 0,
-    referIn: morningForm.referIn || 0,
-    discharge: morningForm.discharge || 0,
-    transferOut: morningForm.transferOut || 0,
-    referOut: morningForm.referOut || 0,
-    dead: morningForm.dead || 0,
-    available: morningForm.available || 0,
-    unavailable: morningForm.unavailable || 0,
-    plannedDischarge: morningForm.plannedDischarge || 0
+    ...morningForm
   } : undefined;
   
   const nightShift = nightForm ? {
-    patientCensus: nightForm.patientCensus || 0,
-    nurseManager: nightForm.nurseManager || 0,
-    rn: nightForm.rn || 0,
-    pn: nightForm.pn || 0,
-    wc: nightForm.wc || 0,
-    newAdmit: nightForm.newAdmit || 0,
-    transferIn: nightForm.transferIn || 0,
-    referIn: nightForm.referIn || 0,
-    discharge: nightForm.discharge || 0,
-    transferOut: nightForm.transferOut || 0,
-    referOut: nightForm.referOut || 0,
-    dead: nightForm.dead || 0,
-    available: nightForm.available || 0,
-    unavailable: nightForm.unavailable || 0,
-    plannedDischarge: nightForm.plannedDischarge || 0
+    ...nightForm
   } : undefined;
   
   return {
     id: ward.id!,
-    wardName: ward.wardName,
+    wardName: ward.name,
     morningShift,
     nightShift,
     totalData: {
       patientCensus: morningShift?.patientCensus || nightShift?.patientCensus || 0,
-      nurseManager: (morningShift?.nurseManager || 0) + (nightShift?.nurseManager || 0),
-      rn: (morningShift?.rn || 0) + (nightShift?.rn || 0),
-      pn: (morningShift?.pn || 0) + (nightShift?.pn || 0),
-      wc: (morningShift?.wc || 0) + (nightShift?.wc || 0),
-      newAdmit: (morningShift?.newAdmit || 0) + (nightShift?.newAdmit || 0),
-      transferIn: (morningShift?.transferIn || 0) + (nightShift?.transferIn || 0),
-      referIn: (morningShift?.referIn || 0) + (nightShift?.referIn || 0),
-      discharge: (morningShift?.discharge || 0) + (nightShift?.discharge || 0),
-      transferOut: (morningShift?.transferOut || 0) + (nightShift?.transferOut || 0),
-      referOut: (morningShift?.referOut || 0) + (nightShift?.referOut || 0),
-      dead: (morningShift?.dead || 0) + (nightShift?.dead || 0),
-      available: (morningShift?.available || 0) + (nightShift?.available || 0),
-      unavailable: (morningShift?.unavailable || 0) + (nightShift?.unavailable || 0),
-      plannedDischarge: (morningShift?.plannedDischarge || 0) + (nightShift?.plannedDischarge || 0)
+      admitted: (morningShift?.admitted || 0) + (nightShift?.admitted || 0),
+      discharged: (morningShift?.discharged || 0) + (nightShift?.discharged || 0),
+      transferredIn: (morningShift?.transferredIn || 0) + (nightShift?.transferredIn || 0),
+      transferredOut: (morningShift?.transferredOut || 0) + (nightShift?.transferredOut || 0),
+      deaths: (morningShift?.deaths || 0) + (nightShift?.deaths || 0),
+      totalBeds: morningShift?.totalBeds || nightShift?.totalBeds || 0,
+      occupiedBeds: morningShift?.occupiedBeds || nightShift?.occupiedBeds || 0,
+      availableBeds: morningShift?.availableBeds || nightShift?.availableBeds || 0,
     }
   };
 };

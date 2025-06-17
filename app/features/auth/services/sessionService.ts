@@ -1,5 +1,5 @@
 import { ref, remove } from 'firebase/database';
-import { rtdb } from '@/app/core/firebase/firebase';
+import { rtdb } from '@/app/lib/firebase/firebase';
 
 export const clearAllUserSessions = async (userId: string): Promise<void> => {
   try {

@@ -1,11 +1,10 @@
 'use client';
 
-import { db } from '@/app/core/firebase/firebase';
+import { db } from '@/app/lib/firebase/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { COLLECTION_SUMMARIES } from '@/app/features/ward-form/services/constants';
-import { getApprovedSummariesByDateRange } from '@/app/features/ward-form/services/approvalServices/dailySummary';
-import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
+import { User } from '@/app/features/auth/types/user';
+import { Ward, FormStatus } from '@/app/features/ward-form/types/ward';
 import { logError, logInfo } from '../utils/loggingUtils';
 
 /**
@@ -21,9 +20,18 @@ export const getDailySummary = async (wardId: string, dateString: string) => {
     // แปลง wardId เป็นตัวพิมพ์ใหญ่เพื่อให้ตรงกับข้อมูลในฐานข้อมูล
     const formattedWardId = wardId.toUpperCase();
     
-    // ใช้ getApprovedSummariesByDateRange แทนการ query โดยตรง
-    const summaries = await getApprovedSummariesByDateRange(formattedWardId, dateString, dateString);
-    logInfo(`[getDailySummary] Found ${summaries.length} summaries using getApprovedSummariesByDateRange`);
+    // สร้าง Query เพื่อดึงข้อมูล Summary ที่ได้รับการอนุมัติแล้ว
+    const q = query(
+      collection(db, COLLECTION_SUMMARIES),
+      where('wardId', '==', formattedWardId),
+      where('dateString', '==', dateString),
+      where('status', '==', FormStatus.APPROVED) // เพิ่มเงื่อนไขสถานะ
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const summaries = querySnapshot.docs.map(doc => doc.data());
+
+    logInfo(`[getDailySummary] Found ${summaries.length} summaries`);
     
     if (summaries.length > 0) {
       const summary = summaries[0]; // เลือกรายการแรก (ล่าสุด)

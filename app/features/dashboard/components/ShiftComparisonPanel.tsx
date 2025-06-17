@@ -3,6 +3,7 @@
 import React from 'react';
 import { ShiftComparisonPanelProps } from './types/componentInterfaces';
 import NoDataMessage from './NoDataMessage';
+import StatCard from './ui/StatCard';
 
 const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
   selectedWardId,
@@ -15,13 +16,6 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
 
   const selectedWard = wards.find(w => w.id === selectedWardId);
   const dataForDate = patientData.find(d => d.date === selectedDate && d.wardId === selectedWardId);
-
-  const StatCard = ({ title, value, color }: { title: string; value: string | number; color: string }) => (
-    <div className={`bg-${color}-50 dark:bg-${color}-900/30 p-4 rounded-lg shadow-sm border border-${color}-200 dark:border-${color}-800`}>
-      <h3 className={`text-lg font-semibold mb-2 text-${color}-700 dark:text-${color}-300`}>{title}</h3>
-      <p className={`text-3xl font-bold text-${color}-800 dark:text-${color}-200`}>{value} <span className="text-base font-medium">คน</span></p>
-    </div>
-  );
 
   return (
     <div className="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-md">
@@ -39,7 +33,7 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
             <option value="">-- เลือกแผนก --</option>
             {wards.map(ward => (
               <option key={ward.id} value={ward.id || ''}>
-                {ward.wardName}
+                {ward.name}
               </option>
             ))}
           </select>
@@ -53,11 +47,11 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
       ) : selectedWardId && dataForDate ? (
         <div>
           <h3 className="text-lg font-semibold text-center text-gray-700 dark:text-gray-200 mb-4">
-            ข้อมูลสำหรับวันที่ {selectedDate} - แผนก {selectedWard?.wardName}
+            ข้อมูลสำหรับวันที่ {selectedDate} - แผนก {selectedWard?.name}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <StatCard title="เวรเช้า" value={dataForDate.morningPatientCount} color="blue" />
-            <StatCard title="เวรดึก" value={dataForDate.nightPatientCount} color="indigo" />
+            <StatCard title="เวรดึก" value={dataForDate.nightPatientCount} color="purple" />
           </div>
            <div className="mt-4 text-center">
                 <p className="text-gray-600 dark:text-gray-400">

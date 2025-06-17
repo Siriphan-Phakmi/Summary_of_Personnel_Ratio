@@ -1,11 +1,11 @@
 'use client';
 
-import { Ward } from '@/app/core/types/ward';
-import { db } from '@/app/core/firebase/firebase';
+import { Ward } from '@/app/features/ward-form/types/ward';
+import { db } from '@/app/lib/firebase/firebase';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { logError, logInfo } from '../utils/loggingUtils';
 import { getWardsByUserPermission as getWardsByUserPermissionOriginal, getAllWards as getAllWardsOriginal } from '@/app/features/ward-form/services/wardService';
-import { User } from '@/app/core/types/user';
+import { User } from '@/app/features/auth/types/user';
 
 /**
  * ดึงข้อมูล Ward ตาม ID

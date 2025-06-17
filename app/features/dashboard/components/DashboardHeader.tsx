@@ -1,11 +1,11 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { Ward } from '@/app/core/types/ward';
-import { User, UserRole } from '@/app/core/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { getThaiDayName } from '../utils/dateUtils';
 
 interface DashboardHeaderProps {
-  selectedDate: string;
+  selectedDate: Date;
   dateRange: string;
   startDate: string;
   endDate: string;
@@ -36,16 +36,16 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const isRegularUser = user?.role !== UserRole.ADMIN && 
                         user?.role !== UserRole.SUPER_ADMIN && 
                         user?.role !== UserRole.DEVELOPER;
-
+  const formattedDate = format(selectedDate, 'yyyy-MM-dd');
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Dashboard</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          วันที่ {selectedDate} ({getThaiDayName(selectedDate)})
+          วันที่ {formattedDate} ({getThaiDayName(formattedDate)})
           {isRegularUser && user?.floor && (
             <span className="ml-2 text-blue-500">
-              [แผนก {wards.find(w => w.id?.toUpperCase() === user.floor?.toUpperCase())?.wardName || user.floor}]
+              [แผนก {wards.find(w => w.id?.toUpperCase() === user.floor?.toUpperCase())?.name || user.floor}]
             </span>
           )}
         </p>

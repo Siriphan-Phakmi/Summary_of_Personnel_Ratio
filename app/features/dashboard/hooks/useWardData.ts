@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Ward } from '@/app/core/types/ward';
-import { User, UserRole } from '@/app/core/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { getWardsByUserPermission, getAllWards } from '@/app/features/ward-form/services/wardService';
 import { logInfo, logError } from './useSafeLogging';
 
@@ -34,12 +34,12 @@ export const useWardData = (user: User | null, dashboardWards: string[]) => {
         // กรองเฉพาะ ward ที่กำหนดไว้ใน dashboardWards
         const userDashboardWards = userPermittedWards.filter(ward => 
           dashboardWards.some(dashboardWard => 
-            ward.wardName.toUpperCase().includes(dashboardWard.toUpperCase()) || 
+            ward.name.toUpperCase().includes(dashboardWard.toUpperCase()) || 
             ward.id?.toUpperCase() === dashboardWard.toUpperCase()
           )
         );
         
-        logInfo("[useWardData] Showing permitted wards:", userDashboardWards.map(w => w.wardName));
+        logInfo("[useWardData] Showing permitted wards:", userDashboardWards.map(w => w.name));
         setWards(userDashboardWards);
         
         // ถ้ามีแผนกอย่างน้อย 1 แผนก ให้เลือกแผนกแรกเป็นค่าเริ่มต้น

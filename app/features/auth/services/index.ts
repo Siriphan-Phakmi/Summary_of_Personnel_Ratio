@@ -1,6 +1,3 @@
-// Export auth services
-export * from '@/app/core/services/AuthService';
-
 // Role services
 export * from './roleService';
 

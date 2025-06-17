@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
+import { User } from '@/app/features/auth/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { DailyPatientData } from '../components/types';
 import { fetchDailyPatientDataWrapper } from '../utils/dashboardUtils';
 import { logError } from '../utils/loggingUtils';

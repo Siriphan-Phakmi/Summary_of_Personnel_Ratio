@@ -41,8 +41,59 @@ const roleBasedRoutes = {
 };
 
 export function middleware(request: NextRequest) {
-  // ดึงเส้นทางของ request
   const { pathname } = request.nextUrl;
+  
+  // --- START: API Route Passthrough ---
+  // หากเป็น API route ให้ข้ามการทำงานของ middleware ทั้งหมด
+  // เพื่อป้องกันการ redirect ที่ไม่จำเป็น และปล่อยให้ API handler จัดการเอง
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+  // --- END: API Route Passthrough ---
+
+  const authToken = request.cookies.get('auth_token')?.value;
+  const userCookie = request.cookies.get('user_data')?.value;
+
+  // --- START: Redirect authenticated users from root ---
+  // เพิ่มประสิทธิภาพโดยการย้าย Redirect จาก client-side (app/page.tsx) มาที่นี่
+  if (pathname === '/' && authToken && userCookie) {
+    try {
+      type UserData = { role?: string };
+      const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
+      const userRole = userData.role;
+
+      if (userRole) {
+        const redirectPath = getLandingRedirectPathByRole(userRole);
+        console.log(`[BPK-SERVER] Authenticated user at root. Redirecting to: ${redirectPath}`);
+        return NextResponse.redirect(new URL(redirectPath, request.url));
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[BPK-SERVER] Middleware: Could not parse user data cookie for root redirect. Error: ${error}`);
+      }
+      // หาก parsing cookie ไม่สำเร็จ ปล่อยให้ flow เดิมทำงาน (ซึ่งจะ redirect ไป /login)
+    }
+  }
+  
+  // เพิ่มการตรวจสอบ: ถ้าผู้ใช้ล็อกอินแล้วพยายามเข้า /login ให้ redirect ไปที่หน้าหลักตาม role
+  if (pathname === '/login' && authToken && userCookie) {
+    try {
+      type UserData = { role?: string };
+      const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
+      const userRole = userData.role;
+
+      if (userRole) {
+        const redirectPath = getLandingRedirectPathByRole(userRole);
+        return NextResponse.redirect(new URL(redirectPath, request.url));
+      }
+    } catch (error) {
+      // หากมีข้อผิดพลาด ปล่อยให้ flow ปกติทำงาน
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[BPK-SERVER] Error redirecting from login: ${error}`);
+      }
+    }
+  }
+  // --- END: Redirect authenticated users from root ---
   
   // แสดง log เฉพาะใน development mode เท่านั้น
   if (process.env.NODE_ENV === 'development') {
@@ -58,9 +109,6 @@ export function middleware(request: NextRequest) {
   // ตรวจสอบการยืนยันตัวตนสำหรับเส้นทางที่ต้องการการป้องกัน
   if (isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
     // ตรวจสอบว่ามี auth token หรือไม่
-    const authToken = request.cookies.get('auth_token')?.value;
-    const userCookie = request.cookies.get('user_data')?.value;
-    
     if (!authToken) {
       // ถ้าไม่มี token ให้ redirect ไปยังหน้า login
       const url = new URL('/login', request.url);
@@ -133,6 +181,25 @@ function getRoleRequirement(pathname: string): string[] | null {
   return null;
 }
 
+// ฟังก์ชันหา redirect path ตาม role สำหรับการเข้าหน้าแรก
+function getLandingRedirectPathByRole(role: string): string {
+  switch (role) {
+    case 'admin':
+    case 'super_admin':
+    case 'developer':
+      return '/features/dashboard';
+    case 'nurse':
+    case 'ward_clerk':
+    case 'approver':
+    case 'head_nurse':
+    case 'supervisor':
+      return '/census/form';
+    default:
+      // สำหรับ role อื่นๆ หรือกรณีไม่มี role ให้ไปหน้า login เพื่อความปลอดภัย
+      return '/login';
+  }
+}
+
 // ฟังก์ชันหา redirect path ตาม role
 function getRedirectPathByRole(role: string): string {
   switch (role) {
@@ -152,7 +219,16 @@ function getRedirectPathByRole(role: string): string {
 // Only run middleware on specific paths
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|images|fonts|.*\\.png$).*)',
-    '/api/auth/:path*', // ทำงานกับ API routes ด้วย
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api/ (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images/ (image files)
+     * - fonts/ (font files)
+     * - .png, .jpg, etc. (specific image extensions)
+     */
+    '/((?!api/|_next/static|_next/image|favicon.ico|images|fonts|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }; 

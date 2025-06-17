@@ -1,9 +1,10 @@
-import { Ward } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
-import { CalendarMarker, TrendData } from './index';
-import { WardSummaryDataWithShifts } from './form-types';
-import { DailyPatientData } from './interface-types';
-import { PieChartDataItem } from '../EnhancedPieChart';
+import { Ward } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
+import { CalendarMarker, TrendData, WardSummaryDataWithShifts as OldWardSummaryDataWithShifts, PieChartDataItem } from './index';
+import { DailyPatientData, WardSummaryDataWithShifts as NewWardSummaryDataWithShifts } from './interface-types';
+
+// Union type for both WardSummaryDataWithShifts formats
+export type AnyWardSummaryDataWithShifts = OldWardSummaryDataWithShifts | NewWardSummaryDataWithShifts;
 
 // User interface สำหรับ ChartSection
 export interface UserForChartSection {
@@ -43,7 +44,7 @@ export interface DashboardCalendarProps {
 
 // Props สำหรับ WardSummaryTable
 export interface WardSummaryTableProps {
-  data: WardSummaryDataWithShifts[];
+  data: AnyWardSummaryDataWithShifts[];
   loading: boolean;
   totalStats?: any;
   selectedWardId: string | null;
@@ -63,7 +64,7 @@ export interface ShiftComparisonPanelProps {
 
 // Props สำหรับ WardSummaryDashboard
 export interface WardSummaryDashboardProps {
-  summaryData: WardSummaryDataWithShifts[];
+  summaryData: AnyWardSummaryDataWithShifts[];
   loading: boolean;
   selectedDate?: string;
 }

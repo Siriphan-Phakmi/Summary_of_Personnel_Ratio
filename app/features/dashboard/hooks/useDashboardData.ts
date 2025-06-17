@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
-import { Ward, WardForm } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
+import { Ward, WardForm } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
 import { 
   fetchAllWardCensus, 
   fetchTotalStats,
@@ -11,7 +11,7 @@ import {
 } from '../services';
 import { WardSummaryData, WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
-import { Logger } from '@/app/core/utils/logger';
+import { Logger } from '@/app/lib/utils/logger';
 // Import helper functions
 import {
   createTableDataFromWards,
@@ -122,52 +122,23 @@ export const useDashboardData = (
       const grandTotal: WardSummaryDataWithShifts = {
         id: 'GRAND_TOTAL',
         wardName: 'Total All',
-        morningShift: (() => {
-          const total: WardFormSummary = {
-            patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
-            newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
-            transferOut: 0, referOut: 0, dead: 0, available: 0,
-            unavailable: 0, plannedDischarge: 0
-          };
-          results.forEach(ward => {
-            if (ward.morningShift) {
-              (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
-                total[key] += ward.morningShift![key] || 0;
-              });
-            }
+        morningShift: undefined, // Grand total doesn't have shift-specific data
+        nightShift: undefined,
+        totalData: results.reduce((acc, ward) => {
+          (Object.keys(acc) as Array<keyof WardFormSummary>).forEach(key => {
+            acc[key] = (acc[key] || 0) + (ward.totalData[key] || 0);
           });
-          return total;
-        })(),
-        nightShift: (() => {
-          const total: WardFormSummary = {
-            patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
-            newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
-            transferOut: 0, referOut: 0, dead: 0, available: 0,
-            unavailable: 0, plannedDischarge: 0
-          };
-          results.forEach(ward => {
-            if (ward.nightShift) {
-              (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
-                total[key] += ward.nightShift![key] || 0;
-              });
-            }
-          });
-          return total;
-        })(),
-        totalData: (() => {
-          const total: WardFormSummary = {
-            patientCensus: 0, nurseManager: 0, rn: 0, pn: 0, wc: 0,
-            newAdmit: 0, transferIn: 0, referIn: 0, discharge: 0,
-            transferOut: 0, referOut: 0, dead: 0, available: 0,
-            unavailable: 0, plannedDischarge: 0
-          };
-          results.forEach(ward => {
-            (Object.keys(total) as Array<keyof WardFormSummary>).forEach(key => {
-              total[key] += ward.totalData[key] || 0;
-            });
-          });
-          return total;
-        })()
+          return acc;
+        }, {
+          patientCensus: 0,
+          admitted: 0,
+          discharged: 0,
+          transferredIn: 0,
+          transferredOut: 0,
+          deaths: 0,
+          availableBeds: 0,
+          occupiedBeds: 0,
+        } as WardFormSummary)
       };
       
       setTableData([...results, grandTotal]);

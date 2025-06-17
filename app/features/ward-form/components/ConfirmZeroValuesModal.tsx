@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import Modal from '@/app/core/ui/Modal';
-import { Button } from '@/app/core/ui';
+import { Modal } from './ui';
+import { Button } from '@/app/components/ui/Button';
 import { FiAlertTriangle, FiCheckCircle, FiInfo } from 'react-icons/fi';
 
 interface ConfirmZeroValuesModalProps {

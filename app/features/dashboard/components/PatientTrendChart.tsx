@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { useTheme } from 'next-themes';
 import { PatientTrendChartProps } from './types/componentInterfaces';
 import { TrendData } from './types/index';
@@ -50,7 +50,7 @@ const processWardTrendData = (wards: Ward[], chartData: any[]): { lines: LineCon
     const wardId = ward.id || '';
     return {
       dataKey: `แผนก_${wardId}`,
-      name: ward.wardName,
+      name: ward.name,
       color: WARD_COLORS[index % WARD_COLORS.length],
       strokeWidth: 1.5
     };
@@ -131,7 +131,7 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
   });
 
   const allWards = data.length > 0 && data[0].wardData 
-    ? Object.values(data[0].wardData).map((wd: any) => ({ id: wd.wardName, wardName: wd.wardName })) 
+    ? Object.values(data[0].wardData).map((wd: any) => ({ id: wd.wardName, name: wd.wardName })) 
     : [];
 
   const { lines, useWardLines } = processWardTrendData(allWards as Ward[], data);
@@ -160,7 +160,7 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
               const wardId = entry.dataKey.replace('แผนก_', '');
               const ward = allWards.find(w => w.id === wardId);
               if (ward) {
-                displayName = ward.wardName;
+                displayName = ward.name;
               }
             }
             

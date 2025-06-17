@@ -1,5 +1,5 @@
 import { FiBell, FiCheckCircle, FiAlertTriangle, FiFileText, FiClock, FiInfo } from 'react-icons/fi';
-import { NotificationType } from '@/app/core/services/NotificationService';
+import { NotificationType } from '@/app/features/notifications/types/notification';
 
 interface NotificationIconProps {
   type: string;

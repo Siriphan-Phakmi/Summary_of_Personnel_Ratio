@@ -14,7 +14,6 @@ export { default as RecorderInfo } from './components/RecorderInfo';
 
 // Export hooks
 export { useWardFormData } from './hooks/useWardFormData';
-export { useFormPersistence } from './hooks/useFormPersistence';
 export { useShiftManagement } from './hooks/useShiftManagement';
 export { default as useStatusStyles } from './hooks/useStatusStyles';
 export { WardFieldLabels } from './hooks/wardFieldLabels';

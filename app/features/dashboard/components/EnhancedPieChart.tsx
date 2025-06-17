@@ -2,22 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-
-// ปรับ Interface ให้ตรงกับข้อมูลที่ส่งมา
-export interface PieChartDataItem {
-  id: string;
-  wardName: string;
-  value: number; // จำนวนเตียงว่าง
-  total?: number; // จำนวนเตียงทั้งหมด
-  unavailable?: number; // จำนวนเตียงไม่ว่าง
-  plannedDischarge?: number; // จำนวนเตียงที่วางแผนจำหน่าย
-}
-
-interface EnhancedPieChartProps {
-  data: PieChartDataItem[];
-  selectedWardId: string | null;
-  onSelectWard: (wardId: string) => void;
-}
+import { PieChartDataItem, EnhancedPieChartProps } from './types/chart-types';
 
 // กำหนดสีให้สดใสและเหมาะกับทั้งโหมดสว่างและมืด
 const COLORS = [

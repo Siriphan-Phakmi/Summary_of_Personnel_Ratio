@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { WardSummaryTableProps } from './types/componentInterfaces';
-import { WardFormSummary, WardSummaryDataWithShifts } from './types';
-import LoadingSpinner from '@/app/core/components/LoadingSpinner';
+import { WardFormSummary } from './types';
+import { adaptArrayToOldWardSummaryFormat } from '../utils/dataAdapters';
+import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner';
 
 const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   data,
@@ -12,17 +13,22 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
   title = 'ตารางข้อมูลรวมทั้งหมด',
   loading,
 }) => {
-
   if (loading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
         <h2 className="text-xl font-bold text-center border-b border-gray-200 dark:border-gray-700 pb-4 text-gray-800 dark:text-white">
           {title}
         </h2>
-        <LoadingSpinner message="กำลังโหลดข้อมูลตาราง..." size="md" className="h-64" />
+        <div className="flex flex-col justify-center items-center h-64">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">กำลังโหลดข้อมูลตาราง...</p>
+        </div>
       </div>
     );
   }
+
+  // แปลงข้อมูลทั้งหมดเป็นรูปแบบเดิม
+  const oldFormatData = adaptArrayToOldWardSummaryFormat(data);
 
   const renderShiftRow = (
     wardId: string,
@@ -64,7 +70,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
             {shiftName}
           </td>
           {/* แสดงเส้นประสำหรับทุกคอลัมน์ */}
-          {Array.from({ length: 14 }, (_, i) => (
+          {Array.from({ length: 8 }, (_, i) => (
             <td key={i} className={`px-2 py-2 text-sm ${getTextColor()} text-center`}>
               -
             </td>
@@ -84,17 +90,14 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
         <td className={`px-2 py-2 text-sm ${getTextColor()} text-center font-semibold ${isGrandTotal ? 'text-lg' : ''}`}>
           {shiftData.patientCensus}
         </td>
-        <td className={`px-2 py-2 text-sm ${getTextColor()} text-center ${isGrandTotal ? 'font-bold' : ''}`}>
-          {shiftData.nurseManager}
-        </td>
-        <td className={`px-2 py-2 text-sm ${getTextColor()} text-center ${isGrandTotal ? 'font-bold' : ''}`}>
-          {shiftData.rn}
-        </td>
-        <td className={`px-2 py-2 text-sm ${getTextColor()} text-center ${isGrandTotal ? 'font-bold' : ''}`}>
-          {shiftData.pn}
-        </td>
-        <td className={`px-2 py-2 text-sm ${getTextColor()} text-center ${isGrandTotal ? 'font-bold' : ''}`}>
-          {shiftData.wc}
+        <td className={`px-2 py-2 text-sm text-center ${
+          isGrandTotal 
+            ? 'text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-800 font-bold' 
+            : rowType === 'total' 
+              ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20' 
+              : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10'
+        }`}>
+          {shiftData.admitted}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -103,25 +106,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20' 
               : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10'
         }`}>
-          {shiftData.newAdmit}
-        </td>
-        <td className={`px-2 py-2 text-sm text-center ${
-          isGrandTotal 
-            ? 'text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-800 font-bold' 
-            : rowType === 'total' 
-              ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20' 
-              : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10'
-        }`}>
-          {shiftData.transferIn}
-        </td>
-        <td className={`px-2 py-2 text-sm text-center ${
-          isGrandTotal 
-            ? 'text-blue-800 dark:text-blue-200 bg-blue-200 dark:bg-blue-800 font-bold' 
-            : rowType === 'total' 
-              ? 'text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/20' 
-              : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10'
-        }`}>
-          {shiftData.referIn}
+          {shiftData.transferredIn}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -130,7 +115,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/20' 
               : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10'
         }`}>
-          {shiftData.discharge}
+          {shiftData.discharged}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -139,7 +124,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/20' 
               : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10'
         }`}>
-          {shiftData.transferOut}
+          {shiftData.transferredOut}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -148,16 +133,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/20' 
               : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10'
         }`}>
-          {shiftData.referOut}
-        </td>
-        <td className={`px-2 py-2 text-sm text-center ${
-          isGrandTotal 
-            ? 'text-red-800 dark:text-red-200 bg-red-200 dark:bg-red-800 font-bold' 
-            : rowType === 'total' 
-              ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/20' 
-              : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10'
-        }`}>
-          {shiftData.dead}
+          {shiftData.deaths}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -166,7 +142,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/20' 
               : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10'
         }`}>
-          {shiftData.available}
+          {shiftData.availableBeds}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -175,10 +151,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/20' 
               : 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/10'
         }`}>
-          {shiftData.unavailable}
-        </td>
-        <td className={`px-2 py-2 text-sm ${getTextColor()} text-center ${isGrandTotal ? 'font-bold' : ''}`}>
-          {shiftData.plannedDischarge}
+          {shiftData.occupiedBeds}
         </td>
       </tr>
     );
@@ -202,52 +175,31 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Patient Census
               </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Nurse Manager
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                RN
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                PN
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                WC
+              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30">
+                Admitted
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30">
-                New Admit
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30">
-                Transfer In
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/30">
-                Refer In
+                Transferred In
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/30">
-                Discharge
+                Discharged
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/30">
-                Transfer Out
+                Transferred Out
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/30">
-                Refer Out
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/30">
-                Dead
+                Deaths
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-green-50 dark:bg-green-900/30">
-                Available
+                Available Beds
               </th>
               <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider bg-yellow-50 dark:bg-yellow-900/30">
-                Unavailable
-              </th>
-              <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Planned Discharge
+                Occupied Beds
               </th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {data.map((ward: WardSummaryDataWithShifts) => {
+            {oldFormatData.map((ward) => {
               const isSelected = selectedWardId === ward.id;
               const onClick = () => onSelectWard(ward.id);
               
@@ -267,7 +219,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
                   
                   {/* เส้นแบ่งระหว่าง Ward */}
                   <tr className="bg-gray-200 dark:bg-gray-600">
-                    <td colSpan={17} className="h-1"></td>
+                    <td colSpan={10} className="h-1"></td>
                   </tr>
                 </React.Fragment>
               );

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FormStatus } from '@/app/core/types/ward';
+import { FormStatus } from '@/app/features/ward-form/types/ward';
 import useStatusStyles from '../hooks/useStatusStyles';
 import '../styles/index.css';
 

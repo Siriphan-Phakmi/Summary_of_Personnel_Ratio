@@ -48,4 +48,13 @@ export default {
 export * from './dashboardCalculations';
 export * from './dashboardUtils';
 export * from './dateUtils';
-export * from './loggingUtils'; 
+export * from './loggingUtils';
+export * from './chartConstants';
+export * from './dataAdapters';
+
+// Constants
+export const DASHBOARD_WARDS = [
+  'ICU', 'CCU', 'SICU', 'MICU', 'PICU', 'NICU', 'ER', 'OR', 'LR', 'OPD',
+  '1A', '1B', '2A', '2B', '3A', '3B', '4A', '4B', '5A', '5B',
+  '6A', '6B', '7A', '7B', '8A', '8B', '9A', '9B', '10A', '10B'
+]; 

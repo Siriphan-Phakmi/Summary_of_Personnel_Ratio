@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShiftType, FormStatus } from '@/app/core/types/ward';
+import { ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 import ShiftButton from './ShiftButton';
 
 interface ShiftSelectionProps {

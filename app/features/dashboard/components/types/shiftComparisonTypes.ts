@@ -1,0 +1,60 @@
+export interface DailySummary {
+  id?: string;
+  wardId: string;
+  wardName: string;
+  date: Date | any;
+  morningPatientCensus?: number;
+  morningNurseManager?: number;
+  morningRn?: number;
+  morningPn?: number;
+  morningWc?: number;
+  morningNurseTotal?: number;
+  morningNurseRatio?: number;
+  morningNewAdmit?: number;
+  morningTransferIn?: number;
+  morningReferIn?: number;
+  morningDischarge?: number;
+  morningTransferOut?: number;
+  morningReferOut?: number;
+  morningDead?: number;
+  nightPatientCensus?: number;
+  nightNurseManager?: number;
+  nightRn?: number;
+  nightPn?: number;
+  nightWc?: number;
+  nightNurseTotal?: number;
+  nightNurseRatio?: number;
+  nightNewAdmit?: number;
+  nightTransferIn?: number;
+  nightReferIn?: number;
+  nightDischarge?: number;
+  nightTransferOut?: number;
+  nightReferOut?: number;
+  nightDead?: number;
+  dailyPatientCensus?: number;
+  dailyNurseTotal?: number;
+  dailyNurseRatio?: number;
+  availableBeds?: number;
+  unavailableBeds?: number;
+}
+
+export interface ShiftComparisonProps {
+  summaries: DailySummary[];
+  selectedWard: string;
+  shift: 'morning' | 'night';
+}
+
+export interface StatCardProps {
+  title: string;
+  value: string | number;
+  color?: string;
+}
+
+export interface ChartDataPoint {
+  name: string;
+  'เวรเช้า'?: number;
+  'เวรดึก'?: number;
+  [key: string]: string | number | undefined;
+}
+
+export type ShiftType = 'morning' | 'night'; 

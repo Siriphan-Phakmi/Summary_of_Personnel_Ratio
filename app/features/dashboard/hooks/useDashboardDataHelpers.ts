@@ -1,11 +1,11 @@
 'use client';
 
-import { Ward, WardForm } from '@/app/core/types/ward';
-import { User, UserRole } from '@/app/core/types/user';
+import { Ward, WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { format } from 'date-fns';
 import { WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
-import { Logger } from '@/app/core/utils/logger';
+import { Logger } from '@/app/lib/utils/logger';
 
 interface TotalStats {
   opd24hr: number;
@@ -13,6 +13,24 @@ interface TotalStats {
   newPatient: number;
   admit24hr: number;
 }
+
+/**
+ * แปลงข้อมูลจาก WardForm หรือ DailySummary เป็น WardFormSummary
+ */
+const mapToWardFormSummary = (data: any): WardFormSummary | undefined => {
+  if (!data) return undefined;
+  
+  return {
+    patientCensus: data.patientCensus || 0,
+    admitted: data.admitted || 0,
+    discharged: data.discharged || 0,
+    transferredIn: data.transferredIn || 0,
+    transferredOut: data.transferredOut || 0,
+    deaths: data.deaths || 0,
+    availableBeds: data.availableBeds || 0,
+    occupiedBeds: data.occupiedBeds || 0,
+  };
+};
 
 /**
  * สร้างข้อมูลสำหรับตาราง Dashboard
@@ -35,95 +53,51 @@ export const createTableDataFromWards = async (
       wards.filter(ward => ward.id).map(async ward => {
         try {
           // ดึงข้อมูลจาก wardForms
-          const { morning, night } = await getWardFormsByDateAndWard(ward.id!, selectedDate);
+          const wardForms = await getWardFormsByDateAndWard(new Date(selectedDate), ward.id!);
+          const morning = wardForms.find(f => f.shift === ShiftType.MORNING);
+          const night = wardForms.find(f => f.shift === ShiftType.NIGHT);
           
-          // ข้อมูลจาก dailySummaries
+          // ข้อมูลจาก dailySummaries (เป็น fallback)
           const summaryResult = await getDailySummary(ward.id!, selectedDate);
           
           const morningData = morning || summaryResult.morning;
-          const morningShift: WardFormSummary | undefined = morning ? {
-            patientCensus: morning.patientCensus || 0,
-            nurseManager: morning.nurseManager || 0,
-            rn: morning.rn || 0,
-            pn: morning.pn || 0,
-            wc: morning.wc || 0,
-            newAdmit: morning.newAdmit || 0,
-            transferIn: morning.transferIn || 0,
-            referIn: morning.referIn || 0,
-            discharge: morning.discharge || 0,
-            transferOut: morning.transferOut || 0,
-            referOut: morning.referOut || 0,
-            dead: morning.dead || 0,
-            available: morning.available || 0,
-            unavailable: morning.unavailable || 0,
-            plannedDischarge: morning.plannedDischarge || 0
-          } : undefined;
+          const morningShift = mapToWardFormSummary(morningData);
           
           const nightData = night || summaryResult.night;
-          const nightShift: WardFormSummary | undefined = night ? {
-            patientCensus: night.patientCensus || 0,
-            nurseManager: night.nurseManager || 0,
-            rn: night.rn || 0,
-            pn: night.pn || 0,
-            wc: night.wc || 0,
-            newAdmit: night.newAdmit || 0,
-            transferIn: night.transferIn || 0,
-            referIn: night.referIn || 0,
-            discharge: night.discharge || 0,
-            transferOut: night.transferOut || 0,
-            referOut: night.referOut || 0,
-            dead: night.dead || 0,
-            available: night.available || 0,
-            unavailable: night.unavailable || 0,
-            plannedDischarge: night.plannedDischarge || 0
-          } : undefined;
+          const nightShift = mapToWardFormSummary(nightData);
           
           return {
             id: ward.id!,
-            wardName: ward.wardName,
+            wardName: ward.name,
             morningShift,
             nightShift,
             totalData: {
-              patientCensus: morningShift?.patientCensus || nightShift?.patientCensus || 0,
-              nurseManager: morningShift?.nurseManager || nightShift?.nurseManager || 0,
-              rn: morningShift?.rn || nightShift?.rn || 0,
-              pn: morningShift?.pn || nightShift?.pn || 0,
-              wc: morningShift?.wc || nightShift?.wc || 0,
-              newAdmit: morningShift?.newAdmit || nightShift?.newAdmit || 0,
-              transferIn: morningShift?.transferIn || nightShift?.transferIn || 0,
-              referIn: morningShift?.referIn || nightShift?.referIn || 0,
-              discharge: morningShift?.discharge || nightShift?.discharge || 0,
-              transferOut: morningShift?.transferOut || nightShift?.transferOut || 0,
-              referOut: morningShift?.referOut || nightShift?.referOut || 0,
-              dead: morningShift?.dead || nightShift?.dead || 0,
-              available: morningShift?.available || nightShift?.available || 0,
-              unavailable: morningShift?.unavailable || nightShift?.unavailable || 0,
-              plannedDischarge: morningShift?.plannedDischarge || nightShift?.plannedDischarge || 0
+              patientCensus: nightShift?.patientCensus || morningShift?.patientCensus || 0,
+              admitted: (morningShift?.admitted || 0) + (nightShift?.admitted || 0),
+              discharged: (morningShift?.discharged || 0) + (nightShift?.discharged || 0),
+              transferredIn: (morningShift?.transferredIn || 0) + (nightShift?.transferredIn || 0),
+              transferredOut: (morningShift?.transferredOut || 0) + (nightShift?.transferredOut || 0),
+              deaths: (morningShift?.deaths || 0) + (nightShift?.deaths || 0),
+              availableBeds: nightShift?.availableBeds || morningShift?.availableBeds || 0, // Use latest
+              occupiedBeds: nightShift?.occupiedBeds || morningShift?.occupiedBeds || 0, // Use latest
             }
           };
         } catch (error) {
           Logger.error(`[createTableDataFromWards] Error processing ward ${ward.id}:`, error);
           return {
             id: ward.id!,
-            wardName: ward.wardName,
+            wardName: ward.name,
             morningShift: undefined,
             nightShift: undefined,
             totalData: {
               patientCensus: 0,
-              nurseManager: 0,
-              rn: 0,
-              pn: 0,
-              wc: 0,
-              newAdmit: 0,
-              transferIn: 0,
-              referIn: 0,
-              discharge: 0,
-              transferOut: 0,
-              referOut: 0,
-              dead: 0,
-              available: 0,
-              unavailable: 0,
-              plannedDischarge: 0
+              admitted: 0,
+              discharged: 0,
+              transferredIn: 0,
+              transferredOut: 0,
+              deaths: 0,
+              availableBeds: 0,
+              occupiedBeds: 0,
             }
           };
         }
@@ -153,15 +127,13 @@ export const calculateDashboardStats = (summaryData: WardSummaryDataWithShifts[]
   summaryData.forEach(wardData => {
     // รวมข้อมูลจากทั้งกะเช้าและกะดึก
     if (wardData.morningShift) {
-      stats.admit24hr += (wardData.morningShift.newAdmit || 0) + 
-                       (wardData.morningShift.transferIn || 0) + 
-                       (wardData.morningShift.referIn || 0);
+      stats.admit24hr += (wardData.morningShift.admitted || 0) + 
+                       (wardData.morningShift.transferredIn || 0);
     }
     
     if (wardData.nightShift) {
-      stats.admit24hr += (wardData.nightShift.newAdmit || 0) + 
-                       (wardData.nightShift.transferIn || 0) + 
-                       (wardData.nightShift.referIn || 0);
+      stats.admit24hr += (wardData.nightShift.admitted || 0) + 
+                       (wardData.nightShift.transferredIn || 0);
     }
   });
   
@@ -188,7 +160,7 @@ export const processBedCensusDataForChart = (
       const census = wardCensusMap.get(ward.id) || 0;
       if (census > 0) {
         chartData.push({
-          name: ward.wardName,
+          name: ward.name,
           value: census,
           color: colors[colorIndex % colors.length]
         });

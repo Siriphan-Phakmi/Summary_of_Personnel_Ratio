@@ -1,10 +1,34 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Ward } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
+import { Ward, WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
 import { format } from 'date-fns';
-import { PieChartDataItem } from '../components/EnhancedPieChart';
+import { PieChartDataItem } from '../components/types/chart-types';
 import { getWardFormsByDateAndWard, getDailySummary } from '../services';
 import { logInfo, logError } from '../utils';
+
+// Helper function to convert summary object to a minimal WardForm-like structure
+const summaryToWardForm = (summary: any, shift: ShiftType, wardId: string, date: string): WardForm | null => {
+  if (!summary) return null;
+  return {
+    ...summary,
+    id: summary.id || `${wardId}-${date}-${shift}`,
+    wardId: wardId,
+    wardName: '', // Summary doesn't contain wardName, can be added if needed
+    date: new Date(date),
+    dateString: date,
+    shift: shift,
+    status: summary.status || 'approved',
+    availableBeds: summary.available || 0,
+    occupiedBeds: summary.patientCensus || 0,
+    // Add other WardForm fields with default values if they are needed for 'activeForm'
+    patientCensus: summary.patientCensus || 0,
+    admitted: summary.newAdmit || 0,
+    discharged: summary.discharge || 0,
+    transferredIn: summary.transferIn || 0,
+    transferredOut: summary.transferOut || 0,
+    deaths: summary.dead || 0,
+  } as WardForm;
+};
 
 /**
  * Custom hook สำหรับจัดการข้อมูลสรุปเตียง
@@ -50,13 +74,16 @@ export const useBedSummaryData = (
             
             // ดึงข้อมูลแบบฟอร์มของ ward ในวันที่เลือก - ดึงทั้ง ward form และ daily summary พร้อมกัน
             const [wardFormResult, dailySummaryResult] = await Promise.all([
-              getWardFormsByDateAndWard(ward.id, currentDateString),
+              getWardFormsByDateAndWard(new Date(currentDateString), ward.id),
               getDailySummary(ward.id, currentDateString)
             ]);
             
             // รวมข้อมูลจาก ward form และ daily summary
-            const { morning: wardFormMorning, night: wardFormNight } = wardFormResult;
-            const { morning: summaryMorning, night: summaryNight } = dailySummaryResult;
+            const wardFormMorning = wardFormResult.find(f => f.shift === ShiftType.MORNING) || null;
+            const wardFormNight = wardFormResult.find(f => f.shift === ShiftType.NIGHT) || null;
+            
+            const summaryMorning = summaryToWardForm(dailySummaryResult.morning, ShiftType.MORNING, ward.id, currentDateString);
+            const summaryNight = summaryToWardForm(dailySummaryResult.night, ShiftType.NIGHT, ward.id, currentDateString);
             
             // ใช้ข้อมูลจาก ward form หากมี ถ้าไม่มีให้ใช้จาก daily summary
             const morning = wardFormMorning || summaryMorning;
@@ -64,33 +91,27 @@ export const useBedSummaryData = (
             
             // ใช้ข้อมูลเวรเช้าเป็นหลัก ถ้าไม่มีให้ใช้เวรดึก
             let availableBeds = 0;
-            let unavailableBeds = 0;
-            let plannedDischarge = 0;
+            let occupiedBeds = 0;
             let totalBeds = 0;
             
-            if (morning) {
-              availableBeds = morning.available || 0;
-              unavailableBeds = morning.unavailable || 0;
-              plannedDischarge = morning.plannedDischarge || 0;
-              totalBeds = (morning.available || 0) + (morning.unavailable || 0);
-            } else if (night) {
-              availableBeds = night.available || 0;
-              unavailableBeds = night.unavailable || 0;
-              plannedDischarge = night.plannedDischarge || 0;
-              totalBeds = (night.available || 0) + (night.unavailable || 0);
+            const activeForm = morning || night;
+
+            if (activeForm) {
+              availableBeds = activeForm.availableBeds || 0;
+              occupiedBeds = activeForm.occupiedBeds || 0;
+              totalBeds = availableBeds + occupiedBeds;
             }
             
             // ตรวจสอบความถูกต้องของข้อมูล
             if (availableBeds < 0) availableBeds = 0;
-            if (unavailableBeds < 0) unavailableBeds = 0;
-            if (plannedDischarge < 0) plannedDischarge = 0;
+            if (occupiedBeds < 0) occupiedBeds = 0;
             
             return {
               id: ward.id,
-              wardName: ward.wardName,
+              wardName: ward.name,
               value: availableBeds,
-              unavailable: unavailableBeds,
-              plannedDischarge: plannedDischarge,
+              unavailable: occupiedBeds,
+              plannedDischarge: 0, // Set to 0 as it's removed
               total: totalBeds
             };
           } catch (error) {
@@ -98,7 +119,7 @@ export const useBedSummaryData = (
             // กรณีมีข้อผิดพลาด ให้ส่งข้อมูลว่างเปล่า
             return {
               id: ward.id || 'unknown',
-              wardName: ward.wardName || 'Unknown Ward',
+              wardName: ward.name || 'Unknown Ward',
               value: 0,
               unavailable: 0,
               plannedDischarge: 0,

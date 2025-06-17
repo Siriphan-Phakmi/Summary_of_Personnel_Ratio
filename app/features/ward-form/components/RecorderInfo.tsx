@@ -1,7 +1,7 @@
 'use client';
 
 import React, { ChangeEvent } from 'react';
-import Input from '@/app/core/ui/Input'; // Assuming Input component exists
+import { Input } from './ui';
 import { twMerge } from 'tailwind-merge';
 
 interface RecorderInfoProps {

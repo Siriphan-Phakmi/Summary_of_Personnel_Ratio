@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 
 interface WardCensusButtonsProps {
   wards: Ward[];
@@ -54,7 +54,7 @@ const WardCensusButtons: React.FC<WardCensusButtonsProps> = ({
                 : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
               }`}
           >
-            {ward.wardName} {" "}
+            {ward.name} {" "}
             <span className="inline-flex items-center justify-center w-5 h-5 ml-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
               {wardCensusMap.get(ward.id?.toUpperCase() || '') || 0}
             </span>

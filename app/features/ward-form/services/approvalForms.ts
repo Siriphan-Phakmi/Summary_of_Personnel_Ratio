@@ -1,11 +1,11 @@
-import { db } from '@/app/core/firebase/firebase';
+import { db } from '@/app/lib/firebase/firebase';
 import { doc, getDoc, updateDoc, Timestamp, arrayUnion } from 'firebase/firestore';
 import { format } from 'date-fns';
-import { User, TimestampField } from '@/app/core/types/user';
-import { WardForm, FormStatus } from '@/app/core/types/ward';
-import { ApprovalEvent } from '@/app/core/types/approval';
+import { User } from '@/app/features/auth/types/user';
+import { WardForm, FormStatus } from '@/app/features/ward-form/types/ward';
+import { ApprovalEvent } from '@/app/features/ward-form/types/approval';
 import { COLLECTION_NAME } from './constants';
-import notificationService, { NotificationType } from '@/app/core/services/NotificationService';
+import notificationService, { NotificationType } from '@/app/features/notifications/services/NotificationService';
 
 // อนุมัติแบบฟอร์ม
 export const approveWardForm = async (
@@ -61,11 +61,11 @@ export const approveWardForm = async (
       } else if (typeof (formData.date as any).toDate === 'function') {
         // กรณีที่เป็น Firestore Timestamp
         formDate = (formData.date as any).toDate();
-      } else if ('seconds' in formData.date && 'nanoseconds' in formData.date) {
+      } else if (formData.date && 'seconds' in formData.date && 'nanoseconds' in formData.date) {
         // กรณีที่เป็น Timestamp object แต่ไม่มี toDate()
         const tsData = formData.date as { seconds: number; nanoseconds: number };
         formDate = new Date(tsData.seconds * 1000);
-      } else if ('_seconds' in formData.date && '_nanoseconds' in formData.date) {
+      } else if (formData.date && '_seconds' in (formData.date as any) && '_nanoseconds' in (formData.date as any)) {
         // กรณีที่เป็น serialized Timestamp
         const tsData = formData.date as { _seconds: number; _nanoseconds: number };
         formDate = new Date(tsData._seconds * 1000);

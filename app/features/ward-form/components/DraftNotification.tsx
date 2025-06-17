@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { WardForm, ShiftType } from '@/app/core/types/ward';
+import { WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { FiFileText, FiClock, FiUser } from 'react-icons/fi';
-import { Button } from '@/app/core/ui';
+import { Button } from '@/app/components/ui/Button';
 
 interface DraftNotificationProps {
   draftData: WardForm;

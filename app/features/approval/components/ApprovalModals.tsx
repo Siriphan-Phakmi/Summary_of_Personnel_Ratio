@@ -1,16 +1,17 @@
 'use client';
 
 import React from 'react';
-import Modal from '@/app/core/ui/Modal';
-import Button from '@/app/core/ui/Button';
-import { WardForm, ShiftType } from '@/app/core/types/ward';
-import { formatTimestamp } from '@/app/core/utils/dateUtils';
+import { WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
+import { formatTimestamp } from '@/app/lib/utils/timestampUtils';
+import Modal from '@/app/features/ward-form/components/ui/Modal';
+import { Button } from '@/app/components/ui/Button';
 
 interface ApproveModalProps {
   isOpen: boolean;
   onClose: () => void;
   form: WardForm | null;
   onConfirm: () => Promise<void>;
+  modalConfig?: { [key: string]: string };
 }
 
 interface RejectModalProps {
@@ -20,38 +21,40 @@ interface RejectModalProps {
   rejectReason: string;
   setRejectReason: (reason: string) => void;
   onConfirm: () => Promise<void>;
+  modalConfig?: { [key: string]: string };
 }
 
 export const ApproveModal: React.FC<ApproveModalProps> = ({ 
   isOpen, 
   onClose, 
   form, 
-  onConfirm 
+  onConfirm,
+  modalConfig
 }) => (
   <Modal 
     isOpen={isOpen} 
     onClose={onClose} 
-    title="ยืนยันการอนุมัติ"
+    title={modalConfig?.confirmApprovalTitle || "ยืนยันการอนุมัติ"}
     size="md"
   >
     <div className="p-4">
       <p className="text-gray-700 dark:text-gray-300 mb-4">
-        คุณต้องการอนุมัติแบบฟอร์มนี้หรือไม่?
+        {modalConfig?.confirmApprovalMessage || 'คุณต้องการอนุมัติแบบฟอร์มนี้หรือไม่?'}
       </p>
       
       {form && (
         <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-4">
           <p className="text-sm">
-            <strong>วันที่:</strong> {formatTimestamp(form.date, 'dd/MM/yyyy')}
+            <strong>{modalConfig?.dateLabel || 'วันที่:'}</strong> {formatTimestamp(form.date, 'dd/MM/yyyy')}
           </p>
           <p className="text-sm">
-            <strong>กะ:</strong> {form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}
+            <strong>{modalConfig?.shiftLabel || 'กะ:'}</strong> {form.shift === ShiftType.MORNING ? (modalConfig?.shiftMorning || 'เช้า') : (modalConfig?.shiftNight || 'ดึก')}
           </p>
           <p className="text-sm">
-            <strong>หอผู้ป่วย:</strong> {form.wardName}
+            <strong>{modalConfig?.wardLabel || 'หอผู้ป่วย:'}</strong> {form.wardName}
           </p>
           <p className="text-sm">
-            <strong>ผู้บันทึก:</strong> {form.recorderFirstName} {form.recorderLastName}
+            <strong>{modalConfig?.recorderLabel || 'ผู้บันทึก:'}</strong> {form.recorderFirstName} {form.recorderLastName}
           </p>
         </div>
       )}
@@ -61,13 +64,13 @@ export const ApproveModal: React.FC<ApproveModalProps> = ({
           variant="secondary"
           onClick={onClose}
         >
-          ยกเลิก
+          {modalConfig?.cancelButton || 'ยกเลิก'}
         </Button>
         <Button
           variant="primary"
           onClick={onConfirm}
         >
-          อนุมัติ
+          {modalConfig?.approveButton || 'อนุมัติ'}
         </Button>
       </div>
     </div>
@@ -80,32 +83,33 @@ export const RejectModal: React.FC<RejectModalProps> = ({
   form, 
   rejectReason, 
   setRejectReason, 
-  onConfirm 
+  onConfirm,
+  modalConfig
 }) => (
   <Modal 
     isOpen={isOpen} 
     onClose={onClose} 
-    title="ปฏิเสธแบบฟอร์ม"
+    title={modalConfig?.rejectTitle || "ปฏิเสธแบบฟอร์ม"}
     size="md"
   >
     <div className="p-4">
       <p className="text-gray-700 dark:text-gray-300 mb-4">
-        กรุณาระบุเหตุผลในการปฏิเสธแบบฟอร์มนี้:
+        {modalConfig?.rejectMessage || 'กรุณาระบุเหตุผลในการปฏิเสธแบบฟอร์มนี้:'}
       </p>
       
       {form && (
         <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded mb-4">
           <p className="text-sm">
-            <strong>วันที่:</strong> {formatTimestamp(form.date, 'dd/MM/yyyy')}
+            <strong>{modalConfig?.dateLabel || 'วันที่:'}</strong> {formatTimestamp(form.date, 'dd/MM/yyyy')}
           </p>
           <p className="text-sm">
-            <strong>กะ:</strong> {form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'}
+            <strong>{modalConfig?.shiftLabel || 'กะ:'}</strong> {form.shift === ShiftType.MORNING ? (modalConfig?.shiftMorning || 'เช้า') : (modalConfig?.shiftNight || 'ดึก')}
           </p>
           <p className="text-sm">
-            <strong>หอผู้ป่วย:</strong> {form.wardName}
+            <strong>{modalConfig?.wardLabel || 'หอผู้ป่วย:'}</strong> {form.wardName}
           </p>
           <p className="text-sm">
-            <strong>ผู้บันทึก:</strong> {form.recorderFirstName} {form.recorderLastName}
+            <strong>{modalConfig?.recorderLabel || 'ผู้บันทึก:'}</strong> {form.recorderFirstName} {form.recorderLastName}
           </p>
         </div>
       )}
@@ -116,7 +120,7 @@ export const RejectModal: React.FC<RejectModalProps> = ({
                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
                    resize-none"
         rows={4}
-        placeholder="ระบุเหตุผลในการปฏิเสธ..."
+        placeholder={modalConfig?.rejectionPlaceholder || "ระบุเหตุผลในการปฏิเสธ..."}
         value={rejectReason}
         onChange={(e) => setRejectReason(e.target.value)}
         required
@@ -127,14 +131,14 @@ export const RejectModal: React.FC<RejectModalProps> = ({
           variant="secondary"
           onClick={onClose}
         >
-          ยกเลิก
+          {modalConfig?.cancelButton || 'ยกเลิก'}
         </Button>
         <Button
-          variant="danger"
+          variant="destructive"
           onClick={onConfirm}
           disabled={!rejectReason.trim()}
         >
-          ปฏิเสธ
+          {modalConfig?.rejectButton || 'ปฏิเสธ'}
         </Button>
       </div>
     </div>

@@ -1,46 +1,17 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/app/features/auth';
-
+/**
+ * RootPage Component
+ * 
+ * หน้าหลักของแอปพลิเคชัน ทำหน้าที่ redirect ไปยังหน้า login
+ * การ redirect หลักสำหรับผู้ใช้ที่ล็อกอินแล้วจะถูกจัดการโดย `middleware.ts` 
+ * เพื่อประสิทธิภาพที่ดีที่สุด (server-side redirect)
+ */
 export default function RootPage() {
-  const router = useRouter();
-  const { user, authStatus } = useAuth();
-
-  useEffect(() => {
-    // Wait for auth state to be determined
-    if (authStatus !== 'loading') {
-      if (user && authStatus === 'authenticated') {
-        // ป้องกัน redirect loop โดยใช้ replace และ redirect ไปที่ target path โดยตรง
-        let targetPath;
-        
-        if (user.role === 'admin' || user.role === 'developer' || user.role === 'super_admin') {
-          // สำหรับ admin/developer นำทางไปที่ dashboard เพื่อดูภาพรวม
-          targetPath = '/features/dashboard';
-        } else {
-          // สำหรับผู้ใช้ทั่วไปไปที่หน้ากรอกฟอร์ม
-          targetPath = '/census/form';
-        }
-        
-        // ใช้ replace เพื่อไม่ให้มีประวัติการ navigate ไว้ใน history
-        router.replace(targetPath);
-      } else if (authStatus === 'unauthenticated') {
-        // If not logged in, go to the login page
-        router.replace('/login');
-      }
-    }
-  }, [user, authStatus, router]);
-
-  // Display loading indicator while checking auth status
-  if (authStatus === 'loading') {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-100 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
-  // Return null while redirecting after loading
+  // ทำ redirect ไปที่หน้า login โดยตรง
+  // middleware จะตรวจสอบว่าผู้ใช้ล็อกอินแล้วหรือไม่ และทำการ redirect ไปยังหน้าที่เหมาะสม
+  redirect('/login');
+  
+  // โค้ดด้านล่างนี้จะไม่ถูกทำงาน เพราะ redirect จะหยุดการทำงานของฟังก์ชัน
   return null;
 } 

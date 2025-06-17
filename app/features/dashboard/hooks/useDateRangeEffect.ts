@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 import { format, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
-import { User } from '@/app/core/types/user';
 import { logInfo, logError } from '../utils';
 
 /**

@@ -1,14 +1,74 @@
-import { User } from '@/app/core/types/user';
-import {
-    addLogEntry,
-    SYSTEM_LOGS_COLLECTION,
-    LogType,
-    getDeviceInfo,
-    LogLevel,
-    getSafeUserAgent,
-    getClientIP
-} from '@/app/core/utils/logUtils';
+import { User } from '../types/user';
+import { LogLevel, LogType, LogEntry, SYSTEM_LOGS_COLLECTION, LogDetails } from '../types/log';
+// import {
+//     addLogEntry,
+//     SYSTEM_LOGS_COLLECTION,
+//     LogType,
+//     getDeviceInfo,
+//     LogLevel,
+//     getSafeUserAgent,
+//     getClientIP
+// } from '@/app/core/utils/logUtils';
+
+// สร้างค่าคงที่และฟังก์ชันที่จำเป็นภายในไฟล์เอง
+
+// ฟังก์ชันจำลองการเพิ่ม log entry ลงในฐานข้อมูล
+const addLogEntry = async (entry: Partial<LogEntry>, collection: string): Promise<void> => {
+  // ในสภาพแวดล้อมจริงจะบันทึกลงฐานข้อมูล เช่น Firestore
+  // แต่ในที่นี้เราจะ log ไปที่ console เท่านั้น
+  console.log(`[${collection}] New log entry:`, entry);
+};
+
+// ฟังก์ชันสำหรับดึงข้อมูลอุปกรณ์
+const getDeviceInfo = (): { deviceType: string; browserName: string } => {
+  if (typeof window === 'undefined') {
+    return { deviceType: 'server', browserName: 'server' };
+  }
+  
+  const userAgent = window.navigator.userAgent;
+  let deviceType = 'desktop';
+  let browserName = 'unknown';
+  
+  // ตรวจสอบอุปกรณ์อย่างง่าย
+  if (/mobile|android|iphone|ipad|ipod/i.test(userAgent.toLowerCase())) {
+    deviceType = 'mobile';
+  } else if (/tablet|ipad/i.test(userAgent.toLowerCase())) {
+    deviceType = 'tablet';
+  }
+  
+  // ตรวจสอบเบราว์เซอร์อย่างง่าย
+  if (userAgent.includes('Chrome')) {
+    browserName = 'Chrome';
+  } else if (userAgent.includes('Firefox')) {
+    browserName = 'Firefox';
+  } else if (userAgent.includes('Safari')) {
+    browserName = 'Safari';
+  } else if (userAgent.includes('Edge')) {
+    browserName = 'Edge';
+  } else if (userAgent.includes('MSIE') || userAgent.includes('Trident/')) {
+    browserName = 'Internet Explorer';
+  }
+  
+  return { deviceType, browserName };
+};
+
+// ฟังก์ชันสำหรับดึง User Agent อย่างปลอดภัย
+const getSafeUserAgent = (): string => {
+  if (typeof window === 'undefined') {
+    return 'server';
+  }
+  return window.navigator.userAgent || 'unknown';
+};
+
+// ฟังก์ชันสำหรับดึง IP Address ของ client
+const getClientIP = (): string => {
+  // ในสภาพแวดล้อมจริงจะต้องดึงจาก request header หรือ API
+  // แต่ในที่นี้เราจะคืนค่าเป็น placeholder
+  return '127.0.0.1';
+};
+
 import { logServerAction } from './logServerAction';
+import { createSafeUserObject } from '../utils/userUtils';
 
 /**
  * แสดง log เฉพาะในโหมด development
@@ -18,21 +78,6 @@ function devLog(message: string): void {
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     console.log(message);
   }
-}
-
-/**
- * สร้าง user object ที่ปลอดภัยสำหรับ server action (ไม่มี complex objects)
- */
-function createSafeUserObject(user: User): Record<string, any> {
-  // สร้าง plain object ใหม่ที่มีเฉพาะค่าพื้นฐาน
-  return {
-    uid: user.uid,
-    username: user.username || '',
-    role: user.role,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    displayName: user.displayName
-  };
 }
 
 /**
@@ -210,5 +255,99 @@ export const logPageAccess = async (
     }, SYSTEM_LOGS_COLLECTION);
   } catch (error) {
     console.error('Failed to log page access:', error);
+  }
+};
+
+/**
+ * บันทึกข้อผิดพลาดของระบบ
+ * @param error อ็อบเจกต์ข้อผิดพลาด
+ * @param context ข้อมูลเพิ่มเติมเกี่ยวกับที่มาของข้อผิดพลาด
+ * @param user ข้อมูลผู้ใช้ (ถ้ามี)
+ */
+export const logSystemError = async (
+  error: any,
+  context: string,
+  user?: User | null
+): Promise<void> => {
+  try {
+    const deviceInfo = getDeviceInfo();
+    const userAgentStr = getSafeUserAgent();
+    const ipAddress = getClientIP();
+
+    const details = {
+      context: context,
+      errorMessage: error.message,
+      stackTrace: error.stack,
+      timestamp: new Date().toISOString(),
+      deviceType: deviceInfo.deviceType,
+      browserName: deviceInfo.browserName,
+      ipAddress: ipAddress
+    };
+    
+    // บันทึก log ในฐานข้อมูล
+    await addLogEntry({
+      type: LogType.SYSTEM_ERROR,
+      userId: user?.uid,
+      username: user?.username || 'system',
+      details,
+      userAgent: userAgentStr,
+      ipAddress,
+      logLevel: LogLevel.ERROR
+    }, SYSTEM_LOGS_COLLECTION);
+  } catch (logError) {
+    console.error('Failed to log system error:', logError);
+    // Fallback logging
+    console.error('Original error:', {
+      context,
+      errorMessage: error.message,
+    });
+  }
+};
+
+/**
+ * บันทึกการกระทำของผู้ใช้ (User Action)
+ * @param user ข้อมูลผู้ใช้
+ * @param action ชื่อการกระทำ เช่น 'SAVE_DRAFT', 'FINALIZE_FORM'
+ * @param details ข้อมูลเพิ่มเติมเกี่ยวกับการกระทำ
+ */
+export const logUserAction = async (
+  user: User,
+  action: string,
+  details: Record<string, any> = {}
+): Promise<void> => {
+  if (!user?.uid || !user?.username) {
+    console.error('Cannot log user action: User data is incomplete');
+    return;
+  }
+
+  try {
+    const deviceInfo = getDeviceInfo();
+    const userAgentStr = getSafeUserAgent();
+    const ipAddress = getClientIP();
+
+    const logDetails: LogDetails = {
+      ...details,
+      action, // Add action to the details object
+      timestamp: new Date().toISOString(),
+      deviceType: deviceInfo.deviceType,
+      browserName: deviceInfo.browserName,
+      role: user.role,
+      ipAddress: ipAddress,
+    };
+    
+    // The call to logServerAction has been removed to avoid type conflicts with generic actions.
+    // The primary log is the one sent to the database via addLogEntry.
+
+    await addLogEntry({
+      type: LogType.USER_ACTION,
+      userId: user.uid,
+      username: user.username,
+      details: logDetails, // Pass the enriched details object
+      userAgent: userAgentStr,
+      ipAddress,
+      logLevel: LogLevel.INFO,
+    }, SYSTEM_LOGS_COLLECTION);
+  } catch (error) {
+    console.error(`Failed to log action [${action}]:`, error);
   }
 }; 

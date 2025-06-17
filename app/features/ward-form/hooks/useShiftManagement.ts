@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ShiftType, FormStatus } from '@/app/core/types/ward';
+import { ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 // import { checkMorningShiftFormStatus, getWardForm } from '../services/wardFormService'; // <<< REMOVE Import service functions
 // import { Timestamp } from 'firebase/firestore'; // <<< REMOVE Timestamp if not needed elsewhere
 

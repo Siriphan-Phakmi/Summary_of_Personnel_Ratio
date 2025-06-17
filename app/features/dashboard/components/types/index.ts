@@ -3,6 +3,8 @@
  * รวมการ export ของ types ทั้งหมดสำหรับ dashboard
  */
 
+'use client';
+
 // Import types from componentInterfaces.ts
 import type {
   UserForChartSection,
@@ -51,27 +53,38 @@ export type {
 // Import types from interface-types.ts
 import type {
   DashboardSummary,
-  WardFormData
+  WardSummaryDataWithShifts,
+  DailyPatientData,
+  ShiftSummaryData
 } from './interface-types';
 
 export type {
   DashboardSummary,
-  WardFormData
+  WardSummaryDataWithShifts,
+  DailyPatientData,
+  ShiftSummaryData
 };
 
 // Common types used across dashboard components
 export interface WardCensusData {
-  id: string;
+  wardId: string;
   wardName: string;
-  patientCount: number;
-  morningPatientCount?: number;
-  nightPatientCount?: number;
+  occupiedBeds: number;
+  totalBeds: number;
+  percentage: number;
 }
 
-export type CalendarMarker = { 
-  date: string; 
-  status: 'draft' | 'final' | 'approved' 
-}; 
+export interface WardCensusMapEntry {
+  wardName: string;
+  patientCount: number;
+  morningPatientCount: number;
+  nightPatientCount: number;
+}
+
+export interface CalendarMarker {
+  date: string;
+  status: 'complete' | 'partial' | 'missing' | 'draft';
+}
 
 export interface TrendData {
   date: string;
@@ -91,8 +104,10 @@ export interface TrendData {
 export * from './button-types';
 export * from './chart-types';
 export * from './component-types';
-export * from './form-types';
+// export * from './form-types'; // Obsolete, removing
 export * from './interface-types';
+export * from './dashboardPageTypes';
+export * from './shiftComparisonTypes';
 
 // ตัดออกเนื่องจาก types เหล่านี้ได้ประกาศในไฟล์นี้แล้ว
 // export type { CalendarMarker, TrendData } from './chart-types';

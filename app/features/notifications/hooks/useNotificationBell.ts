@@ -1,6 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Notification } from '@/app/core/services/NotificationService';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/features/auth';
+
+// Define Notification interface locally since the original import can't be found
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: any; // Timestamp or equivalent
+  actionUrl?: string;
+}
+
+// Simple logger implementation to replace missing Logger
+const Logger = {
+  error: (message: string, error?: any) => {
+    console.error(`[NotificationBell] ${message}`, error);
+  }
+};
 
 export interface NotificationBellState {
   notifications: Notification[];
@@ -24,42 +41,66 @@ export const useNotificationBell = (isOpen: boolean): NotificationBellState & No
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  
+  // ป้องกันการเรียก API ซ้ำๆ
+  const isFetchingCsrf = useRef<boolean>(false);
+  const lastFetchTime = useRef<number>(0);
+  const fetchingNotifications = useRef<boolean>(false);
 
-  // Fetch CSRF Token when user logs in
+  // Get CSRF Token from sessionStorage first, then fetch if needed
   useEffect(() => {
-    const fetchCsrfToken = async () => {
-      if (user && !csrfToken) {
-        try {
-          const res = await fetch('/api/auth/csrf');
-          if (res.ok) {
-            const data = await res.json();
-            setCsrfToken(data.csrfToken);
-          } else {
-            console.error('[useNotificationBell] Failed to fetch CSRF token:', res.statusText);
-          }
-        } catch (err) {
-          console.error('[useNotificationBell] Error fetching CSRF token:', err);
+    const initCsrfToken = async () => {
+      // ถ้าไม่มีผู้ใช้หรือมี token อยู่แล้ว หรือกำลังเรียก API อยู่ ให้ออกจากฟังก์ชัน
+      if (!user || csrfToken || isFetchingCsrf.current) return;
+      
+      // ตรวจสอบเวลาที่เรียกครั้งล่าสุด ถ้าน้อยกว่า 5 วินาที ให้ออกจากฟังก์ชัน
+      const now = Date.now();
+      if (now - lastFetchTime.current < 5000) return;
+      
+        // Try to get from sessionStorage first
+        const existingToken = sessionStorage.getItem('csrfToken');
+        if (existingToken) {
+          setCsrfToken(existingToken);
+          return;
         }
+        
+      // ตั้งค่าตัวแปรป้องกันการเรียกซ้ำ
+      isFetchingCsrf.current = true;
+      lastFetchTime.current = now;
+      
+      try {
+        // If not exists, fetch new one
+        const response = await fetch('/api/auth/csrf');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+            setCsrfToken(data.csrfToken);
+            sessionStorage.setItem('csrfToken', data.csrfToken);
+      } catch (err) {
+        Logger.error('Failed to fetch CSRF token', err);
+      } finally {
+        isFetchingCsrf.current = false;
       }
     };
-    fetchCsrfToken();
+    
+    initCsrfToken();
   }, [user, csrfToken]);
 
-  // Fetch notifications function
+  // Fetch notifications function with improved error handling
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     
+    // ป้องกันการเรียกซ้ำถ้ากำลังโหลดอยู่
+    if (isLoading || fetchingNotifications.current) return;
+    
+    fetchingNotifications.current = true;
     setIsLoading(true);
     setError(null);
     
     try {
       const response = await fetch('/api/notifications/get');
       if (!response.ok) {
-        console.error(`[useNotificationBell] HTTP error:`, response.status, response.statusText);
-        setError(`ไม่สามารถดึงข้อมูลการแจ้งเตือนได้ (Error: ${response.status})`);
-        setNotifications([]);
-        setUnreadCount(0);
-        return;
+        throw new Error(`HTTP ${response.status}: ไม่สามารถดึงข้อมูลการแจ้งเตือนได้`);
       }
       
       const data = await response.json();
@@ -67,26 +108,25 @@ export const useNotificationBell = (isOpen: boolean): NotificationBellState & No
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
       } else {
-        console.error('[useNotificationBell] API returned error:', data.error);
-        setError(data.error || 'ไม่สามารถดึงข้อมูลการแจ้งเตือนได้');
-        setNotifications([]);
-        setUnreadCount(0);
+        throw new Error(data.error || 'ไม่สามารถดึงข้อมูลการแจ้งเตือนได้');
       }
     } catch (err) {
-      console.error("[useNotificationBell] Fetch notifications error:", err);
-      setError(err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์');
+      const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์';
+      setError(errorMessage);
       setNotifications([]);
       setUnreadCount(0);
+      Logger.error('Fetch notifications failed', err);
     } finally {
       setIsLoading(false);
+      fetchingNotifications.current = false;
     }
-  }, [user]);
+  }, [user, isLoading]);
 
-  // Mark single notification as read
-  const markAsRead = useCallback(async (notificationId: string) => {
+  // Unified mark as read function
+  const markAsReadRequest = useCallback(async (payload: { notificationId?: string; all?: boolean }) => {
     if (!csrfToken) {
-      console.error('[useNotificationBell] CSRF Token not available for markAsRead.');
-      return;
+      Logger.error('CSRF Token not available');
+      return false;
     }
     
     try {
@@ -96,68 +136,48 @@ export const useNotificationBell = (isOpen: boolean): NotificationBellState & No
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken,
         },
-        body: JSON.stringify({ notificationId }),
+        body: JSON.stringify(payload),
       });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          // Update local state optimistically
-          setNotifications(prev => 
-            prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-          );
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
+        return data.success;
       } else if (response.status === 403) {
         setError('เกิดข้อผิดพลาดด้านความปลอดภัย โปรดรีเฟรชหน้าเว็บ');
-        console.error('CSRF token validation failed when marking as read.');
+        return false;
       } else {
         setError('ไม่สามารถทำเครื่องหมายว่าอ่านแล้วได้');
-        console.error('Failed to mark notification as read:', response.statusText);
+        return false;
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-      console.error('Error marking notification as read:', err);
+      Logger.error('Mark as read request failed', err);
+      return false;
     }
   }, [csrfToken]);
 
+  // Mark single notification as read
+  const markAsRead = useCallback(async (notificationId: string) => {
+    const success = await markAsReadRequest({ notificationId });
+    if (success) {
+      setNotifications(prev => 
+        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
+  }, [markAsReadRequest]);
+
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
-    if (!csrfToken || unreadCount === 0) {
-      console.error('[useNotificationBell] CSRF Token not available or no unread messages.');
-      return;
-    }
+    if (unreadCount === 0) return;
     
     setError(null);
-    try {
-      const response = await fetch('/api/notifications/markAsRead', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken,
-        },
-        body: JSON.stringify({ all: true }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // Update local state
+    const success = await markAsReadRequest({ all: true });
+    if (success) {
           setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
           setUnreadCount(0);
         }
-      } else if (response.status === 403) {
-        setError('เกิดข้อผิดพลาดด้านความปลอดภัย โปรดรีเฟรชหน้าเว็บ');
-        console.error('CSRF token validation failed when marking all as read.');
-      } else {
-        setError('ไม่สามารถทำเครื่องหมายทั้งหมดว่าอ่านแล้วได้');
-        console.error('Failed to mark all notifications as read:', response.statusText);
-      }
-    } catch (err) {
-      setError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-      console.error('Error marking all notifications as read:', err);
-    }
-  }, [csrfToken, unreadCount]);
+  }, [markAsReadRequest, unreadCount]);
 
   // Clear error function
   const clearError = useCallback(() => {
@@ -168,10 +188,13 @@ export const useNotificationBell = (isOpen: boolean): NotificationBellState & No
   useEffect(() => {
     if (!user || !isOpen) return;
     
-    // Fetch immediately on open
+    // เรียกครั้งแรกเมื่อเปิด dropdown
     fetchNotifications();
-    // Poll every 3 minutes while open
-    const intervalId = setInterval(fetchNotifications, 180000);
+    
+    // ตั้งเวลาเรียกทุก 3 นาที แทนที่จะเรียกถี่เกินไป
+    const intervalId = setInterval(fetchNotifications, 180000); // 3 minutes
+    
+    // ล้าง interval เมื่อปิด dropdown
     return () => clearInterval(intervalId);
   }, [user, isOpen, fetchNotifications]);
 

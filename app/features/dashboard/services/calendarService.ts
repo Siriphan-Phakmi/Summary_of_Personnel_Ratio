@@ -1,10 +1,10 @@
 'use client';
 
-import { db } from '@/app/core/firebase/firebase';
+import { db } from '@/app/lib/firebase/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { COLLECTION_WARDFORMS } from '@/app/features/ward-form/services/constants';
 import { format, subMonths, addMonths } from 'date-fns';
-import { FormStatus, ShiftType, WardForm } from '@/app/core/types/ward';
+import { FormStatus, ShiftType, WardForm } from '@/app/features/ward-form/types/ward';
 import { logError, logInfo } from '../utils/loggingUtils';
 
 /**

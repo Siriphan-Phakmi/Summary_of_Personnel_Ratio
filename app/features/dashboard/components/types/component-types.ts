@@ -1,4 +1,4 @@
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { DashboardSummary } from './interface-types';
 
 /**

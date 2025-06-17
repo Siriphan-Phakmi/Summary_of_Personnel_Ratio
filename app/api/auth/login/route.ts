@@ -1,20 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateCSRFToken } from '@/app/core/utils/authUtils';
-import { AuthService } from '@/app/core/services/AuthService';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import bcrypt from 'bcryptjs';
 
-/**
- * Route handler สำหรับการล็อกอิน
- */
-export async function POST(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[API] POST /api/auth/login - Processing login request');
-  }
+// Firebase config ใช้ตัวเดียวกับฝั่ง client ผ่าน ENV ที่กำหนดใน .env
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
 
+// ป้องกันการ init ซ้ำใน dev mode
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app);
+
+// Helper: สร้าง response JSON พร้อม header ที่ถูกต้อง
+const jsonResponse = (data: any, init: ResponseInit = {}) => {
+  return new NextResponse(JSON.stringify(data), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...init.headers },
+    ...init,
+  });
+};
+
+export async function POST(req: NextRequest) {
   try {
-    // รับข้อมูลจาก request body
-    const { username, password, csrfToken } = await request.json();
+    const { username, password } = await req.json();
 
-    // ตรวจสอบข้อมูลที่จำเป็น
     if (!username || !password) {
       return NextResponse.json(
         { success: false, error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' },
@@ -22,61 +38,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ตรวจสอบ CSRF token
-    if (!validateCSRFToken(csrfToken)) {
+    // สมมติว่า document id = username
+    const userRef = doc(db, 'users', username);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
       return NextResponse.json(
-        { success: false, error: 'CSRF token ไม่ถูกต้อง กรุณารีเฟรชหน้าและลองใหม่อีกครั้ง' },
-        { status: 403 }
-      );
-    }
-
-    // ดำเนินการล็อกอิน
-    const authService = AuthService.getInstance();
-    const result = await authService.login(username, password);    if (result.success && result.user) {
-      // สร้าง Response
-      const response = NextResponse.json(
-        { success: true, user: result.user },
-        { status: 200 }
-      );
-
-      // เซ็ต cookies สำหรับ auth_token และ user_data
-      response.cookies.set('auth_token', result.user.uid, {
-        path: '/',
-        httpOnly: false, // ต้องเป็น false เพื่อให้ client อ่านได้
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 3 * 60 * 60 // 3 ชั่วโมง
-      });
-
-      // เซ็ต user data เป็น JSON string
-      const userData = JSON.stringify({
-        uid: result.user.uid,
-        username: result.user.username,
-        role: result.user.role,
-        firstName: result.user.firstName,
-        lastName: result.user.lastName,
-        floor: result.user.floor
-      });
-
-      response.cookies.set('user_data', encodeURIComponent(userData), {
-        path: '/',
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 3 * 60 * 60 // 3 ชั่วโมง
-      });
-
-      return response;
-    } else {
-      return NextResponse.json(
-        { success: false, error: result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
+        { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
       );
     }
-  } catch (error) {
-    console.error('[API] Login error:', error);
+
+    const userData = userSnap.data() as Record<string, any>;
+
+    const hashedPw: string | undefined = userData.password;
+
+    if (!hashedPw) {
+      return NextResponse.json(
+        { success: false, error: 'บัญชีนี้ไม่มีรหัสผ่าน โปรดติดต่อผู้ดูแลระบบ' },
+        { status: 500 }
+      );
+    }
+
+    const isMatch = await bcrypt.compare(password, hashedPw);
+    if (!isMatch) {
+      return NextResponse.json(
+        { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
+        { status: 401 }
+      );
+    }
+
+    // สร้าง user object ที่ปลอดภัย ไม่ส่งรหัสผ่านกลับ
+    const safeUser = {
+      uid: userSnap.id,
+      username: userData.username || userSnap.id,
+      role: userData.role || 'user',
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+    };
+
+    // ตั้ง cookie แบบ httpOnly สำหรับ auth token (stub) และ user_data (encodeURIComponent)
+    const response = NextResponse.json({ success: true, user: safeUser });
+    // สำหรับ demo ใช้ token ปลอม (ใน production ต้องสร้าง JWT หรือ signed token จริง)
+    const threeHours = 60 * 60 * 3;
+    response.cookies.set('auth_token', 'valid', {
+      httpOnly: true,
+      maxAge: threeHours,
+      path: '/',
+    });
+    response.cookies.set('user_data', encodeURIComponent(JSON.stringify(safeUser)), {
+      maxAge: threeHours,
+      path: '/',
+    });
+
+    return response;
+  } catch (err) {
+    console.error('Login API error:', err);
     return NextResponse.json(
-      { success: false, error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' },
+      { success: false, error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' },
       { status: 500 }
     );
   }

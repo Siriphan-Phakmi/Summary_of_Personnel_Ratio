@@ -1,13 +1,34 @@
 import { Timestamp } from 'firebase/firestore';
-import { Ward } from '@/app/core/types/ward';
+import { Ward, WardForm } from '@/app/features/ward-form/types/ward';
 
-// นำเข้า DashboardSummary จาก types/form-types.ts แทนการประกาศซ้ำ
-import { DashboardSummary } from './types/form-types';
+/**
+ * Main data structures for the dashboard feature.
+ */
 
-// ส่งออก DashboardSummary ที่นำเข้ามา
-export type { DashboardSummary };
+/**
+ * ข้อมูลสรุปของแผนกสำหรับหน้า Dashboard
+ */
+export interface DashboardSummary {
+  /** รหัสแผนก */
+  wardId: string;
+  /** ชื่อแผนก */
+  wardName: string;
+  /** วันที่ */
+  date: Date | Timestamp;
+  /** วันที่ในรูปแบบข้อความ */
+  dateString: string;
+  /** ข้อมูลแบบฟอร์มกะเช้า */
+  morningForm?: WardForm;
+  /** ข้อมูลแบบฟอร์มกะดึก */
+  nightForm?: WardForm;
+  /** จำนวนผู้ป่วยรวมทั้งวัน */
+  dailyPatientCensus: number;
+}
 
-// เพิ่ม interface จาก DashboardPage.tsx
+// Represents a single marker on the calendar view
+export type CalendarMarker = { date: string; status: 'draft' | 'final' | 'approved' };
+
+// Data for the patient census count in various components
 export interface WardCensusData {
   id: string;
   wardName: string;
@@ -16,14 +37,46 @@ export interface WardCensusData {
   nightPatientCount?: number;
 }
 
+// Data for the patient trend line chart
+export interface TrendData {
+  date: string;
+  patientCount: number;
+  admitCount: number;
+  dischargeCount: number; // Corrected from dischargeTotal
+  wardData?: {
+    [wardId: string]: {
+      wardName: string;
+      patientCount: number;
+    }
+  };
+}
+
+// The primary summary structure for a single shift (morning or night)
+export interface WardFormSummary {
+  patientCensus: number;
+  admitted: number;
+  discharged: number;
+  transferredIn: number;
+  transferredOut: number;
+  deaths: number;
+  availableBeds: number;
+  occupiedBeds: number;
+}
+
+// Combines morning, night, and total summaries for a single ward to be displayed in the table
+export interface WardSummaryDataWithShifts {
+  id: string;
+  wardName: string;
+  morningShift?: WardFormSummary;
+  nightShift?: WardFormSummary;
+  totalData: WardFormSummary;
+}
+
 // ประเภทของการดูข้อมูล
 export enum ViewType {
   SUMMARY = 'summary',
   WARD_DETAIL = 'ward_detail'
 }
-
-// นำเข้า type สำหรับ markers
-export type CalendarMarker = { date: string; status: 'draft' | 'final' | 'approved' };
 
 // เพิ่ม interface สำหรับข้อมูลกราฟเส้นรายวัน
 export interface DailyPatientData {
@@ -34,29 +87,6 @@ export interface DailyPatientData {
   morningPatientCount: number;
   nightPatientCount: number;
   totalPatientCount: number;
-}
-
-export interface WardFormData {
-  id?: string;
-  patientCensus: number;
-  calculatedCensus?: number;
-  nurseManager: number;
-  rn: number;
-  pn: number;
-  wc: number;
-  newAdmit: number;
-  transferIn: number;
-  referIn: number;
-  discharge: number;
-  transferOut: number;
-  referOut: number;
-  dead: number;
-  available: number;
-  unavailable: number;
-  plannedDischarge: number;
-  admitTotal?: number;
-  dischargeTotal?: number;
-  initialPatientCensus?: number;
 }
 
 export interface PatientCensusData {
@@ -78,24 +108,6 @@ export interface WardSummaryCardProps {
   patientCount: number;
   isSelected?: boolean;
   onClick: () => void;
-}
-
-export interface ShiftSummaryProps {
-  title: string; // เช่น "กะเช้า", "กะดึก"
-  patientCensus: number;
-  nurseManager: number;
-  rn: number;
-  pn: number;
-  wc: number;
-  newAdmit: number;
-  transferIn: number;
-  referIn: number;
-  discharge: number;
-  transferOut: number;
-  referOut: number;
-  dead: number;
-  admitTotal?: number;
-  dischargeTotal?: number;
 }
 
 export interface WardSummaryGridProps {
@@ -159,7 +171,7 @@ export interface PatientTrendData {
 }
 
 export interface PatientTrendChartProps {
-  data: PatientTrendData[];
+  data: TrendData[];
   title?: string;
 }
 
@@ -196,30 +208,4 @@ export interface ShiftComparisonPanelProps {
   wardName: string;
   allWards?: Ward[];
   onWardSelect?: (wardId: string) => void;
-}
-
-export interface WardFormSummary {
-  patientCensus: number;
-  nurseManager: number;
-  rn: number;
-  pn: number;
-  wc: number;
-  newAdmit: number;
-  transferIn: number;
-  referIn: number;
-  discharge: number;
-  transferOut: number;
-  referOut: number;
-  dead: number;
-  available: number;
-  unavailable: number;
-  plannedDischarge: number;
-}
-
-export interface WardSummaryDataWithShifts {
-  id: string;
-  wardName: string;
-  morningShift?: WardFormSummary;
-  nightShift?: WardFormSummary;
-  totalData: WardFormSummary;
 } 

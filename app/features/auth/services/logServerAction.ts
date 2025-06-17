@@ -1,35 +1,7 @@
 'use server';
 
-import { User } from '@/app/core/types/user';
-
-/**
- * สร้าง user object ที่ปลอดภัยสำหรับ server action (ไม่มี complex objects)
- */
-function createSafeUserObject(user: Partial<User> | null): Record<string, any> | null {
-  if (!user) return null;
-  
-  // ฟังก์ชันช่วยแปลง timestamp เป็น string
-  const formatTimestamp = (timestamp: any): string => {
-    if (typeof timestamp === 'string') return timestamp;
-    if (timestamp instanceof Date) return timestamp.toISOString();
-    if (timestamp && typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
-    if (timestamp && 'seconds' in timestamp) return new Date((timestamp.seconds as number) * 1000).toISOString();
-    return 'unknown';
-  };
-  
-  // สร้าง plain object ใหม่ที่มีเฉพาะค่าพื้นฐาน
-  return {
-    uid: user.uid,
-    username: user.username,
-    role: user.role,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    displayName: user.displayName,
-    active: user.active,
-    createdAt: user.createdAt ? formatTimestamp(user.createdAt) : undefined,
-    updatedAt: user.updatedAt ? formatTimestamp(user.updatedAt) : undefined,
-  };
-}
+import { User } from '../types/user';
+import { createSafeUserObject } from '../utils/userUtils';
 
 /**
  * บันทึก log ในฝั่ง server (จะแสดงใน terminal ของ npm run dev)

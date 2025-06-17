@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { logInfo } from '../utils';
-import { Ward } from '@/app/core/types/ward';
+import { Ward } from '@/app/features/ward-form/types/ward';
 
 export const useEventHandlers = (
   setDateRange: (range: string) => void,

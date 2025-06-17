@@ -8,5 +8,4 @@ export const COLLECTION_APPROVALS = 'approvals';
 export const COLLECTION_SUMMARIES = 'dailySummaries';
 export const COLLECTION_HISTORY = 'approvalHistory';
 
-// เพิ่ม console.log เพื่อตรวจสอบการโหลดไฟล์
-console.log('[constants.ts] Constants loaded - COLLECTION_SUMMARIES =', COLLECTION_SUMMARIES); 
+// Constants loaded - COLLECTION_SUMMARIES is now available 

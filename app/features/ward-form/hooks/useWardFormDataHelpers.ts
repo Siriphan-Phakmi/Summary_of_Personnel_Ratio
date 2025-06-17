@@ -1,32 +1,28 @@
-import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
-import { User } from '@/app/core/types/user';
+import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
+import { User } from '@/app/features/auth/types/user';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 
-// Initial form structure
+// Initial form structure, aligned with the new WardForm interface
 export const initialFormStructure: Partial<WardForm> = {
   patientCensus: undefined,
-  initialPatientCensus: undefined,
-  calculatedCensus: undefined,
-  nurseManager: undefined,
-  rn: undefined,
-  pn: undefined,
-  wc: undefined,
-  newAdmit: undefined,
-  transferIn: undefined,
-  referIn: undefined,
-  transferOut: undefined,
-  referOut: undefined,
-  discharge: undefined,
-  dead: undefined,
-  available: undefined,
-  unavailable: undefined,
-  plannedDischarge: undefined,
-  comment: '',
+  admitted: undefined,
+  discharged: undefined,
+  transferredIn: undefined,
+  transferredOut: undefined,
+  deaths: undefined,
+  onLeave: undefined,
+  absconded: undefined,
+  totalBeds: undefined,
+  availableBeds: undefined,
+  occupiedBeds: undefined,
+  specialCareBeds: undefined,
+  isolationBeds: undefined,
   recorderFirstName: '',
   recorderLastName: '',
+  rejectionReason: '',
   status: FormStatus.DRAFT,
-  isDraft: true
+  isDraft: true,
 };
 
 /**
@@ -41,21 +37,21 @@ export const convertFormDataFromFirebase = (
     date: existingForm.date instanceof Timestamp 
       ? format(existingForm.date.toDate(), 'yyyy-MM-dd') 
       : typeof existingForm.date === 'string' ? existingForm.date : selectedDate,
+    // Map old field names to new field names if necessary for backward compatibility,
+    // but the primary goal is to align with the new WardForm interface.
     patientCensus: existingForm.patientCensus ?? undefined,
-    nurseManager: existingForm.nurseManager ?? undefined,
-    rn: existingForm.rn ?? undefined,
-    pn: existingForm.pn ?? undefined,
-    wc: existingForm.wc ?? undefined,
-    newAdmit: existingForm.newAdmit ?? undefined,
-    transferIn: existingForm.transferIn ?? undefined,
-    referIn: existingForm.referIn ?? undefined,
-    transferOut: existingForm.transferOut ?? undefined,
-    referOut: existingForm.referOut ?? undefined,
-    discharge: existingForm.discharge ?? undefined,
-    dead: existingForm.dead ?? undefined,
-    available: existingForm.available ?? undefined,
-    unavailable: existingForm.unavailable ?? undefined,
-    plannedDischarge: existingForm.plannedDischarge ?? undefined,
+    admitted: existingForm.admitted ?? existingForm.newAdmit ?? undefined,
+    discharged: existingForm.discharged ?? undefined,
+    transferredIn: existingForm.transferredIn ?? existingForm.transferIn ?? undefined,
+    transferredOut: existingForm.transferredOut ?? existingForm.transferOut ?? undefined,
+    deaths: existingForm.deaths ?? existingForm.dead ?? undefined,
+    onLeave: existingForm.onLeave ?? undefined,
+    absconded: existingForm.absconded ?? undefined,
+    totalBeds: existingForm.totalBeds ?? undefined,
+    availableBeds: existingForm.availableBeds ?? existingForm.available ?? undefined,
+    occupiedBeds: existingForm.occupiedBeds ?? undefined,
+    specialCareBeds: existingForm.specialCareBeds ?? undefined,
+    isolationBeds: existingForm.isolationBeds ?? undefined,
   };
 };
 
@@ -64,18 +60,16 @@ export const convertFormDataFromFirebase = (
  */
 export const calculateMorningPatientCensus = (
   previousNightCensus: number | null,
-  newAdmit: number = 0,
-  transferIn: number = 0,
-  referIn: number = 0,
-  discharge: number = 0,
-  transferOut: number = 0,
-  referOut: number = 0,
-  dead: number = 0
+  admitted: number = 0,
+  transferredIn: number = 0,
+  discharged: number = 0,
+  transferredOut: number = 0,
+  deaths: number = 0
 ): number => {
   if (previousNightCensus === null) return 0;
   
-  const totalIn = newAdmit + transferIn + referIn;
-  const totalOut = discharge + transferOut + referOut + dead;
+  const totalIn = admitted + transferredIn;
+  const totalOut = discharged + transferredOut + deaths;
   
   return Math.max(0, previousNightCensus + totalIn - totalOut);
 };
@@ -85,16 +79,14 @@ export const calculateMorningPatientCensus = (
  */
 export const calculateNightPatientCensus = (
   morningCensus: number,
-  newAdmit: number = 0,
-  transferIn: number = 0,
-  referIn: number = 0,
-  discharge: number = 0,
-  transferOut: number = 0,
-  referOut: number = 0,
-  dead: number = 0
+  admitted: number = 0,
+  transferredIn: number = 0,
+  discharged: number = 0,
+  transferredOut: number = 0,
+  deaths: number = 0
 ): number => {
-  const totalIn = newAdmit + transferIn + referIn;
-  const totalOut = discharge + transferOut + referOut + dead;
+  const totalIn = admitted + transferredIn;
+  const totalOut = discharged + transferredOut + deaths;
   
   return Math.max(0, morningCensus + totalIn - totalOut);
 };
@@ -104,11 +96,10 @@ export const calculateNightPatientCensus = (
  */
 export const getFieldsWithZeroValue = (data: Partial<WardForm>): string[] => {
   const zeroFields: string[] = [];
-  const numericFields = [
-    'patientCensus', 'nurseManager', 'rn', 'pn', 'wc',
-    'newAdmit', 'transferIn', 'referIn', 'discharge', 
-    'transferOut', 'referOut', 'dead', 'available', 
-    'unavailable', 'plannedDischarge'
+  const numericFields: (keyof WardForm)[] = [
+    'patientCensus', 'admitted', 'discharged', 'transferredIn', 
+    'transferredOut', 'deaths', 'onLeave', 'absconded', 'totalBeds', 
+    'availableBeds', 'occupiedBeds', 'specialCareBeds', 'isolationBeds'
   ];
 
   numericFields.forEach(field => {
@@ -146,6 +137,11 @@ export const prepareDataForSave = (
     updatedBy: user.uid,
   };
 
+  if (!saveData.id) { // If it's a new form
+    saveData.createdAt = Timestamp.now();
+    saveData.createdBy = user.uid;
+  }
+
   // Convert undefined values to null for Firestore
   Object.keys(saveData).forEach(key => {
     if (saveData[key as keyof WardForm] === undefined) {
@@ -170,10 +166,13 @@ export const safeNumber = (value: any): number => {
  */
 export const validateField = (fieldName: keyof WardForm, value: any): string | null => {
   // Numeric fields validation
-  if (['patientCensus', 'nurseManager', 'rn', 'pn', 'wc', 
-       'newAdmit', 'transferIn', 'referIn', 'discharge', 
-       'transferOut', 'referOut', 'dead', 'available', 
-       'unavailable', 'plannedDischarge'].includes(fieldName)) {
+  const numericFields: (keyof WardForm)[] = [
+    'patientCensus', 'admitted', 'discharged', 'transferredIn', 
+    'transferredOut', 'deaths', 'onLeave', 'absconded', 'totalBeds', 
+    'availableBeds', 'occupiedBeds', 'specialCareBeds', 'isolationBeds'
+  ];
+
+  if (numericFields.includes(fieldName)) {
     if (value === null || value === undefined || value === '') {
       return 'กรุณากรอกข้อมูล';
     }
@@ -189,7 +188,7 @@ export const validateField = (fieldName: keyof WardForm, value: any): string | n
   }
 
   // String fields validation
-  if (['recorderFirstName', 'recorderLastName'].includes(fieldName)) {
+  if (['recorderFirstName', 'recorderLastName'].includes(fieldName as string)) {
     if (!value || typeof value !== 'string' || value.trim() === '') {
       return 'กรุณากรอกข้อมูล';
     }
@@ -199,10 +198,10 @@ export const validateField = (fieldName: keyof WardForm, value: any): string | n
     }
   }
 
-  // Comment validation
-  if (fieldName === 'comment') {
+  // Rejection reason validation
+  if (fieldName === 'rejectionReason') {
     if (value && typeof value === 'string' && value.length > 500) {
-      return 'ความยาวของหมายเหตุไม่ควรเกิน 500 ตัวอักษร';
+      return 'ความยาวของเหตุผลไม่ควรเกิน 500 ตัวอักษร';
     }
   }
 
@@ -223,8 +222,7 @@ export const createNightShiftInitialData = (
     wardId: selectedBusinessWardId,
     shift: ShiftType.NIGHT,
     date: selectedDate,
-    initialPatientCensus: morningCensus,
-    patientCensus: morningCensus,
+    patientCensus: morningCensus, // The starting census for the night is the closing census of the morning.
     recorderFirstName: user.firstName || '',
     recorderLastName: user.lastName || '',
     status: FormStatus.DRAFT,
@@ -246,8 +244,7 @@ export const createMorningShiftInitialData = (
     wardId: selectedBusinessWardId,
     shift: ShiftType.MORNING,
     date: selectedDate,
-    initialPatientCensus: previousNightCensus || undefined,
-    patientCensus: previousNightCensus || undefined,
+    patientCensus: previousNightCensus || undefined, // The starting census for the morning is the closing census of the previous night.
     recorderFirstName: user.firstName || '',
     recorderLastName: user.lastName || '',
     status: FormStatus.DRAFT,

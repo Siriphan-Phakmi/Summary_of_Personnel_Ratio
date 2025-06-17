@@ -1,11 +1,11 @@
 'use client';
 
-import { db } from '@/app/core/firebase/firebase';
+import { db } from '@/app/lib/firebase/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { COLLECTION_SUMMARIES } from '@/app/features/ward-form/services/constants';
 import { format, parseISO, isBefore, isEqual, endOfDay } from 'date-fns';
-import { User } from '@/app/core/types/user';
-import { Ward } from '@/app/core/types/ward';
+import { User } from '@/app/features/auth/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
 import { logError, logInfo, hasAccessToWard } from '../utils/loggingUtils';
 
 /**
@@ -91,7 +91,7 @@ export const fetchAllWardSummaryData = async (
       if (!wardSummaries.has(wardKey)) {
         wardSummaries.set(wardKey, {
           id: ward.id || wardId,
-          wardName: ward.wardName || wardId,
+          wardName: ward.name || wardId,
           patientCensus: 0,
           nurseManager: 0,
           rn: 0,

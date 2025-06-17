@@ -9,11 +9,11 @@ import {
   Timestamp, 
   limit
 } from 'firebase/firestore';
-import { db } from '@/app/core/firebase/firebase';
-import { safeQuery, safeGetDoc } from '@/app/core/firebase/firestoreUtils';
-import { WardForm, ShiftType, FormStatus } from '@/app/core/types/ward';
+import { db } from '@/app/lib/firebase/firebase';
+import { safeQuery } from '@/app/lib/firebase/firestoreUtils';
+import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 import { format } from 'date-fns';
-import { Logger } from '@/app/core/utils/logger';
+import { Logger } from '@/app/lib/utils/logger';
 
 /**
  * Query functions for ward forms with offline error handling
@@ -35,23 +35,23 @@ export const getWardFormWithRetry = async (
   try {
     const dateString = format(date.toDate(), 'yyyy-MM-dd');
     
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    // สร้าง query object
+    const q = query(
+      collection(db, 'wardForms'),
         where('dateString', '==', dateString),
         where('shift', '==', shift),
         where('wardId', '==', wardId),
         orderBy('updatedAt', 'desc'),
         limit(1)
-      ],
-      context,
-      3 // retry 3 ครั้ง
     );
 
-    if (forms && forms.length > 0) {
-      Logger.info(`[${context}] Found form with status: ${forms[0].status}`);
-      return forms[0];
+    // ใช้ safeQuery เพื่อจัดการ offline error
+    const querySnapshot = await safeQuery(q, context, 3);
+
+    if (querySnapshot && !querySnapshot.empty) {
+      const form = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as WardForm;
+      Logger.info(`[${context}] Found form with status: ${form.status}`);
+      return form;
     }
 
     Logger.info(`[${context}] No form found`);
@@ -73,30 +73,28 @@ export const getLatestPreviousNightFormWithRetry = async (
   const context = `getPreviousNightForm-${wardId}`;
   
   try {
-    // คำนวณวันก่อนหน้า
     const previousDay = new Date(date);
     previousDay.setDate(previousDay.getDate() - 1);
     const previousDateString = format(previousDay, 'yyyy-MM-dd');
     
     Logger.info(`[${context}] Looking for night form on ${previousDateString}`);
     
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    const q = query(
+      collection(db, 'wardForms'),
         where('dateString', '==', previousDateString),
         where('shift', '==', ShiftType.NIGHT),
         where('wardId', '==', wardId.toUpperCase()),
         where('status', 'in', [FormStatus.FINAL, FormStatus.APPROVED]),
         orderBy('updatedAt', 'desc'),
         limit(1)
-      ],
-      context
     );
 
-    if (forms && forms.length > 0) {
-      Logger.info(`[${context}] Found previous night form with ${forms[0].patientCensus} patients`);
-      return forms[0];
+    const querySnapshot = await safeQuery(q, context);
+
+    if (querySnapshot && !querySnapshot.empty) {
+      const form = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as WardForm;
+      Logger.info(`[${context}] Found previous night form with ${form.patientCensus} patients`);
+      return form;
     }
 
     Logger.info(`[${context}] No previous night form found`);
@@ -104,7 +102,7 @@ export const getLatestPreviousNightFormWithRetry = async (
     
   } catch (error) {
     Logger.error(`[${context}] Error getting previous night form:`, error);
-    return null; // Return null instead of throwing to prevent cascading errors
+    return null; 
   }
 };
 
@@ -125,21 +123,19 @@ export const checkMorningShiftFormStatusWithRetry = async (
   try {
     const dateString = format(date, 'yyyy-MM-dd');
     
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    const q = query(
+      collection(db, 'wardForms'),
         where('dateString', '==', dateString),
         where('shift', '==', ShiftType.MORNING),
         where('wardId', '==', wardId.toUpperCase()),
         orderBy('updatedAt', 'desc'),
         limit(1)
-      ],
-      context
     );
 
-    if (forms && forms.length > 0) {
-      const form = forms[0];
+    const querySnapshot = await safeQuery(q, context);
+
+    if (querySnapshot && !querySnapshot.empty) {
+      const form = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as WardForm;
       return {
         exists: true,
         formId: form.id,
@@ -171,25 +167,23 @@ export const getShiftStatusesForDayWithRetry = async (
     
     Logger.info(`[${context}] Checking statuses for ${dateString}`);
     
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    const q = query(
+      collection(db, 'wardForms'),
         where('dateString', '==', dateString),
         where('wardId', '==', wardId),
         orderBy('shift', 'asc'),
         orderBy('updatedAt', 'desc')
-      ],
-      context
     );
+    
+    const querySnapshot = await safeQuery(q, context);
+    const forms = querySnapshot ? querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm)) : [];
 
     let morningStatus: FormStatus | null = null;
     let nightStatus: FormStatus | null = null;
 
-    if (forms && forms.length > 0) {
-      // จัดกลุ่มตาม shift และหาล่าสุดของแต่ละกะ
-      const morningForms = forms.filter(f => f.shift === ShiftType.MORNING);
-      const nightForms = forms.filter(f => f.shift === ShiftType.NIGHT);
+    if (forms.length > 0) {
+      const morningForms = forms.filter((f: WardForm) => f.shift === ShiftType.MORNING);
+      const nightForms = forms.filter((f: WardForm) => f.shift === ShiftType.NIGHT);
 
       if (morningForms.length > 0) {
         morningStatus = morningForms[0].status;
@@ -220,22 +214,21 @@ export const getLatestDraftFormWithRetry = async (
   const context = `getLatestDraft-${wardId}-${userId}`;
   
   try {
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    const q = query(
+      collection(db, 'wardForms'),
         where('wardId', '==', wardId.toUpperCase()),
         where('createdBy', '==', userId),
         where('isDraft', '==', true),
         orderBy('updatedAt', 'desc'),
         limit(1)
-      ],
-      context
     );
 
-    if (forms && forms.length > 0) {
-      Logger.info(`[${context}] Found draft form from ${forms[0].updatedAt}`);
-      return forms[0];
+    const querySnapshot = await safeQuery(q, context);
+
+    if (querySnapshot && !querySnapshot.empty) {
+      const form = { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as WardForm;
+      Logger.info(`[${context}] Found draft form from ${form.updatedAt}`);
+      return form;
     }
 
     Logger.info(`[${context}] No draft form found`);
@@ -257,19 +250,17 @@ export const getWardFormsByWardAndDateWithRetry = async (
   const context = `getWardFormsByDate-${wardId}`;
   
   try {
-    // ใช้ safeQuery เพื่อจัดการ offline error
-    const forms = await safeQuery<WardForm>(
-      'wardForms',
-      [
+    const q = query(
+      collection(db, 'wardForms'),
         where('wardId', '==', wardId.toUpperCase()),
         where('dateString', '==', date),
         orderBy('shift', 'asc'),
         orderBy('updatedAt', 'desc')
-      ],
-      context
     );
 
-    return forms || [];
+    const querySnapshot = await safeQuery(q, context);
+
+    return querySnapshot ? querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WardForm)) : [];
     
   } catch (error) {
     Logger.error(`[${context}] Error getting ward forms by date:`, error);

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ShiftType } from '@/app/core/types/ward';
+import { ShiftType } from '@/app/features/ward-form/types/ward';
 
 interface ShiftBadgeProps {
   shift: ShiftType | string;

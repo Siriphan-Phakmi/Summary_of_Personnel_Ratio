@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 import NoDataMessage from '@/app/features/dashboard/components/NoDataMessage';
 import EnhancedBarChart from '@/app/features/dashboard/components/EnhancedBarChart';
 import BedSummaryPieChart from '@/app/features/dashboard/components/BedSummaryPieChart';
-import { PieChartDataItem } from '@/app/features/dashboard/components/EnhancedPieChart';
+import { PieChartDataItem } from '@/app/features/dashboard/components/types/chart-types';
 import { logInfo } from '@/app/features/dashboard/utils';
 
 // Interface สำหรับข้อมูลกราฟแท่ง
@@ -110,7 +110,7 @@ const ChartSection: React.FC<ChartSectionProps> = ({
                     // แปลงข้อมูลก่อนส่งไปยัง component
                     const formattedItem = {
                       id: item.id,
-                      wardName: item.wardName,
+                      name: item.wardName, // แก้ไข: เปลี่ยน 'wardName' เป็น 'name' ให้ตรงตาม WardBedData type
                       available: item.value,
                       unavailable: item.unavailable || 0,
                       plannedDischarge: item.plannedDischarge || 0

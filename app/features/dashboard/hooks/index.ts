@@ -10,6 +10,7 @@ export { useDataFetching } from './useDataFetching';
 export { useDateRangeEffect } from './useDateRangeEffect';
 export { useEventHandlers } from './useEventHandlers';
 export { useTrendData } from './useTrendData';
+export { useCalendarAndChartData } from './useCalendarAndChartData';
 export * from './useDateRange';
 export * from './useSafeLogging';
 export * from './useWardData'; 
