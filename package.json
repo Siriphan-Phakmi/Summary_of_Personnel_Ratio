@@ -166,6 +166,7 @@
     "import-fresh": "^3.3.1",
     "imurmurhash": "^0.1.4",
     "internal-slot": "^1.1.0",
+    "iron-session": "^8.0.4",
     "is-array-buffer": "^3.0.5",
     "is-arrayish": "^0.3.2",
     "is-async-function": "^2.1.1",

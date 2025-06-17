@@ -94,10 +94,10 @@ export const useAuthCore = () => {
       setUser(null);
       setAuthStatus('unauthenticated');
       setIsLoggingOut(false);
-      devLog('Client-side logout complete. Redirecting to /login.');
-      router.push('/login');
+      devLog('Client-side logout complete. Forcing a full page reload to /login.');
+      window.location.href = '/login';
     }
-  }, [isLoggingOut, user, router, clearTimers, clearStorageData]);
+  }, [isLoggingOut, user, clearTimers, clearStorageData]);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -155,7 +155,6 @@ export const useAuthCore = () => {
         setAuthStatus('authenticated');
         saveUserData(result.user);
         await logLogin(result.user);
-        setupActivityCheck();
         return true;
       } else {
         const errorMessage = result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
@@ -181,9 +180,13 @@ export const useAuthCore = () => {
       showErrorToast(errorMessage);
       return false;
     }
-  }, [saveUserData, setupActivityCheck]);
+  }, [saveUserData]);
 
   const checkSession = useCallback(async () => {
+    if (isLoggingOut) {
+        devLog('Skipping session check during logout.');
+        return;
+    }
     devLog('Checking session...');
     setAuthStatus('loading');
     try {
@@ -205,7 +208,7 @@ export const useAuthCore = () => {
       setAuthStatus('unauthenticated');
       clearTimers();
     }
-  }, [clearTimers]);
+  }, [clearTimers, isLoggingOut]);
   
   const checkRole = useCallback((requiredRole?: string | string[]) => {
     if (!user || authStatus !== 'authenticated') return false;
@@ -215,8 +218,10 @@ export const useAuthCore = () => {
   }, [user, authStatus]);
 
   useEffect(() => {
+    // Run session check only once on initial mount
     checkSession();
-  }, [checkSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (authStatus === 'authenticated') {

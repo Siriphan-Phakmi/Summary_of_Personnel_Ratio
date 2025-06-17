@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/app/lib/firebase/firebase';
 import bcrypt from 'bcryptjs';
-
-// Firebase config ใช้ตัวเดียวกับฝั่ง client ผ่าน ENV ที่กำหนดใน .env
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-// ป้องกันการ init ซ้ำใน dev mode
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
 
 // Helper: สร้าง response JSON พร้อม header ที่ถูกต้อง
 const jsonResponse = (data: any, init: ResponseInit = {}) => {
@@ -25,6 +10,15 @@ const jsonResponse = (data: any, init: ResponseInit = {}) => {
     headers: { 'Content-Type': 'application/json', ...init.headers },
     ...init,
   });
+};
+
+// เพิ่มฟังก์ชันสำหรับ logging เพื่อให้ตรวจสอบปัญหาง่ายขึ้น
+const logError = (error: unknown, context: string) => {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  console.error(`[Login API Error - ${context}]:`, errorMessage);
+  if (error instanceof Error && error.stack) {
+    console.error(error.stack);
+  }
 };
 
 export async function POST(req: NextRequest) {
@@ -38,35 +32,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // สมมติว่า document id = username
     const userRef = doc(db, 'users', username);
     const userSnap = await getDoc(userRef);
 
     if (!userSnap.exists()) {
+      // ใช้เวลาตอบสนองเท่าเดิมเพื่อป้องกันการเดา username (Timing Attack)
+      await bcrypt.hash(password, 10); // Dummy hash calculation
       return NextResponse.json(
         { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
       );
     }
 
-    const userData = userSnap.data() as Record<string, any>;
+    const userData = userSnap.data();
+    const hashedPw = userData.password;
 
-    const hashedPw: string | undefined = userData.password;
-
-    if (!hashedPw) {
+    if (!hashedPw || typeof hashedPw !== 'string') {
+      logError(new Error(`Password hash for user '${username}' is missing or not a string.`), "Password Hash Check");
       return NextResponse.json(
-        { success: false, error: 'บัญชีนี้ไม่มีรหัสผ่าน โปรดติดต่อผู้ดูแลระบบ' },
+        { success: false, error: 'บัญชีนี้มีปัญหา โปรดติดต่อผู้ดูแลระบบ' },
         { status: 500 }
       );
     }
 
     const isMatch = await bcrypt.compare(password, hashedPw);
+    
     if (!isMatch) {
+      // เพิ่ม Log เพื่อช่วยในการ Debug
+      logError(new Error(`Password mismatch for user: ${username}`), "Password Comparison");
       return NextResponse.json(
         { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
       );
     }
+    
+    // ตั้งค่าเวลาหมดอายุของ Cookie (3 ชั่วโมง)
+    const threeHours = 3 * 60 * 60;
 
     // สร้าง user object ที่ปลอดภัย ไม่ส่งรหัสผ่านกลับ
     const safeUser = {
@@ -75,14 +76,21 @@ export async function POST(req: NextRequest) {
       role: userData.role || 'user',
       firstName: userData.firstName || '',
       lastName: userData.lastName || '',
+      approveWardIds: userData.approveWardIds || [],
+      assignedWardId: userData.assignedWardId || null,
+      active: userData.active === undefined ? true : userData.active,
     };
 
     // ตั้ง cookie แบบ httpOnly สำหรับ auth token (stub) และ user_data (encodeURIComponent)
     const response = NextResponse.json({ success: true, user: safeUser });
+    
     // สำหรับ demo ใช้ token ปลอม (ใน production ต้องสร้าง JWT หรือ signed token จริง)
-    const threeHours = 60 * 60 * 3;
-    response.cookies.set('auth_token', 'valid', {
+    const authToken = 'mock_auth_token_for_demo'; // ควรเปลี่ยนเป็น JWT ใน Production
+
+    response.cookies.set('auth_token', authToken, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // ใช้ secure cookie ใน production
+      sameSite: 'lax', // ป้องกัน CSRF
       maxAge: threeHours,
       path: '/',
     });
@@ -93,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err) {
-    console.error('Login API error:', err);
+    logError(err, "General Catch Block");
     return NextResponse.json(
       { success: false, error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' },
       { status: 500 }
