@@ -32,10 +32,8 @@ export interface UseWardFormDataReturn {
   isFormDirty: boolean;
   handleChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   handleBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  validateForm: (finalSave?: boolean) => boolean;
   handleSaveDraft: () => Promise<void>;
   handleSaveFinal: () => Promise<void>;
-  setIsFormReadOnly: Dispatch<SetStateAction<boolean>>;
   showConfirmZeroModal: boolean;
   setShowConfirmZeroModal: Dispatch<SetStateAction<boolean>>;
   fieldsWithValueZero: string[];
@@ -43,5 +41,4 @@ export interface UseWardFormDataReturn {
   showConfirmOverwriteModal: boolean;
   setShowConfirmOverwriteModal: Dispatch<SetStateAction<boolean>>;
   proceedToSaveDraft: () => Promise<void>;
-  setReloadDataTrigger: Dispatch<SetStateAction<number>>;
 } 

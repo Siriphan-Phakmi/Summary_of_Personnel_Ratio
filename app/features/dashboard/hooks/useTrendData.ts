@@ -28,7 +28,6 @@ export const useTrendData = (
   useMemo(() => {
     if (wards.length > 0) {
       const isRegularUser = user?.role !== UserRole.ADMIN && 
-                            user?.role !== UserRole.SUPER_ADMIN && 
                             user?.role !== UserRole.DEVELOPER;
       const defaults = isRegularUser && user?.floor
         ? [user.floor.toUpperCase()]

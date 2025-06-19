@@ -73,7 +73,7 @@ export const useWardData = (user: User | null, dashboardWards: string[]) => {
    */
   const handleSelectWard = (wardId: string) => {
     // ถ้าผู้ใช้มีสิทธิ์เข้าถึง Ward นี้ หรือเป็น Admin ให้เลือกได้
-    const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
+    const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.DEVELOPER;
     if (isAdmin || hasAccessToWard(wardId)) {
       setSelectedWardId(wardId);
     }

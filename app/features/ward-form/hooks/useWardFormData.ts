@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useCallback, ChangeEvent } from 'react';
-import { WardForm } from '@/app/features/ward-form/types/ward';
+import { WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
 import { UseWardFormDataProps, UseWardFormDataReturn } from './wardFormTypes';
 import { useFormDataLoader } from './helpers/useFormDataLoader';
 import { useFormSaveManager } from './helpers/useFormSaveManager';
 import { useFormValidation } from './helpers/useFormValidation';
-import { showErrorToast } from '@/utils/toastUtils';
-import { ShiftType } from '../types/ward';
+import { showErrorToast } from '@/app/lib/utils/toastUtils';
 
 export const useWardFormData = ({
   selectedWard,
@@ -23,7 +22,7 @@ export const useWardFormData = ({
     setFormData,
     isLoading,
     error,
-    isFormReadOnly: isReadOnlyFromLoader,
+    isFormReadOnly,
     isDraftLoaded,
     isFinalDataFound,
     isFormDirty,
@@ -38,17 +37,12 @@ export const useWardFormData = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isFormReadOnly, setIsFormReadOnly] = useState(isReadOnlyFromLoader);
   const { validateForm, validateField } = useFormValidation();
 
   const onSaveSuccess = useCallback((isFinal: boolean) => {
     setIsFormDirty(false);
-    if(isFinal) {
-      setIsFormReadOnly(true);
-    }
-    // No need to call loadData() here as cache is now managed internally in services
-    // or we can rely on reloadDataTrigger if needed.
-  }, [setIsFormDirty, setIsFormReadOnly]);
+    loadData(); // Reload data to get the latest state including isFormReadOnly
+  }, [setIsFormDirty, loadData]);
 
   const {
     isSaving,
@@ -126,14 +120,8 @@ export const useWardFormData = ({
     isFormDirty,
     handleChange,
     handleBlur,
-    validateForm: (finalSave?: boolean) => { 
-        const {isValid, errors} = validateForm(formData, finalSave);
-        setErrors(errors);
-        return isValid;
-    },
     handleSaveDraft,
     handleSaveFinal,
-    setIsFormReadOnly,
     showConfirmZeroModal,
     setShowConfirmZeroModal,
     fieldsWithValueZero,
@@ -141,8 +129,5 @@ export const useWardFormData = ({
     showConfirmOverwriteModal,
     setShowConfirmOverwriteModal,
     proceedToSaveDraft,
-    setReloadDataTrigger: () => {
-      loadData();
-    }
   };
 }; 

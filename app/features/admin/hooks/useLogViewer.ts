@@ -7,7 +7,7 @@ import { useAuth } from '@/app/features/auth';
 import { subDays, startOfDay } from 'date-fns';
 import { LogLevel, SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION } from '@/app/features/auth/types/log';
 import { cleanupOldLogs } from '@/app/features/admin/services/logAdminService';
-import { showErrorToast, showSuccessToast } from '@/app/utils/toastUtils';
+import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
 import { LogEntry } from '../types/log';
 
 export const useLogViewer = () => {

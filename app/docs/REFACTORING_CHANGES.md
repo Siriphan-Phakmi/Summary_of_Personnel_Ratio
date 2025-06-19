@@ -1,929 +1,175 @@
-# การปรับปรุงโค้ด (Refactoring) - สรุปรวมการเปลี่ยนแปลง
+# Refactoring and Development Summary
 
-## 🎯 Phase 1-3: การ "ลีนขยะ" และแก้ไขข้อผิดพลาดเบื้องต้น
-*ส่วนนี้เป็นการสรุปรวมการเปลี่ยนแปลงในช่วงแรก*
+This document summarizes the major changes, refactoring efforts, and feature development implemented in the project.
 
-### การแก้ไขและปรับปรุง
-- **การลบไฟล์ที่ไม่จำเป็น (Waste Elimination):** ลบไฟล์เอกสาร Markdown เก่า, CSS ที่ไม่ได้ใช้ และไฟล์ซ้ำซ้อนอื่นๆ เพื่อลดความยุ่งเหยิงในโปรเจกต์
-- **การรวม Types ที่ซ้ำซ้อน:** รวม Type Definitions ที่ซ้ำซ้อนกันระหว่าง `core` และ features ต่างๆ เพื่อให้มี Single Source of Truth
-- **การรวม Services ที่ทำงานซ้ำซ้อน:** รวม Service ที่มีหน้าที่คล้ายกันเพื่อลด Code Duplication
-- **การปรับปรุงระบบ Index Manager:** แก้ไขให้ `indexInitializer.tsx` ทำงานเฉพาะในโหมด development
-- **การแทนที่ CSS ด้วย Tailwind:** ปรับปรุง Component ให้หันมาใช้ Tailwind CSS เพื่อความเป็นมาตรฐานเดียวกัน
-- **การแก้ไข Firebase Offline Error:** สร้าง `firestoreUtils.ts` พร้อมฟังก์ชัน `safeQuery` ที่มี Retry Mechanism (Exponential Backoff) เพื่อจัดการกับปัญหา Client Offline อย่างมีประสิทธิภาพ
-- **การแยกไฟล์ขนาดใหญ่:**
-  - `wardFormService.ts`: แยก Queries และ Helpers ออกมาเพื่อลดขนาดไฟล์
-  - `dailySummary.ts`: แยก Queries ออกมา
+## Session Summary (As of 2024-07-29)
 
----
+The following tasks were completed based on the established workflow and requirements:
 
-## 🏗️ Phase 4: Refactoring `useWardFormData` Hook 
-### ปัญหาที่พบ
-- **Monolithic Hook**: `useWardFormData.ts` มีความรับผิดชอบหลายอย่าง (โหลดข้อมูล, จัดการ State, Validation, บันทึกข้อมูล) ทำให้ไฟล์ซับซ้อนและดูแลรักษายาก
-- **Violation of Single Responsibility Principle**: การที่ Hook เดียวทำหลายหน้าที่ขัดกับหลักการออกแบบที่ดี
+### 1. Analysis and Planning
+- Comprehensively analyzed technical requirements (Next.js, TypeScript, Tailwind, Firebase), coding principles (Lean Code, Security, Performance), and user role workflows (User, Admin, Developer).
+- Established a phased plan to address issues related to form access, Navbar functionality, the approval page, and development of User/Developer Management pages.
 
-### การแก้ไข: แยก Hook ออกเป็นส่วนย่อย
-- **`useFormDataLoader.ts`**: จัดการการโหลดข้อมูลจาก Firestore และระบบ Cache
-- **`useFormValidation.ts`**: จัดการ Logic การตรวจสอบความถูกต้องของข้อมูล (Validation)
-- **`useFormSaveManager.ts`**: จัดการกระบวนการบันทึกข้อมูล (ทั้งแบบร่างและสมบูรณ์)
+### 2. Middleware and Access Control (`middleware.ts`)
+- **Routing:** Corrected post-login redirection logic. Admin/Developer roles now redirect to `/census/approval`, while User/Nurse roles redirect to `/census/form`.
+- **Permissions:** Refined `roleBasedRoutes` to grant `user` roles explicit access to the `/census/form` page, fixing a critical access issue.
 
-### ผลลัพธ์
-- **Improved Maintainability**: แยกไฟล์ทำให้ง่ายต่อการค้นหา, แก้ไข, และทำความเข้าใจโค้ด
-- **Better Reusability**: Hooks ย่อยๆ สามารถนำไปใช้ในส่วนอื่นได้
-- **Simplified Testing**: ทดสอบ Hooks ที่มีหน้าที่เดียวได้ง่ายขึ้น
+### 3. Navbar (`app/components/ui/NavBar.tsx`)
+- **Security & Clarity:** Replaced broad role access (`Object.values(UserRole)`) with specific, necessary roles for each navigation link.
+- **Permissions:** Granted `SUPER_ADMIN` access to management pages.
+- **Consistency:** Renamed the "Developer Management" link to "Dev-Tools" to align with the defined workflow.
 
----
+### 4. Approval Page (`/census/approval`)
+- **Permissions Fix:** Added a `canApprove` check in `ApprovalPage.tsx` to ensure that "Approve" and "Reject" buttons are only visible to users with the appropriate permissions (e.g., `APPROVER`, `ADMIN`), resolving an issue where buttons were visible to all users for forms with `FINAL` status.
+- **Data Fetching Logic (`useApprovalData.ts`):**
+    - Corrected data fetching logic to be role-aware.
+    - **Admin/Developer:** See all pending forms.
+    - **Approver:** See pending forms only from their assigned `approveWardIds`.
+    - **User:** See all forms from their `assignedWardId`.
+- **Query Enhancement (`formQueries.ts`):** Modified `getPendingForms` to accept an array of `wardId`s, enabling approvers to view forms from multiple wards they manage.
 
-## 🚀 Phase 5: Performance & Security Boost
-### ปัญหาที่พบ
-- **Client-Side Redirect**: ผู้ใช้ที่ล็อกอินแล้วเมื่อเข้าหน้าแรก (`/`) จะเห็นหน้า Loading ชั่วขณะก่อน Redirect ทำให้ประสบการณ์ไม่ดี
-- **Redundant Logic**: มี Logic การ Redirect ที่ซ้ำซ้อนกันใน `app/page.tsx` และ `middleware.ts`
+### 5. User Management (`/admin/user-management`)
+- **Feature Implemented:** Developed the "Create User" functionality from scratch.
+- **API Endpoint (`/api/admin/users/route.ts`):** Created a secure API route for user creation, including admin authorization checks, data validation, password hashing with bcrypt, and data persistence to Firestore.
+- **UI Component (`CreateUserForm.tsx`):** Built a reactive form for creating new users, with dynamic fields that appear based on the selected role (e.g., ward selection for Approvers).
+- **State Management (`useUserManagement.ts`):** Created a custom hook to manage form state, handle ward data fetching for dropdowns, and process form submission via the API.
+- **Page Integration:** Integrated the `CreateUserForm` into the main `user-management` page, replacing the placeholder content.
 
-### การแก้ไข: ย้าย Redirect ไปที่ Middleware
-- **ปรับปรุง `middleware.ts`**: เพิ่ม Logic การ Redirect ผู้ใช้ที่ล็อกอินแล้วจากฝั่ง Server ทันทีที่เข้าสู่หน้า (`/`)
-- **"ลีนขยะ" ใน `app/page.tsx`**: ลบ `useEffect` และ `useRouter` ที่ใช้ในการ Redirect ฝั่ง Client ออกทั้งหมด
-
-### ผลลัพธ์
-- **🚀 First-Load Performance**: ลดเวลาในการโหลดหน้าแรกสำหรับผู้ใช้ที่ล็อกอินแล้ว
-- **💧 Leaner Client Code**: `app/page.tsx` มีขนาดเล็กลงและซับซ้อนน้อยลง
-- **🏢 Centralized Logic**: รวมศูนย์ Logic การ Redirect ไว้ที่ `middleware.ts` ที่เดียว
+### 6. Developer Tools (`/admin/dev-tools`)
+- **Feature Audit:** Reviewed the existing `LogViewer` and confirmed its functionality.
+- **Gap Analysis:** Identified the missing "Data Seeding Tool" as the next required feature to complete the developer workflow and proposed a plan for its implementation.
 
 ---
 
-## 🏛️ Phase 6: Refactoring the Approval Feature
-### ปัญหาที่พบ
-- โค้ดในส่วนของฟีเจอร์การอนุมัติ (`approval`) ยังคงมีความซับซ้อนและ UI กับ Logic ปนกันอยู่
+## Session Summary (As of 2024-07-30)
 
-### การแก้ไข: แยก Components และ Utilities
-- **สร้าง `ApprovalStatusBadge.tsx`**: แยก Badge แสดงสถานะการอนุมัติออกมาจาก `FormDetailsModal.tsx`
-- **สร้าง `IndexErrorMessage.tsx`**: แยกส่วนแสดงข้อความ Error กรณีไม่มี Index ออกมาจาก `ApprovalPage.tsx`
-- **สร้าง `approvalUtils.ts`**: ย้ายฟังก์ชัน `getComparisonTimestamp` ที่ใช้ในการเปรียบเทียบเวลามาไว้ที่นี่
-- **ลบไฟล์ซ้ำซ้อน**: ลบ `ApprovalFormDetails.tsx` ที่ไม่ได้ใช้งานแล้ว
-- **จัดระเบียบ Imports/Exports**: สร้าง `index.ts` ใน `components` และอัปเดต `index.ts` หลักของ feature
+A comprehensive code review and refactoring session was conducted, focusing on improving code quality, consistency, and maintainability according to "Lean Code" principles.
 
-### ผลลัพธ์
-- **✨ Improved Maintainability**: โค้ดใน `ApprovalPage` และ `FormDetailsModal` สะอาดและมุ่งเน้นที่หน้าที่ของตัวเองมากขึ้น
-- **♻️ Reusability**: Component และ Utility ที่แยกออกมาสามารถนำกลับมาใช้ใหม่ได้ง่าย
+### 1. Code Hygiene and Waste Elimination
+- **Dead Code Removal:** Identified and deleted the unused file `app/hooks/useOptimizedLoading.ts` as it contained no active code and was only referenced in commented-out lines.
+- **Deprecated Function Removal:** Removed the deprecated `createServerTimestamp` function from `app/lib/utils/dateUtils.ts` after confirming it was no longer in use, cleaning up the utility file.
 
----
+### 2. Utility Consolidation and Project Structure
+- **Logger Consolidation:** Resolved code duplication by identifying two separate `logger.ts` files. All logging was standardized to use the more robust logger at `app/lib/utils/logger.ts`, and the redundant file at `app/utils/logger.ts` was deleted.
+- **Toast Utility Relocation:** To improve structural consistency, `toastUtils.ts` was moved from `app/utils/` to `app/lib/utils/`. All import paths across the application were updated accordingly, and the now-empty `app/utils/` directory can be removed.
 
-## 🔐 Phase 7: Centralizing Authentication Logic
-### ปัญหาที่พบ
-- ระบบ Authentication มี Hooks ที่กระจัดกระจาย (`useAuthActions`, `useAuthSession`, `useAuthTimers`, `useBrowserEvents`) ทำให้การติดตาม Logic ทำได้ยาก และ `AuthContext.tsx` มีความซับซ้อนสูง
+### 3. Middleware Refactoring (`middleware.ts`)
+- **Readability and DRY Principle:** Refactored `middleware.ts` to eliminate duplicated logic. The code for handling redirects of already-authenticated users was extracted into a single helper function, `handleAuthenticatedRedirect`, making the primary middleware function cleaner and easier to maintain.
 
-### การแก้ไข: รวม Logic ไว้ใน Hook เดียว
-- **สร้าง `useAuthCore.ts`**: สร้าง Hook ใหม่เพื่อเป็นศูนย์กลางของ Logic ทั้งหมดที่เกี่ยวกับการยืนยันตัวตน:
-  - การจัดการ Session และข้อมูลผู้ใช้
-  - Session Timeout และ Activity Timers
-  - Actions การ Login/Logout
-  - การดักจับ Browser Events (เช่น online/offline)
-- **ลดความซับซ้อนของ `AuthContext.tsx`**: แก้ไขให้ `AuthContext` เรียกใช้ `useAuthCore.ts` เพียงตัวเดียว
-- **กำจัดไฟล์ซ้ำซ้อน (Waste Elimination)**: ลบ Hooks เดิมทั้ง 4 ไฟล์ (`useAuthActions`, `useAuthSession`, `useAuthTimers`, `useBrowserEvents`)
-
-### ผลลัพธ์
-- **🏢 Centralized Logic**: `useAuthCore.ts` กลายเป็น Single Source of Truth สำหรับระบบ Authentication
-- **💧 Leaner Codebase**: ลดจำนวนไฟล์และทำให้ `AuthContext.tsx` สะอาดและเข้าใจง่ายขึ้นอย่างมาก
-- **Improved Maintainability**: ง่ายต่อการแก้ไขและเพิ่มฟีเจอร์ที่เกี่ยวกับ Authentication ในอนาคต
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/middleware.ts`**: เพิ่ม Logic สำหรับ `/login` path เพื่อป้องกัน Redirect Loop
-- **`app/home/page.tsx`**: เปลี่ยนเป็น Server Component และลดความซับซ้อน
-- **`app/page.tsx`**: เปลี่ยนเป็น Server Component ที่ทำ Redirect ไปยัง Login ทันที
+### 4. General Housekeeping and Error Correction
+- **Import Path Correction:** Systematically corrected all import paths for the relocated `toastUtils` module across multiple feature hooks.
+- **Bug Fixes:** Resolved critical import errors in several hooks within the `ward-form` and `admin` features that were introduced by previous incomplete refactoring attempts, restoring functionality.
 
 ---
 
-## 🔧 Phase 10: แก้ไขปัญหา Import และความเข้ากันได้
-### ปัญหาที่พบ
-- **Missing Modules**: เกิด Error "Module not found" เนื่องจากมีการ export hooks ที่ถูกลบไปแล้วใน Phase 7 จากไฟล์ `app/features/auth/index.ts`
-- **Inconsistent Imports**: บาง Components import `useAuth` โดยตรงจาก `AuthContext.tsx` แทนที่จะ import จาก `index.ts`
+## Session Summary (As of 2024-07-31)
 
-### การแก้ไข
-1. **ปรับปรุง `app/features/auth/index.ts`**: 
-   - ลบการ export hooks เดิมที่ไม่มีอยู่แล้ว (`useAuthTimers`, `useAuthSession`, `useAuthActions`, `useBrowserEvents`)
-   - เพิ่มการ export `useAuthCore` ซึ่งเป็น hook ที่รวมฟังก์ชันการทำงานของ hooks เดิมทั้งหมด
+This session focused on refactoring the notification system to improve modularity, adhere to "Lean Code" principles, and enhance maintainability.
 
-2. **แก้ไข `app/core/ui/NavBar.tsx`**:
-   - แก้ไขการ import `useAuth` ให้ import จาก `@/app/features/auth` แทนที่จะ import โดยตรงจาก `AuthContext.tsx`
+### 1. Notification Type Consolidation
+- **Resolved Duplication:** Identified and merged two separate `NotificationType` enums located in `app/features/notifications/types/`.
+- **Standardization:** All notification-related code now uses a single, authoritative `NotificationType` from `app/features/notifications/types/notification.ts`, eliminating ambiguity and potential bugs.
 
-### ผลลัพธ์
-- **🛠️ Fixed Build Errors**: แก้ไขปัญหา "Module not found" ทำให้สามารถ build และรันแอพได้
-- **🧩 Consistent Import Pattern**: ทำให้การ import hooks มีรูปแบบที่สอดคล้องกันทั้งโปรเจกต์
-- **🔄 Better Compatibility**: รองรับการเปลี่ยนแปลงที่เกิดจากการรีแฟคเตอร์ใน Phase 7
+### 2. Notification Service Refactoring
+- **Centralized Logic:** Migrated all client-side notification logic (fetching, marking as read) from the `useNotificationBell.ts` hook into the `NotificationService.ts`.
+- **Clear Separation of Concerns:** The `useNotificationBell.ts` hook is now solely responsible for state management and UI-related effects, while `NotificationService.ts` handles all API interactions, making the code more modular and easier to test.
 
-### สรุปไฟล์ที่แก้ไข
-- **`app/features/auth/index.ts`**: ปรับปรุงการ export hooks
-- **`app/core/ui/NavBar.tsx`**: แก้ไขการ import useAuth
+### 3. Hook Simplification (`useNotificationBell.ts`)
+- **Reduced Complexity:** The hook was significantly simplified and its line count was reduced by over 50%. It no longer contains direct `fetch` calls or local utility definitions like `Logger`.
+- **Improved Typing:** Resolved a subtle type mismatch between the server-side data model (where `isRead` is a map) and the client-side view model (where `isRead` is a boolean). A client-specific `UINotification` interface was introduced to correctly type the hook's state, improving type safety.
 
----
+### 4. Component Consolidation (Lean Code)
+- **Eliminated Redundancy:** Identified that `StatusTag.tsx` and `ShiftStatusBadge.tsx` were highly duplicative and likely dead code as no direct usages were found.
+- **Created Unified Component:** Merged the functionality of both into a single, more flexible `StatusDisplay.tsx` component.
+- **Centralized Styling Logic:** Enhanced the `useStatusStyles` hook to generate inline styles, making it the single source of truth for all status-related display logic.
+- **Removed Dead Code:** Deleted the now-unused `StatusTag.tsx` and `ShiftStatusBadge.tsx` files and updated the feature's main `index.ts` to export the new consolidated component.
 
-## 🔥 Phase 11: "ลีนขยะ" ใน Root Layout (Waste Elimination)
-### ปัญหาที่พบ
-- **Module Not Found**: เกิด Error ขณะ build เนื่องจาก `app/layout.tsx` พยายาม import components ที่ไม่มีอยู่อีกต่อไป (`LoadingProvider`, `ThemeToggle`, `VersionAndTime`, `FirestoreIndexInitializer`) จากโฟลเดอร์ `app/core` ที่ถูกลบไปแล้ว
-- **Stale Code**: มีการเรียกใช้ component ที่ไม่จำเป็นหรือไม่ถูกใช้งานแล้วใน layout หลัก ทำให้โค้ดไม่สะอาดและอาจสร้างความสับสน
+### 5. Improved Type Definitions
+- **Updated `UseWardFormDataReturn` type:** Updated the `UseWardFormDataReturn` type in `wardFormTypes.ts` to match the simplified hook, maintaining type safety across the application.
 
-### การแก้ไข: "ลีน" `app/layout.tsx`
-- **ลบ `LoadingProvider`**: ตัดการ import และการใช้งาน `LoadingProvider` ที่ไม่จำเป็นออก
-- **ลบ `ThemeToggle` และ `VersionAndTime`**: ตัดการ import และ component ที่ใช้แสดงผลปุ่มสลับธีมและเวอร์ชันของแอพออก เนื่องจากยังไม่มีการใช้งานในปัจจุบันและเป็นส่วนหนึ่งของ `core` ที่ถูกล้างไป
-- **ลบ `FirestoreIndexInitializer`**: ตัดการ import และ component ที่ใช้ในการ initial index ของ Firestore ออก ซึ่งอาจจะถูกย้ายไปจัดการในส่วนอื่นหรือจะถูกนำกลับมาใช้ใหม่ในอนาคต
-
-### ผลลัพธ์
-- **🛠️ Fixed Build Errors**: แก้ไขปัญหา "Module not found" ทำให้สามารถ build และรันแอพได้สำเร็จ
-- **💧 Leaner Root Layout**: `app/layout.tsx` มีโค้ดที่สะอาดขึ้น กระชับ และเหลือเฉพาะส่วนที่จำเป็นจริงๆ
-- **✅ Improved Clarity**: ลดความสับสนโดยการกำจัดโค้ดที่ไม่ได้ใช้งาน (dead code) ออกจากโปรเจกต์
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/layout.tsx`**: ลบ imports และ components ที่ไม่จำเป็นออกทั้งหมด
+### 6. Minor Component Refactoring (`RecorderInfo.tsx`):
+- **Improved Consistency:** To improve consistency with other form components, a local `createInputProps` helper function was introduced.
+- **Code Cleanup:** This change consolidated the logic for generating input properties and eliminated duplicated `twMerge` calls, making the code slightly cleaner and more maintainable.
+- **Simplified Component:** Simplified the component by replacing complex inline date and shift formatting logic with calls to the centralized `formatTimestamp` and `formatShift` utility functions.
+- **Ensured Consistent Data Formatting:** This change improved code readability and ensured consistent data formatting.
 
 ---
 
-## 🏛️ Phase 13: Refactoring Auth Services & Centralizing Utilities
-### ปัญหาที่พบ
-- **Widespread Module Not Found**: หลังจากลบ `app/core` ออกไป, service จำนวนมากใน `app/features/auth/services` ไม่สามารถหาไฟล์ที่ต้อง import ได้ เช่น `firebase`, `User` type, และ `AuthService`
-- **Code Duplication**: มีฟังก์ชัน `createSafeUserObject` ที่เหมือนกันอยู่ 2 ที่ ทำให้ดูแลรักษายาก
-- **Inconsistent Type Definitions**: `User` type ขาด `UserRole` enum และ `approveWardIds` field ทำให้เกิด type errors ใน `roleService.ts`
+## Session Summary (As of 2024-07-31 - Part 2)
 
-### การแก้ไข: จัดระเบียบ Services และ Utilities ใหม่ทั้งหมด
-1. **สร้าง Firebase Config กลาง**:
-   - สร้างไฟล์ `app/lib/firebase/firebase.ts` เพื่อเป็นจุดศูนย์กลางในการ initialize และ export `db`, `auth`, `rtdb`
+This session focused on applying "Lean Code" principles to the `ward-form` service layer, eliminating waste and improving code consistency.
 
-2. **รวมศูนย์ `createSafeUserObject`**:
-   - สร้างไฟล์ `app/features/auth/utils/userUtils.ts`
-   - ย้าย Logic การสร้าง "Safe User" ที่ซ้ำซ้อนกันมารวมไว้ที่นี่ที่เดียว
-   - แก้ไข `logService.ts` และ `logServerAction.ts` ให้ import จาก utility ใหม่
+### 1. Service Layer Waste Elimination (Dead Code)
+- **Removed Redundant Files:** Identified and deleted two unused files from the service layer:
+  - `app/features/ward-form/services/approvalForms.ts`: This was an older, superseded implementation. All approval logic is now correctly handled by modules within the `approvalServices` directory.
+  - `app/features/ward-form/services/wardFormQueries.ts`: This file contained a parallel "WithRetry" implementation that was not integrated into the main service facade (`wardFormService.ts`) and was considered dead code. All queries are now handled by `queries/wardFormQueries.ts`.
+- **Consolidated Constants:** Removed the redundant `COLLECTION_NAME` alias from `app/features/ward-form/services/constants.ts`. All code now standardizes on `COLLECTION_WARDFORMS`, reducing ambiguity.
 
-3. **แก้ไข `User` Type**:
-   - ใน `app/features/auth/types/user.ts`, เพิ่ม `UserRole` enum กลับเข้ามา และเพิ่ม `approveWardIds` field เพื่อให้ type มีความสมบูรณ์และสอดคล้องกับการใช้งาน
-
-4. **อัปเดต Imports ในทุก Services**:
-   - `userService.ts`, `roleService.ts`, `sessionService.ts`: แก้ไข import path ทั้งหมดให้ชี้ไปยัง `firebase.ts` และ `user.ts` ที่ถูกต้อง
-   
-5. **สะสาง `services/index.ts`**:
-   - ลบการ `export` ที่ชี้ไปยัง `AuthService` ที่ไม่มีอยู่ออกไป
-
-### ผลลัพธ์
-- **🛠️ Fixed All Build Errors**: แก้ไขปัญหา "Module not found" ทำให้สามารถ build และรันแอพได้อีกครั้ง
-- **🏢 Centralized Configuration**: การมี `firebase.ts` ที่เดียวช่วยให้การจัดการการเชื่อมต่อ Firebase ง่ายขึ้นและลดความซ้ำซ้อน
-- **💧 Leaner & DRY Code**: กำจัดโค้ดที่ซ้ำซ้อนใน `logService` และ `logServerAction` ตามหลัก Don't Repeat Yourself (DRY)
-- **🔒 Improved Type Safety**: การปรับแก้ Type ทั้งหมดช่วยให้ลดโอกาสเกิดข้อผิดพลาดจากข้อมูลที่ไม่ตรงกันในอนาคต
-
-### สรุปไฟล์ที่แก้ไข/สร้างใหม่
-- **`app/lib/firebase/firebase.ts` (สร้างใหม่)**
-- **`app/features/auth/utils/userUtils.ts` (สร้างใหม่)**
-- **`app/features/auth/types/user.ts` (แก้ไข)**
-- **`app/features/auth/services/logService.ts` (แก้ไข)**
-- **`app/features/auth/services/logServerAction.ts` (แก้ไข)**
-- **`app/features/auth/services/userService.ts` (แก้ไข)**
-- **`app/features/auth/services/roleService.ts` (แก้ไข)**
-- **`app/features/auth/services/sessionService.ts` (แก้ไข)**
-- **`app/features/auth/services/index.ts` (แก้ไข)**
+### 2. Improved Service Consistency
+- **Corrected Facade Return Type:** In `app/features/ward-form/services/approvalService.ts`, the `approveWardForm` function was refactored. Its return type was changed from `Promise<void>` to `Promise<string>` to accurately reflect the return value of the underlying `approveForm` function it calls. This ensures type safety and provides a more useful API to the rest of the application.
 
 ---
 
-## 🧬 Phase 12: Data Model-Driven UI Refactoring & Co-located UI Library
-
-**Date:** 2024-07-31
-
-### ปัญหาที่พบ
-- **Complete Data Model Mismatch**: เกิดข้อผิดพลาดร้ายแรงทั่วทั้ง `ward-form` feature เนื่องจาก UI components (โดยเฉพาะ `CensusInputFields.tsx`) อ้างอิง Data Model ของ `WardForm` ที่ล้าสมัยโดยสิ้นเชิง Fields เกี่ยวกับอัตรากำลังพยาบาล (`nurseManager`, `rn`, `pn`, `wc`), การเคลื่อนไหวผู้ป่วย (`newAdmit`, `referIn` etc.), และสถานะเตียง (`available`, `plannedDischarge` etc.) ถูกลบหรือเปลี่ยนแปลงไปใน `wardForm/types/ward.ts` ทำให้ UI ไม่สามารถแสดงผลหรือทำงานได้อย่างถูกต้อง
-- **Missing Centralized UI Library**: หลังจากลบ `app/core` ไป, ไม่มี UI component library กลาง ทำให้เกิด import errors และมีการใช้ component ที่ซ้ำซ้อน (เช่น `Button.tsx` ใน `auth` feature)
-- **Tooling Failure**: เครื่องมือภายในไม่สามารถสร้างไฟล์ใน `app/components/ui` ได้ ทำให้การสร้าง UI Library กลางตามแผนเดิมไม่สำเร็จ
-
-### การแก้ไข: "ผ่าตัดใหญ่" UI และสร้าง UI Library เฉพาะกิจ (Co-located)
-1.  **สร้าง Co-located UI Library (Workaround)**:
-    - เนื่องจากเครื่องมือขัดข้อง, จึงได้สร้าง UI Library เฉพาะกิจขึ้นที่ `app/features/ward-form/components/ui` เพื่อแก้ปัญหาเฉพาะหน้า
-    - **สร้าง `Button.tsx`, `Input.tsx`, `LoadingSpinner.tsx`**: สร้าง components คุณภาพสูงที่ใช้ซ้ำได้ขึ้นมาใหม่
-    - **ย้าย `Modal.tsx`**: ย้าย Modal ที่มีอยู่เดิมมาไว้ที่เดียวกันเพื่อรวมศูนย์
-    - **สร้าง `index.ts`**: เพื่อให้สามารถ import components ทั้งหมดได้ง่าย
-
-2.  **ผ่าตัด `CensusInputFields.tsx`**:
-    - **"ลีน" Fields ที่ล้าสมัย**: ลบ input fields ทั้งหมดที่ไม่มีใน `WardForm` interface ตัวใหม่ออก (เช่น `nurseManager`, `rn`, `pn`, `wc`, `referIn`, `referOut`, `available`, `unavailable`, `plannedDischarge`)
-    - **อัปเดต Logic การคำนวณ**: แก้ไข `PatientCensusDisplay` ให้คำนวณยอดผู้ป่วยคงเหลือโดยใช้ fields ที่ถูกต้องจาก Data Model ใหม่ (`admitted`, `discharged`, `transferredIn`, `transferredOut`, `deaths`)
-
-3.  **แก้ไข Components ทั้งหมดใน `ward-form`**:
-    - ไล่แก้ไขทุก component (`ActionButtonsSection`, `ConfirmSaveModal`, `RecorderInfo` ฯลฯ) ให้เปลี่ยนมาใช้ UI components จาก Library เฉพาะกิจที่สร้างขึ้นใหม่ และอัปเดต Type Definitions ทั้งหมดให้ถูกต้อง
-
-4.  **กำจัดไฟล์ซ้ำซ้อน (Waste Elimination)**:
-    - **ลบ `app/features/auth/components/Button.tsx`**: ลบ Button ที่ซ้ำซ้อนและไม่ได้มาตรฐานออก
-    - **ลบ `app/components/ui/Modal.tsx`**: ลบไฟล์เดิมที่ถูกย้ายไปแล้ว
-
-### ผลลัพธ์
-- **✅ Data Model & UI Synchronization**: UI ทั้งหมดใน `ward-form` feature สอดคล้องกับ Data Model ปัจจุบัน 100% แก้ไขข้อผิดพลาดทั้งหมดและทำให้ฟีเจอร์กลับมาทำงานได้สมบูรณ์
-- **💧 Leaner, More Consistent UI**: แม้จะเป็นการแก้ปัญหาเฉพาะหน้า แต่การมี UI Library เฉพาะกิจก็ช่วยให้โค้ดใน `ward-form` สะอาดและมีรูปแบบที่เป็นมาตรฐานเดียวกัน
-- **🛠️ Robust & Resilient Code**: การปรับโครงสร้างครั้งใหญ่นี้ทำให้ `ward-form` feature มีความทนทานต่อการเปลี่ยนแปลงและง่ายต่อการบำรุงรักษาในอนาคต
-
-## 🧹 Phase 20: Finalizing Hook Refactoring and Waste Elimination
-
-**Date:** 2024-07-31
-
-### ปัญหาที่พบ
-- **Code Clutter & Dead Code**: หลังจาก Refactor ครั้งใหญ่, ยังคงมีไฟล์ Custom Hooks และ Helpers ที่ล้าสมัย (`useFormPersistence`, `useRefactoredWardFormData`, `wardFormHelpers.ts` ใน `hooks`) หลงเหลืออยู่ในโค้ดเบส ไฟล์เหล่านี้ไม่ถูกใช้งานแล้วและอ้างอิง Data Model เก่า ทำให้เกิดความสับสนและเป็น "ขยะ" ที่ต้องกำจัด
-- **Inconsistent Exports**: ไฟล์ `index.ts` ของ `ward-form` feature ยังคงมีการ export hook (`useFormPersistence`) ที่ถูกลบไปแล้ว
-- **Minor Linter Errors**: มีข้อผิดพลาดเล็กน้อยเกี่ยวกับ Type ใน hook ที่ใช้งานจริง (`useWardFormData`) ซึ่งเกิดจากการเปลี่ยนแปลงโครงสร้าง
-
-### การแก้ไข: "เก็บกวาด" โค้ดและทำให้สมบูรณ์
-1.  **การกำจัดไฟล์ซ้ำซ้อน (Waste Elimination)**:
-    - **ลบ `useRefactoredWardFormData.ts`**: ตรวจสอบและยืนยันว่าไม่ได้ถูกใช้งานแล้วจึงลบทิ้ง
-    - **ลบ `useFormPersistence.ts`**: ระบุว่าเป็น hook ที่ล้าสมัยและถูกแทนที่โดย `useFormSaveManager` จึงลบทิ้งและแก้ไข `index.ts` เพื่อลบการ export ออก
-    - **ลบ `hooks/wardFormHelpers.ts`**: ยืนยันว่าเป็น helper ที่ทำงานกับ Data Model เก่าและไม่ได้ถูกเรียกใช้จากที่ไหนเลย จึงลบทิ้ง
-
-2.  **ปรับปรุง Hooks ที่เหลือให้ทันสมัย**:
-    - **`formPersistenceTypes.ts`**: อัปเดต interface ทั้งหมด (`UseFormPersistenceProps`, `UseFormPersistenceReturn`) ให้สอดคล้องกับ Data Model และสถาปัตยกรรมของ hook ใหม่ทั้งหมด พร้อมลบ `PreparedFormData` ที่ไม่จำเป็นออก
-    - **`formPersistenceHelpers.ts`**: แก้ไข `shouldShowOverwriteWarning` ให้เปรียบเทียบ field จาก `WardForm` ปัจจุบัน และปรับปรุงการ import ทั้งหมด
-    - **`useWardFormData.ts`**: แก้ไข Type error ใน `handleChange` และปรับ Logic ของ `isCensusAutoCalculated` ให้ถูกต้องตาม `ShiftType` enum
-
-### ผลลัพธ์
-- **💧 Dramatically Leaner Codebase**: ลดจำนวนไฟล์ที่ไม่จำเป็นลงอย่างมาก ทำให้โค้ดเบสสะอาดและง่ายต่อการทำความเข้าใจ
-- **🛠️ All Linter Errors Fixed**: แก้ไขข้อผิดพลาดทั้งหมดใน `ward-form` hooks ทำให้โปรเจกต์มีความเสถียรและถูกต้อง
-- **✅ Completed Refactoring Cycle**: ปิดจบการ Refactor ของ `ward-form` hooks ทำให้สถาปัตยกรรมของ feature นี้มีความทันสมัยและพร้อมสำหรับการพัฒนาต่อยอดอย่างมีประสิทธิภาพ
-- **✅ Future-Proof Foundation**: การปรับฐานของ Hooks ทั้งหมดให้ตรงกับ Data Model ล่าสุด ทำให้การบำรุงรักษาและต่อยอดฟีเจอร์ในอนาคตทำได้ง่ายและปลอดภัยยิ่งขึ้น
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/features/dashboard/hooks/useCalendarAndChartData.ts`**
-- **`app/features/dashboard/hooks/useDashboardDataHelpers.ts`**
-- **`app/features/dashboard/components/types/interface-types.ts`**
-- **`app/features/dashboard/hooks/useDashboardData.ts`**
-- **`app/features/dashboard/types/index.ts`**
-
----
-
-## 🐞 Phase 31: Linter Error Cleanup & Type Synchronization
-
-### ปัญหาที่พบ
-- **Build-Breaking Errors**: หลังจาก Refactor ในช่วงที่ผ่านมา เกิด Linter errors และ Type ที่ไม่ตรงกันหลายจุดใน `dashboard` feature ทำให้แอพไม่สามารถ build ได้
-- **`dashboard/page.tsx`**: ไม่สามารถ `import` คอมโพเนนต์ `DashboardPage` ได้ เนื่องจากไฟล์ `components/index.ts` ไม่ได้ `export` ออกไปอย่างถูกต้อง
-- **`dashboard/utils/dashboardCalculations.ts`**: มีการ `import` type `PieChartDataItem` จาก path ที่ไม่ถูกต้อง (`../components/EnhancedPieChart` แทนที่จะเป็น `../components/types/chart-types`)
-- **`dashboard/components/sections/ChartSection.tsx`**: เกิด Type Mismatch โดยคอมโพเนนต์ `BedSummaryPieChart` ได้รับข้อมูล object ที่มี property `wardName` แทนที่จะเป็น `name` ที่ถูกต้อง
-
-### การแก้ไข: แก้ไขข้อผิดพลาดอย่างตรงจุด (Targeted Fixes)
-- **แก้ไข `components/index.ts`**: เพิ่มการ `export` คอมโพเนนต์ `RefactoredDashboardPage` ในชื่อใหม่ว่า `DashboardPage` เพื่อให้ `page.tsx` สามารถหาเจอได้โดยไม่ต้องแก้ไขโค้ดในหน้าเพจ
-- **แก้ไข `utils/dashboardCalculations.ts`**: ปรับปรุง path การ `import` ของ `PieChartDataItem` ให้ชี้ไปยังไฟล์ที่ถูกต้องคือ `components/types/chart-types.ts` ซึ่งเป็นศูนย์กลางของ Type
-- **แก้ไข `components/sections/ChartSection.tsx`**: แก้ไขการ map ข้อมูลก่อนส่งให้ `BedSummaryPieChart` โดยเปลี่ยนชื่อ property จาก `wardName` เป็น `name` เพื่อให้สอดคล้องกับ `WardBedData` type ที่คอมโพเนนต์คาดหวัง
-
-### ผลลัพธ์
-- **✅ Build Stability**: แก้ไข Linter errors ทั้งหมด ทำให้โปรเจกต์สามารถ build ได้สำเร็จอีกครั้ง
-- **🧩 Consistent Code**: ทำให้การ `import` และการใช้ Type มีความสอดคล้องกันมากขึ้น ทำให้โค้ดของ `dashboard` feature มีความเสถียรและดูแลรักษาง่ายขึ้น
-
----
-
-## 🐞 Phase 32: Admin Feature Linter Fixes & Type Centralization
-
-### ปัญหาที่พบ
-- **Build-Breaking Errors**: เกิด Linter errors ใน `admin` feature เนื่องจาก import paths ไม่ถูกต้องหลังจากมีการลบ `app/core` และปรับโครงสร้าง Type
-- **`LogFilterControls.tsx`**: ไม่สามารถหา module `logUtils` จาก `app/core` ที่ถูกลบไปแล้วได้
-- **`LogsTable.tsx`**: พยายาม import `LogEntry` type จาก hook (`useLogViewer`) แทนที่จะ import จากไฟล์ที่นิยาม Type โดยตรง
-- **Missing Type Definition**: ไม่มีไฟล์สำหรับนิยาม Type ของ `admin` feature โดยเฉพาะ ทำให้ `LogEntry` ต้องถูก import ข้าม feature หรือไม่มีที่อยู่ชัดเจน
-
-### การแก้ไข: จัดระเบียบและแก้ไข Import Paths
-- **สร้าง `app/features/admin/types/log.ts`**: สร้างไฟล์ใหม่เพื่อเป็นศูนย์กลางสำหรับ Type ที่ใช้เฉพาะใน `admin` feature โดยได้ย้าย `LogEntry` interface มาไว้ที่นี่
-- **แก้ไข `LogFilterControls.tsx`**: ปรับปรุง path การ `import` ของ `SYSTEM_LOGS_COLLECTION` และ `USER_ACTIVITY_LOGS_COLLECTION` ให้ชี้ไปยัง `app/features/auth/types/log.ts` ซึ่งเป็นแหล่งรวมที่ถูกต้อง
-- **แก้ไข `LogsTable.tsx`**: แก้ไข path การ `import` ของ `LogEntry` ให้ชี้ไปยังไฟล์ `app/features/admin/types/log.ts` ที่สร้างขึ้นใหม่
-
-### ผลลัพธ์
-- **✅ Build Stability**: แก้ไข Linter errors ทั้งหมด ทำให้โปรเจกต์สามารถ build ได้สำเร็จอีกครั้ง
-- **🏢 Centralized Configuration**: การมี `firebase.ts` ที่เดียวช่วยให้การจัดการการเชื่อมต่อ Firebase ง่ายขึ้นและลดความซ้ำซ้อน
-- **💧 Leaner & DRY Code**: กำจัดโค้ดที่ซ้ำซ้อนใน `logService` และ `logServerAction` ตามหลัก Don't Repeat Yourself (DRY)
-- **🔒 Improved Type Safety**: การปรับแก้ Type ทั้งหมดช่วยให้ลดโอกาสเกิดข้อผิดพลาดจากข้อมูลที่ไม่ตรงกันในอนาคต
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/features/auth/hooks/useAuthCore.ts`**: แก้ไข dependency loop ที่ทำให้เกิดการเรียก API ซ้ำๆ
-- **`app/features/admin/components/LogsTable.tsx`**: แก้ไข syntax error ในบรรทัดแรก
-
----
-
-## 🐞 Phase 33: Fixing Session API Infinite Loop & Syntax Errors
-
-### ปัญหาที่พบ
-- **Critical Performance Issue**: ตรวจพบการเรียก `GET /api/auth/session` ซ้ำๆ จำนวนมากในทุกหน้าของแอปพลิเคชัน ทำให้เกิดภาระต่อเซิร์ฟเวอร์และลดประสิทธิภาพการทำงาน
-- **Syntax Error**: พบ Linter error ใน `LogsTable.tsx` เนื่องจากมีอักขระที่ไม่ถูกต้องในบรรทัดแรก (`n'use client'` แทนที่จะเป็น `'use client'`)
-- **Root Cause**: ปัญหาการเรียก API ซ้ำๆ เกิดจาก dependency loop ใน `useAuthCore` hook โดยที่ `checkSession` ขึ้นอยู่กับ `setupActivityCheck` และ `setupActivityCheck` ก็ขึ้นอยู่กับ `user` state ซึ่งถูกอัปเดตโดย `checkSession` ทำให้เกิดวงจรการเรียก API ไม่สิ้นสุด
-
-### การแก้ไข
-1. **แก้ไข Dependency Loop ใน `useAuthCore.ts`**:
-   - นำการเรียก `setupActivityCheck()` ออกจากฟังก์ชัน `checkSession`
-   - ลบ `setupActivityCheck` ออกจาก dependency array ของ `checkSession`
-   - ย้ายการเรียก `setupActivityCheck()` ไปไว้ใน `useEffect` ที่ตรวจสอบ `authStatus === 'authenticated'` แทน
-   - เพิ่ม `setupActivityCheck` เข้าไปใน dependency array ของ `useEffect` นั้น
-
-2. **แก้ไข Syntax Error ใน `LogsTable.tsx`**:
-   - แก้ไขบรรทัดแรกจาก `n'use client';` เป็น `'use client';` ที่ถูกต้อง
-
-### ผลลัพธ์
-- **✅ Dramatic Performance Improvement**: ลดการเรียก API `GET /api/auth/session` จากหลายร้อยครั้งเหลือเพียงครั้งเดียวต่อการโหลดหน้า
-- **✅ Fixed Linter Errors**: แก้ไขข้อผิดพลาดทางไวยากรณ์ทั้งหมด ทำให้โค้ดมีความถูกต้องและสามารถ build ได้
-- **💧 Leaner Network Traffic**: ลดปริมาณการรับส่งข้อมูลระหว่าง Client และ Server อย่างมีนัยสำคัญ
-- **🔋 Improved Battery Life**: ลดการใช้พลังงานบนอุปกรณ์มือถือเนื่องจากลดการเรียก API ที่ไม่จำเป็น
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/features/auth/hooks/useAuthCore.ts`**: แก้ไข dependency loop ที่ทำให้เกิดการเรียก API ซ้ำๆ
-- **`app/features/admin/components/LogsTable.tsx`**: แก้ไข syntax error ในบรรทัดแรก
-
----
-
-## 🚀 Phase 34: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 35: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 36: Fixing Session API Infinite Loop & Syntax Errors
-
-### ปัญหาที่พบ
-- **Critical Performance Issue**: ตรวจพบการเรียก `GET /api/auth/session` ซ้ำๆ จำนวนมากในทุกหน้าของแอปพลิเคชัน ทำให้เกิดภาระต่อเซิร์ฟเวอร์และลดประสิทธิภาพการทำงาน
-- **Syntax Error**: พบ Linter error ใน `LogsTable.tsx` เนื่องจากมีอักขระที่ไม่ถูกต้องในบรรทัดแรก (`n'use client'` แทนที่จะเป็น `'use client'`)
-- **Root Cause**: ปัญหาการเรียก API ซ้ำๆ เกิดจาก dependency loop ใน `useAuthCore` hook โดยที่ `checkSession` ขึ้นอยู่กับ `setupActivityCheck` และ `setupActivityCheck` ก็ขึ้นอยู่กับ `user` state ซึ่งถูกอัปเดตโดย `checkSession` ทำให้เกิดวงจรการเรียก API ไม่สิ้นสุด
-
-### การแก้ไข
-1. **แก้ไข Dependency Loop ใน `useAuthCore.ts`**:
-   - นำการเรียก `setupActivityCheck()` ออกจากฟังก์ชัน `checkSession`
-   - ลบ `setupActivityCheck` ออกจาก dependency array ของ `checkSession`
-   - ย้ายการเรียก `setupActivityCheck()` ไปไว้ใน `useEffect` ที่ตรวจสอบ `authStatus === 'authenticated'` แทน
-   - เพิ่ม `setupActivityCheck` เข้าไปใน dependency array ของ `useEffect` นั้น
-
-2. **แก้ไข Syntax Error ใน `LogsTable.tsx`**:
-   - แก้ไขบรรทัดแรกจาก `n'use client';` เป็น `'use client';` ที่ถูกต้อง
-
-### ผลลัพธ์
-- **✅ Dramatic Performance Improvement**: ลดการเรียก API `GET /api/auth/session` จากหลายร้อยครั้งเหลือเพียงครั้งเดียวต่อการโหลดหน้า
-- **✅ Fixed Linter Errors**: แก้ไขข้อผิดพลาดทางไวยากรณ์ทั้งหมด ทำให้โค้ดมีความถูกต้องและสามารถ build ได้
-- **💧 Leaner Network Traffic**: ลดปริมาณการรับส่งข้อมูลระหว่าง Client และ Server อย่างมีนัยสำคัญ
-- **🔋 Improved Battery Life**: ลดการใช้พลังงานบนอุปกรณ์มือถือเนื่องจากลดการเรียก API ที่ไม่จำเป็น
-
-### สรุปไฟล์ที่แก้ไข
-- **`app/features/auth/hooks/useAuthCore.ts`**: แก้ไข dependency loop ที่ทำให้เกิดการเรียก API ซ้ำๆ
-- **`app/features/admin/components/LogsTable.tsx`**: แก้ไข syntax error ในบรรทัดแรก
-
----
-
-## 🚀 Phase 37: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 38: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 39: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 40: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 41: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 42: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 43: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 44: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 45: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🚀 Phase 46: Fixing 404 Errors by Restoring Page Routes
-
-### ปัญหาที่พบ
-- **Critical 404 Errors**: ผู้ใช้ไม่สามารถเข้าถึงหน้าเว็บหลักหลายหน้าได้ รวมถึง `/census/form`, `/census/approval`, และ `/admin/dev-tools` เนื่องจากหน้าเว็บแสดงผลเป็น "404 Not Found"
-- **Root Cause**: โครงสร้างของ Next.js App Router ต้องการไฟล์ `page.tsx` ในแต่ละไดเรกทอรีเพื่อสร้างเส้นทาง (Route) ที่สามารถเข้าถึงได้แบบสาธารณะ ไฟล์เหล่านี้อาจจะหายไปในระหว่างการ Refactor ครั้งใหญ่ ทำให้เส้นทางไปยังคอมโพเนนต์หลักของ Feature ต่างๆ ขาดหายไป
-
-### การแก้ไข: สร้าง `page.tsx` ขึ้นมาใหม่เพื่อคืนชีพให้กับเส้นทาง
-- **สร้าง `app/census/form/page.tsx`**: สร้างไฟล์ Page Wrapper ขึ้นมาใหม่เพื่อเชื่อมเส้นทาง `/census/form` เข้ากับคอมโพเนนต์ `DailyCensusForm`
-- **สร้าง `app/census/approval/page.tsx`**: สร้างไฟล์ Page Wrapper ที่จำเป็นเพื่อเชื่อมเส้นทาง `/census/approval` เข้ากับคอมโพเนนต์ `ApprovalPage` และจำกัดสิทธิ์ให้เฉพาะ `admin`, `developer`, และ `manager`
-- **สร้าง `app/admin/dev-tools/page.tsx`**: สร้างไฟล์ Page Wrapper สำหรับเส้นทาง `/admin/dev-tools` เพื่อแสดงผล `LogViewer` และจำกัดสิทธิ์ให้เฉพาะ `admin` และ `developer`
-- **ใช้ `ProtectedPage` และ `AuthProvider`**: ในทุกหน้าที่สร้างขึ้นใหม่ ได้มีการห่อหุ้มคอมโพเนนต์หลักด้วย `AuthProvider` เพื่อจัดการ State การล็อกอิน และ `ProtectedPage` เพื่อป้องกันการเข้าถึงจากผู้ที่ไม่มีสิทธิ์
-
-### ผลลัพธ์
-- **✅ All Pages Restored**: แก้ไขข้อผิดพลาด 404 ทั้งหมด ทำให้หน้าฟอร์ม, หน้าอนุมัติ, และหน้าเครื่องมือแอดมินกลับมาเข้าถึงและใช้งานได้อีกครั้ง
-- **🔐 Enhanced Security**: การใช้ `ProtectedPage` ทำให้มั่นใจได้ว่าเฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้นที่สามารถเข้าถึงหน้าเหล่านี้ได้
-- **🏗️ Standardized Structure**: การสร้าง `page.tsx` เป็นการกลับไปใช้โครงสร้างมาตรฐานของ Next.js App Router ทำให้โปรเจกต์มีความเสถียรและง่ายต่อการทำความเข้าใจ
-
----
-
-## 🐞 Phase 47: Fixing UserRole Type Errors in Page Components
-
-### ปัญหาที่พบ
-- **Build-Breaking Type Errors**: เกิดข้อผิดพลาดเกี่ยวกับ Type ในหลายๆ Page-level components (`dev-tools/page.tsx`, `approval/page.tsx`) ทำให้แอพไม่สามารถ build ได้
-- **Root Cause**: คอมโพเนนต์ `ProtectedPage` คาดหวัง prop `requiredRole` เป็น array ของ `UserRole` enum แต่ในโค้ดกลับมีการส่งค่าเป็น array ของ string literals (เช่น `['admin', 'developer']`) ทำให้ Type ไม่ตรงกัน
-- **Inconsistent Role Name**: มีการใช้ชื่อ Role ที่ไม่มีอยู่จริงใน enum (`'manager'`) ซึ่งคาดว่าน่าจะเป็น `SUPERVISOR`
-
-### การแก้ไข: เปลี่ยนไปใช้ `UserRole` Enum
-- **Import `UserRole`**: ในไฟล์ `page.tsx` ที่มีปัญหาทั้งหมด (`app/admin/dev-tools/page.tsx`, `app/census/approval/page.tsx`) ได้ทำการ import `UserRole` enum จาก `@/app/features/auth/types/user`.
-- **Update Prop Values**: แก้ไขค่าที่ส่งให้กับ `requiredRole` prop จาก string literals ไปเป็นสมาชิกของ enum ที่ถูกต้อง (เช่น `[UserRole.ADMIN, UserRole.DEVELOPER]`).
-- **Standardize Role**: แก้ไข Role `'manager'` ที่ไม่ถูกต้องให้เป็น `UserRole.SUPERVISOR` เพื่อให้สอดคล้องกับ enum ที่กำหนดไว้
-
-### ผลลัพธ์
-- **✅ Build Stability**: แก้ไขข้อผิดพลาดเกี่ยวกับ Type ทั้งหมด ทำให้โปรเจกต์กลับมา build ได้สำเร็จ
-- **🔒 Enhanced Type Safety**: การใช้ enum แทน string ช่วยลดโอกาสที่จะเกิดข้อผิดพลาดจากการพิมพ์ผิด (typo) และทำให้โค้ดมีความปลอดภัยและคาดเดาได้ง่ายขึ้น
-- **🧩 Consistent Code**: ทำให้การจัดการ Role ใน `ProtectedPage` มีมาตรฐานเดียวกันทั่วทั้งแอปพลิเคชัน
----
-
-## 🏗️ Phase 48: Implementing Global NavBar and Fixing Ward Dropdown
-
-### ปัญหาที่พบ
-1.  **Missing Navigation**: แอปพลิเคชันไม่มีแถบนำทาง (NavBar) ส่วนกลาง ทำให้ผู้ใช้ไม่สามารถเข้าถึงหน้าต่างๆ หรือเห็นข้อมูลประจำตัวและปุ่ม Logout ได้
-2.  **Empty Ward Selection**: ในหน้า `DailyCensusForm`, Dropdown สำหรับเลือกแผนก (Ward) ไม่แสดงรายชื่อแผนกใดๆ ทั้งที่มีข้อมูลอยู่ใน Firebase แล้ว
-
-### การแก้ไข: ปรับปรุง Layout และ Service Logic
-1.  **Global `NavBar` Implementation**:
-    - **แก้ไข `app/layout.tsx`**: เพิ่มคอมโพเนนต์ `<NavBar />` เข้าไปใน `RootLayout` โดยวางไว้ภายใน `<AuthProvider>` และอยู่เหนือ `{children}`
-    - **ผลลัพธ์**: ทำให้ `NavBar` ปรากฏเป็นส่วนประกอบหลักในทุกหน้าของแอปพลิเคชัน, เพิ่มความสามารถในการนำทาง และแสดงข้อมูลผู้ใช้ได้อย่างสอดคล้องกัน
-
-2.  **Ward Dropdown Population Fix**:
-    - **ตรวจสอบ `useDailyCensusFormLogic.ts`**: พบว่ามีการเรียกใช้ `getWardsByUserPermission` เพื่อดึงข้อมูลแผนกอยู่แล้ว
-    - **ตรวจสอบ `wardPermissions.ts`**: พบว่า Logic เดิมมีการกรองแผนกตามสิทธิ์ของผู้ใช้ ทำให้ผู้ใช้ที่มี Role `NURSE` หรือ `USER` ที่ไม่มีการกำหนด `floor` จะไม่เห็นแผนกใดๆ เลย
-    - **แก้ไข `getWardsByUserPermission`**: ทำการ Bypass Logic การกรองสิทธิ์ชั่วคราว โดยเปลี่ยนให้ฟังก์ชันคืนค่าผลลัพธ์จาก `getAllWards()` สำหรับผู้ใช้ทุกคน
-    - **ผลลัพธ์**: แก้ไขปัญหา Dropdown ว่างเปล่า ทำให้ตอนนี้สามารถดึงและแสดงรายชื่อแผนกทั้งหมดจาก Firestore ได้สำเร็จ
-
-### ผลลัพธ์โดยรวม
-- **✅ Improved User Experience**: ผู้ใช้สามารถนำทางไปยังส่วนต่างๆ ของเว็บได้ง่ายขึ้นผ่าน `NavBar` ที่ใช้งานได้เต็มรูปแบบ
-- **✅ Core Functionality Restored**: หน้าฟอร์มกลับมาใช้งานได้ตามปกติ โดยผู้ใช้สามารถเลือกแผนกที่ต้องการบันทึกข้อมูลได้แล้ว
-- **🧩 Identified Future Work**: การ Bypass permission logic เป็นการแก้ปัญหาเฉพาะหน้า และได้มีการทำเครื่องหมายไว้เพื่อกลับมาปรับปรุง Logic การแสดงผลตามสิทธิ์ของผู้ใช้ให้ถูกต้องตาม Workflow ในอนาคต
----
-
-## 🏛️ Phase 49: Fixing Layout and NavBar Issues
-
-### ปัญหาที่พบ
-1.  **Incorrect Layout Application**: `NavBar` แสดงผลในหน้า `Login` ซึ่งไม่ควรจะเกิดขึ้น ทำให้ UI ดูไม่เหมาะสม
-2.  **Broken Logo Image**: โลโก้ของโรงพยาบาลใน `NavBar` ไม่แสดงผล เนื่องจากมีการอ้างอิง Path ของไฟล์รูปภาพผิด
-
-### การแก้ไข: ปรับโครงสร้าง Layout ด้วย Route Groups
-1.  **Implementing Route Groups**:
-    - **สร้าง `app/(main)` group**: สร้างไดเรกทอรี `(main)` เพื่อใช้เป็น Route Group สำหรับหน้าที่ต้องการ `NavBar`
-    - **ย้ายหน้าหลัก**: ย้ายไดเรกทอรี `admin`, `census`, และ `home` เข้าไปอยู่ใน `app/(main)/`
-    - **สร้าง `app/(main)/layout.tsx`**: สร้างไฟล์ Layout ใหม่ภายใน Group ซึ่งจะทำหน้าที่แสดง `NavBar` และเป็นโครงสร้างหลักสำหรับหน้าภายใน Group ทั้งหมด
-    - **"ลีน" `app/layout.tsx`**: ลบ `NavBar` ออกจาก Root Layout หลัก ทำให้ Layout นี้เป็นแบบ Minimal สำหรับหน้าที่ไม่ต้องการ Navigation เช่นหน้า `Login`
-
-2.  **Fixing Image Path**:
-    - **แก้ไข `NavBar.tsx`**: ปรับปรุง `src` attribute ของ `<img>` tag ให้ชี้ไปยัง Path ที่ถูกต้องคือ `/images/BPK.jpg`
-
-### ผลลัพธ์โดยรวม
-- **✅ Correct Layout Behavior**: แก้ไขปัญหา `NavBar` แสดงในหน้า `Login` ได้สำเร็จ ทำให้แต่ละส่วนของแอปพลิเคชันมี Layout ที่เหมาะสมกับหน้าที่ของตัวเอง
-- **✅ UI Consistency**: โลโก้แสดงผลใน `NavBar` อย่างถูกต้อง ทำให้ UI มีความสมบูรณ์และเป็นไปตามแบรนด์
-- **🏗️ Improved Project Structure**: การใช้ Route Groups ช่วยให้โครงสร้างของโปรเจกต์มีความชัดเจนและง่ายต่อการจัดการ Layout ที่แตกต่างกันในอนาคต
-
----
-
-## 🚀 Phase 50: Dynamic Login UI via Firestore Configuration
-### ปัญหาที่พบ
-- **Hardcoded UI Text**: ข้อความต่างๆ ในหน้า Login (เช่น "Username", "Password", "Sign In") ถูกเขียนตายตัว (Hardcoded) ไว้ในคอมโพเนนต์ `LoginPage.tsx` ทำให้การแก้ไขข้อความเล็กๆ น้อยๆ จำเป็นต้องเข้าไปยุ่งกับโค้ดโดยตรง ซึ่งไม่ยืดหยุ่นและดูแลรักษายาก
-- **Violation of Separation of Concerns**: การที่โค้ดส่วนแสดงผล (View) ผูกติดกับข้อมูลที่เป็น Configuration ขัดกับหลักการออกแบบที่ดี
-
-### การแก้ไข: แยก Configuration ออกจากโค้ดอย่างสมบูรณ์
-1.  **สร้าง Firestore Collection**:
-    - สร้าง Collection ใหม่ชื่อ `form_configurations` ใน Firestore เพื่อใช้เป็น "Single Source of Truth" สำหรับการตั้งค่า UI ของฟอร์มต่างๆ
-    - เพิ่ม Document `login_form` ที่มี Fields สำหรับ `labels` และ `placeholders`
-
-2.  **สร้าง Feature Module ใหม่ (`config`)**:
-    - สร้างโครงสร้างไฟล์สำหรับ Feature ใหม่ที่ `app/features/config`
-    - นิยาม `FormConfiguration` interface ใน `types/index.ts` เพื่อสร้าง Type Safety
-    - สร้าง `configService.ts` พร้อมฟังก์ชัน `getFormConfiguration` ที่ทำหน้าที่ดึงข้อมูลจาก Firestore อย่างเป็นสัดส่วน
-
-3.  **Refactor `LoginPage.tsx`**:
-    - เพิ่ม `useEffect` hook เพื่อเรียกใช้ `getFormConfiguration('login_form')` เมื่อคอมโพเนนต์โหลด
-    - จัดการ Loading State ขณะรอข้อมูล และแสดง `CircularProgress`
-    - นำข้อมูลที่ได้จาก Firestore มาแสดงผลใน UI
-    - กำหนดค่าเริ่มต้น (Fallback) ที่เหมาะสมไว้ในโค้ด ในกรณีที่ไม่สามารถดึงข้อมูลจาก Firestore ได้
-
-### ผลลัพธ์โดยรวม
-- **✅ Decoupled UI & Logic**: สามารถแก้ไขข้อความในหน้า Login ได้โดยตรงจากฐานข้อมูล Firestore โดยไม่ต้องแก้ไขโค้ดและ Deploy ใหม่
-- **✨ Improved Maintainability**: การมีศูนย์กลางการตั้งค่า (Centralized Configuration) ทำให้การดูแลรักษาง่ายขึ้นมาก และลดความซับซ้อนในคอมโพเนนต์
-- **🏗️ Future-Proof Foundation**: สร้างรูปแบบ (Pattern) ที่แข็งแรง ซึ่งสามารถนำไปประยุกต์ใช้กับฟอร์มและหน้าอื่นๆ ทั่วทั้งแอปพลิเคชันได้อย่างง่ายดาย
----
-
-## 🚀 Phase 51: Dynamic Census Form UI via Firestore Configuration
-
-### ปัญหาที่พบ
-- **Hardcoded UI Text**: เช่นเดียวกับหน้า Login, หน้าฟอร์ม Census หลัก (โดยเฉพาะใน `CensusInputFields.tsx`) มีข้อความ UI จำนวนมาก (Labels, Placeholders, Section Headers, Helper texts) ที่ถูกเขียนตายตัว (Hardcoded) ไว้ในโค้ด
-- **Inconsistent Architecture**: สถาปัตยกรรมของหน้าฟอร์มยังไม่สอดคล้องกับรูปแบบ "Configuration-Driven UI" ที่ได้สร้างไว้ในหน้า Login ทำให้ขาดความเป็นมาตรฐาน
-
-### การแก้ไข: ขยายสถาปัตยกรรม "Configuration-Driven UI"
-1.  **ขยาย `FormConfiguration` Type**:
-    - อัปเดต `FormConfiguration` interface ใน `app/features/config/types/index.ts` ให้รองรับโครงสร้างฟอร์มที่ซับซ้อนขึ้น โดยเพิ่ม `sections` และ `helpers` (optional fields) เข้าไป
-
-2.  **สร้าง `census_form` Document ใน Firestore**:
-    - ได้มีการให้คุณบีบีสร้าง Document ใหม่ `census_form` ใน Firestore ซึ่งมีโครงสร้างที่สมบูรณ์สำหรับหน้าฟอร์ม Census ทั้ง `labels`, `placeholders`, `sections`, และ `helpers`
-
-3.  **สร้าง `useFormConfig` Hook (Reusable Logic)**:
-    - สร้าง Custom Hook ใหม่ที่ `app/features/config/hooks/useFormConfig.ts` เพื่อแยก Logic ในการดึงข้อมูล, จัดการ Loading/Error state ออกมาเป็นส่วนกลาง ทำให้สามารถนำไปใช้กับฟอร์มใดๆ ก็ได้ในอนาคต (Lean Code & DRY Principle)
-
-4.  **Refactor `DailyCensusForm.tsx` และ `CensusInputFields.tsx`**:
-    - นำ `useFormConfig` hook มาใช้ใน `DailyCensusForm.tsx` เพื่อดึงข้อมูล `census_form`
-    - จัดการกับสถานะ Loading และ Error ขณะดึงข้อมูล Configuration
-    - ส่งต่อ `formConfig` ที่ได้ไปยัง `CensusInputFields.tsx`
-    - "ผ่าตัดใหญ่" `CensusInputFields.tsx` โดยลบข้อความ Hardcoded ทั้งหมด และแทนที่ด้วยข้อมูลจาก `formConfig` พร้อมมี Fallback ที่ปลอดภัยในกรณีที่โหลดข้อมูลไม่สำเร็จ
-
-### ผลลัพธ์โดยรวม
-- **✅ Fully Dynamic Census Form**: ทำให้ UI ของหน้าฟอร์ม Census ทั้งหมดสามารถปรับเปลี่ยนได้โดยตรงจาก Firestore โดยไม่ต้องแตะต้องโค้ด
-- **🏗️ Standardized & Reusable Architecture**: การสร้าง `useFormConfig` hook ได้สร้างมาตรฐานและเครื่องมือที่แข็งแรง ทำให้การจะเปลี่ยนฟอร์มอื่นๆ ในอนาคต (เช่น หน้า Approval, User Management) ให้เป็นแบบ Dynamic ทำได้อย่างรวดเร็วและง่ายดาย
-- **✨ Improved Maintainability & Scalability**: ลดความซับซ้อนใน UI components และเพิ่มความสามารถในการขยายและบำรุงรักษาแอปพลิเคชันในระยะยาว
----
-
-## 🐞 Phase 52: Fixing Linter and Logic Errors in LoginPage
-
-### ปัญหาที่พบ
-1.  **Module Not Found**: เกิด Linter error ร้ายแรงใน `LoginPage.tsx` เนื่องจากพยายาม import hook `useAuth` ที่ไม่มีอยู่อีกต่อไปแล้ว หลังจากที่ได้มีการ Refactor ไปรวมไว้ใน `useAuthCore`
-2.  **Incorrect Hook Usage**: หลังจากเปลี่ยนไปใช้ `useAuthCore` แล้ว, property ที่ return ออกมา (เช่น `loading`) ไม่ตรงกับที่โค้ดคาดหวัง ทำให้เกิด Type errors เพิ่มเติม
-3.  **Invalid MUI Grid Props**: การใช้งาน prop `item` และ `xs` ใน `<Grid>` component ไม่ถูกต้องตามข้อกำหนดของ MUI เวอร์ชันปัจจุบัน
-
-### การแก้ไข: ปรับปรุง LoginPage ให้สอดคล้องกับสถาปัตยกรรมปัจจุบัน
-1.  **แก้ไข Import Path**: อัปเดตการ import ใน `LoginPage.tsx` ให้ชี้ไปยัง `useAuthCore` ที่ถูกต้อง และใช้ alias (`as useAuth`) เพื่อลดผลกระทบต่อโค้ดส่วนที่เหลือ
-2.  **ปรับ Logic การ Loading**: แก้ไข Logic การแสดงผลสถานะ Loading โดยเปลี่ยนจากการเช็ค `loading` boolean มาเป็นการตรวจสอบ `authStatus === 'loading'` ซึ่งเป็นค่าที่ได้จาก `useAuthCore` hook ตัวใหม่
-3.  **แก้ไข Grid Component**: ลบ props `item` และ `xs` ที่ไม่ถูกต้องออกจาก `<Grid>` component เพื่อแก้ไข Linter errors ทั้งหมด
-
-### ผลลัพธ์โดยรวม
-- **✅ Build Stability**: แก้ไขข้อผิดพลาดทั้งหมด ทำให้หน้า Login กลับมาทำงานได้อย่างถูกต้องและโปรเจกต์สามารถ build ได้สำเร็จ
-- **🧩 Consistent Architecture**: ทำให้โค้ดของ `LoginPage` กลับมาสอดคล้องกับสถาปัตยกรรมของระบบ Authentication ปัจจุบัน
-- **✨ Improved Robustness**: แก้ไข Logic การจัดการ Error และ Loading ให้มีความถูกต้องและแม่นยำยิ่งขึ้น
-
----
-
-## 🔐 Phase 53: Firebase Data Model Review & Security Hardening
-
-### ปัญหาที่พบ
-1.  **Major Security Risk**: มีการจัดเก็บ Field `password` (แม้จะเข้ารหัสแล้ว) ไว้ใน Firestore Collection `users` ซึ่งเป็นการปฏิบัติที่ไม่ปลอดภัยและขัดกับหลักการของ Firebase ที่ควรให้ **Firebase Authentication** จัดการเรื่องรหัสผ่านทั้งหมด
-2.  **Suboptimal Document IDs**: การใช้ `username` เป็น Document ID ใน Collection `users` อาจทำให้เกิดปัญหาข้อมูลซ้ำซ้อนและเชื่อมโยงกับข้อมูล Authentication ได้ยากกว่าการใช้ `uid`
-
-### การแก้ไข: ปรับปรุงและเสริมความปลอดภัยให้ Data Model
-1.  **Hardening a `users` Collection (เสริมความปลอดภัย)**:
-    - **นำ Field `password` ออก**: แนะนำให้ลบ Field `password` ออกจาก Firestore schema โดยเด็ดขาด และมอบหมายให้ Firebase Authentication จัดการการยืนยันตัวตน 100%
-    - **เปลี่ยน Document ID เป็น `uid`**: เสนอให้เปลี่ยน ID ของ Document จาก `username` เป็น `uid` ที่ได้จาก Firebase Authentication เพื่อให้การันตีว่า ID จะไม่ซ้ำกันและสามารถอ้างอิงถึงผู้ใช้ได้โดยตรง
-    - **ปรับปรุง Schema**: เสนอให้ปรับปรุง Fields ภายใน Document ให้มีความชัดเจนและสอดคล้องกับการใช้งานมากขึ้น เช่น เพิ่ม `uid`, `email` และ `approveWardIds` เพื่อรองรับฟีเจอร์ในอนาคต
-
-2.  **ออกแบบ Collections สำหรับ Logging (Dev Tools)**:
-    - **สร้าง `user_activity_logs`**: ออกแบบ Collection ใหม่สำหรับเก็บประวัติการกระทำที่สำคัญของผู้ใช้โดยเฉพาะ (ใคร, ทำอะไร, เมื่อไหร่)
-    - **สร้าง `system_logs`**: ออกแบบ Collection ใหม่สำหรับเก็บ Log การทำงานและข้อผิดพลาดของระบบ เพื่อให้ง่ายต่อการตรวจสอบและแก้ไขปัญหา
-
-### ผลลัพธ์โดยรวม
-- **✅ Enhanced Security**: กำจัดช่องโหว่ด้านความปลอดภัยที่สำคัญที่สุดโดยการยกเลิกการเก็บรหัสผ่านใน Firestore
-- **🏗️ Robust & Scalable Data Model**: โครงสร้างข้อมูล `users` ใหม่มีความแข็งแรง, ยืดหยุ่น, และง่ายต่อการขยายในอนาคต
-- **📈 Efficient Querying**: การแยก Log ออกมาเป็น Collection ของตัวเองทำให้การดึงข้อมูลเพื่อตรวจสอบทำได้อย่างรวดเร็วและไม่กระทบประสิทธิภาพของ Collection หลัก
----
-
-## 🐞 Phase 54: Fixing Next.js Link Deprecation Warning
-
-### ปัญหาที่พบ
-- **Deprecation Warning**: เกิดข้อผิดพลาดใน Console ของเบราว์เซอร์ว่า `legacyBehavior` ใน `Link` component ของ Next.js เป็นคุณสมบัติที่ล้าสมัยและจะถูกลบออกในอนาคต (`legacyBehavior` is deprecated)
-- **Root Cause**: การใช้งาน `Link` component ใน `NavBar.tsx` ยังคงเป็นรูปแบบเก่าที่ซ้อน tag `<a>` ไว้ข้างใน ซึ่งไม่จำเป็นสำหรับ Next.js เวอร์ชันใหม่
-
-### การแก้ไข: อัปเดตการใช้งาน `Link` Component
-- **แก้ไข `app/components/ui/NavBar.tsx`**: 
-  - ลบ prop `legacyBehavior` ออกจาก `Link` component
-  - ลบ tag `<a>` ที่ซ้อนอยู่ข้างในออก
-  - ย้าย `className` และ props อื่นๆ จาก tag `<a>` ไปใส่ที่ `Link` component โดยตรง
-
-### ผลลัพธ์
-- **✅ Removed Deprecation Warning**: แก้ไขคำเตือนทั้งหมด ทำให้ Console สะอาดและโค้ดเป็นไปตามมาตรฐานปัจจุบันของ Next.js
-- **✨ Modernized Code**: ทำให้โค้ดของ `NavBar` มีความทันสมัยและสอดคล้องกับ Best Practice ของ Next.js App Router
----
-
-## ✨ Phase 55: Declarative, Role-Based NavBar Refactoring
-
-### ปัญหาที่พบ
-1.  **Hardcoded Logic**: โค้ดใน `NavBar.tsx` มีการใช้เงื่อนไข `if` และ `&&` ที่ซับซ้อนและเขียนตายตัว (Hardcoded) เพื่อควบคุมการแสดงผลของเมนูแต่ละรายการตามสิทธิ์ผู้ใช้
-2.  **Maintainability Issues**: การแก้ไขหรือเพิ่มเติมสิทธิ์การเข้าถึงเมนูในอนาคตทำได้ยาก, เสี่ยงต่อการเกิดข้อผิดพลาด, และทำให้โค้ดอ่านยาก
-3.  **Inaccurate Role Permissions**: การกำหนดสิทธิ์เดิมไม่ตรงตามข้อกำหนดล่าสุด (เช่น Admin เห็น Dev Tools, User ทั่วไปไม่เห็น Approval)
-
-### การแก้ไข: เปลี่ยนไปใช้สถาปัตยกรรมแบบ Declarative
-1.  **สร้าง `navLinks` Configuration Array**:
-    - สร้างอาร์เรย์ `navLinks` ขึ้นมาเพื่อเป็น "Single Source of Truth" สำหรับเมนูทั้งหมด
-    - แต่ละออบเจ็กต์ในอาร์เรย์จะระบุ `href`, `label`, และ `allowedRoles` ซึ่งเป็นอาร์เรย์ของ `UserRole` enum ที่สามารถเข้าถึงลิงก์นั้นได้
-
-2.  **กรองข้อมูลฝั่ง Client (Filtering Logic)**:
-    - ในคอมโพเนนต์ `NavBar`, ได้เพิ่ม Logic การกรอง (`filter`) อาร์เรย์ `navLinks` โดยจะแสดงผลเฉพาะลิงก์ที่ `allowedRoles` ตรงกับ Role ของผู้ใช้ที่ล็อกอินอยู่
-
-3.  **แก้ไขสิทธิ์ให้ถูกต้อง (Corrected Permissions)**:
-    - ปรับปรุง `allowedRoles` ให้ตรงตามข้อกำหนดล่าสุด:
-        - `Dev Tools`: แสดงเฉพาะ `DEVELOPER`
-        - `User Management`: แสดงเฉพาะ `ADMIN` และ `DEVELOPER`
-        - `Approval`, `Form`, `Dashboard`: แสดงสำหรับผู้ใช้ที่ล็อกอินทุกคน
-
-### ผลลัพธ์โดยรวม
-- **✨ Clean & Declarative Code**: โค้ดใน `NavBar` สะอาดและอ่านง่ายขึ้นอย่างมาก โดยแยกส่วนของ "ข้อมูล (Data)" และ "การแสดงผล (View)" ออกจากกันชัดเจน
-- **✅ Improved Maintainability**: การแก้ไข, เพิ่ม, หรือลบเมนูในอนาคตทำได้ง่ายและปลอดภัย เพียงแค่แก้ไขข้อมูลในอาร์เรย์ `navLinks` ที่เดียว
-- **🔐 Accurate Role-Based View**: `NavBar` แสดงผลเมนูตามสิทธิ์ของผู้ใช้แต่ละคนได้อย่างถูกต้อง 100% ตามข้อกำหนดล่าสุด
-
----
-
-## 🏗️ Phase 56: Correcting Project Structure with Route Groups
-
-### ปัญหาที่พบ
-- **Missing `NavBar`**: `NavBar` ไม่แสดงผลในหน้าเว็บหลักหลายหน้า (เช่น `/census/form`, `/home`) ทำให้ผู้ใช้ไม่สามารถนำทางไปยังส่วนต่างๆ ของแอปพลิเคชันได้
-- **Incorrect Layout Application**: ปัญหาเกิดจากการที่ไดเรกทอรีของหน้าเว็บเหล่านี้ (`/census`, `/home`, `/admin/dev-tools`) ถูกวางอยู่นอก `(main)` Route Group ซึ่งเป็นตัวกำหนด Layout หลักที่มี `NavBar`
-
-### การแก้ไข: จัดโครงสร้างไฟล์ให้สอดคล้องกับ App Router
-- **ย้ายไดเรกทอรีที่เกี่ยวข้อง**: ได้ทำการย้ายไดเรกทอรีของหน้าเว็บที่ได้รับผลกระทบทั้งหมดเข้าไปอยู่ภายใต้ `app/(main)/` อย่างเป็นระบบ:
-    - `app/home/` → `app/(main)/home/`
-    - `app/census/` → `app/(main)/census/`
-    - `app/admin/dev-tools/` → `app/(main)/admin/dev-tools/`
-- **กระบวนการย้ายไฟล์**: การย้ายสำเร็จได้ด้วยการอ่านเนื้อหาของไฟล์ `page.tsx` เดิม, สร้างไฟล์ใหม่ในตำแหน่งที่ถูกต้อง, และลบไฟล์เก่าทิ้งไป เพื่อให้มั่นใจว่าเนื้อหายังคงเดิม 100%
-
-### ผลลัพธ์โดยรวม
-- **✅ `NavBar` Visibility Restored**: `NavBar` กลับมาแสดงผลอย่างถูกต้องในทุกหน้าที่ควรจะมี, แก้ไขปัญหาการนำทางของผู้ใช้โดยสมบูรณ์
-- **🏗️ Standardized Project Structure**: โครงสร้างของโปรเจกต์กลับมาสอดคล้องกับ Best Practice ของ Next.js App Router, ทำให้การจัดการ Layout มีความชัดเจนและง่ายต่อการบำรุงรักษาในอนาคต
-- **✨ Improved Code Organization**: ลดความสับสนและทำให้โปรเจกต์มีความเป็นระเบียบมากขึ้น
-
----
-
-## 🚀 Phase 57: Fixing Double NavBar and 404 Errors
-
-### ปัญหาที่พบ
-1.  **Double NavBar**: แถบเมนูนำทาง (NavBar) แสดงผลซ้อนกัน 2 ชั้นในหน้าเว็บหลักเกือบทุกหน้า ทำให้ UI ผิดเพี้ยน
-2.  **Dashboard 404**: ผู้ใช้ไม่สามารถเข้าถึงหน้า `/dashboard` ได้ เนื่องจากระบบแสดงผลเป็น "404 Not Found"
-
-### การแก้ไข: ปรับปรุง Page Wrappers และสร้าง Route ที่ขาดหายไป
-1.  **กำจัด `AuthProvider` ที่ซ้ำซ้อน**:
-    - **สาเหตุ**: ปัญหา NavBar ซ้อนกันเกิดจากการที่ไฟล์ Page (`page.tsx`) แต่ละหน้ามีการเรียกใช้ `<AuthProvider>` ทั้งๆ ที่ `app/(main)/layout.tsx` ซึ่งเป็น Layout หลักได้ครอบ `AuthProvider` ไว้แล้ว
-    - **การแก้ไข**: ได้ทำการลบ `<AuthProvider>` ที่ซ้ำซ้อนออกจากไฟล์ `page.tsx` ของทุกหน้าที่เกี่ยวข้อง (`Approval`, `Form`, `Dev Tools`) ทำให้ตอนนี้เหลือ Provider เพียงตัวเดียวที่มาจาก Layout หลัก
-
-2.  **สร้าง Route สำหรับ Dashboard**:
-    - **สาเหตุ**: ปัญหา 404 เกิดจากยังไม่มีไฟล์ `page.tsx` สำหรับกำหนดเส้นทาง `/dashboard` หลังจากที่ปรับโครงสร้างโปรเจกต์
-    - **การแก้ไข**:
-        - สร้างไฟล์ `app/(main)/dashboard/page.tsx` ขึ้นมาใหม่
-        - นำเข้า (import) คอมโพเนนต์ `Dashboard` หลักจาก `app/features/dashboard/page.tsx`
-        - ห่อหุ้มคอมโพเนนต์ด้วย `<ProtectedPage>` เพื่อให้สอดคล้องกับหน้าอื่นๆ
-
-### ผลลัพธ์โดยรวม
-- **✅ Clean UI**: แก้ไขปัญหา NavBar ซ้อนกันได้สำเร็จ ทำให้หน้าเว็บกลับมาแสดงผลถูกต้องตามปกติ
-- **✅ All Routes Accessible**: หน้า Dashboard กลับมาเข้าถึงและใช้งานได้อีกครั้ง แก้ไขข้อผิดพลาด 404 โดยสมบูรณ์
-- **🧩 Consistent Architecture**: ทำให้โครงสร้างของ Page Component มีความสอดคล้องกันทั่วทั้งโปรเจกต์ โดยใช้ Provider จาก Layout หลักเพียงที่เดียว
-
----
-
-## 🔧 Phase 58: Removing Duplicate NavBar & Wrapper in ApprovalPage
-
-### ปัญหาที่พบ
-- หลังจากแก้ไขโครงสร้าง Layout แล้ว `ApprovalPage` ภายใน `app/features/approval/ApprovalPage.tsx` ยังคงมีการเรียกใช้ `<NavBar />` และ `<ProtectedPage>` ซ้ำซ้อน ทำให้เกิด NavBar ซ้อนอีกครั้งและเพิ่มความซับซ้อนโดยไม่จำเป็น
-
-### การแก้ไข
-1. **ลบโค้ดที่ซ้ำซ้อน**
-   - ลบการ `import` และการใช้งาน `<NavBar />` ภายใน `ApprovalPage`
-   - ลบการ `import` และการใช้งาน `<ProtectedPage>` ภายใน `ApprovalPage` เพราะ wrapper นี้ถูกจัดการโดยไฟล์ route (`app/(main)/census/approval/page.tsx`) แล้ว
-2. **ปรับโครงสร้าง JSX**
-   - ห่อเนื้อหาทั้งหมดใน `div` หลักเพียงตัวเดียว ทำให้สอดคล้องกับหน้าอื่นๆ และป้องกันชั้น wrapper ที่เกินความจำเป็น
-
-### ผลลัพธ์
-- **✅ UI สะอาด:** NavBar จะมีเพียง 1 ชั้นตรงตาม Layout หลัก ส่วน ProtectedPage ใช้งานแค่ชั้นเดียวตาม Route page
-- **💧 Leaner Component:** `ApprovalPage` มีหน้าที่รับผิดชอบเฉพาะ Logic และ UI ภายในตัวเอง ไม่ต้องจัดการส่วน Layout ซ้ำซ้อนอีกต่อไป
-
----
-
-## 🧐 Phase 59: Cross-Model Code Review and Consistency Fixes
-
-### ปัญหาที่พบ
-- หลังจากการทำงานของ AI หลายโมเดล, พบความไม่สอดคล้องกันหลายจุดในโค้ดเบส ทั้งในด้าน Logic, การจัดการสิทธิ์, และสถาปัตยกรรม ทำให้ต้องมีการตรวจสอบและปรับปรุงครั้งใหญ่
-
-### การแก้ไข: ตรวจสอบและปรับปรุง 3 ส่วนหลัก
-1.  **ปรับปรุง Login API ให้เป็นมาตรฐาน**:
-    - **ปัญหา**: `app/api/auth/login/route.ts` สร้าง Firebase connection ของตัวเอง, ไม่เป็นไปตามสถาปัตยกรรมกลาง
-    - **การแก้ไข**: แก้ไข API ให้ `import` และใช้ `db` instance จาก `app/lib/firebase/firebase.ts` ทำให้โค้ดสะอาดและเป็นไปตามหลัก DRY
-
-2.  **แก้ไขสิทธิ์การเข้าถึง (Role-Based Access Control)**:
-    - **ปัญหา**: สิทธิ์ที่กำหนดใน `NavBar` ไม่ตรงกับที่บังคับใช้ในหน้า Page-level (`ProtectedPage`)
-    - **หน้า Approval**: แก้ไข `app/(main)/census/approval/page.tsx` โดยการนำ `requiredRole` ออก เพื่อให้ผู้ใช้ที่ล็อกอินทุกคนสามารถเข้าถึงได้ตามที่ `NavBar` แสดงผล
-    - **หน้า Dev Tools**: แก้ไข `app/(main)/admin/dev-tools/page.tsx` ให้ `requiredRole` เหลือเพียง `[UserRole.DEVELOPER]` เพื่อให้สอดคล้องกับ `NavBar` และข้อกำหนดด้านความปลอดภัย
-
-3.  **ปรับปรุง NavBar ให้รองรับมือถือ (Responsive UI)**:
-    - **ปัญหา**: `NavBar` แสดงผลไม่ถูกต้องบนหน้าจอขนาดเล็ก ทำให้เมนูหายไป
-    - **การแก้ไข**: เพิ่มเมนูแบบ Hamburger เข้าไปใน `NavBar.tsx` โดยใช้ `useState` และ `useEffect` เพื่อควบคุมการแสดงผล, เพิ่มปุ่ม `Menu`/`X`, และสร้าง Layout สำหรับเมนูบนมือถือที่แสดงข้อมูลผู้ใช้และปุ่ม Logout ครบถ้วน
-
-### ผลลัพธ์โดยรวม
-- **✅ Consistent Architecture**: โค้ดทั้งหมดกลับมามีสถาปัตยกรรมที่เป็นมาตรฐานเดียวกัน โดยเฉพาะการเชื่อมต่อ Firebase
-- **🔐 Accurate & Secure Permissions**: แก้ไขช่องโหว่ทาง Logic ที่อาจทำให้ผู้ใช้เห็นเมนูที่ไม่มีสิทธิ์เข้าถึง, ทำให้สิทธิ์การเข้าใช้งานแม่นยำและปลอดภัยยิ่งขึ้น
-- **📱 Improved User Experience**: `NavBar` สามารถใช้งานได้บนทุกอุปกรณ์ ทำให้ผู้ใช้มีประสบการณ์ที่ดีและเข้าถึงส่วนต่างๆ ของแอปพลิเคชันได้สะดวก
-
----
-
-## 🐞 Phase 60: Removing Duplicate NavBar from Dashboard Page
-
-### ปัญหาที่พบ
-- ตรวจพบว่า `RefactoredDashboardPage.tsx` ภายใน feature `dashboard` ยังมีการ `import` และแสดง `<NavBar />` ของตัวเอง ทั้งที่ `app/(main)/layout.tsx` ได้จัดการแสดง `NavBar` ไว้แล้ว ส่งผลให้เกิด NavBar ซ้อนกัน 2 ชั้นและทำให้มีการ Mount `NavBar`, `useAuth`, และการเรียก `GET /api/auth/session` ซ้ำ ๆ อย่างไม่จำเป็น
-
-### การแก้ไข
-1. **ลบ `NavBar` ที่ซ้ำซ้อน**
-   - ลบบรรทัด `import NavBar from '@/app/components/ui/NavBar';` ออกจากไฟล์ `app/features/dashboard/components/RefactoredDashboardPage.tsx`
-   - ลบ JSX `<NavBar />` ที่อยู่ภายในส่วน root ของคอมโพเนนต์
-
-### ผลลัพธ์
-- **✅ UI สะอาด:** แก้ไขปัญหา NavBar ซ้อนในหน้า Dashboard เรียบร้อย
-- **🚀 Performance Boost:** ลดการ Mount component และการเรียก API session ที่ไม่จำเป็น ทำให้หน้า Dashboard โหลดเร็วและเบาเครือข่ายมากขึ้น
-- **🧩 สถาปัตยกรรมสอดคล้องกัน:** ทุกหน้าใน `(main)` route group ใช้ `NavBar` จาก Layout เดียวกัน ทำให้การจัดการ Layout เป็นไปตามมาตรฐานและง่ายต่อการบำรุงรักษา
-
----
-
-## 🐞 Phase 61: Fixing Dashboard Infinite Data Fetching Loop
-
-### ปัญหาที่พบ
-- ตรวจพบว่าหน้า Dashboard มีการเรียกข้อมูลจาก API ซ้ำๆ ไม่หยุด (Infinite Loop) ทำให้เกิด Network Request จำนวนมากโดยไม่จำเป็นและส่งผลกระทบต่อประสิทธิภาพโดยตรง
-
-### สาเหตุ
-- ปัญหาเกิดจาก `useEffect` ใน `RefactoredDashboardPage.tsx` ที่ใช้ในการเรียกข้อมูล (`refreshData`, `fetchDailyData`) มีการระบุตัวฟังก์ชันเองเป็น dependency
-- เมื่อ `refreshData` ทำงานและอัปเดต state, hook ที่สร้าง `refreshData` จะถูกสร้างขึ้นมาใหม่ ทำให้ reference ของฟังก์ชันเปลี่ยนไป และ `useEffect` ก็จะถูกเรียกซ้ำอีกครั้ง เป็นวงจรไม่สิ้นสุด
-
-### การแก้ไข
-1. **แก้ไข Dependency Array**:
-   - ในไฟล์ `app/features/dashboard/components/RefactoredDashboardPage.tsx` ได้ทำการแก้ไข `useEffect` โดยการลบฟังก์ชัน `refreshData` และ `fetchDailyData` ออกจาก dependency array
-   - ทำให้ `useEffect` จะทำงานเฉพาะเมื่อ `wards` หรือ `selectedWardId` เปลี่ยนแปลงเท่านั้น ซึ่งเป็นพฤติกรรมที่ถูกต้องและตั้งใจไว้
-
-### ผลลัพธ์
-- **✅ Fixed Infinite Loop:** แก้ไขปัญหาการเรียกข้อมูลวนซ้ำได้สำเร็จ ทำให้หน้า Dashboard กลับมามีเสถียรภาพและทำงานได้อย่างปกติ
-- **🚀 Massive Performance Gain:** ลดภาระบน Network และ Client ลงอย่างมาก ทำให้แอปพลิเคชันตอบสนองได้เร็วขึ้นและใช้ทรัพยากรน้อยลง
-- **✨ Improved Code Health:** ทำให้ Logic ของ `useEffect` มีความถูกต้องและคาดเดาได้ง่ายขึ้นตามหลักการของ React Hooks
-
----
-
-## ✨ Phase 62: Centralizing NavBar in Main Layout to Fix Duplication
-
-### ปัญหาที่พบ
-- หลังจากแก้ไขปัญหา NavBar ซ้อนกันหลายครั้ง พบว่าปัญหายังคงเกิดขึ้นอีก เนื่องจากสถาปัตยกรรมการวาง Layout ยังไม่ถูกต้อง 100% โดยมีการเรียกใช้ `<NavBar />` ทั้งใน Root Layout (`app/layout.tsx`) และใน Page Component ซึ่งทำให้เกิดการซ้ำซ้อน
-
-### การแก้ไข: จัดการ Layout อย่างเป็นระบบ
-1. **"ลีน" Root Layout**:
-   - ในไฟล์ `app/layout.tsx` ได้ทำการคอมเมนต์การ `import` และการใช้งาน `<NavBar />` ออกทั้งหมด
-   - ทำให้ Root Layout เหลือเพียงโครงสร้างที่จำเป็นจริงๆ เช่น `ThemeProvider` และ `AuthProvider` สำหรับทุกหน้าในแอปพลิเคชัน
-
-2. **รวมศูนย์ที่ Main Layout**:
-   - แก้ไขไฟล์ `app/(main)/layout.tsx` ซึ่งเป็น Layout สำหรับกลุ่มหน้าหลัก (เช่น Dashboard, Form, Approval) ให้เป็นผู้รับผิดชอบในการแสดง `<NavBar />` เพียงที่เดียว
-   - ทำให้มั่นใจได้ว่าทุกหน้าที่อยู่ใน Route Group `(main)` จะมี `NavBar` แสดงผล 1 อันเสมอ
-
-### ผลลัพธ์
-- **✅ Permanently Fixed Duplication:** แก้ไขปัญหา NavBar ซ้อนกันที่ต้นเหตุ ทำให้ UI มีความถูกต้องและเสถียร
-- **🏗️ Correct Layout Architecture:** จัดโครงสร้าง Layout ให้เป็นไปตามหลักการของ Next.js App Router อย่างสมบูรณ์ โดยแยก Layout หลัก (ไม่มี NavBar) และ Layout สำหรับหน้าที่มีการนำทาง (มี NavBar) ออกจากกันชัดเจน
-- **✨ Improved Predictability:** ทำให้การจัดการ Layout ในอนาคตง่ายขึ้นและคาดเดาได้ง่ายว่าจะมีการแสดงผล NavBar ในหน้าใดบ้าง
-
-</rewritten_file>
+## Session Summary (As of 2025-06-19)
+
+ใช้ **Claude Sonnet 4** (model: claude-sonnet-4-20250514) ดำเนินการตรวจสอบและแก้ไขข้อผิดพลาดอย่างครอบคลุม โดยยึดหลักการ "Lean Code" และมาตรฐานความปลอดภัยสูง
+
+### 1. Critical Bug Fixes (ปัญหาร้อนแรง)
+- **🔥 TypeScript Build Errors Fixed:**
+  - **Ward Interface Mismatch:** แก้ไข `wardQueries.ts:162` ที่ใช้ `a.order - b.order` เป็น `a.wardOrder - b.wardOrder`
+  - **Transform Function Fix:** แก้ไข `transformWardDoc()` function ให้ return properties ที่ตรงกับ `Ward` interface:
+    - เพิ่ม `wardCode`, `wardLevel`, `totalBeds` properties ที่ขาดหายไป
+    - ลบ `description`, `createdAt`, `updatedAt` ที่ไม่ใช่ส่วนหนึ่งของ Ward interface
+  - **Missing Import Fix:** ลบ `export * from './approvalForms';` ออกจาก `approvalServices/index.ts` เนื่องจากไฟล์ถูกลบแล้ว
+
+### 2. Security Vulnerability Assessment (ช่องโหว่ความปลอดภัย)
+- **🔴 CRITICAL Issues Identified:**
+  - **Mock Authentication Token:** พบ hardcoded token `'mock_auth_token_for_demo'` ใน login API
+  - **Insufficient Input Validation:** ขาดการตรวจสอบข้อมูลนำเข้าอย่างครอบคลุม
+  - **Insecure Session Management:** การตรวจสอบ session ไม่มีการยืนยันแบบ cryptographic
+
+- **🟠 HIGH Priority Issues:**
+  - **Information Disclosure:** Error messages อาจเปิดเผยข้อมูลสำคัญ
+  - **Missing CSRF Protection:** ไม่มี CSRF token validation
+  - **Weak Password Policy:** รหัสผ่านต้องการแค่ 6 ตัวอักษร
+
+- **✅ Security Strengths:**
+  - bcrypt password hashing (salt rounds: 10)
+  - httpOnly cookies สำหรับ auth tokens
+  - Security headers ใน middleware (CSP, HSTS, XSS protection)
+  - Firestore security rules ที่ครอบคลุม
+
+### 3. File Size Compliance (หลัก Lean Code)
+- **✅ Size Analysis:** ตรวจสอบแล้วไม่มีไฟล์ไหนเกิน 500 บรรทัด
+- **Largest Files:**
+  - `logService.ts`: 352 บรรทัด
+  - `WardSummaryStats.tsx`: 346 บรรทัด
+  - `approvalForms.ts`: 305 บรรทัด (ยังอยู่ในเกณฑ์ที่กำหนด)
+
+### 4. Performance & Infrastructure
+- **Firebase Indexes:** ต้องตรวจสอบการเชื่อมต่อและ performance optimization
+- **Bundle Size Optimization:** ระบุได้ว่า Firebase bundle มีขนาด 545 KiB และ framework bundle 678 KiB
+
+### 5. Code Quality Improvements
+- **Eliminated Dead Code:** ลบการอ้างอิงไฟล์ที่ถูกลบแล้วออกจาก export statements
+- **Type Safety Enhancement:** แก้ไข type mismatch ที่ป้องกันการ build สำเร็จ
+- **Interface Consistency:** ทำให้ Ward interface และ transform functions สอดคล้องกัน
+
+### 6. Technical Debt Resolution
+- **Removed Broken References:** ทำความสะอาด import/export ที่เสียหาย
+- **Fixed TypeScript Compilation:** แก้ไขข้อผิดพลาดที่ขัดขวางการ build
+- **Maintained Existing Architecture:** ไม่กระทบต่อโครงสร้างและ workflow ที่ดีอยู่แล้ว
+
+### 🎯 Next Priority Actions Required:
+1. **Authentication Security:** แทนที่ mock token ด้วย proper JWT implementation
+2. **Input Validation:** เพิ่ม comprehensive validation ด้วย schema validation library
+3. **Session Security:** implement cryptographic session validation
+4. **CSRF Protection:** เพิ่ม CSRF tokens สำหรับ state-changing operations
+5. **Firebase Performance:** optimize indexes และ query performance
+
+### 📊 Context Management:
+- **Current Session Size:** อยู่ในเกณฑ์ปกติ ยังไม่เกินขีดจำกัด context window
+- **Model Compatibility:** โค้ดถูกเขียนให้รองรับการทำงานร่วมกับ AI models หลายตัว
+- **Development Standards:** ยึดมาตรฐาน Next.js + TypeScript + Tailwind + ESLint
+
+การตรวจสอบนี้ใช้หลักการ **Lean Code** (Waste Elimination, Reuse, Refactor) และคำนึงถึงความปลอดภัย Performance และความเข้ากันได้กับโครงสร้างเดิมเป็นหลัก

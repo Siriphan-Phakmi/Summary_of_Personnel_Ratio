@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '../types/user';
 import { logLogin, logLogout } from '../services/logService';
-import { showErrorToast } from '@/utils/toastUtils';
+import { showErrorToast } from '@/app/lib/utils/toastUtils';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 

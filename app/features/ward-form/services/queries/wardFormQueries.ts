@@ -77,12 +77,10 @@ export const findWardForm = async ({
 export const getWardForm = async (
   formId: string
 ): Promise<WardForm | null> => {
-    // This function seems to have been intended to fetch by ID, let's correct it.
-    // The original implementation was trying to query, which is not ideal for unique IDs.
     const docRef = doc(db, COLLECTION_WARDFORMS, formId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-        return docSnap.data() as WardForm;
+        return { ...docSnap.data(), id: docSnap.id } as WardForm;
     }
     return null;
 }

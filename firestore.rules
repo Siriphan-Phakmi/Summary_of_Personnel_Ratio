@@ -46,7 +46,7 @@ service cloud.firestore {
     function isValidUser() {
       let data = request.resource.data;
       return data.username is string &&
-        (data.role == 'admin' || data.role == 'user' || data.role == 'approver' || data.role == 'developer') &&
+        (data.role == 'admin' || data.role == 'nurse' || data.role == 'approver' || data.role == 'developer') &&
         data.firstName is string &&
         data.lastName is string &&
         data.active is bool;
@@ -54,7 +54,7 @@ service cloud.firestore {
     
     function isValidRole(data) {
       return 
-        (data.role == 'admin' || data.role == 'user' || data.role == 'approver' || data.role == 'developer') &&
+        (data.role == 'admin' || data.role == 'nurse' || data.role == 'approver' || data.role == 'developer') &&
         data.active is bool;
     }
     

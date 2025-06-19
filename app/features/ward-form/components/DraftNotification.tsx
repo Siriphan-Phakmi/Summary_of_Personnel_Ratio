@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
-import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
 import { FiFileText, FiClock, FiUser } from 'react-icons/fi';
 import { Button } from '@/app/components/ui/Button';
+import { formatTimestamp } from '@/app/lib/utils/dateUtils';
+import { formatShift } from '../utils/formatUtils';
 
 interface DraftNotificationProps {
   draftData: WardForm;
@@ -18,22 +18,8 @@ const DraftNotification: React.FC<DraftNotificationProps> = ({
   onLoadDraft,
   className = '',
 }) => {
-  // Format date nicely for display
-  const formattedDate = draftData.updatedAt 
-    ? format(
-        // Check if it has toDate method (Firebase Timestamp)
-        typeof draftData.updatedAt === 'object' && draftData.updatedAt && 'toDate' in draftData.updatedAt 
-            ? (draftData.updatedAt as any).toDate() 
-            : new Date(draftData.updatedAt as string | number | Date), 
-        'dd MMM yyyy, HH:mm น.', 
-        { locale: th }
-      )
-    : 'ไม่ระบุเวลา';
-  
-  // Determine shift text
-  const shiftText = draftData.shift === ShiftType.MORNING 
-    ? 'เวรเช้า (เวลา 08:00 น.)' 
-    : 'เวรดึก (เวลา 16:00 น.)';
+  const formattedDate = formatTimestamp(draftData.updatedAt);
+  const shiftText = formatShift(draftData.shift);
 
   return (
     <div className={`bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-md ${className}`}>

@@ -1,8 +1,8 @@
-import { doc, getDoc, collection, getDocs, query, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, limit, where, getFirestore, documentId, orderBy } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
-import { getAllWards, getWardsByIds } from './wardQueries';
+import { getAllWards, getWardsByIds, findWardBySimilarCode } from './wardQueries';
 
 /**
  * ดึงข้อมูลแผนกตามสิทธิ์ของผู้ใช้
@@ -15,16 +15,10 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
     if (!user || !user.uid) {
       return [];
     }
-
-    // *** Bypassed permission check for now to populate dropdown ***
-    // This will be revisited to implement proper role-based filtering.
-    return getAllWards();
-
-    /*
+    
     // ถ้าเป็นผู้ดูแลระบบ, developer หรือผู้ดูแลระบบสูงสุด สามารถเข้าถึงทุกแผนกได้
     if (
       user.role === UserRole.ADMIN || 
-      user.role === UserRole.SUPER_ADMIN || 
       user.role === UserRole.DEVELOPER
     ) {
       return getAllWards();
@@ -36,14 +30,13 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
     }
     
     // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย
-    if (user.role === UserRole.NURSE || user.role === UserRole.USER) {
+    if (user.role === UserRole.NURSE) {
       return getUserAssignedWard(user);
     }
 
     // กรณี Role อื่นๆ ที่ไม่ได้ระบุไว้ หรือไม่มีสิทธิ์เฉพาะ
     console.log(`[WardService] User role ${user.role} does not have specific ward permissions defined here, returning empty list.`);
     return [];
-    */
   } catch (error) {
     console.error('Error getting wards by user permission:', error);
     throw error;
@@ -51,43 +44,46 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
 };
 
 /**
- * ดึงข้อมูลแผนกที่ผู้ใช้ได้รับมอบหมาย
+ * ดึงข้อมูลแผนกที่ผู้ใช้ได้รับมอบหมาย (ปรับปรุงใหม่)
+ * ค้นหาแผนกจาก assignedWardId หรือ ward/floor โดยใช้การจับคู่แบบยืดหยุ่น
  * @param user ข้อมูลผู้ใช้
- * @returns รายการแผนกที่ได้รับมอบหมาย
+ * @returns รายการแผนกที่ได้รับมอบหมาย (ปกติจะมีแค่ 1)
  */
 const getUserAssignedWard = async (user: User): Promise<Ward[]> => {
   try {
-    // ตรวจสอบว่ามีการระบุแผนกสำหรับผู้ใช้นี้หรือไม่
-    if (!user.floor) {
-      console.warn(`[WardService] User ${user.username || user.uid} has role ${user.role} but no ward (floor) assigned.`);
-      return [];
+    const { assignedWardId, ward: userWard, username } = user;
+
+    // 1. Prioritize assignedWardId (which can be an array or a string)
+    if (assignedWardId) {
+      if (Array.isArray(assignedWardId) && assignedWardId.length > 0) {
+        console.log(`[WardPermissions] User '${username}' has an array of assignedWardIds. Fetching wards by IDs:`, assignedWardId);
+        // If it's an array of IDs, use the dedicated function to fetch them.
+        return await getWardsByIds(assignedWardId);
+      }
+      
+      if (typeof assignedWardId === 'string' && assignedWardId.trim()) {
+        console.log(`[WardPermissions] User '${username}' has a string assignedWardId. Finding by similar code: "${assignedWardId}"`);
+        // If it's a string, find the single ward.
+        const foundWard = await findWardBySimilarCode(assignedWardId);
+        return foundWard ? [foundWard] : [];
+      }
+    }
+
+    // 2. Fallback to the 'ward' field if assignedWardId is not present or is in an invalid format
+    if (typeof userWard === 'string' && userWard.trim()) {
+      console.log(`[WardPermissions] Falling back to 'ward' field for user '${username}'. Finding by similar code: "${userWard}"`);
+      const foundWard = await findWardBySimilarCode(userWard);
+      return foundWard ? [foundWard] : [];
     }
     
-    console.log(`[WardService] User role is ${user.role}, fetching ward for floor: ${user.floor}`);
-    
-    // ดึงข้อมูลเฉพาะแผนกที่ระบุใน user.floor
-    const wardDoc = await getDoc(doc(db, 'wards', user.floor));
-    
-    if (!wardDoc.exists()) {
-      console.warn(`[WardService] Ward with ID ${user.floor} not found for user ${user.username || user.uid}`);
-      return [];
-    }
-    
-    const wardData = wardDoc.data() as Ward;
-    
-    // ตรวจสอบว่าแผนกนี้ active อยู่หรือไม่
-    if (!wardData.isActive) {
-      console.warn(`[WardService] Ward with ID ${user.floor} is inactive for user ${user.username || user.uid}`);
-      return [];
-    }
-    
-    return [{
-      ...wardData,
-      id: wardDoc.id
-    }];
+    // 3. If no valid assignment is found in either field
+    console.warn(`[WardPermissions] Could not determine a valid ward for user '${username}' from 'assignedWardId' or 'ward' fields. Returning empty array.`);
+    return [];
+
   } catch (error) {
-    console.error('Error getting user assigned ward:', error);
-    throw error;
+    console.error(`[WardPermissions] Error getting assigned ward for user ${user.username}:`, error);
+    // In case of any error, return an empty array to prevent the app from crashing.
+    return [];
   }
 };
 
@@ -169,7 +165,6 @@ export const getUserAccessibleWards = async (user: User): Promise<Ward[]> => {
     // ถ้าเป็นผู้ดูแลระบบ, developer หรือผู้ดูแลระบบสูงสุด สามารถเข้าถึงทุกแผนกได้
     if (
       user.role === UserRole.ADMIN || 
-      user.role === UserRole.SUPER_ADMIN || 
       user.role === UserRole.DEVELOPER
     ) {
       return allWards;
@@ -181,7 +176,7 @@ export const getUserAccessibleWards = async (user: User): Promise<Ward[]> => {
     }
     
     // ถ้าเป็นผู้ใช้ทั่วไป ดึงเฉพาะแผนกที่ได้รับมอบหมาย
-    if (user.role === UserRole.NURSE || user.role === UserRole.USER) {
+    if (user.role === UserRole.NURSE) {
       return getUserAssignedWard(user);
     }
 

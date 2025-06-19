@@ -19,7 +19,7 @@ import { db } from '@/app/lib/firebase/firebase';
 interface FormFilters {
   startDate?: Date;
   endDate?: Date;
-  wardId?: string;
+  wardId?: string | string[]; // Allow single or multiple ward IDs
   shift?: ShiftType;
   status?: FormStatus | '';
   createdBy?: string;
@@ -31,17 +31,27 @@ interface FormFilters {
 const buildFormQueryConstraints = (filters: FormFilters): QueryConstraint[] => {
   const queryConstraints: QueryConstraint[] = [];
   
-  // Normalize wardId to uppercase if provided
-  const normalizedWardId = filters.wardId?.toUpperCase();
+  // Handling for wardId (string or array of strings)
+  if (filters.wardId) {
+    if (Array.isArray(filters.wardId) && filters.wardId.length > 0) {
+      // Firestore 'in' query supports up to 30 elements.
+      // If more are needed, multiple queries would be required.
+      // For now, we assume the number of wards per approver is reasonable.
+      if (filters.wardId.length > 30) {
+        console.warn('Approver has more than 30 wards assigned. Firestore "in" query might fail.');
+      }
+      queryConstraints.push(where('wardId', 'in', filters.wardId));
+    } else if (typeof filters.wardId === 'string') {
+      const normalizedWardId = filters.wardId.toUpperCase();
+      queryConstraints.push(where('wardId', '==', normalizedWardId));
+    }
+  }
 
   if (filters.startDate) {
     queryConstraints.push(where('date', '>=', Timestamp.fromDate(filters.startDate)));
   }
   if (filters.endDate) {
     queryConstraints.push(where('date', '<=', Timestamp.fromDate(filters.endDate)));
-  }
-  if (normalizedWardId) {
-    queryConstraints.push(where('wardId', '==', normalizedWardId));
   }
   if (filters.shift) {
     queryConstraints.push(where('shift', '==', filters.shift));

@@ -73,9 +73,11 @@ export async function POST(req: NextRequest) {
     const safeUser = {
       uid: userSnap.id,
       username: userData.username || userSnap.id,
-      role: userData.role || 'user',
+      role: userData.role || 'nurse',
       firstName: userData.firstName || '',
       lastName: userData.lastName || '',
+      floor: userData.floor || null,
+      ward: userData.ward || null,
       approveWardIds: userData.approveWardIds || [],
       assignedWardId: userData.assignedWardId || null,
       active: userData.active === undefined ? true : userData.active,

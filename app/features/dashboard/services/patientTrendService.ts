@@ -176,7 +176,6 @@ export const fetchDailyPatientData = async (
   try {
     // กำหนด flag สำหรับตรวจสอบว่าเป็นผู้ใช้ทั่วไปหรือไม่
     const isRegularUser = user?.role !== UserRole.ADMIN && 
-                          user?.role !== UserRole.SUPER_ADMIN && 
                           user?.role !== UserRole.DEVELOPER;
 
     // ถ้าไม่มี wardIdToFetch แต่เป็นผู้ใช้ทั่วไป ให้ใช้ ward ของตัวเอง

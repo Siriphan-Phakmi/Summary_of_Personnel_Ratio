@@ -32,7 +32,7 @@ export const checkUserRole = (
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
   
   // Admin และ Developer มีสิทธิ์ทั้งหมด
-  if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
+  if (user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) {
     return true;
   }
   
@@ -65,16 +65,20 @@ export const checkWardAccess = (
   let hasAccess = false;
   
   // Admin, Super Admin และ Developer มีสิทธิ์ทุก ward
-  if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
+  if (user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) {
     hasAccess = true;
   }
   // Approver มีสิทธิ์ตาม approveWardIds
   else if (user.role === UserRole.APPROVER && user.approveWardIds) {
     hasAccess = user.approveWardIds.includes(wardId);
   }
-  // ตรวจสอบว่าผู้ใช้มี ward ที่กำหนดหรือไม่ (floor property)
-  else if (user.floor) {
-    hasAccess = user.floor === wardId;
+  // Nurse มีสิทธิ์ใน ward ที่ได้รับมอบหมาย
+  else if (user.role === UserRole.NURSE && user.assignedWardId) {
+    if (Array.isArray(user.assignedWardId)) {
+      hasAccess = user.assignedWardId.includes(wardId);
+    } else {
+      hasAccess = user.assignedWardId === wardId;
+    }
   }
   // หรือตรวจสอบจาก ward permissions อื่นๆ
   else {
@@ -149,7 +153,7 @@ export const checkFeatureAccess = (
   
   switch (feature) {
     case 'approval':
-      return user.role === UserRole.APPROVER || user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+      return user.role === UserRole.APPROVER || user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER;
     
     case 'dashboard':
       return true; // ทุกคนที่ล็อกอินแล้วสามารถดู dashboard ได้
@@ -159,7 +163,7 @@ export const checkFeatureAccess = (
       return checkWardAccess(user, wardId);
     
     case 'user_management':
-      return user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER;
+      return user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER;
     
     default:
       return false;

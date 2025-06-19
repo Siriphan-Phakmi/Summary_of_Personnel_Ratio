@@ -1,6 +1,5 @@
 import { format } from 'date-fns';
-import { TimestampField, ServerTimestamp } from '@/app/features/ward-form/types/ward';
-import { serverTimestamp, Timestamp } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 
 /**
  * Formats a Date object or a date string into 'yyyy-MM-dd' format.
@@ -16,14 +15,28 @@ export const formatDateYMD = (date: Date | string): string => {
   return format(dateObj, 'yyyy-MM-dd');
 };
 
-/**
- * DEPRECATED: This function is being moved to timestampUtils.ts to better separate concerns.
- * Please import from 'app/lib/utils/timestampUtils' instead.
- * 
- * Creates a server-side timestamp object for Firestore.
- * This is a placeholder that gets converted to a real timestamp by Firestore servers.
- * @returns A server timestamp sentinel object.
- */
-export const createServerTimestamp = (): ReturnType<typeof serverTimestamp> => {
-  return serverTimestamp();
-}; 
+export function formatDate(date: Date): string {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function formatTimestamp(timestamp: any): string {
+  if (!timestamp) return '-';
+  try {
+    const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+    if (isNaN(date.getTime())) {
+      return 'Invalid Date';
+    }
+    return date.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return 'Invalid Date';
+  }
+} 

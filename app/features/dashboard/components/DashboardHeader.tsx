@@ -34,7 +34,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   // ตรวจสอบว่าผู้ใช้เป็นผู้ใช้ทั่วไปหรือไม่
   const isRegularUser = user?.role !== UserRole.ADMIN && 
-                        user?.role !== UserRole.SUPER_ADMIN && 
                         user?.role !== UserRole.DEVELOPER;
   const formattedDate = format(selectedDate, 'yyyy-MM-dd');
   return (

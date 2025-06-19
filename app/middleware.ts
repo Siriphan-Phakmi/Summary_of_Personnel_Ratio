@@ -35,10 +35,32 @@ const publicRoutes = [
 
 // เส้นทางที่ต้องการ role เฉพาะ
 const roleBasedRoutes = {
-  '/admin/dev-tools': ['developer', 'super_admin'],
-  '/census/approval': ['admin', 'super_admin', 'developer', 'approver'],
-  '/census/form': ['admin', 'super_admin', 'developer', 'nurse', 'approver', 'ward_clerk']
+  '/admin/user-management': ['admin', 'developer'],
+  '/admin/dev-tools': ['developer'],
+  '/census/approval': ['admin', 'developer', 'approver'],
+  '/census/form': ['admin', 'developer', 'approver', 'nurse']
 };
+
+function handleAuthenticatedRedirect(request: NextRequest, userCookie: string): NextResponse | null {
+  try {
+    type UserData = { role?: string };
+    const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
+    const userRole = userData.role;
+
+    if (userRole) {
+      const redirectPath = getLandingRedirectPathByRole(userRole);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[BPK-SERVER] Authenticated user at ${request.nextUrl.pathname}. Redirecting to: ${redirectPath}`);
+      }
+      return NextResponse.redirect(new URL(redirectPath, request.url));
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[BPK-SERVER] Middleware: Could not parse user data cookie for redirect. Error: ${error}`);
+    }
+  }
+  return null;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -54,46 +76,12 @@ export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('auth_token')?.value;
   const userCookie = request.cookies.get('user_data')?.value;
 
-  // --- START: Redirect authenticated users from root ---
-  // เพิ่มประสิทธิภาพโดยการย้าย Redirect จาก client-side (app/page.tsx) มาที่นี่
-  if (pathname === '/' && authToken && userCookie) {
-    try {
-      type UserData = { role?: string };
-      const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
-      const userRole = userData.role;
-
-      if (userRole) {
-        const redirectPath = getLandingRedirectPathByRole(userRole);
-        console.log(`[BPK-SERVER] Authenticated user at root. Redirecting to: ${redirectPath}`);
-        return NextResponse.redirect(new URL(redirectPath, request.url));
-      }
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[BPK-SERVER] Middleware: Could not parse user data cookie for root redirect. Error: ${error}`);
-      }
-      // หาก parsing cookie ไม่สำเร็จ ปล่อยให้ flow เดิมทำงาน (ซึ่งจะ redirect ไป /login)
-    }
+  // --- START: Redirect authenticated users ---
+  if (authToken && userCookie && (pathname === '/' || pathname === '/login')) {
+    const redirectResponse = handleAuthenticatedRedirect(request, userCookie);
+    if (redirectResponse) return redirectResponse;
   }
-  
-  // เพิ่มการตรวจสอบ: ถ้าผู้ใช้ล็อกอินแล้วพยายามเข้า /login ให้ redirect ไปที่หน้าหลักตาม role
-  if (pathname === '/login' && authToken && userCookie) {
-    try {
-      type UserData = { role?: string };
-      const userData = JSON.parse(decodeURIComponent(userCookie)) as UserData;
-      const userRole = userData.role;
-
-      if (userRole) {
-        const redirectPath = getLandingRedirectPathByRole(userRole);
-        return NextResponse.redirect(new URL(redirectPath, request.url));
-      }
-    } catch (error) {
-      // หากมีข้อผิดพลาด ปล่อยให้ flow ปกติทำงาน
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[BPK-SERVER] Error redirecting from login: ${error}`);
-      }
-    }
-  }
-  // --- END: Redirect authenticated users from root ---
+  // --- END: Redirect authenticated users ---
   
   // แสดง log เฉพาะใน development mode เท่านั้น
   if (process.env.NODE_ENV === 'development') {
@@ -185,18 +173,14 @@ function getRoleRequirement(pathname: string): string[] | null {
 function getLandingRedirectPathByRole(role: string): string {
   switch (role) {
     case 'admin':
-    case 'super_admin':
     case 'developer':
-      return '/features/dashboard';
+      return '/census/approval';
     case 'nurse':
-    case 'ward_clerk':
     case 'approver':
-    case 'head_nurse':
-    case 'supervisor':
       return '/census/form';
     default:
-      // สำหรับ role อื่นๆ หรือกรณีไม่มี role ให้ไปหน้า login เพื่อความปลอดภัย
-      return '/login';
+      // สำหรับ role อื่นๆ หรือกรณีไม่มี role ให้ไปหน้า form เพื่อความปลอดภัย
+      return '/census/form';
   }
 }
 
@@ -204,12 +188,10 @@ function getLandingRedirectPathByRole(role: string): string {
 function getRedirectPathByRole(role: string): string {
   switch (role) {
     case 'admin':
-    case 'super_admin':
     case 'developer':
     case 'approver':
       return '/census/approval';
     case 'nurse':
-    case 'ward_clerk':
       return '/census/form';
     default:
       return '/census/form';

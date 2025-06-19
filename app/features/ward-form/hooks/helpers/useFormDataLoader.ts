@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
 import { findWardForm } from '../../services/wardFormService';
-import { showErrorToast } from '@/utils/toastUtils';
+import { showErrorToast } from '@/app/lib/utils/toastUtils';
 import { Timestamp } from 'firebase/firestore';
 import {
   initialFormStructure,
@@ -111,7 +111,6 @@ export const useFormDataLoader = ({
         setIsDraftLoaded(existingForm.status === FormStatus.DRAFT);
         
         const isAdminOrDeveloper = user?.role === UserRole.ADMIN || 
-                                   user?.role === UserRole.SUPER_ADMIN || 
                                    user?.role === UserRole.DEVELOPER;
         setIsFormReadOnly(isFinal && !isAdminOrDeveloper);
         

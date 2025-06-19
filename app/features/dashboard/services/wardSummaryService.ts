@@ -4,7 +4,7 @@ import { db } from '@/app/lib/firebase/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { COLLECTION_SUMMARIES } from '@/app/features/ward-form/services/constants';
 import { format, parseISO, isBefore, isEqual, endOfDay } from 'date-fns';
-import { User } from '@/app/features/auth/types/user';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { logError, logInfo, hasAccessToWard } from '../utils/loggingUtils';
 
@@ -33,26 +33,39 @@ export const fetchAllWardSummaryData = async (
       return [];
     }
     
-    const isRegularUser = user && user.role !== 'admin' && user.role !== 'super_admin' && user.role !== 'developer';
-    
     // สร้าง query เพื่อดึงข้อมูลจาก dailySummaries
     let summaryQuery;
-    
-    if (isRegularUser && user?.floor && !fetchAllTimeData) {
-      // กรณีเป็น user ทั่วไปและมี floor ให้ดึงเฉพาะ floor ของ user
+
+    if (user?.role === UserRole.NURSE && user.assignedWardId && !fetchAllTimeData) {
+      const wardIds = (Array.isArray(user.assignedWardId) ? user.assignedWardId : [user.assignedWardId]).map(id => id.toUpperCase());
+      if (wardIds.length > 0) {
+        summaryQuery = query(
+          collection(db, COLLECTION_SUMMARIES),
+          where('wardId', 'in', wardIds),
+          where('dateString', '>=', startDateString),
+          where('dateString', '<=', endDateString)
+        );
+      } else {
+        return []; // Nurse ไม่มี ward ที่ assigned
+      }
+    } else if (user?.role === UserRole.APPROVER && user.approveWardIds && user.approveWardIds.length > 0 && !fetchAllTimeData) {
       summaryQuery = query(
         collection(db, COLLECTION_SUMMARIES),
-        where('wardId', '==', user.floor.toUpperCase()),
+        where('wardId', 'in', user.approveWardIds.map(id => id.toUpperCase())),
+        where('dateString', '>=', startDateString),
+        where('dateString', '<=', endDateString)
+      );
+    } else if (user?.role === UserRole.ADMIN || user?.role === UserRole.DEVELOPER || fetchAllTimeData) {
+      // Admin/Developer หรือเมื่อต้องการข้อมูลทั้งหมด
+      summaryQuery = query(
+        collection(db, COLLECTION_SUMMARIES),
         where('dateString', '>=', startDateString),
         where('dateString', '<=', endDateString)
       );
     } else {
-      // กรณีเป็น admin หรือต้องการดึงข้อมูลทั้งหมด
-      summaryQuery = query(
-        collection(db, COLLECTION_SUMMARIES),
-        where('dateString', '>=', startDateString),
-        where('dateString', '<=', endDateString)
-      );
+        // User ไม่มี role ที่เหมาะสม หรือไม่มีสิทธิ์ดูข้อมูล
+        logInfo(`[fetchAllWardSummaryData] User role ${user?.role} does not have permission or required data.`);
+        return [];
     }
     
     const querySnapshot = await getDocs(summaryQuery);
@@ -72,11 +85,6 @@ export const fetchAllWardSummaryData = async (
       const { wardId, dateString } = data;
       
       if (!wardId) return;
-      
-      // ตรวจสอบสิทธิ์การเข้าถึงข้อมูล ward
-      if (isRegularUser && !hasAccessToWard(wardId, allAppWards)) {
-        return;
-      }
       
       // หาข้อมูล ward จาก allAppWards
       const ward = allAppWards.find(w => w.id?.toUpperCase() === wardId?.toUpperCase());

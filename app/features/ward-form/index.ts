@@ -4,8 +4,7 @@ export { default as DailyCensusForm } from './DailyCensusForm';
 // Export components
 export { default as ShiftSelection } from './components/ShiftSelection';
 export { default as ShiftButton } from './components/ShiftButton';
-export { default as ShiftStatusBadge } from './components/ShiftStatusBadge';
-export { default as StatusTag } from './components/StatusTag';
+export { default as StatusDisplay } from './components/StatusDisplay';
 export { default as CensusInputFields } from './components/CensusInputFields';
 export { default as ConfirmSaveModal } from './components/ConfirmSaveModal';
 export { default as ConfirmZeroValuesModal } from './components/ConfirmZeroValuesModal';

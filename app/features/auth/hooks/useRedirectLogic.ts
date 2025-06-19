@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '../types/user';
-import { showErrorToast } from '@/utils/toastUtils';
+import { showErrorToast } from '@/app/lib/utils/toastUtils';
 
 interface UseRedirectLogicProps {
   user: User | null;

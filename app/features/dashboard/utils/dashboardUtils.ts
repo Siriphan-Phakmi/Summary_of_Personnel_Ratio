@@ -28,7 +28,6 @@ export const DATE_RANGE_OPTIONS = [
  */
 export const isRegularUser = (user: User | null): boolean => {
   return user?.role !== UserRole.ADMIN && 
-         user?.role !== UserRole.SUPER_ADMIN && 
          user?.role !== UserRole.DEVELOPER;
 };
 
@@ -39,7 +38,6 @@ export const isRegularUser = (user: User | null): boolean => {
  */
 export const isAdmin = (user: User | null): boolean => {
   return user?.role === UserRole.ADMIN || 
-         user?.role === UserRole.SUPER_ADMIN || 
          user?.role === UserRole.DEVELOPER;
 };
 

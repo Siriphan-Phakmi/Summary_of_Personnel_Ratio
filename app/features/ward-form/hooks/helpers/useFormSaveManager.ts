@@ -9,7 +9,7 @@ import {
   finalizeNightShiftForm,
   findWardForm,
 } from '@/app/features/ward-form/services/wardFormService';
-import { showErrorToast, showSuccessToast } from '@/utils/toastUtils';
+import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
 import { logUserAction } from '@/app/features/auth/services/logService';
 import { useFormValidation } from './useFormValidation';
 import { WardFieldLabels } from '../wardFieldLabels';

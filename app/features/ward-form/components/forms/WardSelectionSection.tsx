@@ -3,6 +3,8 @@
 import React from 'react';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { Input } from '@/app/components/ui';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { useAuth } from '@/app/features/auth';
 
 interface WardSelectionSectionProps {
   wards: Ward[];
@@ -11,6 +13,7 @@ interface WardSelectionSectionProps {
   selectedWardObject?: Ward;
   onWardChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onDateChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  isSingleWardUser: boolean;
 }
 
 export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
@@ -20,7 +23,15 @@ export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
   selectedWardObject,
   onWardChange,
   onDateChange,
+  isSingleWardUser,
 }) => {
+  const { user } = useAuth();
+  
+  // ตรวจสอบว่าผู้ใช้เป็น User ทั่วไปหรือ Nurse ที่มีแผนกกำหนดไว้แล้วหรือไม่
+  const isRegularUserWithAssignedWard = !!user && 
+    user.role === UserRole.NURSE && 
+    wards.length === 1;
+
   return (
     <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6 mb-6">
       <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
@@ -39,13 +50,19 @@ export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
             onChange={onWardChange}
             className="form-input"
             required
+            disabled={isSingleWardUser || wards.length === 0}
           >
-            <option value="">เลือกแผนก</option>
-            {wards.map((ward) => (
-              <option key={ward.id} value={ward.id}>
-                {ward.name}
+            {wards.length > 0 ? (
+              wards.map((ward) => (
+                <option key={ward.id} value={ward.id}>
+                  {ward.name}
+                </option>
+              ))
+            ) : (
+              <option value="" disabled>
+                ไม่มีแผนกที่ได้รับมอบหมาย
               </option>
-            ))}
+            )}
           </select>
           {selectedWardObject && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

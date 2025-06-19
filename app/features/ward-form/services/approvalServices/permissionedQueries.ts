@@ -30,15 +30,15 @@ export const getPendingFormsByUserPermission = async (
 ): Promise<WardForm[]> => {
   try {
     // ตรวจสอบว่าผู้ใช้มีสิทธิ์ในการอนุมัติหรือไม่
-    if (user.role !== UserRole.APPROVER && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+    if (user.role !== UserRole.APPROVER && user.role !== UserRole.ADMIN) {
       return [];
     }
     
     const formsRef = collection(db, COLLECTION_WARDFORMS);
     let formsQuery;
     
-    // กรณีเป็น admin หรือ super_admin ดูได้ทุกแบบฟอร์ม
-    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+    // กรณีเป็น admin ดูได้ทุกแบบฟอร์ม
+    if (user.role === UserRole.ADMIN) {
       formsQuery = query(
         formsRef,
         where('status', '==', FormStatus.FINAL),
@@ -142,7 +142,7 @@ export const getApprovedFormsByUserPermission = async (
 ): Promise<WardForm[]> => {
   try {
     // ตรวจสอบว่าผู้ใช้มีสิทธิ์ในการอนุมัติหรือไม่
-    if (user.role !== UserRole.APPROVER && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+    if (user.role !== UserRole.APPROVER && user.role !== UserRole.ADMIN) {
       return [];
     }
     
@@ -153,8 +153,8 @@ export const getApprovedFormsByUserPermission = async (
     const thirtyDaysAgo = subDays(new Date(), 30);
     const thirtyDaysAgoString = format(thirtyDaysAgo, 'yyyy-MM-dd');
     
-    // กรณีเป็น admin หรือ super_admin ดูได้ทุกแบบฟอร์ม
-    if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) {
+    // กรณีเป็น admin ดูได้ทุกแบบฟอร์ม
+    if (user.role === UserRole.ADMIN) {
       formsQuery = query(
         formsRef,
         and(

@@ -81,7 +81,32 @@ const useStatusStyles = () => {
     return 'secondary';
   };
 
-  return { getStatusClass, getStatusColor, getStatusText, getStatusIcon, getStatusVariant };
+  /**
+   * Generates inline CSS styles for status elements.
+   * @param status The form status.
+   * @param textOnly If true, only returns color style for text.
+   * @returns A React.CSSProperties object for styling.
+   */
+  const getStatusInlineStyles = (status: FormStatus | null, textOnly: boolean = false): React.CSSProperties => {
+    const color = getStatusColor(status);
+
+    if (textOnly) {
+      return {
+        color: status ? color : '#6b7280',
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+      };
+    }
+
+    return {
+      backgroundColor: status ? `${color}20` : '#9ca3af20', // Use alpha 20%
+      color: status ? color : '#6b7280',
+      borderColor: status ? color : '#9ca3af',
+      borderWidth: '1px',
+    };
+  };
+
+  return { getStatusClass, getStatusColor, getStatusText, getStatusIcon, getStatusVariant, getStatusInlineStyles };
 };
 
 export default useStatusStyles; 

@@ -43,23 +43,24 @@ export const fetchAllWardCensusForDashboard = async (selectedDate: string): Prom
  * @returns true ถ้ามีสิทธิ์เข้าถึง
  */
 export const hasWardAccess = (user: User | null, ward: Ward): boolean => {
-  if (!user) return false;
-  
-  // Super admin และ developer สามารถเข้าถึงทุก ward
-  if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
+  if (!user || !ward.id) return false;
+
+  // Admin and developer can access all wards
+  if (user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) {
     return true;
   }
-  
-  // Admin สามารถเข้าถึงทุก ward
-  if (user.role === UserRole.ADMIN) {
+
+  // Approver can access their assigned wards for approval
+  if (user.role === UserRole.APPROVER && user.approveWardIds?.includes(ward.id)) {
     return true;
   }
-  
-  // User และ Nurse ต้องตรวจสอบ ward assignment
-  if (user.approveWardIds && user.approveWardIds.length > 0) {
-    return user.approveWardIds.includes(ward.id || '');
+
+  // Nurse can access their assigned ward(s)
+  if (user.role === UserRole.NURSE && user.assignedWardId) {
+    const assigned = Array.isArray(user.assignedWardId) ? user.assignedWardId : [user.assignedWardId];
+    return assigned.includes(ward.id);
   }
-  
+
   return false;
 };
 

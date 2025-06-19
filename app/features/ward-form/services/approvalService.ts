@@ -40,7 +40,6 @@ export const getApprovalsByUserPermission = async (
     // ผู้ใช้ระดับ Admin, Super Admin หรือ Developer สามารถดูข้อมูลทั้งหมดได้
     if (
       user.role === UserRole.ADMIN || 
-      user.role === UserRole.SUPER_ADMIN || 
       user.role === UserRole.DEVELOPER
     ) {
       return await getPendingForms(filters);
@@ -76,10 +75,10 @@ export const approveWardForm = async (
   formId: string,
   approver: User,
   modifiedData?: Partial<WardForm>
-): Promise<void> => {
+): Promise<string> => {
   try {
-    // approveForm is expected to be void
-    await approveForm(formId, approver, modifiedData);
+    // approveForm returns the formId string upon success
+    return await approveForm(formId, approver, modifiedData);
   } catch (error) {
     console.error('Error approving ward form:', error);
     throw error;

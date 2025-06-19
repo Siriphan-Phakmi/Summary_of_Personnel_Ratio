@@ -178,15 +178,23 @@ export const processBedCensusDataForChart = (
 export const filterAccessibleWards = (wards: Ward[], user: User | null): Ward[] => {
   if (!user) return [];
   
-  // Super admin, admin, และ developer สามารถเข้าถึงทุก ward
-  if (user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) {
+  // Admin and developer can access all wards
+  if (user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) {
     return wards;
   }
   
-    // User และ Nurse ต้องตรวจสอบ ward assignment
-  if (user.approveWardIds && user.approveWardIds.length > 0) {
+  // Approver can access their assigned wards for approval
+  if (user.role === UserRole.APPROVER && user.approveWardIds && user.approveWardIds.length > 0) {
     return wards.filter(ward =>
       ward.id && user.approveWardIds?.includes(ward.id)
+    );
+  }
+
+  // Nurse can access their assigned ward(s)
+  if (user.role === UserRole.NURSE && user.assignedWardId) {
+    const assigned = Array.isArray(user.assignedWardId) ? user.assignedWardId : [user.assignedWardId];
+    return wards.filter(ward =>
+      ward.id && assigned.includes(ward.id)
     );
   }
   

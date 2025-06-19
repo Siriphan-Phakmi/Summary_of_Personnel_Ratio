@@ -1,0 +1,74 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { Ward } from '@/app/features/ward-form/types/ward';
+import { getAllWards } from '@/app/features/ward-form/services/ward-modules/wardQueries';
+import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
+
+export const useUserManagement = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [wards, setWards] = useState<Ward[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      setLoading(true);
+      try {
+        const wardsData = await getAllWards();
+        setWards(wardsData);
+        // Here you would also fetch existing users to display in a list
+        // For now, we focus on creation.
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to fetch initial data.';
+        setError(message);
+        showErrorToast(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, []);
+
+  const createUser = async (userData: Partial<User> & { password?: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Error: ${response.status}`);
+      }
+
+      showSuccessToast(`User "${result.user.username}" created successfully.`);
+      // Optionally, refresh the user list here
+      // setUsers(prev => [...prev, result.user]);
+      return true;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unknown error occurred during user creation.';
+      setError(message);
+      showErrorToast(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    users,
+    wards,
+    loading,
+    error,
+    createUser,
+  };
+}; 

@@ -1,7 +1,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Timestamp } from 'firebase/firestore';
-import { Logger } from '@/app/utils/logger';
+import { Logger } from '@/app/lib/utils/logger';
 
 /**
  * แปลงและจัดรูปแบบ timestamp เป็นข้อความระยะห่างจากปัจจุบัน

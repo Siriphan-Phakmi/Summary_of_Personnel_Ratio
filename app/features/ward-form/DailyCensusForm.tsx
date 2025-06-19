@@ -38,6 +38,7 @@ export default function DailyCensusForm() {
     setReloadDataTrigger,
     handleDateChange,
     handleWardChange,
+    isSingleWardUser,
   } = useDailyCensusFormLogic();
 
   // Ward form data management
@@ -53,9 +54,11 @@ export default function DailyCensusForm() {
     handleBlur,
     handleSaveDraft,
     handleSaveFinal,
-    showConfirmZeroModal: isConfirmZeroModalOpen,
-    setShowConfirmZeroModal: setIsConfirmZeroModalOpen,
+    showConfirmZeroModal,
+    setShowConfirmZeroModal,
     isCensusAutoCalculated,
+    fieldsWithValueZero,
+    proceedWithSaveAfterZeroConfirmation,
   } = useWardFormData({
       selectedWard,
       selectedBusinessWardId,
@@ -108,7 +111,8 @@ export default function DailyCensusForm() {
         selectedWardObject={selectedWardObject}
         onWardChange={handleWardChange}
         onDateChange={handleDateChange}
-                  />
+        isSingleWardUser={isSingleWardUser || false}
+      />
               
       {/* Shift Selection */}
                <ShiftSelection
@@ -121,35 +125,42 @@ export default function DailyCensusForm() {
                />
 
       {/* Form Content */}
-      {selectedWard && selectedDate && (
+      {selectedWard && selectedDate ? (
         <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
             บันทึกข้อมูล Patient Census - {selectedShift === ShiftType.MORNING ? 'เวรเช้า' : 'เวรดึก'}
           </h3>
 
           {/* Census Input Fields */}
-              <CensusInputFields
-                formConfig={formConfig}
-                formData={formData}
-                handleChange={handleChange}
-                handleBlur={handleBlur}
-                errors={errors}
+          <CensusInputFields
+            formConfig={formConfig}
+            formData={formData}
+            handleChange={handleChange}
+            handleBlur={handleBlur}
+            errors={errors}
             isReadOnly={isFormReadOnly}
-                selectedShift={selectedShift}
-                isCensusAutoCalculated={isCensusAutoCalculated}
+            selectedShift={selectedShift}
+            isCensusAutoCalculated={isCensusAutoCalculated}
             isDraftLoaded={!!formData.isDraft}
-              />
+          />
 
           {/* Recorder Information */}
-              <RecorderInfo
-                firstName={formData.recorderFirstName || ''}
-                lastName={formData.recorderLastName || ''}
-                handleChange={handleChange}
-                errors={errors}
+          <RecorderInfo
+            firstName={formData.recorderFirstName || ''}
+            lastName={formData.recorderLastName || ''}
+            handleChange={handleChange}
+            errors={errors}
             isReadOnly={isFormReadOnly}
             isDraftLoaded={!!formData.isDraft}
           />
         </div>
+      ) : (
+        <FormLoadingSection 
+          isDataLoading={false} 
+          dataError={dataError} 
+          wards={wards} 
+          selectedWard={selectedWard} 
+        />
       )}
         
       {/* Action Buttons */}
@@ -165,12 +176,10 @@ export default function DailyCensusForm() {
 
       {/* Confirmation Modals */}
       <ConfirmZeroValuesModal
-        isOpen={isConfirmZeroModalOpen}
-        onClose={() => setIsConfirmZeroModalOpen(false)}
-        onConfirm={() => {
-          setIsConfirmZeroModalOpen(false);
-        }}
-        fieldsWithZero={[]}
+        isOpen={showConfirmZeroModal}
+        onClose={() => setShowConfirmZeroModal(false)}
+        onConfirm={proceedWithSaveAfterZeroConfirmation}
+        fieldsWithZero={fieldsWithValueZero || []}
         isSaving={isSaving}
         />
       </div>

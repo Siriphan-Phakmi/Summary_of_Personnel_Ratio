@@ -23,6 +23,15 @@ import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
 export default function ApprovalPage() {
   const { user: currentUser } = useAuth();
 
+  // Define roles that have approval permissions
+  const canApproveRoles = [
+    UserRole.ADMIN,
+    UserRole.APPROVER,
+  ];
+
+  // Check if the current user has approval permission
+  const canApprove = currentUser ? canApproveRoles.includes(currentUser.role) : false;
+
   // Fetch form configuration from Firestore
   const { formConfig, loading: isConfigLoading, error: configError } = useFormConfig('approval_form');
 
@@ -184,7 +193,8 @@ export default function ApprovalPage() {
                               >
                                 {labels?.viewDetailsButton || 'ดูรายละเอียด'}
                               </Button>
-                              {form.status === FormStatus.FINAL && (
+                              {/* Show buttons only if user has permission AND form is ready for action */}
+                              {canApprove && form.status === FormStatus.FINAL && (
                                 <>
                                   <Button
                                     size="sm"

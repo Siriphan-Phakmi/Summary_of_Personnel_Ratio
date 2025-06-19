@@ -24,15 +24,15 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
           เปรียบเทียบจำนวนผู้ป่วยเวรเช้า-ดึก
         </h2>
         <div className="mt-2 md:mt-0 flex items-center space-x-2">
-          <span className="text-sm text-gray-600 dark:text-gray-300">เลือกแผนก:</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">เลือกแผนก:</span>
           <select
-            className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             onChange={(e) => onWardChange(e.target.value)}
             value={selectedWardId || ''}
           >
-            <option value="">-- เลือกแผนก --</option>
+            <option value="" className="text-gray-800 dark:text-white">-- เลือกแผนก --</option>
             {wards.map(ward => (
-              <option key={ward.id} value={ward.id || ''}>
+              <option key={ward.id} value={ward.id || ''} className="text-gray-800 dark:text-white">
                 {ward.name}
               </option>
             ))}
@@ -54,8 +54,8 @@ const ShiftComparisonPanel: React.FC<ShiftComparisonPanelProps> = ({
             <StatCard title="เวรดึก" value={dataForDate.nightPatientCount} color="purple" />
           </div>
            <div className="mt-4 text-center">
-                <p className="text-gray-600 dark:text-gray-400">
-                  รวม: <span className="font-bold text-xl">{dataForDate.totalPatientCount}</span> คน
+                <p className="text-gray-700 dark:text-gray-400">
+                  รวม: <span className="font-bold text-xl text-gray-800 dark:text-white">{dataForDate.totalPatientCount}</span> คน
                 </p>
             </div>
         </div>

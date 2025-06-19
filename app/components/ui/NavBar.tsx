@@ -10,11 +10,11 @@ import { Sun, Moon, LogOut, User as UserIcon, Menu, X } from 'lucide-react';
 import { UserRole } from '@/app/features/auth/types/user';
 
 const navLinks = [
-  { href: '/census/form', label: 'Form', allowedRoles: Object.values(UserRole) },
-  { href: '/census/approval', label: 'Approval', allowedRoles: Object.values(UserRole) },
-  { href: '/dashboard', label: 'Dashboard', allowedRoles: Object.values(UserRole) },
+  { href: '/census/form', label: 'Form', allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
+  { href: '/census/approval', label: 'Approval', allowedRoles: [UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
+  { href: '/dashboard', label: 'Dashboard', allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
   { href: '/admin/user-management', label: 'User Management', allowedRoles: [UserRole.ADMIN, UserRole.DEVELOPER] },
-  { href: '/admin/dev-tools', label: 'Dev Tools', allowedRoles: [UserRole.DEVELOPER] },
+  { href: '/admin/dev-tools', label: 'Dev-Tools', allowedRoles: [UserRole.DEVELOPER] },
 ];
 
 const NavBar = () => {

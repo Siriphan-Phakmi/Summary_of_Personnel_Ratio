@@ -1,10 +1,6 @@
-export enum NotificationType {
-  GENERAL = 'general',
-  FORM_SUBMITTED = 'form_submitted',
-  FORM_APPROVED = 'form_approved',
-  FORM_REJECTED = 'form_rejected',
-  SYSTEM_ALERT = 'system_alert',
-}
+import { NotificationType } from './notification';
+
+export { NotificationType };
 
 export interface Notification {
   id: string;

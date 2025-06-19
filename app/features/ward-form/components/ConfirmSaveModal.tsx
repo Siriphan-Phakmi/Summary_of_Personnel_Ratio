@@ -4,7 +4,24 @@ import React from 'react';
 import { Modal } from './ui';
 import { Button } from '@/app/components/ui/Button';
 import { WardForm } from '@/app/features/ward-form/types/ward';
-import { Timestamp } from 'firebase/firestore';
+import { formatTimestamp } from '@/app/lib/utils/dateUtils';
+import { formatShift } from '../utils/formatUtils';
+
+// Define structure for displaying summary data
+type SummaryField = {
+  label: string;
+  value: (data: Partial<WardForm>) => React.ReactNode;
+};
+
+const summaryFields: SummaryField[] = [
+  { label: 'วอร์ด:', value: (data) => data.wardName || '-' },
+  { label: 'วันที่:', value: (data) => formatTimestamp(data.date) },
+  { label: 'เวร:', value: (data) => formatShift(data.shift) },
+  { label: 'Patient Census:', value: (data) => data.patientCensus ?? '-' },
+  { label: 'Admitted:', value: (data) => data.admitted ?? '-' },
+  { label: 'Discharged:', value: (data) => data.discharged ?? '-' },
+  { label: 'ผู้บันทึก:', value: (data) => `${data.recorderFirstName || ''} ${data.recorderLastName || ''}`.trim() || '-' },
+];
 
 interface ConfirmSaveModalProps {
   isOpen: boolean;
@@ -23,25 +40,6 @@ const ConfirmSaveModal: React.FC<ConfirmSaveModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const formatTimestamp = (timestamp: any): string => {
-    if (!timestamp) return '-';
-    try {
-      const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString('th-TH', { 
-        year: 'numeric', month: 'long', day: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-      });
-    } catch {
-      return 'Invalid Date';
-    }
-  };
-
-  // Create a formatted summary of key data
-  const formatShift = (shift: any) => {
-    if (!shift) return '-';
-    return shift === 'morning' ? 'เวรเช้า' : 'เวรดึก';
-  };
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="ยืนยันการบันทึกทับข้อมูลร่างเดิม">
       <div className="mb-4 text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-md border border-yellow-200 dark:border-yellow-800">
@@ -52,13 +50,12 @@ const ConfirmSaveModal: React.FC<ConfirmSaveModalProps> = ({
         <div className="border rounded p-4 bg-gray-50 dark:bg-gray-700">
           <h3 className="font-medium mb-2 text-gray-800 dark:text-gray-200">ข้อมูลที่จะบันทึกทับ</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <p><strong>วอร์ด:</strong> {formData.wardName || '-'}</p>
-            <p><strong>วันที่:</strong> {formatTimestamp(formData.date)}</p>
-            <p><strong>เวร:</strong> {formatShift(formData.shift)}</p>
-            <p><strong>Patient Census:</strong> {formData.patientCensus ?? '-'}</p>
-            <p><strong>Admitted:</strong> {formData.admitted ?? '-'}</p>
-            <p><strong>Discharged:</strong> {formData.discharged ?? '-'}</p>
-            <p><strong>ผู้บันทึก:</strong> {formData.recorderFirstName || ''} {formData.recorderLastName || ''}</p>
+            {summaryFields.map(field => (
+              <p key={field.label}>
+                <strong className="mr-2">{field.label}</strong>
+                {field.value(formData)}
+              </p>
+            ))}
           </div>
         </div>
 

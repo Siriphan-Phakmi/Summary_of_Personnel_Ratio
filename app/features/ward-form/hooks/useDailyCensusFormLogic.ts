@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/features/auth';
-import { Ward, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
+import { Ward, FormStatus } from '@/app/features/ward-form/types/ward';
 import { getWardsByUserPermission } from '../services/wardService';
 import { getShiftStatusesForDay } from '../services/wardFormService';
-// import { useOptimizedLoading } from '@/hooks/useOptimizedLoading'; // @/app/core/hooks/useOptimizedLoading -> @/hooks/useOptimizedLoading
-import { showErrorToast } from '@/utils/toastUtils';
+import { showErrorToast } from '@/app/lib/utils/toastUtils';
 import { format } from 'date-fns';
 import { UserRole } from '@/app/features/auth/types/user';
 
@@ -22,7 +21,7 @@ export const useDailyCensusFormLogic = () => {
   const [actualMorningStatus, setActualMorningStatus] = useState<FormStatus | null>(null);
   const [actualNightStatus, setActualNightStatus] = useState<FormStatus | null>(null);
 
-  // Load wards with caching
+  // Effect to load wards based on the current user
   useEffect(() => {
     const loadWards = async () => {
       if (!currentUser) return;
@@ -30,21 +29,22 @@ export const useDailyCensusFormLogic = () => {
       try {
         setLoading(true);
         const userWards = await getWardsByUserPermission(currentUser);
-        
         setWards(userWards);
 
-        // Auto-select ward based on user role
-        if ((currentUser.role === UserRole.NURSE || currentUser.role === UserRole.USER) && currentUser.floor) {
-          const userWard = userWards.find((ward: Ward) => ward.id === currentUser.floor);
-          if (userWard && selectedWard !== userWard.id) {
-            setSelectedWard(userWard.id);
-          } else if (!userWard) {
-            console.warn(`[DailyCensusForm] User with floor ${currentUser.floor} does not have access to that ward.`);
-            showErrorToast('คุณไม่มีสิทธิ์ในการเข้าถึงแผนกที่กำหนดไว้');
+        if (userWards.length > 0) {
+          // Check if the current selection is valid within the new list of wards.
+          const currentSelectionIsValid = userWards.some(w => w.id === selectedWard);
+
+          // If the selection is not valid (e.g., stale from another user) 
+          // or no ward is selected yet, default to the first ward in the new list.
+          if (!currentSelectionIsValid) {
+            setSelectedWard(userWards[0].id);
           }
-        } else if (userWards.length > 0 && !selectedWard) {
-          setSelectedWard(userWards[0].id);
+        } else {
+          // If the user has no accessible wards, clear the selection.
+          setSelectedWard('');
         }
+        
       } catch (error) {
         console.error('Error loading wards:', error);
         showErrorToast('ไม่สามารถโหลดข้อมูลแผนกได้');
@@ -53,7 +53,14 @@ export const useDailyCensusFormLogic = () => {
       }
     };
     loadWards();
-  }, [currentUser?.uid]);
+    // This effect should only re-run when the user context changes.
+    // selectedWard is managed inside, so it's not needed as a dependency.
+  }, [currentUser, setWards, setLoading, setSelectedWard]);
+
+  // Determine if the user has only one ward assigned.
+  const isSingleWardUser =
+    wards.length === 1 &&
+    currentUser?.role === UserRole.NURSE;
 
   // Find the full ward object and business ID
   const selectedWardObject = wards.find(w => w.id === selectedWard);
@@ -122,6 +129,7 @@ export const useDailyCensusFormLogic = () => {
     setReloadDataTrigger,
     handleDateChange,
     handleWardChange,
+    isSingleWardUser,
   };
 };
 

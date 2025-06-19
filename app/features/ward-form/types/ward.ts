@@ -44,13 +44,13 @@ export enum FormStatus {
  * Represents a hospital ward.
  */
 export interface Ward {
-  id: string;              // Unique identifier for the ward (e.g., 'ICU', 'PED')
-  name: string;            // Full name of the ward (e.g., 'Intensive Care Unit')
-  description?: string;    // Optional description
-  order: number;           // Display order
-  isActive: boolean;         // Whether the ward is currently active
-  createdAt: Timestamp;    // Timestamp of creation
-  updatedAt: Timestamp;    // Timestamp of last update
+  id: string;
+  name: string;
+  wardCode: string;
+  wardLevel: number;
+  wardOrder: number;
+  isActive: boolean;
+  totalBeds: number;
 }
 
 /**

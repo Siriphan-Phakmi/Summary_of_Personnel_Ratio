@@ -5,7 +5,7 @@ import { WardForm, FormStatus } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
 import { getPendingForms } from '@/app/features/ward-form/services/approvalServices/approvalQueries';
 import { approveWardForm, rejectWardForm } from '@/app/features/ward-form/services/approvalService';
-import { showErrorToast, showSuccessToast } from '@/app/utils/toastUtils';
+import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
 // import { handleIndexError } from '@/app/core/firebase/indexDetector'; // File not found, will address later
 import { safeQuery } from '@/lib/firebase/firestoreUtils';
 import { where, collection, query, Query } from 'firebase/firestore';
@@ -67,24 +67,23 @@ export const useApprovalData = ({ user }: UseApprovalDataProps): UseApprovalData
 
     try {
       let fetchedForms: WardForm[] = [];
+      const userRole = user.role;
 
-      // Use offline-safe query instead of direct Firebase call
-      if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN || user.role === UserRole.DEVELOPER) {
-        // Admin/Super Admin/Developer see all department forms
-        const q = query(
-          collection(db, COLLECTION_WARDFORMS),
-          where('status', '==', FormStatus.FINAL)
-        ) as Query<WardForm>;
+      // Admin and Developer see all pending forms from all wards.
+      if (userRole === UserRole.ADMIN || userRole === UserRole.DEVELOPER) {
+        fetchedForms = await getPendingForms({ status: FormStatus.FINAL });
 
-        const querySnapshot = await safeQuery(q, 'ApprovalPage-Admin');
-        
-        if (querySnapshot) {
-          fetchedForms = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        }
-
-      } else if (user.role === UserRole.APPROVER) {
-        // Approver sees only forms in their department
-        fetchedForms = await getPendingForms({ createdBy: user.uid, status: FormStatus.FINAL });
+      // Approvers see pending forms from the specific wards they are assigned to approve.
+      } else if (userRole === UserRole.APPROVER && user.approveWardIds && user.approveWardIds.length > 0) {
+        fetchedForms = await getPendingForms({ wardId: user.approveWardIds, status: FormStatus.FINAL });
+      
+      // Other users (Nurses, Ward Clerks, etc.) see all forms (including drafts, pending, approved) from their single assigned ward.
+      } else if (user.assignedWardId) {
+         fetchedForms = await getPendingForms({ wardId: user.assignedWardId });
+      } else {
+        // Fallback for users with no assigned ward or if something is misconfigured.
+        console.warn(`User ${user.username} with role ${user.role} has no assigned ward(s).`);
+        fetchedForms = [];
       }
 
       setForms(fetchedForms);

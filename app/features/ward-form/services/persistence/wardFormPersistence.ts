@@ -22,7 +22,7 @@ import {
 } from '../wardFormHelpers';
 import { getLatestPreviousNightForm } from '../queries/wardFormQueries';
 import NotificationService from '@/app/features/notifications/services/NotificationService';
-import { NotificationType } from '@/app/features/notifications/types';
+import { NotificationType } from '@/app/features/notifications/types/notification';
 
 /**
  * Saves or updates a draft of a ward form.
@@ -87,7 +87,7 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         NotificationService.createNotification({
             title: 'Morning Form Submitted',
             message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.FORM_SUBMITTED,
+            type: NotificationType.APPROVAL_REQUIRED,
             recipientIds: [user.uid],
             createdBy: user.uid,
             relatedDocId: form.id,
@@ -100,7 +100,7 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         NotificationService.createNotification({
             title: 'Submission Error',
             message: `Failed to submit morning form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM_ALERT,
+            type: NotificationType.SYSTEM,
             recipientIds: [user.uid],
             createdBy: 'system',
         });
@@ -156,7 +156,7 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         NotificationService.createNotification({
             title: 'Night Form Submitted',
             message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.FORM_SUBMITTED,
+            type: NotificationType.APPROVAL_REQUIRED,
             recipientIds: [user.uid],
             createdBy: user.uid,
             relatedDocId: form.id,
@@ -169,7 +169,7 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         NotificationService.createNotification({
             title: 'Submission Error',
             message: `Failed to submit night form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM_ALERT,
+            type: NotificationType.SYSTEM,
             recipientIds: [user.uid],
             createdBy: 'system',
         });
