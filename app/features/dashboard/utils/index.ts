@@ -9,7 +9,7 @@ import {
   formatThaiDate, 
   formatShortDate, 
   isDateInRange 
-} from './dateUtils';
+} from '@/app/lib/utils/dateUtils';
 
 import { 
   logInfo, 
@@ -47,7 +47,7 @@ export default {
 // Export all utility functions
 export * from './dashboardCalculations';
 export * from './dashboardUtils';
-export * from './dateUtils';
+// dateUtils now imported from shared location
 export * from './loggingUtils';
 export * from './chartConstants';
 export * from './dataAdapters';

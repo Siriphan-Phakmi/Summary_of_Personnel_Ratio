@@ -16,12 +16,11 @@ export interface User {
   role: UserRole; // ใช้ enum แทน string
   firstName?: string;
   lastName?: string;
-  floor?: string;
-  ward?: string;
-  assignedWardId?: string | string[]; // เพิ่ม field สำหรับ nurse/user
-  approveWardIds?: string[]; // เพิ่ม field สำหรับ approver
+  assignedWardId?: string; // NURSE will have a single assigned ward
+  approveWardIds?: string[]; // APPROVER can have multiple wards
   email?: string;
   isActive?: boolean;
   lastLogin?: any; // Timestamp or Date
   createdAt?: any; // Timestamp or Date
+  updatedAt?: any; // Timestamp or Date - เพิ่มฟิลด์วันที่แก้ไข
 }

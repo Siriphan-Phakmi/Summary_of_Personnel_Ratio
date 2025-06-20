@@ -68,4 +68,10 @@ export const Logger = {
       (console.debug || console.log)(`[DEBUG] ${message}`, ...data);
     }
   },
-}; 
+};
+
+// Convenience functions for compatibility
+export const logInfo = Logger.info;
+export const logWarning = Logger.warn;
+export const logError = Logger.error;
+export const logDebug = Logger.debug; 

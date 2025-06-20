@@ -21,7 +21,13 @@ const NavBar = () => {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    // Mark component as mounted for theme hydration
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // Close mobile menu on route change
@@ -59,9 +65,6 @@ const NavBar = () => {
                     <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">
                         {user.firstName} {user.lastName}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                        {user.role}
-                    </span>
                  </div>
                  <UserIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
               </div>
@@ -72,7 +75,11 @@ const NavBar = () => {
               className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {mounted ? (
+                theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />
+              ) : (
+                <div className="h-5 w-5" />
+              )}
             </button>
 
             {user && (
@@ -116,7 +123,6 @@ const NavBar = () => {
                       <UserIcon className="h-8 w-8 text-gray-600 dark:text-gray-300 mr-3" />
                       <div>
                         <div className="text-base font-medium text-gray-800 dark:text-white">{user.firstName} {user.lastName}</div>
-                        <div className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">{user.role}</div>
                       </div>
                     </div>
                   </div>

@@ -1,5 +1,7 @@
 import { ref, remove } from 'firebase/database';
 import { rtdb } from '@/app/lib/firebase/firebase';
+import { cookies } from 'next/headers';
+import { User } from '@/app/features/auth/types/user';
 
 export const clearAllUserSessions = async (userId: string): Promise<void> => {
   try {
@@ -13,5 +15,23 @@ export const clearAllUserSessions = async (userId: string): Promise<void> => {
   } catch (error) {
     console.error('Error clearing user sessions:', error);
     throw error;
+  }
+};
+
+export const getSession = async (): Promise<User | null> => {
+  try {
+    const cookieStore = cookies();
+    const authToken = cookieStore.get('auth_token')?.value;
+    const userCookie = cookieStore.get('user_data')?.value;
+
+    if (!authToken || !userCookie) {
+      return null;
+    }
+
+    const user = JSON.parse(decodeURIComponent(userCookie));
+    return user;
+  } catch (error) {
+    console.error('Error getting session:', error);
+    return null;
   }
 }; 

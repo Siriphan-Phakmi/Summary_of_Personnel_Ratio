@@ -1,0 +1,107 @@
+
+> summary_of_personnel_ratio@1.0.0 dev
+> next dev
+
+   ▲ Next.js 15.3.1
+   - Local:        http://localhost:3000
+   - Network:      http://10.255.255.254:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 10.4s
+ ○ Compiling /admin/user-management ...
+ ✓ Compiled /admin/user-management in 16.4s (1407 modules)
+[Error: Failed to find Server Action "70996d6b1eea9c1899f83dd864a0893c7c39661626". This request might be from an older or newer deployment.
+Read more: https://nextjs.org/docs/messages/failed-to-find-server-action]
+ POST /admin/user-management 200 in 18544ms
+ ✓ Compiled in 2.1s (469 modules)
+ GET /admin/user-management 200 in 8621ms
+ ○ Compiling /api/auth/session ...
+ ✓ Compiled /api/auth/session in 2.4s (1403 modules)
+ GET /api/auth/session 200 in 3689ms
+ GET /api/auth/session 200 in 82ms
+ GET /admin/user-management 200 in 564ms
+ GET /api/auth/session 200 in 87ms
+ GET /api/auth/session 200 in 79ms
+[BPK-SERVER-ACTION] 2025-06-19T11:58:14.865Z | logout | User: admin (admin) | Details: {"timestamp":"2025-06-19T11:58:14.649Z","deviceType":"desktop","browserName":"Chrome","role":"admin","ipAddress":"127.0.0.1","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"}
+ POST /admin/user-management 200 in 117ms
+ ✓ Compiled /api/auth/logout in 349ms (1405 modules)
+ POST /api/auth/logout 200 in 512ms
+ ✓ Compiled /login in 472ms (1412 modules)
+ GET /login 200 in 879ms
+ GET /api/auth/session 401 in 90ms
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /api/auth/login in 760ms (1411 modules)
+ POST /api/auth/login 200 in 1497ms
+ ○ Compiling /census/approval ...
+ ✓ Compiled /census/approval in 2.9s (1604 modules)
+[BPK-SERVER-ACTION] 2025-06-19T12:00:02.532Z | login | User: admin (admin) | Details: {"timestamp":"2025-06-19T11:59:59.482Z","deviceType":"desktop","browserName":"Chrome","role":"admin","ipAddress":"127.0.0.1","success":true,"userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"}
+ POST /login 200 in 3110ms
+ GET /census/approval 200 in 3345ms
+ GET /census/approval 200 in 147ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 6.4s (3979 modules)
+ GET /admin/user-management 200 in 6972ms
+ GET /dashboard 200 in 8530ms
+ GET /admin/user-management 200 in 144ms
+ ○ Compiling /api/auth/session ...
+ ✓ Compiled /api/auth/session in 851ms (2242 modules)
+ GET /api/auth/session 200 in 1172ms
+ GET /api/auth/session 200 in 118ms
+ ○ Compiling /api/admin/users/[uid] ...
+ ⚠ ./app/api/admin/users/[uid]/route.ts
+Attempted import error: 'getSession' is not exported from '@/app/features/auth/services/sessionService' (imported as 'getSession').
+
+Import trace for requested module:
+./app/api/admin/users/[uid]/route.ts
+ ⨯ TypeError: (0 , _app_features_auth_services_sessionService__WEBPACK_IMPORTED_MODULE_1__.getSession) is not a function
+    at handler (app/api/admin/users/[uid]/route.ts:8:34)
+   6 |
+   7 | async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
+>  8 |   const session = await getSession();
+     |                                  ^
+   9 |   if (!session || ![UserRole.ADMIN, UserRole.DEVELOPER].includes(session.role)) {
+  10 |     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  11 |   }
+ ⨯ TypeError: (0 , _app_features_auth_services_sessionService__WEBPACK_IMPORTED_MODULE_1__.getSession) is not a function
+    at handler (app/api/admin/users/[uid]/route.ts:8:34)
+   6 |
+   7 | async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
+>  8 |   const session = await getSession();
+     |                                  ^
+   9 |   if (!session || ![UserRole.ADMIN, UserRole.DEVELOPER].includes(session.role)) {
+  10 |     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  11 |   }
+ ⨯ TypeError: (0 , _app_features_auth_services_sessionService__WEBPACK_IMPORTED_MODULE_1__.getSession) is not a function
+    at handler (app/api/admin/users/[uid]/route.ts:8:34)
+   6 |
+   7 | async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
+>  8 |   const session = await getSession();
+     |                                  ^
+   9 |   if (!session || ![UserRole.ADMIN, UserRole.DEVELOPER].includes(session.role)) {
+  10 |     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  11 |   }
+ ⨯ TypeError: (0 , _app_features_auth_services_sessionService__WEBPACK_IMPORTED_MODULE_1__.getSession) is not a function
+    at handler (app/api/admin/users/[uid]/route.ts:8:34)
+   6 |
+   7 | async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
+>  8 |   const session = await getSession();
+     |                                  ^
+   9 |   if (!session || ![UserRole.ADMIN, UserRole.DEVELOPER].includes(session.role)) {
+  10 |     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  11 |   }
+ PUT /api/admin/users/ward6 500 in 4460ms
+ PUT /api/admin/users/ward6 500 in 1690ms
+ GET /admin/user-management 200 in 173ms
+ GET /dashboard 200 in 131ms
+ GET /admin/user-management 200 in 116ms
+ GET /api/auth/session 200 in 107ms
+ GET /api/auth/session 200 in 96ms
+ GET /admin/user-management 200 in 422ms
+ GET /api/auth/session 200 in 108ms
+ GET /api/auth/session 200 in 88ms
+ GET /api/auth/session 401 in 80ms
+ GET /admin/user-management 200 in 170ms
+ GET /api/auth/session 200 in 94ms
+ GET /api/auth/session 200 in 96ms
+[?25h
