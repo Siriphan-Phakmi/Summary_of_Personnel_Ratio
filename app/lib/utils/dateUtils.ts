@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { Timestamp } from 'firebase/firestore';
 
 // Thai localization constants
@@ -128,4 +128,63 @@ export const isDateInRange = (date: Date, startDate: Date, endDate: Date): boole
     console.error('[isDateInRange] Error checking date range:', error);
     return false;
   }
-}; 
+};
+
+// === Enhanced Date Formatting Utilities ===
+
+/**
+ * Safely formats a date with comprehensive error handling
+ * Handles Firebase Timestamps, Date objects, and invalid dates
+ * Based on date-fns best practices for handling RangeError: Invalid time value
+ * 
+ * @param date - Date value (can be Firestore Timestamp, Date, string, or null/undefined)
+ * @param formatString - date-fns format string (default: 'dd/MM/yyyy HH:mm')
+ * @param fallback - Fallback string for invalid dates (default: 'N/A')
+ * @returns Formatted date string or fallback value
+ */
+export function formatDateSafely(
+  date: any, 
+  formatString: string = 'dd/MM/yyyy HH:mm',
+  fallback: string = 'N/A'
+): string {
+  if (!date) return fallback;
+  
+  try {
+    // Firebase Timestamps can be either Date objects or Firestore Timestamp objects
+    const jsDate = date.toDate ? date.toDate() : new Date(date);
+    
+    // Validate the date is valid before formatting using date-fns isValid
+    if (!isValid(jsDate)) {
+      return fallback;
+    }
+    
+    return format(jsDate, formatString);
+  } catch (error) {
+    console.error('Date formatting error:', error);
+    return fallback;
+  }
+}
+
+/**
+ * Formats a date for display in Thai locale format
+ * Common format used throughout the hospital system
+ */
+export function formatDateThaiShort(date: any): string {
+  return formatDateSafely(date, 'dd/MM/yyyy');
+}
+
+/**
+ * Formats a datetime for display with seconds
+ * Used for system logs and detailed timestamps
+ */
+export function formatDateTimeWithSeconds(date: any): string {
+  return formatDateSafely(date, 'dd/MM/yyyy HH:mm:ss');
+}
+
+/**
+ * Formats a time only
+ * Used for shift displays and time comparisons
+ */
+export function formatTimeOnly(date: any): string {
+  return formatDateSafely(date, 'HH:mm');
+} 

@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
-import { getThaiDayName } from '../utils/dateUtils';
+import { getThaiDayName } from '@/app/lib/utils/dateUtils';
 
 interface DashboardHeaderProps {
   selectedDate: Date;

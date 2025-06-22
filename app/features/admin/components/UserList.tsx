@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { User, UserRole } from '@/app/features/auth/types/user';
-import { format } from 'date-fns';
+import { formatDateSafely } from '@/app/lib/utils/dateUtils';
 import { Badge } from '@/app/components/ui/Badge';
 import { Button } from '@/app/components/ui/Button';
 import { Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -15,12 +15,6 @@ interface UserListProps {
 }
 
 const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleStatus }) => {
-  const formatDate = (date: any) => {
-    if (!date) return 'N/A';
-    // Firebase Timestamps can be either Date objects or Firestore Timestamp objects
-    const jsDate = date.toDate ? date.toDate() : new Date(date);
-    return format(jsDate, 'dd/MM/yyyy HH:mm');
-  };
 
   const getRoleBadgeVariant = (role: UserRole) => {
     switch (role) {
@@ -60,8 +54,8 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleSt
                   {user.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDate(user.createdAt)}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDate(user.updatedAt)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.createdAt)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.updatedAt)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                  <div className="flex items-center justify-end space-x-2">
                     <Button variant="outline" size="sm" onClick={() => onToggleStatus(user.uid, user.isActive)}>

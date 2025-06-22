@@ -1,7 +1,7 @@
 'use client';
 
 import React, { ChangeEvent, FocusEvent } from 'react';
-import { Input } from './ui';
+import { Input } from '@/app/components/ui';
 import { WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
 import { FormConfiguration } from '@/app/features/config/types';
 import { twMerge } from 'tailwind-merge';

@@ -7,7 +7,7 @@ import { UserRole } from '@/app/features/auth/types/user';
 
 interface ProtectedPageProps {
   children: React.ReactNode;
-  requiredRole?: UserRole | UserRole[];
+  requiredRole?: UserRole | UserRole[] | string | string[];
 }
 
 const ProtectedPage: React.FC<ProtectedPageProps> = ({ children, requiredRole }) => {
@@ -29,13 +29,25 @@ const ProtectedPage: React.FC<ProtectedPageProps> = ({ children, requiredRole })
   }
 
   if (authStatus === 'authenticated') {
-    if (requiredRole && !checkRole(requiredRole)) {
-      // You can redirect to an unauthorized page or show a message
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <p className="text-xl text-red-500">You are not authorized to view this page.</p>
-        </div>
-      );
+    if (requiredRole) {
+      // Convert UserRole enums to strings for checkRole function
+      let roleStrings: string | string[];
+      if (Array.isArray(requiredRole)) {
+        roleStrings = requiredRole.map(role => 
+          typeof role === 'string' ? role : role.toString()
+        );
+      } else {
+        roleStrings = typeof requiredRole === 'string' ? requiredRole : requiredRole.toString();
+      }
+      
+      if (!checkRole(roleStrings)) {
+        // You can redirect to an unauthorized page or show a message
+        return (
+          <div className="flex items-center justify-center min-h-screen">
+            <p className="text-xl text-red-500">You are not authorized to view this page.</p>
+          </div>
+        );
+      }
     }
     return <>{children}</>;
   }

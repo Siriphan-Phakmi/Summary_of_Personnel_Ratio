@@ -29,6 +29,12 @@ export const getSession = async (): Promise<User | null> => {
     }
 
     const user = JSON.parse(decodeURIComponent(userCookie));
+    
+    // Ensure user object has required fields for Firebase logging
+    if (user && typeof user.isActive === 'undefined') {
+      user.isActive = true; // Default to active if not specified
+    }
+    
     return user;
   } catch (error) {
     console.error('Error getting session:', error);

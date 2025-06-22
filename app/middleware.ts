@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { UserRole } from '@/app/features/auth/types/user';
 
 // Security headers ที่แนะนำให้ใช้ ปรับปรุงให้ปลอดภัยมากขึ้น
 const securityHeaders = {
@@ -35,10 +36,10 @@ const publicRoutes = [
 
 // เส้นทางที่ต้องการ role เฉพาะ
 const roleBasedRoutes = {
-  '/admin/user-management': ['admin', 'developer'],
-  '/admin/dev-tools': ['developer'],
-  '/census/approval': ['admin', 'developer', 'approver'],
-  '/census/form': ['admin', 'developer', 'approver', 'nurse']
+  '/admin/user-management': [UserRole.ADMIN, UserRole.DEVELOPER],
+  '/admin/dev-tools': [UserRole.DEVELOPER],
+  '/census/approval': [UserRole.ADMIN, UserRole.DEVELOPER, UserRole.APPROVER],
+  '/census/form': [UserRole.ADMIN, UserRole.DEVELOPER, UserRole.APPROVER, UserRole.NURSE]
 };
 
 function handleAuthenticatedRedirect(request: NextRequest, userCookie: string): NextResponse | null {
@@ -163,7 +164,8 @@ function isPublicRoute(pathname: string): boolean {
 function getRoleRequirement(pathname: string): string[] | null {
   for (const [route, roles] of Object.entries(roleBasedRoutes)) {
     if (pathname === route || pathname.startsWith(`${route}/`)) {
-      return roles;
+      // Convert UserRole enums to strings for comparison
+      return roles.map(role => typeof role === 'string' ? role : role.toString());
     }
   }
   return null;
@@ -172,11 +174,11 @@ function getRoleRequirement(pathname: string): string[] | null {
 // ฟังก์ชันหา redirect path ตาม role สำหรับการเข้าหน้าแรก
 function getLandingRedirectPathByRole(role: string): string {
   switch (role) {
-    case 'admin':
-    case 'developer':
+    case UserRole.ADMIN:
+    case UserRole.DEVELOPER:
       return '/census/approval';
-    case 'nurse':
-    case 'approver':
+    case UserRole.NURSE:
+    case UserRole.APPROVER:
       return '/census/form';
     default:
       // สำหรับ role อื่นๆ หรือกรณีไม่มี role ให้ไปหน้า form เพื่อความปลอดภัย
@@ -187,11 +189,11 @@ function getLandingRedirectPathByRole(role: string): string {
 // ฟังก์ชันหา redirect path ตาม role
 function getRedirectPathByRole(role: string): string {
   switch (role) {
-    case 'admin':
-    case 'developer':
-    case 'approver':
+    case UserRole.ADMIN:
+    case UserRole.DEVELOPER:
+    case UserRole.APPROVER:
       return '/census/approval';
-    case 'nurse':
+    case UserRole.NURSE:
       return '/census/form';
     default:
       return '/census/form';

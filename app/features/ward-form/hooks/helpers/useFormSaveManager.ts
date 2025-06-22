@@ -99,12 +99,24 @@ export const useFormSaveManager = ({
       
       onSaveSuccess(saveType === 'final');
 
-      await logUserAction(user, `SAVE_${saveType.toUpperCase()}`, {
-        wardId: selectedBusinessWardId,
-        shift: selectedShift,
-        date: selectedDate,
-        formId: savedFormId
-      });
+      // Only log if user is available
+      if (user) {
+        await logUserAction(
+          user, 
+          `FORM.${saveType.toUpperCase()}`, 
+          'SUCCESS',
+          {
+            id: savedFormId,
+            type: 'WARD_FORM'
+          },
+          {
+            name: `Form for Ward ${selectedBusinessWardId} on ${selectedDate} (${selectedShift})`,
+            wardId: selectedBusinessWardId,
+          shift: selectedShift,
+          date: selectedDate,
+        }
+      );
+      }
 
     } catch (error: any) {
       console.error(`Error saving ${saveType}:`, error);

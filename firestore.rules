@@ -146,11 +146,29 @@ service cloud.firestore {
       allow write: if canManageDatabase();
     }
     
-    // System Logs
+    // System Logs (multiple collection names for different log types)
     match /systemLogs/{logId} {
       allow read: if canManageDatabase();
       allow create: if isAuthenticated();
       allow update, delete: if false; // ไม่อนุญาตให้แก้ไขหรือลบบันทึกใด ๆ
+    }
+    
+    match /system_logs/{logId} {
+      allow read: if canManageDatabase();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+    
+    match /user_activity_logs/{logId} {
+      allow read: if canManageDatabase();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+    
+    match /userManagementLogs/{logId} {
+      allow read: if canManageDatabase();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
     }
     
     // Any other collection access for developers and admins

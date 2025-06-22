@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import bcrypt from 'bcryptjs';
+import { User, UserRole } from '@/app/features/auth/types/user';
+import { logAuthEvent, logSystemError } from '@/app/features/auth/services/logService';
 
 // Helper: สร้าง response JSON พร้อม header ที่ถูกต้อง
 const jsonResponse = (data: any, init: ResponseInit = {}) => {
@@ -26,6 +28,10 @@ export async function POST(req: NextRequest) {
     const { username, password } = await req.json();
 
     if (!username || !password) {
+      // Log failed login attempt
+      const pseudoUser: User = { uid: username, username, role: UserRole.NURSE, isActive: true };
+      await logAuthEvent(pseudoUser, 'LOGIN', 'FAILURE', req);
+
       return NextResponse.json(
         { success: false, error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' },
         { status: 400 }
@@ -38,6 +44,11 @@ export async function POST(req: NextRequest) {
     if (!userSnap.exists()) {
       // ใช้เวลาตอบสนองเท่าเดิมเพื่อป้องกันการเดา username (Timing Attack)
       await bcrypt.hash(password, 10); // Dummy hash calculation
+      
+      // Log failed login attempt
+      const pseudoUser: User = { uid: username, username, role: UserRole.NURSE, isActive: true };
+      await logAuthEvent(pseudoUser, 'LOGIN', 'FAILURE', req);
+
       return NextResponse.json(
         { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
@@ -45,27 +56,37 @@ export async function POST(req: NextRequest) {
     }
 
     const userData = userSnap.data();
-    const hashedPw = userData.password;
-
-    if (!hashedPw || typeof hashedPw !== 'string') {
-      logError(new Error(`Password hash for user '${username}' is missing or not a string.`), "Password Hash Check");
-      return NextResponse.json(
-        { success: false, error: 'บัญชีนี้มีปัญหา โปรดติดต่อผู้ดูแลระบบ' },
-        { status: 500 }
-      );
-    }
-
-    const isMatch = await bcrypt.compare(password, hashedPw);
+    const isMatch = await bcrypt.compare(password, userData.password || '');
     
+    // Construct user object early for logging
+    const userForLog: User = {
+        uid: userSnap.id,
+        username: userData.username || userSnap.id,
+        role: userData.role || UserRole.NURSE,
+        isActive: userData.active === undefined ? true : userData.active,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+    };
+
     if (!isMatch) {
-      // เพิ่ม Log เพื่อช่วยในการ Debug
-      logError(new Error(`Password mismatch for user: ${username}`), "Password Comparison");
+      await logAuthEvent(userForLog, 'LOGIN', 'FAILURE', req);
       return NextResponse.json(
         { success: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
         { status: 401 }
       );
     }
+
+    if(userForLog.isActive === false) {
+      await logAuthEvent(userForLog, 'LOGIN', 'FAILURE', req);
+       return NextResponse.json(
+        { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน' },
+        { status: 403 }
+      );
+    }
     
+    // Successful login, log before returning response
+    await logAuthEvent(userForLog, 'LOGIN', 'SUCCESS', req);
+
     // ตั้งค่าเวลาหมดอายุของ Cookie (3 ชั่วโมง)
     const threeHours = 3 * 60 * 60;
 
@@ -80,7 +101,8 @@ export async function POST(req: NextRequest) {
       ward: userData.ward || null,
       approveWardIds: userData.approveWardIds || [],
       assignedWardId: userData.assignedWardId || null,
-      active: userData.active === undefined ? true : userData.active,
+      isActive: userData.active === undefined ? true : userData.active, // Use isActive to match User interface
+      active: userData.active === undefined ? true : userData.active, // Keep active for backward compatibility
     };
 
     // ตั้ง cookie แบบ httpOnly สำหรับ auth token (stub) และ user_data (encodeURIComponent)
@@ -103,7 +125,9 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (err) {
-    logError(err, "General Catch Block");
+    // Log the error using the new system
+    await logSystemError(err, 'LOGIN_API_CATCH_BLOCK', null, req);
+    
     return NextResponse.json(
       { success: false, error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' },
       { status: 500 }

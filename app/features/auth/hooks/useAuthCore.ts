@@ -214,7 +214,9 @@ export const useAuthCore = () => {
     if (!user || authStatus !== 'authenticated') return false;
     if (!requiredRole) return true;
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    return roles.includes(user.role);
+    // Convert UserRole enum to string for comparison
+    const userRoleString = typeof user.role === 'string' ? user.role : user.role.toString();
+    return roles.includes(userRoleString);
   }, [user, authStatus]);
 
   useEffect(() => {

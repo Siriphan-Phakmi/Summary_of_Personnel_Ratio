@@ -1,5 +1,16 @@
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/app/lib/firebase/firebase';
 import { User } from '../types/user';
-import { LogLevel, LogType, LogEntry, SYSTEM_LOGS_COLLECTION, LogDetails } from '../types/log';
+import { 
+  StandardLog, 
+  Actor, 
+  Action, 
+  Target, 
+  ClientInfo, 
+  ActionStatus, 
+  SYSTEM_LOGS_COLLECTION, 
+  USER_ACTIVITY_LOGS_COLLECTION 
+} from '../types/log';
 // import {
 //     addLogEntry,
 //     SYSTEM_LOGS_COLLECTION,
@@ -12,12 +23,85 @@ import { LogLevel, LogType, LogEntry, SYSTEM_LOGS_COLLECTION, LogDetails } from 
 
 // สร้างค่าคงที่และฟังก์ชันที่จำเป็นภายในไฟล์เอง
 
-// ฟังก์ชันจำลองการเพิ่ม log entry ลงในฐานข้อมูล
-const addLogEntry = async (entry: Partial<LogEntry>, collection: string): Promise<void> => {
-  // ในสภาพแวดล้อมจริงจะบันทึกลงฐานข้อมูล เช่น Firestore
-  // แต่ในที่นี้เราจะ log ไปที่ console เท่านั้น
-  console.log(`[${collection}] New log entry:`, entry);
+// Helper to create a standard log entry
+const createLogEntry = async (
+  collectionName: string,
+  actor: Actor,
+  action: Action,
+  clientInfo?: ClientInfo,
+  target?: Target,
+  details?: Record<string, any>
+): Promise<void> => {
+  const logEntry: StandardLog = {
+    timestamp: serverTimestamp(),
+    actor,
+    action,
+    ...(target && { target }),
+    ...(clientInfo && { clientInfo }),
+    ...(details && { details }),
+  };
+
+  try {
+    const logsRef = collection(db, collectionName);
+    await addDoc(logsRef, logEntry);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[${collectionName}] Log entry saved:`, { ...logEntry, timestamp: new Date() });
+    }
+  } catch (error) {
+    console.error(`Failed to save log to ${collectionName}:`, error);
+    console.log(`[${collectionName}] FALLBACK LOG:`, { ...logEntry, timestamp: new Date() });
+  }
 };
+
+// Centralized helper to create a well-formed Actor object
+const createActorFromUser = (user: User | null | undefined): Actor => {
+  if (!user || !user.uid || !user.username) {
+    return { id: 'SYSTEM', username: 'SYSTEM', role: 'SYSTEM', active: true };
+  }
+  
+  const actor: Actor = {
+    id: user.uid,
+    username: user.username,
+    role: user.role,
+    // Always provide a boolean value for active field to prevent Firestore errors
+    active: typeof user.isActive === 'boolean' ? user.isActive : true
+  };
+  
+  // Conditionally add timestamp properties only if they are valid
+  // to prevent 'undefined' values being sent to Firestore.
+  if (user.createdAt) {
+    actor.createdAt = user.createdAt;
+  }
+  if (user.updatedAt) {
+    actor.updatedAt = user.updatedAt;
+  }
+
+  return actor;
+};
+
+const getClientInfo = (req?: Request): ClientInfo => {
+    if (typeof window !== 'undefined') {
+        const userAgent = window.navigator.userAgent || 'unknown';
+        let deviceType: ClientInfo['deviceType'] = 'desktop';
+        if (/mobile/i.test(userAgent)) deviceType = 'mobile';
+        else if (/tablet/i.test(userAgent)) deviceType = 'tablet';
+        
+        return { userAgent, deviceType, ipAddress: '127.0.0.1' }; // IP is a placeholder on client, should be resolved server-side
+    }
+    
+    if (req) {
+        const userAgent = req.headers.get('user-agent') || 'unknown-server';
+        let deviceType: ClientInfo['deviceType'] = 'desktop';
+        if (/mobile/i.test(userAgent)) deviceType = 'mobile';
+        else if (/tablet/i.test(userAgent)) deviceType = 'tablet';
+        
+        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+        return { userAgent, deviceType, ipAddress: ip };
+    }
+
+    return { userAgent: 'server', deviceType: 'server' };
+}
 
 // ฟังก์ชันสำหรับดึงข้อมูลอุปกรณ์
 const getDeviceInfo = (): { deviceType: string; browserName: string } => {
@@ -95,43 +179,24 @@ export const logLogin = async (
   }
 
   try {
-    // ดึงข้อมูลอุปกรณ์
     const deviceInfo = getDeviceInfo();
     const userAgentStr = userAgent || getSafeUserAgent();
     const ipAddress = getClientIP();
     
-    // สร้าง log details
     const details = {
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName,
       role: user.role,
-      ipAddress: ipAddress,
       success: true
     };
 
-    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
-    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
-
-    // สร้าง safe user object สำหรับ server action
-    const safeUser = createSafeUserObject(user);
+    const actor = createActorFromUser(user);
+    const action: Action = { type: 'AUTH.LOGIN', status: 'SUCCESS' };
+    const clientInfo: ClientInfo = {
+        userAgent: userAgentStr,
+        ipAddress: ipAddress,
+        deviceType: deviceInfo.deviceType as ClientInfo['deviceType'],
+    };
     
-    // บันทึก log ในฝั่ง server (สำหรับ development)
-    await logServerAction('login', safeUser, {
-      ...details,
-      userAgent: userAgentStr
-    });
-    
-    // บันทึก log ในฐานข้อมูล
-    await addLogEntry({
-      type: LogType.AUTH_LOGIN,
-      userId: user.uid,
-      username: user.username,
-      details,
-      userAgent: userAgentStr,
-      ipAddress,
-      logLevel: LogLevel.INFO
-    }, SYSTEM_LOGS_COLLECTION);
+    await createLogEntry(SYSTEM_LOGS_COLLECTION, actor, action, clientInfo, undefined, details);
   } catch (error) {
     console.error('Failed to log login:', error);
   }
@@ -152,42 +217,23 @@ export const logLogout = async (
   }
 
   try {
-    // ดึงข้อมูลอุปกรณ์
     const deviceInfo = getDeviceInfo();
     const userAgentStr = userAgent || getSafeUserAgent();
     const ipAddress = getClientIP();
     
-    // สร้าง log details
     const details = {
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName,
       role: user.role,
-      ipAddress: ipAddress
     };
 
-    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
-    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
-
-    // สร้าง safe user object สำหรับ server action
-    const safeUser = createSafeUserObject(user);
-    
-    // บันทึก log ในฝั่ง server (สำหรับ development)
-    await logServerAction('logout', safeUser, {
-      ...details,
-      userAgent: userAgentStr
-    });
-    
-    // บันทึก log ในฐานข้อมูล
-    await addLogEntry({
-      type: LogType.AUTH_LOGOUT,
-      userId: user.uid,
-      username: user.username,
-      details,
+    const actor = createActorFromUser(user);
+    const action: Action = { type: 'AUTH.LOGOUT', status: 'SUCCESS' };
+    const clientInfo: ClientInfo = {
       userAgent: userAgentStr,
-      ipAddress,
-      logLevel: LogLevel.INFO
-    }, SYSTEM_LOGS_COLLECTION);
+      ipAddress: ipAddress,
+      deviceType: deviceInfo.deviceType as ClientInfo['deviceType'],
+    };
+    
+    await createLogEntry(SYSTEM_LOGS_COLLECTION, actor, action, clientInfo, undefined, details);
   } catch (error) {
     console.error('Failed to log logout:', error);
   }
@@ -202,60 +248,19 @@ export const logLogout = async (
 export const logPageAccess = async (
   user: User,
   page: string,
-  userAgent?: string
+  req?: Request
 ): Promise<void> => {
-  // ตรวจสอบข้อมูล user อย่างละเอียด
-  if (!user) {
-    console.error('Cannot log page access: User is null');
-    return;
-  }
-  
   if (!user?.uid || !user?.username) {
     console.error('Cannot log page access: User data is incomplete');
     return;
   }
 
-  try {
-    // ดึงข้อมูลอุปกรณ์
-    const deviceInfo = getDeviceInfo();
-    const userAgentStr = userAgent || getSafeUserAgent();
-    const ipAddress = getClientIP();
-    
-    // สร้าง log details
-    const details = {
-      page,
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName,
-      role: user.role,
-      ipAddress: ipAddress
-    };
+  const actor = createActorFromUser(user);
+  const action: Action = { type: 'NAVIGATION.PAGE_VIEW', status: 'SUCCESS' };
+  const clientInfo = getClientInfo(req);
+  const details = { page };
 
-    // ลดความซ้ำซ้อน: ใช้เพียง logServerAction และบันทึกลงฐานข้อมูล
-    // ไม่ใช้ devLog เพื่อลดความซ้ำซ้อน
-
-    // สร้าง safe user object สำหรับ server action
-    const safeUser = createSafeUserObject(user);
-    
-    // บันทึก log ในฝั่ง server (สำหรับ development)
-    await logServerAction('page_access', safeUser, {
-      ...details,
-      userAgent: userAgentStr
-    });
-    
-    // บันทึก log ในฐานข้อมูล
-    await addLogEntry({
-      type: LogType.PAGE_ACCESS,
-      userId: user.uid,
-      username: user.username,
-      details,
-      userAgent: userAgentStr,
-      ipAddress,
-      logLevel: LogLevel.INFO
-    }, SYSTEM_LOGS_COLLECTION);
-  } catch (error) {
-    console.error('Failed to log page access:', error);
-  }
+  await createLogEntry(SYSTEM_LOGS_COLLECTION, actor, action, clientInfo, undefined, details);
 };
 
 /**
@@ -267,87 +272,56 @@ export const logPageAccess = async (
 export const logSystemError = async (
   error: any,
   context: string,
-  user?: User | null
+  user?: User | null,
+  req?: Request
 ): Promise<void> => {
-  try {
-    const deviceInfo = getDeviceInfo();
-    const userAgentStr = getSafeUserAgent();
-    const ipAddress = getClientIP();
+  const actor = createActorFromUser(user || null);
+  
+  const action: Action = { type: 'SYSTEM.ERROR', status: 'FAILURE' };
+  const clientInfo = getClientInfo(req);
 
-    const details = {
-      context: context,
-      errorMessage: error.message,
-      stackTrace: error.stack,
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName,
-      ipAddress: ipAddress
-    };
-    
-    // บันทึก log ในฐานข้อมูล
-    await addLogEntry({
-      type: LogType.SYSTEM_ERROR,
-      userId: user?.uid,
-      username: user?.username || 'system',
-      details,
-      userAgent: userAgentStr,
-      ipAddress,
-      logLevel: LogLevel.ERROR
-    }, SYSTEM_LOGS_COLLECTION);
-  } catch (logError) {
-    console.error('Failed to log system error:', logError);
-    // Fallback logging
-    console.error('Original error:', {
-      context,
-      errorMessage: error.message,
-    });
-  }
+  const details: Record<string, any> = {
+    context,
+    errorMessage: error.message,
+    errorStack: error.stack,
+  };
+
+  await createLogEntry(SYSTEM_LOGS_COLLECTION, actor, action, clientInfo, undefined, details);
 };
 
 /**
  * บันทึกการกระทำของผู้ใช้ (User Action)
  * @param user ข้อมูลผู้ใช้
- * @param action ชื่อการกระทำ เช่น 'SAVE_DRAFT', 'FINALIZE_FORM'
- * @param details ข้อมูลเพิ่มเติมเกี่ยวกับการกระทำ
+ * @param actionType ชื่อการกระทำ เช่น 'SAVE_DRAFT', 'FINALIZE_FORM'
+ * @param status สถานะของการกระทำ
+ * @param target ข้อมูลเพิ่มเติมเกี่ยวกับการกระทำ
  */
 export const logUserAction = async (
   user: User,
-  action: string,
-  details: Record<string, any> = {}
+  actionType: string,
+  status: ActionStatus,
+  target?: Target,
+  details?: Record<string, any>,
+  req?: Request
 ): Promise<void> => {
   if (!user?.uid || !user?.username) {
     console.error('Cannot log user action: User data is incomplete');
     return;
   }
 
-  try {
-    const deviceInfo = getDeviceInfo();
-    const userAgentStr = getSafeUserAgent();
-    const ipAddress = getClientIP();
+  const actor = createActorFromUser(user);
+  const action: Action = { type: actionType, status };
+  const clientInfo = getClientInfo(req);
 
-    const logDetails: LogDetails = {
-      ...details,
-      action, // Add action to the details object
-      timestamp: new Date().toISOString(),
-      deviceType: deviceInfo.deviceType,
-      browserName: deviceInfo.browserName,
-      role: user.role,
-      ipAddress: ipAddress,
-    };
-    
-    // The call to logServerAction has been removed to avoid type conflicts with generic actions.
-    // The primary log is the one sent to the database via addLogEntry.
+  await createLogEntry(USER_ACTIVITY_LOGS_COLLECTION, actor, action, clientInfo, target, details);
+};
 
-    await addLogEntry({
-      type: LogType.USER_ACTION,
-      userId: user.uid,
-      username: user.username,
-      details: logDetails, // Pass the enriched details object
-      userAgent: userAgentStr,
-      ipAddress,
-      logLevel: LogLevel.INFO,
-    }, SYSTEM_LOGS_COLLECTION);
-  } catch (error) {
-    console.error(`Failed to log action [${action}]:`, error);
-  }
+// --- Public Log Functions ---
+
+export const logAuthEvent = async (user: User, type: 'LOGIN' | 'LOGOUT', status: ActionStatus, req?: Request): Promise<void> => {
+  const actor = createActorFromUser(user);
+  const action: Action = { type: `AUTH.${type}`, status };
+  const clientInfo = getClientInfo(req);
+
+  await createLogEntry(SYSTEM_LOGS_COLLECTION, actor, action, clientInfo);
 }; 

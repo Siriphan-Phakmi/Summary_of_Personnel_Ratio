@@ -75,7 +75,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
                 <Label htmlFor="assignedWardId">Assigned Ward</Label>
                  <select id="assignedWardId" name="assignedWardId" value={formData.assignedWardId || ''} onChange={handleInputChange} className="w-full p-2 border rounded">
                      <option value="">Select a ward</option>
-                     {wards.map(ward => <option key={ward.wardId} value={ward.wardId}>{ward.wardName}</option>)}
+                     {wards.map(ward => <option key={ward.id} value={ward.id}>{ward.name}</option>)}
                  </select>
              </div>
           )}
@@ -85,21 +85,21 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
               <Label>Approvable Wards</Label>
               <div className="grid grid-cols-3 gap-2 p-2 border rounded-md">
                 {wards.map(ward => (
-                  <div key={ward.wardId} className="flex items-center">
+                  <div key={ward.id} className="flex items-center">
                     <input
                       type="checkbox"
-                      id={`ward-${ward.wardId}`}
-                      checked={formData.approveWardIds?.includes(ward.wardId) || false}
+                      id={`ward-${ward.id}`}
+                      checked={formData.approveWardIds?.includes(ward.id) || false}
                       onChange={(e) => {
                         const newSelection = e.target.checked
-                          ? [...(formData.approveWardIds || []), ward.wardId]
-                          : (formData.approveWardIds || []).filter(id => id !== ward.wardId);
+                          ? [...(formData.approveWardIds || []), ward.id]
+                          : (formData.approveWardIds || []).filter(id => id !== ward.id);
                         handleWardSelection(newSelection);
                       }}
                       className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <label htmlFor={`ward-${ward.wardId}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-200">
-                      {ward.wardName}
+                    <label htmlFor={`ward-${ward.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-200">
+                      {ward.name}
                     </label>
                   </div>
                 ))}

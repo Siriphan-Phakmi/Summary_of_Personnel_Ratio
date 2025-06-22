@@ -33,11 +33,58 @@ const CreateUserForm = () => {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.username) newErrors.username = 'Username is required.';
-    if (!formData.password) newErrors.password = 'Password is required.';
-    if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters.';
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match.';
+    
+    // Username validation
+    if (!formData.username) {
+      newErrors.username = 'Username is required.';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters long.';
+    } else if (formData.username.length > 50) {
+      newErrors.username = 'Username must not exceed 50 characters.';
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, underscores, and hyphens.';
+    }
+    
+    // Password validation (enterprise-grade)
+    if (!formData.password) {
+      newErrors.password = 'Password is required.';
+    } else {
+      const passwordErrors = [];
+      if (formData.password.length < 8) {
+        passwordErrors.push('at least 8 characters long');
+      }
+      if (!/[A-Z]/.test(formData.password)) {
+        passwordErrors.push('at least one uppercase letter');
+      }
+      if (!/[a-z]/.test(formData.password)) {
+        passwordErrors.push('at least one lowercase letter');
+      }
+      if (!/\d/.test(formData.password)) {
+        passwordErrors.push('at least one number');
+      }
+      if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+        passwordErrors.push('at least one special character');
+      }
+      
+      if (passwordErrors.length > 0) {
+        newErrors.password = `Password must contain: ${passwordErrors.join(', ')}.`;
+      }
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match.';
+    }
+    
     if (!formData.role) newErrors.role = 'Role is required.';
+    
+    // Name validation
+    if (formData.firstName && formData.firstName.length > 100) {
+      newErrors.firstName = 'First name must not exceed 100 characters.';
+    }
+    
+    if (formData.lastName && formData.lastName.length > 100) {
+      newErrors.lastName = 'Last name must not exceed 100 characters.';
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
