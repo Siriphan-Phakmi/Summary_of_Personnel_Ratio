@@ -56,7 +56,7 @@ const UserManagementComponent = () => {
             Create, view, and manage user accounts in the system.
             </p>
         </div>
-        <Button onClick={() => setCreateFormVisible(!isCreateFormVisible)} variant="default">
+        <Button onClick={() => setCreateFormVisible(!isCreateFormVisible)} variant="primary">
             {isCreateFormVisible ? 'Hide Form' : 'Add New User'}
         </Button>
       </header>

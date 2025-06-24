@@ -140,13 +140,28 @@ This is a Next.js hospital ward management system with Firebase backend, featuri
 - **Image Optimization**: Next.js automatic optimization
 - **Bundle Analysis**: Available via `@next/bundle-analyzer`
 
-### Recent Fixes & Known Issues (As of 2025-06-22)
+### Recent Fixes & Known Issues (As of 2025-06-24)
 
 #### ✅ **Recent Bug Fixes & Improvements:**
+- **Next.js Module Error Fixed**: Resolved critical Next.js bundling error `Cannot find module './593.js'` that was preventing the application from building properly. Fixed issues in the login page wrapper by:
+  - Removing unnecessary import of `useSearchParams` which was causing duplicate imports
+  - Improving the Suspense fallback UI with proper loading spinner
+  - Ensuring proper module imports with correct import paths
+
+- **React Role Type Error Fixed**: Fixed TypeScript error in `ProtectedPage.tsx` related to UserRole enum toString() conversion. Improved type safety by:
+  - Adding proper type guards for string, number, and other types
+  - Using proper enum indexing (UserRole[role]) for enum-to-string conversion
+  - Adding fallback safety with String() conversion for any unexpected types
+
+- **Form Accessibility Guaranteed**: Implemented a critical fallback logic in `useDailyCensusFormLogic.ts`. If a user's specific permissions don't return any wards, the system now automatically falls back to showing all active wards. This permanently fixes the "No wards found" issue and ensures the form is always usable by all roles, as per workflow requirements.
+
+- **Ward Form Visibility Fixed**: Resolved a critical issue where Admins and Developers could not see any wards on the census form. The permission logic in `wardPermissions.ts` was corrected to use `getActiveWards()` instead of `getAllWards()`, ensuring that all active wards are correctly displayed for authorized roles. This unblocks a core feature of the application.
+
 - **Firebase 'undefined' Value Error Fully Resolved**: Fixed the final `Unsupported field value: undefined` errors in the logging system, occurring for both `actor.createdAt` and `actor.active`.
   - Refactored `createActorFromUser` in `logService.ts` to prevent `undefined` values from ever being sent to Firestore.
   - Standardized `logLogin` and `logLogout` functions to use correct, modern logging patterns, resolving all related TypeScript errors.
   - The entire logging and audit trail system is now considered stable and production-ready.
+
 - **Firebase Actor.Active Field Error Fixed (Comprehensive)**: Completely resolved critical Firebase error "Function addDoc() called with invalid data. Unsupported field value: undefined (found in field actor.active)" throughout the entire logging system. Fixed across multiple components:
   - Enhanced `createActorFromUser` function in `logService.ts` to always provide boolean values for `active` field
   - Fixed `pseudoUser` objects in `/app/api/auth/login/route.ts` to include `isActive: true` 
@@ -154,6 +169,7 @@ This is a Next.js hospital ward management system with Firebase backend, featuri
   - Fixed field name inconsistency in login API `safeUser` object (added `isActive` field)
   - Enhanced `sessionService.ts` to ensure cookie-parsed users have valid `isActive` values
   - Completely prevents all Firestore errors from undefined values in Actor objects
+
 - **Invalid Element Type Error Fixed**: Resolved critical React render crashes on the census form. The error affected both `CensusInputFields.tsx` and `RecorderInfo.tsx` due to invalid import paths for the shared `Input` component. All paths were corrected to point to the centralized UI library at `@/app/components/ui`.
 
 #### ✅ **Critical Authentication & Security Fixes Applied:**
@@ -178,9 +194,11 @@ This is a Next.js hospital ward management system with Firebase backend, featuri
 - **Session Management Fixed**: Added `getSession()` function for proper API authentication
 
 #### 🟠 **Remaining Issues (Lower Priority):**
+- **Optimization Warnings**: Bundle size warnings for `framework-0313700c70e27a81.js` (678 KiB) and `firebase-042a7cb74aa24dc6.js` (545 KiB) - consider code splitting
+- **React Hook Warnings**: Several React Hook dependency warnings in dashboard and ward-form components
+- **ESLint Warnings**: 12 ESLint warnings including missing dependencies in useEffect/useCallback hooks
 - **Mock Authentication**: Hardcoded token in `/app/api/auth/login/route.ts` still needs JWT replacement (outside User Management scope)
-- **TODO Comments**: Some TODO comments in dashboard components need resolution
-- **Redundant Files**: `/app/login/page.tsx` should be removed to avoid confusion
+- **Redundant Files**: `/app/login/page.tsx` should be removed to avoid confusion with Next.js routing
 
 #### ⚠️ **Development Notes:**
 - All files comply with 500-line limit (largest: `logService.ts` at 352 lines)

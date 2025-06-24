@@ -15,19 +15,30 @@ type InputFieldConfig = {
 };
 
 const admissionDischargeFields: InputFieldConfig[] = [
-  { name: 'admitted', labelKey: 'admitted', defaultLabel: 'Admitted (รับใหม่/รับส่งต่อ)' },
+  { name: 'admitted', labelKey: 'admitted', defaultLabel: 'Admitted (รับใหม่)' },
   { name: 'transferredIn', labelKey: 'transferredIn', defaultLabel: 'Transferred In (ย้ายเข้า)' },
+  { name: 'referIn', labelKey: 'referIn', defaultLabel: 'Refer In (รับส่งต่อ)' },
   { name: 'discharged', labelKey: 'discharged', defaultLabel: 'Discharged (จำหน่าย)' },
   { name: 'transferredOut', labelKey: 'transferredOut', defaultLabel: 'Transferred Out (ย้ายออก)' },
+  { name: 'referOut', labelKey: 'referOut', defaultLabel: 'Refer Out (ส่งต่อ)' },
   { name: 'deaths', labelKey: 'deaths', defaultLabel: 'Deaths (เสียชีวิต)' },
   { name: 'onLeave', labelKey: 'onLeave', defaultLabel: 'On Leave (ลา)' },
   { name: 'absconded', labelKey: 'absconded', defaultLabel: 'Absconded (หนี)' },
+];
+
+const nurseStaffingFields: InputFieldConfig[] = [
+  { name: 'nurseManager', labelKey: 'nurseManager', defaultLabel: 'Nurse Manager (หัวหน้าเวร)' },
+  { name: 'rn', labelKey: 'rn', defaultLabel: 'RN (พยาบาลวิชาชีพ)' },
+  { name: 'pn', labelKey: 'pn', defaultLabel: 'PN (พยาบาลเทคนิค)' },
+  { name: 'wc', labelKey: 'wc', defaultLabel: 'WC (ผู้ช่วยเหลือคนไข้)' },
 ];
 
 const bedStatusFields: InputFieldConfig[] = [
   { name: 'totalBeds', labelKey: 'totalBeds', defaultLabel: 'Total Beds (เตียงทั้งหมด)' },
   { name: 'occupiedBeds', labelKey: 'occupiedBeds', defaultLabel: 'Occupied Beds (เตียงที่มีผู้ป่วย)' },
   { name: 'availableBeds', labelKey: 'availableBeds', defaultLabel: 'Available Beds (เตียงว่าง)' },
+  { name: 'unavailableBeds', labelKey: 'unavailableBeds', defaultLabel: 'Unavailable Beds (เตียงงดรับ)' },
+  { name: 'plannedDischarge', labelKey: 'plannedDischarge', defaultLabel: 'Planned Discharge (เตียงวางแผนจำหน่าย)' },
   { name: 'specialCareBeds', labelKey: 'specialCareBeds', defaultLabel: 'Special Care Beds (เตียงดูแลพิเศษ)' },
   { name: 'isolationBeds', labelKey: 'isolationBeds', defaultLabel: 'Isolation Beds (เตียงแยกโรค)' },
 ];
@@ -151,12 +162,17 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{sections.admissionsDischarges || 'Admissions / Discharges'}</h4>
+        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{sections.admissionsDischarges || 'Patient Movement (การรับ-จำหน่ายผู้ป่วย)'}</h4>
         <InputSection fields={admissionDischargeFields} createInputProps={createInputProps} labels={labels} />
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{sections.bedStatus || 'Bed Status'}</h4>
+        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{sections.nurseStaffing || 'Nurse Staffing (ข้อมูลเจ้าหน้าที่)'}</h4>
+        <InputSection fields={nurseStaffingFields} createInputProps={createInputProps} labels={labels} />
+      </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">{sections.bedStatus || 'Bed Status (ข้อมูลเตียง)'}</h4>
         <InputSection fields={bedStatusFields} createInputProps={createInputProps} labels={labels} />
       </div>
 
@@ -168,7 +184,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           id="comment"
           name="comment"
           rows={3}
-          value={(formData as any).comment ?? ''}
+          value={formData.comment ?? ''}
           onChange={handleChange}
           onBlur={handleBlur}
           readOnly={isReadOnly}

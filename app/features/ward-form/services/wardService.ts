@@ -7,13 +7,15 @@ export {
   getActiveWards,
   getWardById,
   getWardByCode,
-  getWardsByIds
+  getWardsByIds,
+  findWardBySimilarCode
 } from './ward-modules/wardQueries';
 
 // Export permission functions
 export {
   getWardsByUserPermission,
-  getDeveloperWards
+  getDeveloperWards,
+  getUserAccessibleWards
 } from './ward-modules/wardPermissions';
     
 // Export mutation functions

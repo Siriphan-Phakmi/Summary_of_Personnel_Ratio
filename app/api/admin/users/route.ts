@@ -113,7 +113,6 @@ export async function POST(req: NextRequest) {
         createdAt: new Date(), // Placeholder, will be replaced by serverTimestamp
         updatedAt: new Date(), // Placeholder, will be replaced by serverTimestamp
         lastLogin: null,
-        lastActive: null,
     };
 
     await setDoc(newUserRef, {

@@ -1,7 +1,25 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getDatabase } from 'firebase/database';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getDatabase, Database } from 'firebase/database';
+
+// Validate Firebase configuration
+const requiredEnvVars = [
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  'NEXT_PUBLIC_FIREBASE_DATABASE_URL'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing Firebase environment variables:', missingEnvVars);
+  throw new Error(`Missing Firebase configuration: ${missingEnvVars.join(', ')}`);
+}
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,10 +31,24 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-const rtdb = getDatabase(app);
+// Initialize Firebase with error handling
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let rtdb: Database;
+
+try {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+  rtdb = getDatabase(app);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Firebase initialized successfully');
+  }
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+  throw new Error('Failed to initialize Firebase');
+}
 
 export { app, auth, db, rtdb }; 

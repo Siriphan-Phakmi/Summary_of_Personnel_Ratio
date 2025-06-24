@@ -32,12 +32,25 @@ const ProtectedPage: React.FC<ProtectedPageProps> = ({ children, requiredRole })
     if (requiredRole) {
       // Convert UserRole enums to strings for checkRole function
       let roleStrings: string | string[];
+      
       if (Array.isArray(requiredRole)) {
-        roleStrings = requiredRole.map(role => 
-          typeof role === 'string' ? role : role.toString()
-        );
+        roleStrings = requiredRole.map(role => {
+          if (typeof role === 'string') {
+            return role;
+          } else if (typeof role === 'number') {
+            return UserRole[role]; // Convert enum value to string using indexing
+          } else {
+            return String(role); // Fallback
+          }
+        });
       } else {
-        roleStrings = typeof requiredRole === 'string' ? requiredRole : requiredRole.toString();
+        if (typeof requiredRole === 'string') {
+          roleStrings = requiredRole;
+        } else if (typeof requiredRole === 'number') {
+          roleStrings = UserRole[requiredRole]; // Convert enum value to string using indexing
+        } else {
+          roleStrings = String(requiredRole); // Fallback
+        }
       }
       
       if (!checkRole(roleStrings)) {

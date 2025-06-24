@@ -23,4 +23,6 @@ export interface User {
   lastLogin?: any; // Timestamp or Date
   createdAt?: any; // Timestamp or Date
   updatedAt?: any; // Timestamp or Date - เพิ่มฟิลด์วันที่แก้ไข
+  password?: string; // For admin operations only, not stored in Firestore
+  floor?: string; // Missing property referenced in dashboard components
 }

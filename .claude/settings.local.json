@@ -21,7 +21,9 @@
       "Bash(npm install:*)",
       "Bash(rg:*)",
       "Bash(pkill:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(cat:*)",
+      "Bash(npm ls:*)"
     ],
     "deny": []
   }

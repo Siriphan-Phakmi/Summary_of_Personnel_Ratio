@@ -2,7 +2,7 @@ import { doc, getDoc, collection, getDocs, query, limit, where, getFirestore, do
 import { db } from '@/app/lib/firebase/firebase';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
-import { getAllWards, getWardsByIds, findWardBySimilarCode } from './wardQueries';
+import { getActiveWards, getWardsByIds, findWardBySimilarCode } from './wardQueries';
 
 /**
  * ดึงข้อมูลแผนกตามสิทธิ์ของผู้ใช้
@@ -13,15 +13,18 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
   try {
     // กรณีไม่มีผู้ใช้ หรือผู้ใช้ไม่มีสิทธิ์
     if (!user || !user.uid) {
+      console.log('[WardPermissions] No user or uid provided');
       return [];
     }
+    
+    console.log(`[WardPermissions] Getting wards for user: ${user.username}, role: ${user.role}`);
     
     // ถ้าเป็นผู้ดูแลระบบ, developer หรือผู้ดูแลระบบสูงสุด สามารถเข้าถึงทุกแผนกได้
     if (
       user.role === UserRole.ADMIN || 
       user.role === UserRole.DEVELOPER
     ) {
-      return getAllWards();
+      return getActiveWards();
     }
     
     // ถ้าเป็นผู้อนุมัติ ดึงเฉพาะแผนกที่มีสิทธิ์อนุมัติ
@@ -51,7 +54,7 @@ export const getWardsByUserPermission = async (user: User): Promise<Ward[]> => {
  */
 const getUserAssignedWard = async (user: User): Promise<Ward[]> => {
   try {
-    const { assignedWardId, ward: userWard, username } = user;
+    const { assignedWardId, username } = user;
 
     // 1. Prioritize assignedWardId (which can be an array or a string)
     if (assignedWardId) {
@@ -68,16 +71,9 @@ const getUserAssignedWard = async (user: User): Promise<Ward[]> => {
         return foundWard ? [foundWard] : [];
       }
     }
-
-    // 2. Fallback to the 'ward' field if assignedWardId is not present or is in an invalid format
-    if (typeof userWard === 'string' && userWard.trim()) {
-      console.log(`[WardPermissions] Falling back to 'ward' field for user '${username}'. Finding by similar code: "${userWard}"`);
-      const foundWard = await findWardBySimilarCode(userWard);
-      return foundWard ? [foundWard] : [];
-    }
     
-    // 3. If no valid assignment is found in either field
-    console.warn(`[WardPermissions] Could not determine a valid ward for user '${username}' from 'assignedWardId' or 'ward' fields. Returning empty array.`);
+    // 2. If no valid assignment is found
+    console.warn(`[WardPermissions] Could not determine a valid ward for user '${username}' from 'assignedWardId'. Returning empty array.`);
     return [];
 
   } catch (error) {
@@ -93,7 +89,7 @@ const getUserAssignedWard = async (user: User): Promise<Ward[]> => {
  */
 export const getDeveloperWards = async (): Promise<Ward[]> => {
   try {
-    const wards = await getAllWards();
+    const wards = await getActiveWards();
     
     // เพิ่มข้อมูลสถิติเพิ่มเติมสำหรับการพัฒนา
     const enhancedWards = await Promise.all(
@@ -153,7 +149,7 @@ export const getDeveloperWards = async (): Promise<Ward[]> => {
  */
 export const getUserAccessibleWards = async (user: User): Promise<Ward[]> => {
   try {
-    let allWards = await getAllWards();
+    let allWards = await getActiveWards();
     
     // Filter out inactive wards first
     allWards = allWards.filter(ward => ward.isActive === true);

@@ -26,18 +26,18 @@ export default function DailyCensusForm() {
         
   // Main form logic
   const {
-    currentUser,
+    user: currentUser,
     wards,
     selectedWard,
     selectedDate,
     selectedWardObject,
-    selectedBusinessWardId,
-    actualMorningStatus,
-    actualNightStatus,
-    reloadDataTrigger,
-    setReloadDataTrigger,
+    isDataLoading,
+    dataError,
+    morningShiftStatus: actualMorningStatus,
+    nightShiftStatus: actualNightStatus,
     handleDateChange,
     handleWardChange,
+    handleReload,
     isSingleWardUser,
   } = useDailyCensusFormLogic();
 
@@ -45,10 +45,10 @@ export default function DailyCensusForm() {
   const {
     formData,
     errors,
-    isLoading: isDataLoading,
+    isLoading: isFormDataLoading,
     isSaving,
     isFormReadOnly,
-    error: dataError,
+    error: formDataError,
     isFormDirty,
     handleChange,
     handleBlur,
@@ -61,11 +61,9 @@ export default function DailyCensusForm() {
     proceedWithSaveAfterZeroConfirmation,
   } = useWardFormData({
       selectedWard,
-      selectedBusinessWardId,
       selectedDate,
       selectedShift,
       user: currentUser,
-    reloadDataTrigger,
   });
 
   // Determine button disabled state
@@ -76,7 +74,10 @@ export default function DailyCensusForm() {
   const isFormValid = !!(Object.keys(errors).length === 0 && selectedWard && selectedDate);
     
   // Combined loading and error states
-  const isLoading = isDataLoading || !currentUser || configLoading;
+  const isLoading = isDataLoading || isFormDataLoading || !currentUser || configLoading;
+  
+  // Combined error state
+  const combinedError = dataError || formDataError;
 
   if (isLoading) {
     return (
@@ -157,7 +158,7 @@ export default function DailyCensusForm() {
       ) : (
         <FormLoadingSection 
           isDataLoading={false} 
-          dataError={dataError} 
+          dataError={combinedError} 
           wards={wards} 
           selectedWard={selectedWard} 
         />

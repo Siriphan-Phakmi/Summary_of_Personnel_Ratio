@@ -72,14 +72,24 @@ export interface WardForm {
   discharged: number;
   transferredIn: number;
   transferredOut: number;
+  referIn?: number;
+  referOut?: number;
   deaths: number;
   onLeave: number;
   absconded: number;
+  
+  // Nurse Staffing
+  nurseManager?: number;
+  rn?: number; // Registered Nurse
+  pn?: number; // Practical Nurse
+  wc?: number; // Ward Clerk / Aide
   
   // Bed data
   totalBeds: number;
   availableBeds: number;
   occupiedBeds: number;
+  unavailableBeds?: number;
+  plannedDischarge?: number;
   
   // Specific bed types
   specialCareBeds?: number;
@@ -106,6 +116,9 @@ export interface WardForm {
   rejectionReason?: string;
   rejectedAt?: Timestamp;
   rejectedBy?: string;
+
+  // General Comment
+  comment?: string;
 
   // Summary
   dailySummaryId?: string;
