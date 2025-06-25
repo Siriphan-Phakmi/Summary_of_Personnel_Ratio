@@ -5,16 +5,18 @@ import { User, UserRole } from '@/app/features/auth/types/user';
 import { formatDateSafely } from '@/app/lib/utils/dateUtils';
 import { Badge } from '@/app/components/ui/Badge';
 import { Button } from '@/app/components/ui/Button';
-import { Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ToggleSwitch } from '@/app/components/ui';
+import { Edit, Trash2 } from 'lucide-react';
 
 interface UserListProps {
   users: User[];
   onEdit: (user: User) => void;
   onDelete: (uid: string) => void;
   onToggleStatus: (uid: string, currentStatus: boolean) => void;
+  loading?: boolean;
 }
 
-const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleStatus }) => {
+const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleStatus, loading = false }) => {
 
   const getRoleBadgeVariant = (role: UserRole): "default" | "secondary" | "destructive" | "outline" | "info" | "success" | "warning" => {
     switch (role) {
@@ -41,7 +43,7 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleSt
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {users.map((user) => (
-            <tr key={user.uid} className="hover:bg-gray-100 dark:hover:bg-gray-700/50">
+            <tr key={user.uid} className="transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-semibold text-gray-900 dark:text-white">{`${user.firstName || ''} ${user.lastName || ''}`.trim()}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{user.username}</div>
@@ -50,23 +52,31 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleSt
                 <Badge variant={getRoleBadgeVariant(user.role)}>{user.role}</Badge>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                <Badge variant={(user.isActive || false) ? 'default' : 'destructive'}>
                   {user.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.createdAt)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.updatedAt)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                 <div className="flex items-center justify-end space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => {
-                      const action = user.isActive ? 'deactivate' : 'activate';
-                      if (confirm(`Are you sure you want to ${action} this user?`)) {
-                        onToggleStatus(user.uid, user.isActive === true)
-                      }
-                    }}>
-                        {user.isActive ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
-                        <span className="sr-only">Toggle Status</span>
-                    </Button>
+                 <div className="flex items-center justify-end space-x-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                      <ToggleSwitch
+                        checked={user.isActive || false}
+                        onChange={(newChecked) => {
+                          const action = newChecked ? 'activate' : 'deactivate';
+                          if (confirm(`Are you sure you want to ${action} this user?`)) {
+                            onToggleStatus(user.uid, user.isActive || false);
+                          }
+                        }}
+                        loading={loading}
+                        size="sm"
+                        aria-label={`Toggle user status for ${user.username}`}
+                      />
+                    </div>
                     <Button variant="outline" size="sm" onClick={() => onEdit(user)}>
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit</span>

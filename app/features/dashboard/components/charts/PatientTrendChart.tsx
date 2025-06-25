@@ -4,8 +4,7 @@ import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { useTheme } from 'next-themes';
-import { PatientTrendChartProps } from './types/chart-types';
-import { TrendData } from './types/index';
+import { PatientTrendChartProps } from '../types/chart-types';
 
 const WARD_COLORS = [
   '#3b82f6', // blue

@@ -13,7 +13,7 @@ import EditUserModal from '@/app/features/admin/components/EditUserModal';
 
 // Main component for User Management
 const UserManagementComponent = () => {
-  const { users, wards, loading, error, updateUser, deleteUser, toggleUserStatus } = useUserManagement();
+  const { users, wards, loading, error, updateUser, deleteUser, toggleUserStatus, refreshUsers } = useUserManagement();
   const [isCreateFormVisible, setCreateFormVisible] = useState(false);
   
   // State for the edit modal
@@ -21,7 +21,14 @@ const UserManagementComponent = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const handleToggleStatus = async (uid: string, currentStatus: boolean) => {
-    await toggleUserStatus(uid, !currentStatus);
+    const success = await toggleUserStatus(uid, currentStatus);
+    if (success) {
+      // วิธีที่ 1: Page Reload (ได้ข้อมูล fresh 100%)
+      window.location.reload();
+      
+      // วิธีที่ 2: Smooth Refresh (ไม่ reload ทั้งหน้า - uncomment บรรทัดล่างถ้าต้องการ)
+      // await refreshUsers();
+    }
   };
   
   const handleDelete = async (uid: string) => {
@@ -74,6 +81,7 @@ const UserManagementComponent = () => {
               onEdit={handleEditClick} 
               onDelete={handleDelete}
               onToggleStatus={handleToggleStatus}
+              loading={loading}
             />
           )}
         </div>

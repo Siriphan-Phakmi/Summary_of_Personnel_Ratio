@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import CalendarWithEvents, { Event } from '../CalendarWithEvents';
 import { useTheme } from 'next-themes';
-import { CalendarMarker } from '../types';
+import { CalendarMarker } from '../../services/calendarService';
 
 interface DashboardCalendarProps {
   selectedDate: Date;

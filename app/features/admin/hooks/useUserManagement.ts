@@ -175,6 +175,20 @@ export const useUserManagement = () => {
     }
   };
 
+  const refreshUsers = async () => {
+    try {
+      setLoading(true);
+      const usersData = await getAllUsers();
+      setUsers(usersData);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to refresh users.';
+      setError(message);
+      showErrorToast(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     users,
     wards,
@@ -184,5 +198,6 @@ export const useUserManagement = () => {
     updateUser,
     deleteUser,
     toggleUserStatus,
+    refreshUsers,
   };
 }; 
