@@ -12,7 +12,7 @@ interface LogFilterControlsProps {
     limitCount: number;
   };
   setters: {
-    setLogCollection: (value: string) => void;
+    handleLogCollectionChange: (value: string) => void;
     setLogType: (value: string) => void;
     setDateRange: (value: string) => void;
     setUsername: (value: string) => void;
@@ -33,10 +33,10 @@ export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, s
             id="logCollection"
             className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             value={filters.logCollection}
-            onChange={(e) => setters.setLogCollection(e.target.value)}
+            onChange={(e) => setters.handleLogCollectionChange(e.target.value)}
           >
             <option value={SYSTEM_LOGS_COLLECTION}>System Logs</option>
-            <option value={USER_ACTIVITY_LOGS_COLLECTION}>User Activity Logs</option>
+            <option value={USER_ACTIVITY_LOGS_COLLECTION}>User Management Logs</option>
           </select>
         </div>
         

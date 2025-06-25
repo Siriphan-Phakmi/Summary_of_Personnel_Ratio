@@ -21,6 +21,14 @@ export const useLogViewer = () => {
   const [dateRange, setDateRange] = useState<string>('7');
   const [limitCount, setLimitCount] = useState<number>(50);
 
+  const handleLogCollectionChange = (collection: string) => {
+    setLogCollection(collection);
+    setLogType('all');
+    setUsername('');
+    setDateRange('7');
+    setLimitCount(50);
+  };
+
   const fetchLogs = useCallback(async () => {
     if (!user) return;
 
@@ -111,6 +119,7 @@ export const useLogViewer = () => {
     },
     setters: {
       setLogCollection,
+      handleLogCollectionChange,
       setLogType,
       setUsername,
       setDateRange,
