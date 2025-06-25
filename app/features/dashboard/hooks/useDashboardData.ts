@@ -9,7 +9,7 @@ import {
   fetchTotalStats,
   fetchAllWardSummaryData
 } from '../services';
-import { WardSummaryData, WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
+import { WardSummaryDataWithShifts, WardFormSummary, ShiftSummaryData } from '../components/types/interface-types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
 import { Logger } from '@/app/lib/utils/logger';
 // Import helper functions
@@ -118,27 +118,27 @@ export const useDashboardData = (
     try {
       const results = await createTableDataFromWards(wards, selectedDate, user);
       
+      const zeroShiftData: ShiftSummaryData = {
+        patientCensus: 0,
+        admitted: 0,
+        discharged: 0,
+        transferredIn: 0,
+        transferredOut: 0,
+        deaths: 0,
+      };
+
       // เพิ่ม Grand Total
       const grandTotal: WardSummaryDataWithShifts = {
-        id: 'GRAND_TOTAL',
+        wardId: 'GRAND_TOTAL',
         wardName: 'Total All',
-        morningShift: undefined, // Grand total doesn't have shift-specific data
-        nightShift: undefined,
+        morningShiftData: zeroShiftData,
+        nightShiftData: zeroShiftData,
         totalData: results.reduce((acc, ward) => {
-          (Object.keys(acc) as Array<keyof WardFormSummary>).forEach(key => {
+          (Object.keys(acc) as Array<keyof ShiftSummaryData>).forEach(key => {
             acc[key] = (acc[key] || 0) + (ward.totalData[key] || 0);
           });
           return acc;
-        }, {
-          patientCensus: 0,
-          admitted: 0,
-          discharged: 0,
-          transferredIn: 0,
-          transferredOut: 0,
-          deaths: 0,
-          availableBeds: 0,
-          occupiedBeds: 0,
-        } as WardFormSummary)
+        }, { ...zeroShiftData })
       };
       
       setTableData([...results, grandTotal]);

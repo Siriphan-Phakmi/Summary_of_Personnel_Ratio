@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
 
     if (!userSnap.exists()) {
       // ใช้เวลาตอบสนองเท่าเดิมเพื่อป้องกันการเดา username (Timing Attack)
-      await bcrypt.hash(password, 10); // Dummy hash calculation
+      const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12');
+      await bcrypt.hash(password, saltRounds); // Dummy hash calculation with env-configurable rounds
       
       // Log failed login attempt
       const pseudoUser: User = { uid: username, username, role: UserRole.NURSE, isActive: true };
@@ -87,8 +88,9 @@ export async function POST(req: NextRequest) {
     // Successful login, log before returning response
     await logAuthEvent(userForLog, 'LOGIN', 'SUCCESS', req);
 
-    // ตั้งค่าเวลาหมดอายุของ Cookie (3 ชั่วโมง)
-    const threeHours = 3 * 60 * 60;
+    // ตั้งค่าเวลาหมดอายุของ Cookie (configurable via environment)
+    const sessionTimeoutHours = parseInt(process.env.SESSION_TIMEOUT_HOURS || '3');
+    const sessionTimeoutSeconds = sessionTimeoutHours * 60 * 60;
 
     // สร้าง user object ที่ปลอดภัย ไม่ส่งรหัสผ่านกลับ
     const safeUser = {
@@ -115,11 +117,11 @@ export async function POST(req: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production', // ใช้ secure cookie ใน production
       sameSite: 'lax', // ป้องกัน CSRF
-      maxAge: threeHours,
+      maxAge: sessionTimeoutSeconds,
       path: '/',
     });
     response.cookies.set('user_data', encodeURIComponent(JSON.stringify(safeUser)), {
-      maxAge: threeHours,
+      maxAge: sessionTimeoutSeconds,
       path: '/',
     });
 

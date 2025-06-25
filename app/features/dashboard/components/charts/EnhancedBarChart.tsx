@@ -14,21 +14,7 @@ import {
   LabelList
 } from 'recharts';
 import { useTheme } from 'next-themes';
-
-interface DataItem {
-  id: string;
-  wardName: string;
-  patientCount: number;
-  morningPatientCount?: number;
-  nightPatientCount?: number;
-}
-
-interface EnhancedBarChartProps {
-  data: DataItem[];
-  selectedWardId?: string;
-  onSelectWard?: (wardId: string) => void;
-  showShiftData?: boolean;
-}
+import { EnhancedBarChartProps } from '../types/chart-types';
 
 // ฟังก์ชันช่วยจัดรูปแบบตัวเลขให้เป็นจำนวนเต็ม
 const integerFormatter = (value: number) => Math.round(value).toString();
@@ -56,12 +42,11 @@ const colors = {
 };
 
 // กำหนดความสูงที่เหมาะสมตามจำนวนข้อมูล
-const getOptimalHeight = (data: DataItem[]) => {
-  // ต้องแสดงทุกแผนก (12 แผนก) ให้มีความสูงเพียงพอ
-  const itemHeight = 40; // ความสูงต่อ 1 แท่งข้อมูล
-  const minHeight = 300; // ความสูงขั้นต่ำ
-  const maxHeight = 720; // ความสูงสูงสุด
-  const baseHeight = 100; // ความสูงพื้นฐาน (สำหรับ legend, margin, ฯลฯ)
+const getOptimalHeight = (data: EnhancedBarChartProps['data']) => {
+  const itemHeight = 40; 
+  const minHeight = 300;
+  const maxHeight = 720;
+  const baseHeight = 100;
   
   const calculatedHeight = baseHeight + (data.length * itemHeight);
   return Math.max(minHeight, Math.min(maxHeight, calculatedHeight));
@@ -76,18 +61,14 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
   
-  // แปลงข้อมูลสำหรับแสดงในกราฟแท่ง
   const chartData = useMemo(() => {
-    // เพิ่มข้อมูลทุกแผนก
-    return data.map(item => ({
+    return data.map((item: EnhancedBarChartProps['data'][0]) => ({
       ...item,
-      // ถ้าไม่มีข้อมูลแยกเวร ให้ประมาณการจาก patientCount
       morningPatientCount: item.morningPatientCount !== undefined ? item.morningPatientCount : Math.round(item.patientCount * 0.45),
       nightPatientCount: item.nightPatientCount !== undefined ? item.nightPatientCount : Math.round(item.patientCount * 0.55)
     }));
   }, [data]);
   
-  // แสดงข้อมูลในกราฟแท่ง
   return (
     <>
       <div className="flex items-center justify-center mb-3 space-x-6">
@@ -136,7 +117,6 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
             />
             <Legend />
             
-            {/* แสดงข้อมูลเวรเช้า */}
             <Bar 
               dataKey="morningPatientCount" 
               name="เวรเช้า" 
@@ -145,7 +125,7 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
               animationDuration={300}
               onClick={(data) => onSelectWard(data.id)}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((entry, index: number) => (
                 <Cell 
                   key={`cell-morning-${index}`}
                   fill={selectedWardId === entry.id ? 
@@ -164,7 +144,6 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
               />
             </Bar>
             
-            {/* แสดงข้อมูลเวรดึก */}
             <Bar 
               dataKey="nightPatientCount" 
               name="เวรดึก" 
@@ -173,7 +152,7 @@ const EnhancedBarChart: React.FC<EnhancedBarChartProps> = ({
               animationDuration={300}
               onClick={(data) => onSelectWard(data.id)}
             >
-              {chartData.map((entry, index) => (
+              {chartData.map((entry, index: number) => (
                 <Cell 
                   key={`cell-night-${index}`}
                   fill={selectedWardId === entry.id ? 

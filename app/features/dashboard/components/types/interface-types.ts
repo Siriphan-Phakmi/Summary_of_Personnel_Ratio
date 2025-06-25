@@ -56,4 +56,18 @@ export interface WardSummaryDataWithShifts {
   morningShiftData: ShiftSummaryData;
   nightShiftData: ShiftSummaryData;
   totalData: ShiftSummaryData;
+}
+
+/**
+ * Ward form summary data with bed information
+ */
+export interface WardFormSummary {
+  patientCensus: number;
+  admitted: number;
+  transferredIn: number;
+  discharged: number;
+  transferredOut: number;
+  deaths: number;
+  availableBeds: number;
+  occupiedBeds: number;
 } 

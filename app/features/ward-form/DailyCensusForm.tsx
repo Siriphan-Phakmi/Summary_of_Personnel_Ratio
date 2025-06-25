@@ -61,9 +61,11 @@ export default function DailyCensusForm() {
     proceedWithSaveAfterZeroConfirmation,
   } = useWardFormData({
       selectedWard,
+      selectedBusinessWardId: selectedWardObject?.wardCode || '',
       selectedDate,
       selectedShift,
       user: currentUser,
+      reloadDataTrigger: 0, // Default value for reload trigger
   });
 
   // Determine button disabled state

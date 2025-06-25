@@ -3,7 +3,7 @@
 import { Ward, WardForm, ShiftType } from '@/app/features/ward-form/types/ward';
 import { User, UserRole } from '@/app/features/auth/types/user';
 import { format } from 'date-fns';
-import { WardSummaryDataWithShifts, WardFormSummary } from '../components/types';
+import { WardSummaryDataWithShifts, WardFormSummary, ShiftSummaryData } from '../components/types/interface-types';
 import { getDailySummary, getWardFormsByDateAndWard } from '../services';
 import { Logger } from '@/app/lib/utils/logger';
 
@@ -15,10 +15,18 @@ interface TotalStats {
 }
 
 /**
- * แปลงข้อมูลจาก WardForm หรือ DailySummary เป็น WardFormSummary
+ * แปลงข้อมูลจาก WardForm หรือ DailySummary เป็น ShiftSummaryData
+ * Returns a default object with zeros if data is not available.
  */
-const mapToWardFormSummary = (data: any): WardFormSummary | undefined => {
-  if (!data) return undefined;
+const mapToShiftSummaryData = (data: any): ShiftSummaryData => {
+  if (!data) return {
+    patientCensus: 0,
+    admitted: 0,
+    discharged: 0,
+    transferredIn: 0,
+    transferredOut: 0,
+    deaths: 0,
+  };
   
   return {
     patientCensus: data.patientCensus || 0,
@@ -27,8 +35,6 @@ const mapToWardFormSummary = (data: any): WardFormSummary | undefined => {
     transferredIn: data.transferredIn || 0,
     transferredOut: data.transferredOut || 0,
     deaths: data.deaths || 0,
-    availableBeds: data.availableBeds || 0,
-    occupiedBeds: data.occupiedBeds || 0,
   };
 };
 
@@ -61,34 +67,32 @@ export const createTableDataFromWards = async (
           const summaryResult = await getDailySummary(ward.id!, selectedDate);
           
           const morningData = morning || summaryResult.morning;
-          const morningShift = mapToWardFormSummary(morningData);
+          const morningShiftData = mapToShiftSummaryData(morningData);
           
           const nightData = night || summaryResult.night;
-          const nightShift = mapToWardFormSummary(nightData);
+          const nightShiftData = mapToShiftSummaryData(nightData);
           
           return {
-            id: ward.id!,
+            wardId: ward.id!,
             wardName: ward.name,
-            morningShift,
-            nightShift,
+            morningShiftData,
+            nightShiftData,
             totalData: {
-              patientCensus: nightShift?.patientCensus || morningShift?.patientCensus || 0,
-              admitted: (morningShift?.admitted || 0) + (nightShift?.admitted || 0),
-              discharged: (morningShift?.discharged || 0) + (nightShift?.discharged || 0),
-              transferredIn: (morningShift?.transferredIn || 0) + (nightShift?.transferredIn || 0),
-              transferredOut: (morningShift?.transferredOut || 0) + (nightShift?.transferredOut || 0),
-              deaths: (morningShift?.deaths || 0) + (nightShift?.deaths || 0),
-              availableBeds: nightShift?.availableBeds || morningShift?.availableBeds || 0, // Use latest
-              occupiedBeds: nightShift?.occupiedBeds || morningShift?.occupiedBeds || 0, // Use latest
+              patientCensus: nightShiftData.patientCensus || morningShiftData.patientCensus || 0,
+              admitted: (morningShiftData.admitted || 0) + (nightShiftData.admitted || 0),
+              discharged: (morningShiftData.discharged || 0) + (nightShiftData.discharged || 0),
+              transferredIn: (morningShiftData.transferredIn || 0) + (nightShiftData.transferredIn || 0),
+              transferredOut: (morningShiftData.transferredOut || 0) + (nightShiftData.transferredOut || 0),
+              deaths: (morningShiftData.deaths || 0) + (nightShiftData.deaths || 0),
             }
           };
         } catch (error) {
           Logger.error(`[createTableDataFromWards] Error processing ward ${ward.id}:`, error);
           return {
-            id: ward.id!,
+            wardId: ward.id!,
             wardName: ward.name,
-            morningShift: undefined,
-            nightShift: undefined,
+            morningShiftData: { patientCensus: 0, admitted: 0, discharged: 0, transferredIn: 0, transferredOut: 0, deaths: 0 },
+            nightShiftData: { patientCensus: 0, admitted: 0, discharged: 0, transferredIn: 0, transferredOut: 0, deaths: 0 },
             totalData: {
               patientCensus: 0,
               admitted: 0,
@@ -96,8 +100,6 @@ export const createTableDataFromWards = async (
               transferredIn: 0,
               transferredOut: 0,
               deaths: 0,
-              availableBeds: 0,
-              occupiedBeds: 0,
             }
           };
         }
@@ -126,14 +128,14 @@ export const calculateDashboardStats = (summaryData: WardSummaryDataWithShifts[]
   
   summaryData.forEach(wardData => {
     // รวมข้อมูลจากทั้งกะเช้าและกะดึก
-    if (wardData.morningShift) {
-      stats.admit24hr += (wardData.morningShift.admitted || 0) + 
-                       (wardData.morningShift.transferredIn || 0);
+    if (wardData.morningShiftData) {
+      stats.admit24hr += (wardData.morningShiftData.admitted || 0) + 
+                       (wardData.morningShiftData.transferredIn || 0);
     }
     
-    if (wardData.nightShift) {
-      stats.admit24hr += (wardData.nightShift.admitted || 0) + 
-                       (wardData.nightShift.transferredIn || 0);
+    if (wardData.nightShiftData) {
+      stats.admit24hr += (wardData.nightShiftData.admitted || 0) + 
+                       (wardData.nightShiftData.transferredIn || 0);
     }
   });
   

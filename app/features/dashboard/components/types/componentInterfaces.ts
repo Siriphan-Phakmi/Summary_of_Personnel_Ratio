@@ -69,16 +69,16 @@ export interface WardSummaryDashboardProps {
   selectedDate?: string;
 }
 
-// Props สำหรับ PatientTrendChart
-export interface PatientTrendChartProps {
-  data: TrendData[];
-  loading?: boolean;
-  selectedWardId?: string | null;
-  startDate?: string;
-  endDate?: string;
-  onSelectWard?: (wardId: string) => void;
-  handleWardChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-}
+// Props สำหรับ PatientTrendChart (duplicated - use chart-types.ts instead)
+// export interface PatientTrendChartProps {
+//   data: TrendData[];
+//   loading?: boolean;
+//   selectedWardId?: string | null;
+//   startDate?: string;
+//   endDate?: string;
+//   onSelectWard?: (wardId: string) => void;
+//   handleWardChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+// }
 
 // Props สำหรับ WardCensusButtons
 export interface WardCensusButtonsProps {

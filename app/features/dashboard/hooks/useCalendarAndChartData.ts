@@ -1,13 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { format } from 'date-fns';
 import { User } from '@/app/features/auth/types/user';
-import { Ward } from '@/app/features/ward-form/types/ward';
 import { PieChartDataItem } from '../components/types/chart-types';
-import { WardCensusData, CalendarMarker } from '../components/types';
-import { WardCensusMapEntry } from '../components/types/dashboardPageTypes';
-import { calculateBedSummary } from '../utils';
+import { WardCensusData, WardCensusMapEntry } from '../components/types/dashboardPageTypes';
+import { CalendarMarker } from '../services/calendarService';
 import { fetchCalendarMarkers } from '../services';
 import { DASHBOARD_WARDS } from '../utils';
 import { logInfo, logError } from '../utils';
@@ -28,7 +25,6 @@ export interface UseCalendarAndChartDataReturn {
   isLoadingBedCensus: boolean;
   bedCensusError: string | null;
   totalBedData: { available: number; occupied: number; percentage: number };
-  wardsListData: Ward[];
 }
 
 export const useCalendarAndChartData = ({
@@ -51,8 +47,6 @@ export const useCalendarAndChartData = ({
   const [isLoadingBedCensus, setIsLoadingBedCensus] = useState<boolean>(false);
   const [bedCensusError, setBedCensusError] = useState<string | null>(null);
   
-  // Ward list data
-  const [wardsListData, setWardsListData] = useState<Ward[]>([]);
 
   // Total bed data summary
   const [totalBedData, setTotalBedData] = useState<{
@@ -140,10 +134,17 @@ export const useCalendarAndChartData = ({
       
       setBedCensusData(wardData);
       
-      // TODO: The logic for calculating total summary is broken and needs to be reimplemented.
-      // The original calculateBedSummary function expected different arguments.
-      // const totals = calculateBedSummary(wardData);
-      // setTotalBedData(totals);
+      // Calculate total summary from processed ward data
+      const totalOccupied = wardData.reduce((sum, ward) => sum + (ward.occupiedBeds || 0), 0);
+      const totalBeds = wardData.reduce((sum, ward) => sum + (ward.totalBeds || 0), 0);
+      const totalAvailable = totalBeds - totalOccupied;
+      const totalPercentage = totalBeds > 0 ? (totalOccupied / totalBeds) * 100 : 0;
+      
+      setTotalBedData({
+        available: totalAvailable,
+        occupied: totalOccupied,
+        percentage: Math.round(totalPercentage * 100) / 100
+      });
       
     } catch (error) {
       console.error('Error processing bed census data:', error);
@@ -175,8 +176,7 @@ export const useCalendarAndChartData = ({
     bedCensusData,
     isLoadingBedCensus,
     bedCensusError,
-    totalBedData,
-    wardsListData
+    totalBedData
   };
 };
 

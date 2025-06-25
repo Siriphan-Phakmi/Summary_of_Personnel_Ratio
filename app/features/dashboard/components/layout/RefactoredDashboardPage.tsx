@@ -12,30 +12,30 @@ import {
   useTrendData,
   useDailyPatientData,
   useCalendarAndChartData
-} from '../hooks';
+} from '../../hooks';
 
 // Import services
-import { getWardsByUserPermission } from '../services';
+import { getWardsByUserPermission } from '../../services';
 
 // Import utils
-import { logInfo, logError, isRegularUser, adaptArrayToNewWardSummaryFormat } from '../utils';
+import { logInfo, logError, isRegularUser, adaptArrayToNewWardSummaryFormat } from '../../utils';
 
 // Import components
 import DashboardHeader from './DashboardHeader';
 import DashboardCalendar from './DashboardCalendar';
-import WardSummaryDashboard from './WardSummaryDashboard';
-import PatientTrendChart from './PatientTrendChart';
-import WardSummaryTable from './WardSummaryTable';
-import ShiftComparisonPanel from './ShiftComparisonPanel';
+import WardSummaryDashboard from '../ward-summary/WardSummaryDashboard';
+import PatientTrendChart from '../charts/PatientTrendChart';
+import WardSummaryTable from '../ward-summary/WardSummaryTable';
+import ShiftComparisonPanel from '../ShiftComparisonPanel';
 
 // Import types
-import { TrendData } from './types/index';
+import { TrendData } from '../types/index';
 
 // Import sections
-import { StatisticsSummary, ChartSection } from './sections';
+import { StatisticsSummary, ChartSection } from '../sections';
 
 // Import UI components
-import { LoadingScreen, ErrorScreen } from './ui';
+import { LoadingScreen, ErrorScreen } from '../ui';
 
 // A more flexible type for ward filtering
 type WardFilterOption = 'all' | 'my_wards' | string;
@@ -137,11 +137,11 @@ function RefactoredDashboardPage() {
     try {
       logInfo('[loadWards] Fetching wards...');
       setLoading(true);
-      const wardsData = await getWardsByUserPermission(user);
+      const wardsData = await getWardsByUserPermission(user as User);
       if (wardsData && wardsData.length > 0) {
         setWards(wardsData);
-        if (isRegularUser(user) && user.floor) {
-          setSelectedWardId(user.floor);
+        if (isRegularUser(user as User) && (user as User).floor) {
+          setSelectedWardId((user as User).floor);
         }
         logInfo(`[loadWards] Loaded ${wardsData.length} wards`);
       } else {
@@ -226,7 +226,7 @@ function RefactoredDashboardPage() {
           selectedWardId={selectedWardId}
           handleSelectWard={handleSelectWard}
           user={user}
-          isRegularUser={isRegularUser(user)}
+          isRegularUser={isRegularUser(user as User)}
         />
 
         <div ref={shiftComparisonRef} className="mb-8">
@@ -248,10 +248,15 @@ function RefactoredDashboardPage() {
           />
         </div>
 
-        <div ref={patientTrendRef} className="mb-8">
+        <div ref={patientTrendRef}>
           <PatientTrendChart
-            data={filteredTrendChartData as unknown as TrendData[]}
-            loading={trendLoading}
+            chartData={filteredTrendChartData}
+            isLoading={trendLoading}
+            dateRange={effectiveDateRange}
+            onDateRangeChange={(newRange) => {
+              // This is a simplified handler. In a real app, you might want more complex logic.
+              setEffectiveDateRange(newRange);
+            }}
           />
         </div>
       </div>

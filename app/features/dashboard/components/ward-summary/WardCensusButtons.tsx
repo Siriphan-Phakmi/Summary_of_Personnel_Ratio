@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Ward } from '@/app/features/ward-form/types/ward';
+import { Ward } from '../../../ward-form/types/ward';
 
 interface WardCensusButtonsProps {
   wards: Ward[];

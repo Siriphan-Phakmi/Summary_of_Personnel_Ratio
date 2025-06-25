@@ -20,7 +20,7 @@ export const clearAllUserSessions = async (userId: string): Promise<void> => {
 
 export const getSession = async (): Promise<User | null> => {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const authToken = cookieStore.get('auth_token')?.value;
     const userCookie = cookieStore.get('user_data')?.value;
 

@@ -3,8 +3,8 @@
 import React from 'react';
 import { useTheme } from 'next-themes';
 import NoDataMessage from '@/app/features/dashboard/components/NoDataMessage';
-import EnhancedBarChart from '@/app/features/dashboard/components/EnhancedBarChart';
-import BedSummaryPieChart from '@/app/features/dashboard/components/BedSummaryPieChart';
+import EnhancedBarChart from '../charts/EnhancedBarChart';
+import BedSummaryPieChart from '../charts/BedSummaryPieChart';
 import { PieChartDataItem } from '@/app/features/dashboard/components/types/chart-types';
 import { logInfo } from '@/app/features/dashboard/utils';
 

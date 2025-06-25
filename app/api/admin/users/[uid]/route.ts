@@ -14,7 +14,9 @@ import {
 async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
   // Rate limiting check
   const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-  const rateLimitResult = rateLimiter.check(`user-update:${clientIp}`, 10, 15 * 60 * 1000);
+  const maxAttempts = parseInt(process.env.RATE_LIMIT_USER_UPDATE_MAX_ATTEMPTS || '10');
+  const windowMs = parseInt(process.env.RATE_LIMIT_USER_UPDATE_WINDOW_MS || '900000');
+  const rateLimitResult = rateLimiter.check(`user-update:${clientIp}`, maxAttempts, windowMs);
   
   if (!rateLimitResult.success) {
     const response = NextResponse.json(

@@ -4,9 +4,8 @@ import {
   fetchCalendarMarkers
 } from '../services';
 import { logError, calculateBedSummary } from '../utils';
-import { CalendarMarker } from '../components/types';
+import { CalendarMarker } from '../services/calendarService';
 import { PieChartDataItem } from '../components/types/chart-types';
-import { Event } from '../components/CalendarWithEvents';
 import { Ward } from '@/app/features/ward-form/types/ward';
 
 export const useDataFetching = (
@@ -14,7 +13,7 @@ export const useDataFetching = (
   wards: Ward[], 
   setPieChartData: (data: PieChartDataItem[]) => void,
   setMarkers: (markers: CalendarMarker[]) => void,
-  setCalendarEvents: (events: Event[]) => void,
+  setCalendarEvents: (events: CalendarMarker[]) => void,
   setError: (error: string) => void
 ) => {
 
@@ -42,7 +41,7 @@ export const useDataFetching = (
     try {
       const calendarData = await fetchCalendarMarkers(new Date(), '');
       const markers = calendarData || [];
-      const events: Event[] = [];
+      const events: CalendarMarker[] = [];
       
       // แปลง markers เป็น events ถ้าจำเป็น
       // ในที่นี้สมมติว่า markers และ events มีรูปแบบเดียวกัน

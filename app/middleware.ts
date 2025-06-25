@@ -165,7 +165,17 @@ function getRoleRequirement(pathname: string): string[] | null {
   for (const [route, roles] of Object.entries(roleBasedRoutes)) {
     if (pathname === route || pathname.startsWith(`${route}/`)) {
       // Convert UserRole enums to strings for comparison
-      return roles.map(role => typeof role === 'string' ? role : role.toString());
+      return roles.map(role => {
+        if (typeof role === 'string') {
+          return role;
+        } else if (role && typeof role === 'object') {
+          // Handle enum case
+          return String(role);
+        } else {
+          // Fallback for any other case
+          return String(role);
+        }
+      });
     }
   }
   return null;

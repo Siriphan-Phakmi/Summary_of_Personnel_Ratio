@@ -257,17 +257,8 @@ const WardDataTable: React.FC<WardDataTableProps> = ({ data }) => {
                 <td className="py-2 px-4 text-sm text-center font-bold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
                   {(item.morningDead || 0) + (item.nightDead || 0)}
                 </td>
-                <td className="py-2 px-4 text-sm text-center font-bold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
-                  {item.availableBeds || 0}
-                </td>
-                <td className="py-2 px-4 text-sm text-center font-bold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
-                  {item.unavailableBeds || 0}
-                </td>
-                <td className="py-2 px-4 text-sm text-center font-bold text-gray-900 dark:text-white">
-                  {item.plannedDischarge || 0}
-                </td>
+                <td colSpan={3} className="py-2 px-4"></td>
               </tr>
-              <tr className="h-6"></tr>
             </React.Fragment>
           ))}
         </tbody>

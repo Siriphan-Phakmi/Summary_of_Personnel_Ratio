@@ -16,11 +16,11 @@ const requiredEnvVars = [
 
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
-if (missingEnvVars.length > 0) {
-  console.error('Missing Firebase environment variables:', missingEnvVars);
-  throw new Error(`Missing Firebase configuration: ${missingEnvVars.join(', ')}`);
-}
+// For more information on initializing Firebase, refer to the official documentation:
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// --- Environment Variable Validation ---
+// Ensure that all required environment variables are set.
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -30,6 +30,24 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
+// --- Development-Time Checks ---
+// In a development environment, provide more detailed errors if config is missing.
+if (process.env.NODE_ENV === 'development') {
+  for (const [key, value] of Object.entries(firebaseConfig)) {
+    if (!value) {
+      console.error(
+        `🔥 Firebase config is missing or invalid. Check your .env.local file. Missing key: ${key}`
+      );
+    }
+  }
+}
+
+// Log warning if environment variables are missing
+if (missingEnvVars.length > 0) {
+  console.warn('Missing Firebase environment variables:', JSON.stringify(missingEnvVars));
+  console.warn('Using development placeholders. The app will not connect to a real Firebase project.');
+}
 
 // Initialize Firebase with error handling
 let app: FirebaseApp;

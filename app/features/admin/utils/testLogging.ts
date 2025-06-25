@@ -45,7 +45,14 @@ export const testPageAccessLogging = async (): Promise<boolean> => {
   try {
     console.log('🧪 Testing page access logging...');
     
-    await logPageAccess(testUser, '/admin/user-management', 'Test User Agent Chrome/Test');
+    // Create a mock Request object instead of passing a string
+    const mockRequest = {
+      headers: {
+        get: (name: string) => name === 'user-agent' ? 'Test User Agent Chrome/Test' : null
+      }
+    } as unknown as Request;
+    
+    await logPageAccess(testUser, '/admin/user-management', mockRequest);
     console.log('✅ Page access log sent');
     
     return true;
@@ -62,7 +69,7 @@ export const testUserActionLogging = async (): Promise<boolean> => {
   try {
     console.log('🧪 Testing user action logging...');
     
-    await logUserAction(testUser, 'TEST_ACTION', {
+    await logUserAction(testUser, 'TEST_ACTION', 'SUCCESS', undefined, {
       testData: 'This is a test log entry',
       timestamp: new Date().toISOString(),
       actionType: 'system_test'

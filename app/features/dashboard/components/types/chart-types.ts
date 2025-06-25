@@ -47,6 +47,15 @@ export interface PatientTrendData {
   admitCount: number;
   /** จำนวนจำหน่าย */
   dischargeTotal: number;
+  /** ข้อมูลตามแผนก */
+  wardData?: {
+    [wardId: string]: {
+      wardName: string;
+      patientCount: number;
+      admitCount: number;
+      dischargeCount: number;
+    }
+  };
 }
 
 /**
@@ -57,6 +66,16 @@ export interface PatientTrendChartProps {
   data: PatientTrendData[];
   /** หัวข้อกราฟ */
   title?: string;
+  /** สถานะการโหลด */
+  loading?: boolean;
+  /** รหัสแผนกที่เลือก */
+  selectedWardId?: string | null;
+  /** วันที่เริ่มต้น */
+  startDate?: string;
+  /** วันที่สิ้นสุด */
+  endDate?: string;
+  /** ฟังก์ชันเมื่อเลือกแผนก */
+  onSelectWard?: (wardId: string) => void;
 }
 
 /**
@@ -77,4 +96,25 @@ export interface PieChartDataItem {
   unavailable?: number;
   /** จำนวนเตียงที่วางแผนจำหน่าย */
   plannedDischarge?: number;
+}
+
+/**
+ * Data for the Bed Summary Pie Chart and related components.
+ */
+export interface BedSummaryData {
+  name?: string;
+  availableBeds?: number;
+  unavailableBeds?: number;
+  plannedDischarge?: number;
+  available?: number;
+  unavailable?: number;
+  wardName?: string;
+}
+
+export interface WardBedData {
+  id: string;
+  name: string;
+  available: number;
+  unavailable: number;
+  plannedDischarge: number;
 } 

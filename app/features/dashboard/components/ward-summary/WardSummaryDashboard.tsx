@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { format, parseISO } from 'date-fns';
-import { WardSummaryDashboardProps } from './types/componentInterfaces';
-import ShiftSummary from './ShiftSummary';
-import PatientCensusCalculation from './PatientCensusCalculation';
-import { adaptArrayToOldWardSummaryFormat } from '../utils/dataAdapters';
+import { WardSummaryDashboardProps } from '../types/componentInterfaces';
+import ShiftSummary from '../ShiftSummary';
+import PatientCensusCalculation from '../PatientCensusCalculation';
+import { adaptArrayToOldWardSummaryFormat } from '../../utils/dataAdapters';
 
 const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
   summaryData,
@@ -31,7 +31,7 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
       
       {!loading && oldFormatData && oldFormatData.length > 0 && (
         oldFormatData.map(summary => (
-          <div key={summary.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+          <div key={summary.wardId} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
           <h2 className="text-xl font-bold mb-4 text-center">
               <span className="block sm:inline">{summary.wardName}</span> <span className="block sm:inline">- วันที่ {selectedDate ? format(parseISO(selectedDate), 'dd/MM/yyyy') : ''}</span>
           </h2>
@@ -40,19 +40,19 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
             <div>
               <p className="text-base sm:text-lg font-medium">รวม (ทั้งวัน):</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                  {summary.nightShift?.patientCensus ?? summary.morningShift?.patientCensus ?? 'N/A'}
+                  {summary.nightShiftData?.patientCensus ?? summary.morningShiftData?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
               <p className="text-base sm:text-lg font-medium">กะเช้า:</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                  {summary.morningShift?.patientCensus ?? 'N/A'}
+                  {summary.morningShiftData?.patientCensus ?? 'N/A'}
               </p>
             </div>
             <div>
               <p className="text-base sm:text-lg font-medium">กะดึก:</p>
               <p className="text-2xl sm:text-3xl font-bold">
-                  {summary.nightShift?.patientCensus ?? 'N/A'}
+                  {summary.nightShiftData?.patientCensus ?? 'N/A'}
               </p>
             </div>
           </div>
@@ -61,13 +61,13 @@ const WardSummaryDashboard: React.FC<WardSummaryDashboardProps> = ({
             {/* กะเช้า */}
             <ShiftSummary
               title="กะเช้า"
-              data={summary.morningShift}
+              data={summary.morningShiftData}
             />
             
             {/* กะดึก */}
             <ShiftSummary
               title="กะดึก"
-              data={summary.nightShift}
+              data={summary.nightShiftData}
             />
           </div>
         </div>

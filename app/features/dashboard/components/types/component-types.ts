@@ -103,4 +103,23 @@ export interface NoDataMessageProps {
   iconColor?: string;
   /** คลาสเพิ่มเติม */
   className?: string;
+}
+
+/**
+ * คุณสมบัติสำหรับคอมโพเนนต์ PatientCensusCalculation
+ */
+export interface PatientCensusCalculationProps {
+  /** ข้อมูลฟอร์ม */
+  formData: {
+    initialCensus: number;
+    admitTotal: number;
+    dischargeTotal: number;
+    calculatedCensus: number;
+  };
+  /** ชื่อหัวข้อกะ */
+  shiftTitle: string;
+  /** แสดงปุ่มรีเฟรชหรือไม่ */
+  showRefresh?: boolean;
+  /** ฟังก์ชันรีเฟรช */
+  onRefresh?: () => void;
 } 

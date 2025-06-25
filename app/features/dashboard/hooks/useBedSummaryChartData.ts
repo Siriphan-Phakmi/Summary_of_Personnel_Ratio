@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { BedSummaryData, WardBedData } from '@/app/features/dashboard/types';
+import { BedSummaryData, WardBedData } from '../components/types';
 import { COLORS, NO_AVAILABLE_BEDS_COLOR } from '@/app/features/dashboard/utils/chartConstants';
 
 export const useBedSummaryChartData = (data: BedSummaryData | WardBedData[]) => {

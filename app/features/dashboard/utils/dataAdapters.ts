@@ -5,8 +5,17 @@
  * เพื่อให้สามารถใช้งานข้อมูลร่วมกันระหว่างคอมโพเนนต์ที่ใช้ interface ต่างกันได้
  */
 
-import { WardSummaryDataWithShifts as NewWardSummaryDataWithShifts } from '../components/types/interface-types';
-import { WardSummaryDataWithShifts as OldWardSummaryDataWithShifts, WardFormSummary } from '../components/types';
+import { WardSummaryDataWithShifts as NewWardSummaryDataWithShifts, ShiftSummaryData, WardFormSummary } from '../components/types/interface-types';
+
+// This is the legacy data structure that some parts of the app might still use.
+// We define it here to make the adapter functions explicit and stable.
+interface OldWardSummaryDataWithShifts {
+  id: string;
+  wardName: string;
+  morningShift?: WardFormSummary;
+  nightShift?: WardFormSummary;
+  totalData: WardFormSummary;
+}
 
 /**
  * แปลงข้อมูลจาก Old WardSummaryDataWithShifts เป็น New WardSummaryDataWithShifts
@@ -14,47 +23,29 @@ import { WardSummaryDataWithShifts as OldWardSummaryDataWithShifts, WardFormSumm
 export const adaptToNewWardSummaryFormat = (
   oldData: OldWardSummaryDataWithShifts
 ): NewWardSummaryDataWithShifts => {
-  const morningShiftData = oldData.morningShift || {
-    patientCensus: 0,
-    admitted: 0,
-    discharged: 0,
-    transferredIn: 0,
-    transferredOut: 0,
-    deaths: 0,
-    availableBeds: 0,
-    occupiedBeds: 0
-  };
+  const morningShiftData: ShiftSummaryData = oldData.morningShift ? {
+    patientCensus: oldData.morningShift.patientCensus,
+    admitted: oldData.morningShift.admitted,
+    discharged: oldData.morningShift.discharged,
+    transferredIn: oldData.morningShift.transferredIn,
+    transferredOut: oldData.morningShift.transferredOut,
+    deaths: oldData.morningShift.deaths,
+  } : { patientCensus: 0, admitted: 0, discharged: 0, transferredIn: 0, transferredOut: 0, deaths: 0 };
   
-  const nightShiftData = oldData.nightShift || {
-    patientCensus: 0,
-    admitted: 0,
-    discharged: 0,
-    transferredIn: 0,
-    transferredOut: 0,
-    deaths: 0,
-    availableBeds: 0,
-    occupiedBeds: 0
-  };
+  const nightShiftData: ShiftSummaryData = oldData.nightShift ? {
+    patientCensus: oldData.nightShift.patientCensus,
+    admitted: oldData.nightShift.admitted,
+    discharged: oldData.nightShift.discharged,
+    transferredIn: oldData.nightShift.transferredIn,
+    transferredOut: oldData.nightShift.transferredOut,
+    deaths: oldData.nightShift.deaths,
+  } : { patientCensus: 0, admitted: 0, discharged: 0, transferredIn: 0, transferredOut: 0, deaths: 0 };
 
   return {
     wardId: oldData.id,
     wardName: oldData.wardName,
-    morningShiftData: {
-      patientCensus: morningShiftData.patientCensus,
-      admitted: morningShiftData.admitted,
-      discharged: morningShiftData.discharged,
-      transferredIn: morningShiftData.transferredIn,
-      transferredOut: morningShiftData.transferredOut,
-      deaths: morningShiftData.deaths
-    },
-    nightShiftData: {
-      patientCensus: nightShiftData.patientCensus,
-      admitted: nightShiftData.admitted,
-      discharged: nightShiftData.discharged,
-      transferredIn: nightShiftData.transferredIn,
-      transferredOut: nightShiftData.transferredOut,
-      deaths: nightShiftData.deaths
-    },
+    morningShiftData: morningShiftData,
+    nightShiftData: nightShiftData,
     totalData: {
       patientCensus: oldData.totalData.patientCensus,
       admitted: oldData.totalData.admitted,
@@ -72,8 +63,7 @@ export const adaptToNewWardSummaryFormat = (
 export const adaptToOldWardSummaryFormat = (
   newData: NewWardSummaryDataWithShifts
 ): OldWardSummaryDataWithShifts => {
-  // สร้าง WardFormSummary จาก ShiftSummaryData
-  const createWardFormSummary = (shiftData: any): WardFormSummary => ({
+  const createWardFormSummary = (shiftData: ShiftSummaryData): WardFormSummary => ({
     patientCensus: shiftData.patientCensus || 0,
     admitted: shiftData.admitted || 0,
     discharged: shiftData.discharged || 0,

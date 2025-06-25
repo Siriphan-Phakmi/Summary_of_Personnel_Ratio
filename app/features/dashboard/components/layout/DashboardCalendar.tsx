@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import CalendarWithEvents, { Event } from './CalendarWithEvents';
+import CalendarWithEvents, { Event } from '../CalendarWithEvents';
 import { useTheme } from 'next-themes';
-import { CalendarMarker } from './types';
+import { CalendarMarker } from '../types';
 
 interface DashboardCalendarProps {
   selectedDate: Date;

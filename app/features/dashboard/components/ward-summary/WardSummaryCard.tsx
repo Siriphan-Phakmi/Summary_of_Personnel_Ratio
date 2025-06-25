@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WardSummaryCardProps } from './types/button-types';
+import { WardSummaryCardProps } from '../types/button-types';
 
 /**
  * การ์ดแสดงข้อมูลสรุปของแผนก

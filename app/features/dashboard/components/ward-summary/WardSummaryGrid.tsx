@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WardSummaryGridProps } from './types';
+import { WardSummaryGridProps } from '../types/componentInterfaces';
 import WardButton from './WardButton';
 
 const WardSummaryGrid: React.FC<WardSummaryGridProps> = ({

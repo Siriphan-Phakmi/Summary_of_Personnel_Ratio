@@ -13,9 +13,13 @@ export interface DashboardFilterState {
 
 // ข้อมูลสรุปเตียงสำหรับการแสดงผลแยกตามวอร์ด
 export interface WardCensusData {
+  id: string;
   wardId: string;
   wardName: string;
   patientCount: number;
+  occupiedBeds: number;
+  totalBeds: number;
+  percentage: number;
   morningShiftCount?: number;
   nightShiftCount?: number;
 }
@@ -42,4 +46,11 @@ export interface DashboardSummary {
 export interface ChartColorConfig {
   backgroundColors: string[];
   borderColors: string[];
+}
+
+// View types for dashboard
+export enum ViewType {
+  SUMMARY = 'summary',
+  DETAILS = 'details',
+  CHARTS = 'charts'
 } 

@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { WardSummaryTableProps } from './types/componentInterfaces';
-import { WardFormSummary } from './types';
-import { adaptArrayToOldWardSummaryFormat } from '../utils/dataAdapters';
+import { WardSummaryTableProps } from '../types/componentInterfaces';
+import { WardFormSummary } from '../types';
+import { adaptArrayToOldWardSummaryFormat } from '../../utils/dataAdapters';
 import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner';
 
 const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
@@ -34,7 +34,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
     wardId: string,
     wardName: string,
     shiftName: string,
-    shiftData: WardFormSummary | undefined,
+    shiftData: WardFormSummary | any | undefined,
     isSelected: boolean,
     onClick: () => void,
     rowType: 'morning' | 'night' | 'total'
@@ -142,7 +142,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/20' 
               : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10'
         }`}>
-          {shiftData.availableBeds}
+          {shiftData.availableBeds ?? '-'}
         </td>
         <td className={`px-2 py-2 text-sm text-center ${
           isGrandTotal 
@@ -151,7 +151,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               ? 'text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/20' 
               : 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/10'
         }`}>
-          {shiftData.occupiedBeds}
+          {shiftData.occupiedBeds ?? '-'}
         </td>
       </tr>
     );
@@ -200,22 +200,22 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {oldFormatData.map((ward) => {
-              const isSelected = selectedWardId === ward.id;
-              const onClick = () => onSelectWard(ward.id);
+              const isSelected = selectedWardId === ward.wardId;
+              const onClick = () => onSelectWard(ward.wardId);
               
               // เช็คว่าเป็น GRAND_TOTAL (รวมทุกแผนก) หรือไม่
-              const isGrandTotal = ward.id === 'GRAND_TOTAL';
+              const isGrandTotal = ward.wardId === 'GRAND_TOTAL';
               
               return (
-                <React.Fragment key={ward.id}>
+                <React.Fragment key={ward.wardId}>
                   {/* เวรเช้า */}
-                  {renderShiftRow(ward.id, ward.wardName, 'เวรเช้า', ward.morningShift, isSelected, onClick, 'morning')}
+                  {renderShiftRow(ward.wardId, ward.wardName, 'เวรเช้า', ward.morningShiftData, isSelected, onClick, 'morning')}
                   
                   {/* เวรดึก */}
-                  {renderShiftRow(ward.id, ward.wardName, 'เวรดึก', ward.nightShift, isSelected, onClick, 'night')}
+                  {renderShiftRow(ward.wardId, ward.wardName, 'เวรดึก', ward.nightShiftData, isSelected, onClick, 'night')}
                   
                   {/* Total All - แสดงเฉพาะกรณีเป็น GRAND_TOTAL เท่านั้น */}
-                  {isGrandTotal && renderShiftRow(ward.id, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total')}
+                  {isGrandTotal && renderShiftRow(ward.wardId, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total')}
                   
                   {/* เส้นแบ่งระหว่าง Ward */}
                   <tr className="bg-gray-200 dark:bg-gray-600">

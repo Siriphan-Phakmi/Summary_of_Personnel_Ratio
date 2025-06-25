@@ -213,9 +213,22 @@ export const useAuthCore = () => {
   const checkRole = useCallback((requiredRole?: string | string[]) => {
     if (!user || authStatus !== 'authenticated') return false;
     if (!requiredRole) return true;
+    
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    // Convert UserRole enum to string for comparison
-    const userRoleString = typeof user.role === 'string' ? user.role : user.role.toString();
+    
+    // Handle all possible types of user.role to prevent TypeScript errors
+    let userRoleString: string;
+    
+    if (typeof user.role === 'string') {
+      userRoleString = user.role;
+    } else if (user.role && typeof user.role === 'object') {
+      // Handle enum case
+      userRoleString = String(user.role);
+    } else {
+      // Fallback for any other case
+      userRoleString = String(user.role);
+    }
+    
     return roles.includes(userRoleString);
   }, [user, authStatus]);
 

@@ -12,13 +12,13 @@ export interface PasswordRequirements {
   requireSpecialChars: boolean;
 }
 
-// Default password requirements (enterprise-grade)
+// Default password requirements (enterprise-grade) - configurable via environment variables
 export const DEFAULT_PASSWORD_REQUIREMENTS: PasswordRequirements = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
+  minLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8'),
+  requireUppercase: process.env.PASSWORD_REQUIRE_UPPERCASE !== 'false',
+  requireLowercase: process.env.PASSWORD_REQUIRE_LOWERCASE !== 'false',
+  requireNumbers: process.env.PASSWORD_REQUIRE_NUMBERS !== 'false',
+  requireSpecialChars: process.env.PASSWORD_REQUIRE_SPECIAL_CHARS !== 'false',
 };
 
 /**

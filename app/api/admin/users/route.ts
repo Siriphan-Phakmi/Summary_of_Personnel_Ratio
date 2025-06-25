@@ -18,7 +18,9 @@ import {
 export async function POST(req: NextRequest) {
   // Rate limiting check
   const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-  const rateLimitResult = rateLimiter.check(`user-creation:${clientIp}`, 5, 15 * 60 * 1000);
+  const maxAttempts = parseInt(process.env.RATE_LIMIT_USER_CREATION_MAX_ATTEMPTS || '5');
+  const windowMs = parseInt(process.env.RATE_LIMIT_USER_CREATION_WINDOW_MS || '900000');
+  const rateLimitResult = rateLimiter.check(`user-creation:${clientIp}`, maxAttempts, windowMs);
   
   if (!rateLimitResult.success) {
     const response = NextResponse.json(
@@ -96,7 +98,8 @@ export async function POST(req: NextRequest) {
     }
 
     // --- User Creation with Sanitized Data ---
-    const hashedPassword = await bcrypt.hash(password, 12); // Increased bcrypt rounds for better security
+    const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12');
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
     const newUserRef = doc(usersCollection);
     
     // Create the user object with sanitized and validated data

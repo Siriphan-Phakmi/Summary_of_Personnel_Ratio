@@ -58,7 +58,7 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleSt
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.updatedAt)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                  <div className="flex items-center justify-end space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => onToggleStatus(user.uid, user.isActive)}>
+                    <Button variant="outline" size="sm" onClick={() => onToggleStatus(user.uid, user.isActive === true)}>
                         {user.isActive ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                         <span className="sr-only">Toggle Status</span>
                     </Button>

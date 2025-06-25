@@ -4,14 +4,14 @@ import React from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useTheme } from 'next-themes';
 
-import { useBedSummaryChartData } from '../hooks/useBedSummaryChartData';
-import { BedSummaryData, WardBedData } from '@/app/features/dashboard/types';
+import { useBedSummaryChartData } from '../../hooks/useBedSummaryChartData';
+import { BedSummaryData, WardBedData, PieChartDataItem } from '../types';
 
-import ChartLoadingState from './charts/ChartLoadingState';
-import ChartEmptyState from './charts/ChartEmptyState';
-import CustomPieChartTooltip from './charts/CustomPieChartTooltip';
-import CustomPieChartLegend from './charts/CustomPieChartLegend';
-import PieChartCenterLabel from './charts/PieChartCenterLabel';
+import ChartLoadingState from './ChartLoadingState';
+import ChartEmptyState from './ChartEmptyState';
+import CustomPieChartTooltip from './CustomPieChartTooltip';
+import CustomPieChartLegend from './CustomPieChartLegend';
+import PieChartCenterLabel from './PieChartCenterLabel';
 
 interface BedSummaryPieChartProps {
   data: BedSummaryData | WardBedData[];
@@ -50,7 +50,7 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
               dataKey="value"
             isAnimationActive={true}
             >
-              {pieChartData.map((entry, index) => (
+              {pieChartData.map((entry: PieChartDataItem & { color: string }, index: number) => (
               <Cell key={`cell-${index}`} fill={entry.color} />
               ))}
             </Pie>
@@ -65,4 +65,4 @@ const BedSummaryPieChart: React.FC<BedSummaryPieChartProps> = ({ data, isLoading
   );
 };
 
-export default BedSummaryPieChart;
+export default BedSummaryPieChart; 

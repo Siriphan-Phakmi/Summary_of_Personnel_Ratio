@@ -1,104 +1,11 @@
 'use client';
 
 import React from 'react';
-import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
-
-interface DailySummary {
-  id?: string;
-  wardId: string;
-  wardName: string;
-  date: Date | any;
-  morningPatientCensus?: number;
-  morningNurseManager?: number;
-  morningRn?: number;
-  morningPn?: number;
-  morningWc?: number;
-  morningNurseTotal?: number;
-  morningNurseRatio?: number;
-  morningNewAdmit?: number;
-  morningTransferIn?: number;
-  morningReferIn?: number;
-  morningDischarge?: number;
-  morningTransferOut?: number;
-  morningReferOut?: number;
-  morningDead?: number;
-  nightPatientCensus?: number;
-  nightNurseManager?: number;
-  nightRn?: number;
-  nightPn?: number;
-  nightWc?: number;
-  nightNurseTotal?: number;
-  nightNurseRatio?: number;
-  nightNewAdmit?: number;
-  nightTransferIn?: number;
-  nightReferIn?: number;
-  nightDischarge?: number;
-  nightTransferOut?: number;
-  nightReferOut?: number;
-  nightDead?: number;
-  dailyPatientCensus?: number;
-  dailyNurseTotal?: number;
-  dailyNurseRatio?: number;
-  availableBeds?: number;
-  unavailableBeds?: number;
-  plannedDischarge?: number;
-}
-
-interface WardSummaryStatsProps {
-  summaries: DailySummary[];
-  selectedWard: string;
-}
+import { WardSummaryStatsProps, DailySummary } from './WardSummaryTypes';
+import { getLatestSummary, formatDate } from './WardSummaryUtils';
 
 const WardSummaryStats: React.FC<WardSummaryStatsProps> = ({ summaries, selectedWard }) => {
-  // ดึงข้อมูลล่าสุด
-  const getLatestSummary = () => {
-    if (summaries.length === 0) return null;
-    
-    // ถ้าดูข้อมูลแผนกเดียว ให้ดึงข้อมูลล่าสุด
-    if (selectedWard !== 'all') {
-      return summaries.reduce((latest, current) => {
-        if (current.wardId !== selectedWard) return latest;
-        
-        const latestDate = latest.date instanceof Date ? latest.date : new Date(latest.date);
-        const currentDate = current.date instanceof Date ? current.date : new Date(current.date);
-        return currentDate > latestDate ? current : latest;
-      }, summaries.find(s => s.wardId === selectedWard) || summaries[0]);
-    }
-    
-    // ถ้าดูทุกแผนก ให้รวมข้อมูลจากทุกแผนกล่าสุด
-    const latestByWard = new Map<string, DailySummary>();
-    summaries.forEach(summary => {
-      const existing = latestByWard.get(summary.wardId);
-      if (!existing) {
-        latestByWard.set(summary.wardId, summary);
-        return;
-      }
-      
-      const existingDate = existing.date instanceof Date ? existing.date : new Date(existing.date);
-      const currentDate = summary.date instanceof Date ? summary.date : new Date(summary.date);
-      
-      if (currentDate > existingDate) {
-        latestByWard.set(summary.wardId, summary);
-      }
-    });
-    
-    return Array.from(latestByWard.values());
-  };
-  
-  const formatDate = (date: Date | any): string => {
-    if (!date) return 'N/A';
-    
-    try {
-      const dateObj = date instanceof Date ? date : new Date(date);
-      return format(dateObj, 'dd MMMM yyyy', { locale: th });
-    } catch (err) {
-      console.error('Date formatting error:', err);
-      return 'Invalid Date';
-    }
-  };
-  
-  const latestData = getLatestSummary();
+  const latestData = getLatestSummary(summaries, selectedWard);
   
   if (!latestData) {
     return (
@@ -203,58 +110,58 @@ const WardSummaryStats: React.FC<WardSummaryStatsProps> = ({ summaries, selected
             </div>
             
             {/* กะดึก */}
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg shadow-sm">
-              <h3 className="text-lg font-semibold text-purple-700 dark:text-purple-300 mb-4">กะดึก</h3>
+            <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg shadow-sm">
+              <h3 className="text-lg font-semibold text-orange-700 dark:text-orange-300 mb-4">กะดึก</h3>
               <div className="space-y-3">
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">จำนวนผู้ป่วย</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightPatientCensus || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Nurse Manager</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightNurseManager || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">RN</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightRn || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">PN</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightPn || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">WC</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightWc || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">พยาบาลทั้งหมด</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightNurseTotal || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">อัตราส่วน</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightNurseRatio || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">รับใหม่</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightNewAdmit || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Transfer In</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightTransferIn || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Refer In</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightReferIn || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Discharge</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightDischarge || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Transfer Out</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightTransferOut || 0}</span>
                 </div>
-                <div className="flex justify-between border-b border-purple-200 dark:border-purple-800 pb-2">
+                <div className="flex justify-between border-b border-orange-200 dark:border-orange-800 pb-2">
                   <span className="text-gray-700 dark:text-gray-300">Refer Out</span>
                   <span className="font-medium text-gray-900 dark:text-white">{(latestData as DailySummary).nightReferOut || 0}</span>
                 </div>
@@ -272,21 +179,21 @@ const WardSummaryStats: React.FC<WardSummaryStatsProps> = ({ summaries, selected
   
   // กรณีดูทุกแผนก
   return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-          รายละเอียดทุกแผนก
-        </h2>
-        
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        สรุปรายแผนก - ข้อมูลล่าสุด
+      </h2>
+      
+      <div className="overflow-x-auto">
+        <div className="min-w-full">
+          <table className="w-full table-auto">
             <thead className="bg-gray-100 dark:bg-gray-700">
               <tr>
                 <th className="py-2 px-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   แผนก
                 </th>
                 <th className="py-2 px-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  จำนวนผู้ป่วย
+                  ผู้ป่วย
                 </th>
                 <th className="py-2 px-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                   พยาบาล
@@ -344,4 +251,4 @@ const WardSummaryStats: React.FC<WardSummaryStatsProps> = ({ summaries, selected
   );
 };
 
-export default WardSummaryStats; 
+export default WardSummaryStats;
