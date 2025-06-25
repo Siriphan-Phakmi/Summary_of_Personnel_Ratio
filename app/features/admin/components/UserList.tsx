@@ -16,12 +16,12 @@ interface UserListProps {
 
 const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleStatus }) => {
 
-  const getRoleBadgeVariant = (role: UserRole) => {
+  const getRoleBadgeVariant = (role: UserRole): "default" | "secondary" | "destructive" | "outline" | "info" | "success" | "warning" => {
     switch (role) {
       case UserRole.ADMIN: return 'destructive';
-      case UserRole.DEVELOPER: return 'secondary';
-      case UserRole.APPROVER: return 'default';
-      case UserRole.NURSE: return 'outline';
+      case UserRole.DEVELOPER: return 'info';
+      case UserRole.APPROVER: return 'success';
+      case UserRole.NURSE: return 'default';
       default: return 'outline';
     }
   };
@@ -58,7 +58,12 @@ const UserList: React.FC<UserListProps> = ({ users, onEdit, onDelete, onToggleSt
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{formatDateSafely(user.updatedAt)}</td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                  <div className="flex items-center justify-end space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => onToggleStatus(user.uid, user.isActive === true)}>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const action = user.isActive ? 'deactivate' : 'activate';
+                      if (confirm(`Are you sure you want to ${action} this user?`)) {
+                        onToggleStatus(user.uid, user.isActive === true)
+                      }
+                    }}>
                         {user.isActive ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
                         <span className="sr-only">Toggle Status</span>
                     </Button>

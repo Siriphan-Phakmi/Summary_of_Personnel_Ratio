@@ -1,12 +1,10 @@
 'use client';
 
 import React from 'react';
-import NavBar from '@/app/components/ui/NavBar';
 
 const LoadingScreen: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-      <NavBar />
       <div className="flex-grow flex justify-center items-center">
         <div className="text-center">
           <svg className="mx-auto h-12 w-12 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

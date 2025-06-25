@@ -129,8 +129,50 @@ export const useUserManagement = () => {
     }
   };
 
-  const toggleUserStatus = async (uid: string, isActive: boolean) => {
-    return updateUser(uid, { isActive });
+  const toggleUserStatus = async (uid: string, currentStatus: boolean) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/users/${uid}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive: !currentStatus }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Error: ${response.status}`);
+      }
+
+      showSuccessToast('User status updated successfully.');
+      
+      // Log for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Updated user data from API:", result.user);
+      }
+
+      setUsers(prevUsers => {
+        const newUsers = prevUsers.map(user => 
+          user.uid === uid ? result.user : user
+        );
+        if (process.env.NODE_ENV === 'development') {
+          console.log("New users state:", newUsers);
+        }
+        return newUsers;
+      });
+
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unknown error occurred during status toggle.';
+      setError(message);
+      showErrorToast(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
 
   return {

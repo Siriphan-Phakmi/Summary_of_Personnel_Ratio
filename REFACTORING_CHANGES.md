@@ -31,6 +31,12 @@ This refactoring session focused on resolving critical issues that impacted secu
 
 -   **✅ UI/UX: Active NavLink Highlighting:** Updated the `NavBar` component to visually highlight the currently active navigation link. This was achieved by adding a background color and adjusting text styles based on the current route, improving user orientation and experience for both desktop and mobile views.
 
+### User Management Enhancements (Date: 2024-06-25)
+
+-   **✅ UI/UX: Role-Specific Colors:** Enhanced the `Badge` component to support more contextual colors (`info`, `success`, `warning`). Applied these new colors to user roles on the User Management page for better visual distinction.
+-   **✅ Workflow Safety: Added Confirmation Dialog:** Implemented a confirmation prompt before a user's status is toggled (activated/deactivated), preventing accidental changes.
+-   **✅ Real-time UI: Fixed Stale Data:** Refactored the state management logic in the `useUserManagement` hook. The user list now updates instantly after a status change without requiring a page refresh, improving performance and user experience.
+
 ---
 
 ## Detailed Chronological Change Log
