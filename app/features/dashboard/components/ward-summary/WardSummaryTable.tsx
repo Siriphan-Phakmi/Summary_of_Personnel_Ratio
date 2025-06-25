@@ -71,7 +71,7 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
           </td>
           {/* แสดงเส้นประสำหรับทุกคอลัมน์ */}
           {Array.from({ length: 8 }, (_, i) => (
-            <td key={i} className={`px-2 py-2 text-sm ${getTextColor()} text-center`}>
+            <td key={`${wardId}-${rowType}-empty-${i}`} className={`px-2 py-2 text-sm ${getTextColor()} text-center`}>
               -
             </td>
           ))}
@@ -206,23 +206,27 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
               // เช็คว่าเป็น GRAND_TOTAL (รวมทุกแผนก) หรือไม่
               const isGrandTotal = ward.wardId === 'GRAND_TOTAL';
               
-              return (
-                <React.Fragment key={ward.wardId}>
-                  {/* เวรเช้า */}
-                  {renderShiftRow(ward.wardId, ward.wardName, 'เวรเช้า', ward.morningShiftData, isSelected, onClick, 'morning')}
-                  
-                  {/* เวรดึก */}
-                  {renderShiftRow(ward.wardId, ward.wardName, 'เวรดึก', ward.nightShiftData, isSelected, onClick, 'night')}
-                  
-                  {/* Total All - แสดงเฉพาะกรณีเป็น GRAND_TOTAL เท่านั้น */}
-                  {isGrandTotal && renderShiftRow(ward.wardId, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total')}
-                  
-                  {/* เส้นแบ่งระหว่าง Ward */}
-                  <tr className="bg-gray-200 dark:bg-gray-600">
-                    <td colSpan={10} className="h-1"></td>
-                  </tr>
-                </React.Fragment>
+              const rows = [
+                // เวรเช้า
+                renderShiftRow(ward.wardId, ward.wardName, 'เวรเช้า', ward.morningShiftData, isSelected, onClick, 'morning'),
+                
+                // เวรดึก
+                renderShiftRow(ward.wardId, ward.wardName, 'เวรดึก', ward.nightShiftData, isSelected, onClick, 'night'),
+              ];
+
+              // Total All - แสดงเฉพาะกรณีเป็น GRAND_TOTAL เท่านั้น
+              if (isGrandTotal) {
+                rows.push(renderShiftRow(ward.wardId, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total'));
+              }
+              
+              // เส้นแบ่งระหว่าง Ward
+              rows.push(
+                <tr key={`${ward.wardId}-divider`} className="bg-gray-200 dark:bg-gray-600">
+                  <td colSpan={10} className="h-1"></td>
+                </tr>
               );
+              
+              return rows;
             })}
           </tbody>
         </table>

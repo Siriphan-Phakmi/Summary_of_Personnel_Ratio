@@ -21,6 +21,16 @@ This refactoring session focused on resolving critical issues that impacted secu
 -   **✅ Type Safety Enhanced:** Replaced `any` types with proper TypeScript interfaces and annotations in chart components.
 -   **✅ Build Status:** Project build successfully, resolving a critical blocker.
 
+### Dashboard Error Code Resolution (Date: 2024-06-25)
+
+-   **✅ UI Fix: Resolved React `key` Prop Warning:** Fixed a recurring warning in the browser console (`Error: Each child in a list should have a unique "key" prop`) by adding a unique `key` to a separator `<tr>` element within the `WardSummaryTable` component. This ensures stable rendering and improves performance.
+-   **✅ Code Refactoring: Dashboard Component Consolidation:** Migrated all dashboard-related components from the root `app/features/dashboard/components/` directory into more specific subdirectories (`charts`, `layout`, `sections`, `ui`, `ward-summary`). This improves organization and maintainability.
+-   **✅ Type Safety: Centralized Component Types:** Consolidated all dashboard-related TypeScript interfaces into `app/features/dashboard/components/types/`. This removes ambiguity and makes type management easier.
+
+### UI Enhancements (Date: 2024-06-25)
+
+-   **✅ UI/UX: Active NavLink Highlighting:** Updated the `NavBar` component to visually highlight the currently active navigation link. This was achieved by adding a background color and adjusting text styles based on the current route, improving user orientation and experience for both desktop and mobile views.
+
 ---
 
 ## Detailed Chronological Change Log
