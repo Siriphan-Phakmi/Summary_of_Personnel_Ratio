@@ -8,6 +8,7 @@ import { User } from '@/app/features/auth/types/user';
 import { useDashboardData, useTrendData, useDailyPatientData, useCalendarAndChartData } from './hooks';
 import { getWardsByUserPermission } from './services';
 import { logInfo, logError, isRegularUser, adaptArrayToNewWardSummaryFormat, adaptArrayToOldWardSummaryFormat } from './utils';
+import { PatientTrendData } from './components/types';
 import DashboardHeader from './components/layout/DashboardHeader';
 import DashboardCalendar from './components/layout/DashboardCalendar';
 import WardSummaryDashboard from './components/ward-summary/WardSummaryDashboard';
@@ -222,8 +223,8 @@ export default function Dashboard() {
 
         <div ref={patientTrendRef}>
           <PatientTrendChart
-            data={filteredTrendChartData}
-            isLoading={trendLoading}
+            data={(filteredTrendChartData || []) as PatientTrendData[]}
+            loading={trendLoading}
           />
         </div>
       </div>

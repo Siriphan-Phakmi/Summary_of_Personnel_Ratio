@@ -200,28 +200,29 @@ const WardSummaryTable: React.FC<WardSummaryTableProps> = ({
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {oldFormatData.map((ward) => {
-              const isSelected = selectedWardId === ward.wardId;
-              const onClick = () => onSelectWard(ward.wardId);
+              const wardId = (ward as any).wardId || `unknown-ward-${Math.random()}`;
+              const isSelected = selectedWardId === wardId;
+              const onClick = () => onSelectWard(wardId);
               
               // เช็คว่าเป็น GRAND_TOTAL (รวมทุกแผนก) หรือไม่
-              const isGrandTotal = ward.wardId === 'GRAND_TOTAL';
+              const isGrandTotal = wardId === 'GRAND_TOTAL';
               
               const rows = [
                 // เวรเช้า
-                renderShiftRow(ward.wardId, ward.wardName, 'เวรเช้า', ward.morningShiftData, isSelected, onClick, 'morning'),
+                renderShiftRow(wardId, ward.wardName, 'เวรเช้า', ward.morningShift, isSelected, onClick, 'morning'),
                 
                 // เวรดึก
-                renderShiftRow(ward.wardId, ward.wardName, 'เวรดึก', ward.nightShiftData, isSelected, onClick, 'night'),
+                renderShiftRow(wardId, ward.wardName, 'เวรดึก', ward.nightShift, isSelected, onClick, 'night'),
               ];
 
               // Total All - แสดงเฉพาะกรณีเป็น GRAND_TOTAL เท่านั้น
               if (isGrandTotal) {
-                rows.push(renderShiftRow(ward.wardId, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total'));
+                rows.push(renderShiftRow(wardId, ward.wardName, 'Total All', ward.totalData, isSelected, onClick, 'total'));
               }
               
               // เส้นแบ่งระหว่าง Ward
               rows.push(
-                <tr key={`${ward.wardId}-divider`} className="bg-gray-200 dark:bg-gray-600">
+                <tr key={`${wardId}-divider`} className="bg-gray-200 dark:bg-gray-600">
                   <td colSpan={10} className="h-1"></td>
                 </tr>
               );

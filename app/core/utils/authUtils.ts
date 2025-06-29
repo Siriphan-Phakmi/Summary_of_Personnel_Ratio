@@ -317,7 +317,7 @@ export function validateCSRFToken(token: string): boolean {
       return true;
     }
     // สำหรับ production ต้องใช้วิธีอื่นในการ validate
-    return token && token.length > 10; // Simple validation
+    return Boolean(token && token.length > 10); // Simple validation
   }
   
   const storedToken = sessionStorage.getItem('csrfToken');

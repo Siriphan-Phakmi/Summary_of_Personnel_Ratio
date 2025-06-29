@@ -56,7 +56,7 @@ const ChartSection: React.FC<ChartSectionProps> = ({
               data={selectedWardId
                 ? bedCensusData.filter(item => item.id.toUpperCase() === selectedWardId.toUpperCase())
                 : bedCensusData}
-              selectedWardId={selectedWardId || undefined}
+              selectedWardId={selectedWardId || null}
               onSelectWard={handleSelectWard}
               showShiftData={true}
             />

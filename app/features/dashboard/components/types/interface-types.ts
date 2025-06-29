@@ -2,6 +2,26 @@ import { Timestamp } from 'firebase/firestore';
 import { WardForm } from '@/app/features/ward-form/types/ward';
 
 /**
+ * Calendar marker type for calendar events
+ */
+export interface CalendarMarker {
+  date: string;
+  hasData?: boolean;
+  isApproved?: boolean;
+  wardId?: string;
+}
+
+/**
+ * Trend data for charts
+ */
+export interface TrendData {
+  date: string;
+  patientCount: number;
+  wardName?: string;
+  wardId?: string;
+}
+
+/**
  * ข้อมูลสรุปของแผนกสำหรับหน้า Dashboard
  */
 export interface DashboardSummary {

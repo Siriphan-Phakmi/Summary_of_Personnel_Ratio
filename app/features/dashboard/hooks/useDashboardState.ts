@@ -9,7 +9,7 @@ export const useDashboardState = () => {
   const [dateRange, setDateRange] = useState('today');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [currentView, setCurrentView] = useState<ViewType>(ViewType.SUMMARY);
+  const [currentView, setCurrentView] = useState<ViewType>('summary');
   const [effectiveDateRange, setEffectiveDateRange] = useState<{start: Date, end: Date}>({
     start: startOfDay(new Date()),
     end: endOfDay(new Date())

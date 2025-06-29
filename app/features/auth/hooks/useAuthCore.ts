@@ -82,6 +82,7 @@ export const useAuthCore = () => {
     try {
       const userToLogOut = currentUser || user;
       if (userToLogOut) {
+        // Client-side logging (no Request object)
         await logLogout(userToLogOut);
         await fetch('/api/auth/logout', { method: 'POST' });
         devLog(`Logged out user: ${userToLogOut.username}`);
@@ -154,6 +155,8 @@ export const useAuthCore = () => {
         setUser(result.user);
         setAuthStatus('authenticated');
         saveUserData(result.user);
+        
+        // Client-side logging (no Request object)
         await logLogin(result.user);
         return true;
       } else {

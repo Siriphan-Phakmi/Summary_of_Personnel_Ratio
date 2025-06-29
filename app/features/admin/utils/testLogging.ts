@@ -3,16 +3,16 @@
  * This file helps administrators verify that logs are being properly saved to Firebase
  */
 
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { logLogin, logLogout, logUserAction, logSystemError, logPageAccess } from '@/app/features/auth/services/logService';
-import { UserRole } from '@/app/features/auth/types/user';
 
-// Test user object for logging tests
-const testUser = {
-  uid: 'test-uid-123',
+// Test user object สำหรับการทดสอบ
+const testUser: User = {
+  uid: 'test-user-123',
   username: 'test-admin',
   role: UserRole.ADMIN,
   firstName: 'Test',
-  lastName: 'Administrator',
+  lastName: 'User',
   isActive: true
 };
 
@@ -24,11 +24,11 @@ export const testAuthenticationLogging = async (): Promise<boolean> => {
     console.log('🧪 Testing authentication logging...');
     
     // Test login logging
-    await logLogin(testUser, 'Test User Agent Chrome/Test');
+    await logLogin(testUser);
     console.log('✅ Login log sent');
     
     // Test logout logging
-    await logLogout(testUser, 'Test User Agent Chrome/Test');
+    await logLogout(testUser);
     console.log('✅ Logout log sent');
     
     return true;
@@ -45,14 +45,7 @@ export const testPageAccessLogging = async (): Promise<boolean> => {
   try {
     console.log('🧪 Testing page access logging...');
     
-    // Create a mock Request object instead of passing a string
-    const mockRequest = {
-      headers: {
-        get: (name: string) => name === 'user-agent' ? 'Test User Agent Chrome/Test' : null
-      }
-    } as unknown as Request;
-    
-    await logPageAccess(testUser, '/admin/user-management', mockRequest);
+    await logPageAccess(testUser, '/census/form');
     console.log('✅ Page access log sent');
     
     return true;
@@ -69,11 +62,17 @@ export const testUserActionLogging = async (): Promise<boolean> => {
   try {
     console.log('🧪 Testing user action logging...');
     
-    await logUserAction(testUser, 'TEST_ACTION', 'SUCCESS', undefined, {
-      testData: 'This is a test log entry',
-      timestamp: new Date().toISOString(),
-      actionType: 'system_test'
-    });
+    await logUserAction(
+      testUser,
+      'SAVE_DRAFT',
+      'SUCCESS',
+      { id: 'ward-001', type: 'Ward Form' },
+      { 
+        wardId: 'ward-001', 
+        shift: 'morning',
+        testContext: 'automated-test'
+      }
+    );
     console.log('✅ User action log sent');
     
     return true;
@@ -90,7 +89,7 @@ export const testSystemErrorLogging = async (): Promise<boolean> => {
   try {
     console.log('🧪 Testing system error logging...');
     
-    const testError = new Error('This is a test error for logging system verification');
+    const testError = new Error('Test error for logging system validation');
     await logSystemError(testError, 'Logging System Test', testUser);
     console.log('✅ System error log sent');
     
@@ -129,3 +128,19 @@ export const runAllLoggingTests = async (): Promise<{ success: boolean; results:
     results
   };
 };
+
+// Export function สำหรับเรียกใช้จาก Console
+if (typeof window !== 'undefined') {
+  (window as any).testLogging = {
+    all: runAllLoggingTests,
+    auth: testAuthenticationLogging,
+    userAction: testUserActionLogging,
+    pageAccess: testPageAccessLogging,
+  };
+  
+  console.log('🔧 Logging test functions available:');
+  console.log('- testLogging.all() : Test all logging functions');
+  console.log('- testLogging.auth() : Test authentication logging');
+  console.log('- testLogging.userAction() : Test user action logging');
+  console.log('- testLogging.pageAccess() : Test page access logging');
+}

@@ -1,10 +1,10 @@
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { User } from '@/app/features/auth/types/user';
-import { CalendarMarker, TrendData, WardSummaryDataWithShifts as OldWardSummaryDataWithShifts, PieChartDataItem } from './index';
-import { DailyPatientData, WardSummaryDataWithShifts as NewWardSummaryDataWithShifts } from './interface-types';
+import { PieChartDataItem } from './chart-types';
+import { DailyPatientData, WardSummaryDataWithShifts as NewWardSummaryDataWithShifts, CalendarMarker, TrendData } from './interface-types';
 
-// Union type for both WardSummaryDataWithShifts formats
-export type AnyWardSummaryDataWithShifts = OldWardSummaryDataWithShifts | NewWardSummaryDataWithShifts;
+// Use NewWardSummaryDataWithShifts as the primary type
+export type AnyWardSummaryDataWithShifts = NewWardSummaryDataWithShifts;
 
 // User interface สำหรับ ChartSection
 export interface UserForChartSection {
@@ -88,6 +88,13 @@ export interface WardCensusButtonsProps {
   onWardSelect: (wardId: string) => void;
   onActionSelect: (action: string) => void;
   isRegularUser?: boolean;
+}
+
+// Props สำหรับ WardSummaryGrid
+export interface WardSummaryGridProps {
+  wards: { id: string; wardName: string; patientCount: number }[];
+  selectedWardId: string | null;
+  onSelectWard: (wardId: string) => void;
 }
 
 // Props สำหรับ ChartSection
