@@ -3,6 +3,9 @@
 import React from 'react';
 import { SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION } from '@/app/features/auth/types/log';
 
+// เพิ่ม constant สำหรับ userManagementLogs collection
+export const USER_MANAGEMENT_LOGS_COLLECTION = 'userManagementLogs';
+
 interface LogFilterControlsProps {
   filters: {
     logCollection: string;
@@ -36,7 +39,8 @@ export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, s
             onChange={(e) => setters.handleLogCollectionChange(e.target.value)}
           >
             <option value={SYSTEM_LOGS_COLLECTION}>System Logs</option>
-            <option value={USER_ACTIVITY_LOGS_COLLECTION}>User Management Logs</option>
+            <option value={USER_ACTIVITY_LOGS_COLLECTION}>User Activity Logs</option>
+            <option value={USER_MANAGEMENT_LOGS_COLLECTION}>User Management Logs</option>
           </select>
         </div>
         
@@ -50,16 +54,45 @@ export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, s
             onChange={(e) => setters.setLogType(e.target.value)}
           >
             <option value="all">ทั้งหมด</option>
-            <option value="auth.login">เข้าสู่ระบบ</option>
-            <option value="auth.logout">ออกจากระบบ</option>
-            <option value="auth.login_failed">เข้าสู่ระบบล้มเหลว</option>
-            <option value="page.access">เข้าถึงหน้า</option>
-            <option value="system.error">ข้อผิดพลาดระบบ</option>
+            {/* StandardLog Action Types */}
+            <option value="AUTH.LOGIN">เข้าสู่ระบบ</option>
+            <option value="AUTH.LOGOUT">ออกจากระบบ</option>
+            <option value="AUTH.LOGIN_FAILED">เข้าสู่ระบบล้มเหลว</option>
+            <option value="NAVIGATION.PAGE_ACCESS">เข้าถึงหน้า</option>
+            <option value="SYSTEM.ERROR">ข้อผิดพลาดระบบ</option>
+            
+            {/* Backward compatibility with old format */}
+            <option value="auth.login">เข้าสู่ระบบ (รูปแบบเก่า)</option>
+            <option value="auth.logout">ออกจากระบบ (รูปแบบเก่า)</option>
+            <option value="auth.login_failed">เข้าสู่ระบบล้มเหลว (รูปแบบเก่า)</option>
+            <option value="page.access">เข้าถึงหน้า (รูปแบบเก่า)</option>
+            <option value="system.error">ข้อผิดพลาดระบบ (รูปแบบเก่า)</option>
+            
             {filters.logCollection === USER_ACTIVITY_LOGS_COLLECTION && (
               <>
-                <option value="user.action.create">สร้างข้อมูล</option>
-                <option value="user.action.update">แก้ไขข้อมูล</option>
-                <option value="user.action.delete">ลบข้อมูล</option>
+                <option value="USER.CREATE">สร้างข้อมูลผู้ใช้</option>
+                <option value="USER.UPDATE">แก้ไขข้อมูลผู้ใช้</option>
+                <option value="USER.DELETE">ลบข้อมูลผู้ใช้</option>
+                <option value="USER.ACTIVATE">เปิดใช้งานผู้ใช้</option>
+                <option value="USER.DEACTIVATE">ปิดใช้งานผู้ใช้</option>
+                <option value="FORM.SAVE">บันทึกแบบฟอร์ม</option>
+                <option value="FORM.SUBMIT">ส่งแบบฟอร์ม</option>
+                <option value="FORM.APPROVE">อนุมัติแบบฟอร์ม</option>
+                <option value="FORM.REJECT">ปฏิเสธแบบฟอร์ม</option>
+                
+                {/* Old format compatibility for user actions */}
+                <option value="user.action.create">สร้างข้อมูล (รูปแบบเก่า)</option>
+                <option value="user.action.update">แก้ไขข้อมูล (รูปแบบเก่า)</option>
+                <option value="user.action.delete">ลบข้อมูล (รูปแบบเก่า)</option>
+              </>
+            )}
+
+            {filters.logCollection === USER_MANAGEMENT_LOGS_COLLECTION && (
+              <>
+                <option value="CREATE_USER">สร้างผู้ใช้ใหม่</option>
+                <option value="UPDATE_USER">แก้ไขข้อมูลผู้ใช้</option>
+                <option value="DELETE_USER">ลบผู้ใช้</option>
+                <option value="TOGGLE_STATUS">เปลี่ยนสถานะผู้ใช้</option>
               </>
             )}
           </select>

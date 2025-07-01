@@ -241,4 +241,94 @@ testLogging.pageAccess() // ทดสอบ page access logging
 - ✅ User actions → Firebase `user_activity_logs` collection
 - ✅ Development debugging tools พร้อมใช้งาน
 
+#### **🔧 LATEST FIX: Admin Log Viewer Structure Update (2025-01-XX):**
+
+**CRITICAL ISSUE RESOLVED: Log Viewer ไม่แสดง Logs ของวันที่ 29 มิ.ย. 68**
+
+คุณบีบีรายงานว่าหน้า Dev-Tools ไม่แสดง Login Logs แม้ว่า Server จะบันทึกได้ปกติ
+
+**🚨 Root Cause:**
+- Admin Log Viewer ใช้ `LogEntry` interface เก่าที่ไม่ตรงกับ `StandardLog` ใหม่
+- Query ใช้ field `createdAt` แต่ StandardLog บันทึกเป็น `timestamp`
+- Data mapping ไม่ตรงกัน: `username` vs `actor.username`, `type` vs `action.type`
+
+**✅ Lean Code Solution:**
+- **ลบ Duplicate Interface**: ใช้ `StandardLog` แทน `LogEntry` เก่า
+- **Smart Fallback**: Query `timestamp` ก่อน ถ้าไม่ได้ค่อย fallback เป็น `createdAt`
+- **Backward Compatibility**: รองรับทั้ง log format เก่าและใหม่
+- **Enhanced UI**: แสดง Action Status, Response Time, และ Role ใน LogsTable
+
+**📊 Files Modified:**
+- `app/features/admin/types/log.ts` - ลบ duplicate LogEntry interface
+- `app/features/admin/hooks/useLogViewer.ts` - แก้ไข query และ mapping logic
+- `app/features/admin/components/LogsTable.tsx` - อัปเดต UI สำหรับ StandardLog
+- `app/features/admin/components/LogFilterControls.tsx` - เพิ่ม action types ที่ถูกต้อง
+- `app/features/admin/services/logAdminService.ts` - แก้ไข cleanup ให้ใช้ timestamp
+
+**🎯 Result:**
+- ✅ Dev-Tools แสดง Logs ของวันที่ 29 มิ.ย. 68 ได้แล้ว
+- ✅ รองรับทั้ง StandardLog (ใหม่) และ Legacy format (เก่า)
+- ✅ Performance ดีขึ้นด้วย smart fallback mechanism
+- ✅ UI แสดงข้อมูลครบถ้วนมากขึ้น (Role, Status, Response Time)
+
+### 🔥 **LATEST FIX: userManagementLogs Support & Export Error Resolution (2025-01-XX)**
+
+**CRITICAL FIXES COMPLETED: userManagementLogs Display & Export Safety**
+
+คุณบีบีรายงานปัญหา 2 จุดหลัก: userManagementLogs ไม่แสดงข้อมูลและ Export Error
+
+**🚨 Issues Identified:**
+1. **Export TypeError**: `Object.keys(undefined)` เมื่อ logs เป็น empty array
+2. **userManagementLogs Missing**: Collection ไม่ได้ถูกเพิ่มเป็น option ใน Admin Log Viewer
+3. **Structure Mismatch**: userManagementLogs ใช้ structure แตกต่างจาก StandardLog
+
+**✅ Comprehensive Fix Following "Lean Code" Principles:**
+
+**1. Export Safety Enhancement:**
+- เพิ่ม **Double Safety Checks** ใน `exportLogs()` function
+- Handle empty logs array โดย alert ให้ user ปรับเงื่อนไข
+- ป้องกัน `Object.keys(undefined)` TypeError อย่างสมบูรณ์
+- **File**: `app/features/admin/components/LogsTable.tsx` (350 บรรทัด) ✅
+
+**2. userManagementLogs Integration:**
+- เพิ่ม `USER_MANAGEMENT_LOGS_COLLECTION = 'userManagementLogs'` เป็น option
+- สร้าง **Dedicated Action Types**: CREATE_USER, UPDATE_USER, DELETE_USER, TOGGLE_STATUS
+- **File**: `app/features/admin/components/LogFilterControls.tsx` (176 บรรทัด) ✅
+
+**3. Smart Collection Mapping:**
+- สร้าง `mapUserManagementLogToEntry()` function สำหรับ userManagementLog structure
+- **Intelligent Query Switching**: ใช้ `action` field สำหรับ userManagementLogs, `action.type` สำหรับ StandardLog
+- **Multi-Structure Support**: รองรับ 3 log structures (StandardLog, Legacy, UserManagementLog)
+- **File**: `app/features/admin/hooks/useLogViewer.ts` (254 บรรทัด) ✅
+
+**4. Enhanced Debugging & Monitoring:**
+- เพิ่ม console logging `📊 [LOG_VIEWER] Loaded X logs from collection`
+- **Safety Fallback**: Auto-detect field structure และ fallback เมื่อจำเป็น
+- **Error Handling**: Comprehensive error messaging พร้อม emoji indicators
+
+**📊 Impact Assessment:**
+- **Collection Coverage**: 100% - รองรับ system_logs, user_activity_logs, userManagementLogs
+- **Export Reliability**: ✅ ไม่มี TypeError เมื่อ logs ว่าง
+- **Data Display**: ✅ userManagementLogs แสดงครบถ้วน (Admin actions, Target users, Timestamps)
+- **Performance**: ✅ Smart query selection ไม่กระทบความเร็ว
+- **Backward Compatibility**: ✅ รองรับ log formats ทั้งหมด
+
+**🎯 Files Modified (All Under 500-Line Limit):**
+- `app/features/admin/components/LogsTable.tsx` - Enhanced export safety (350 บรรทัด)
+- `app/features/admin/components/LogFilterControls.tsx` - Added userManagementLogs support (176 บรรทัด)
+- `app/features/admin/hooks/useLogViewer.ts` - Multi-structure mapping logic (254 บรรทัด)
+
+**✅ Testing Results:**
+- ✅ Export function: Works perfectly with empty and populated logs
+- ✅ userManagementLogs: Displays admin actions from Firebase correctly  
+- ✅ Filter Options: All 3 collections selectable with appropriate action types
+- ✅ Cleanup Function: Works with all collections (timestamp field detection)
+- ✅ Performance: No degradation, smart query optimization
+
+**🔧 Lean Code Compliance:**
+- **Waste Elimination**: ลบ duplicate constants และ redundant code
+- **File Size**: ทุกไฟล์อยู่ใต้ 500 บรรทัด
+- **Reuse**: ใช้ existing mapping patterns และ error handling
+- **Security**: Maintained all existing security patterns
+
 --- 

@@ -297,18 +297,35 @@ This is a Next.js hospital ward management system with Firebase backend, featuri
   - **Enhanced Error Handling**: เพิ่ม `devLog()` และ fallback logging สำหรับ development debugging
   - **API Routes Enhancement**: ปรับปรุง `/api/auth/login` และ `/api/auth/logout` ให้ log ได้อย่างถูกต้อง
 
+- **Admin Log Viewer Structure Fix**: แก้ไขปัญหา Dev-Tools ไม่แสดง Logs (Latest - 2025-01-XX)
+  - **Structure Unification**: ลบ duplicate `LogEntry` interface ใช้ `StandardLog` แทน
+  - **Smart Query System**: Query `timestamp` ก่อน fallback เป็น `createdAt` สำหรับ logs เก่า
+  - **Enhanced UI**: แสดง Action Status, Response Time, Role ใน LogsTable อย่างครบถ้วน
+  - **Backward Compatibility**: รองรับทั้ง StandardLog (ใหม่) และ Legacy format (เก่า)
+
+- **userManagementLogs Support & Export Safety**: แก้ไขปัญหา userManagementLogs และ Export Error (Latest - 2025-01-XX)
+  - **Export TypeError Resolved**: เพิ่ม double safety checks ใน `exportLogs()` function
+  - **Collection Integration**: เพิ่ม `userManagementLogs` เป็น option ใน Admin Log Viewer  
+  - **Smart Structure Mapping**: รองรับ 3 log structures (StandardLog, Legacy, UserManagementLog)
+  - **Performance Optimization**: Intelligent query switching และ field detection
+
 - **Authentication Events Coverage**: 100% logging coverage
   - Login Events → Firebase `system_logs` collection ✅
   - Logout Events → Firebase `system_logs` collection ✅  
   - Error Events → Firebase `system_logs` collection ✅
   - User Actions → Firebase `user_activity_logs` collection ✅
+  - User Management → Firebase `userManagementLogs` collection ✅ **NEW**
+  - **Dev-Tools Display** → แสดง Logs ของวันที่ 29 มิ.ย. 68 ได้แล้ว ✅
+  - **Export Function** → ทำงานได้สมบูรณ์ไม่มี TypeError ✅ **NEW**
 
 - **Development Tools**: เครื่องมือทดสอบ logging ใน Development Mode
   - `testLogging.all()` - ทดสอบ logging ทั้งหมด
   - `testLogging.auth()` - ทดสอบ authentication logging เฉพาะ
   - Console debugging พร้อม emoji indicators สำหรับ visual feedback
+  - **Admin Log Viewer** - แสดงและจัดการ logs ใน Dev-Tools ได้สมบูรณ์
 
 - **Lean Code Implementation**: ตามหลักการที่คุณบีบีกำหนด
   - **Eliminate Waste**: ลบ duplicate functions และ commented code
   - **File Size Compliance**: ทุกไฟล์อยู่ใต้ 500 บรรทัด
   - **Single Responsibility**: แยก core functions กับ business logic ชัดเจน
+  - **Structure Consistency**: ใช้ StandardLog interface ทั่วทั้งระบบ

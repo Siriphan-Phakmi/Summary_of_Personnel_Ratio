@@ -13,20 +13,57 @@ export const cleanupOldLogs = async (logCollection: string, days: number): Promi
     throw new Error('จำนวนวันต้องเป็นค่าบวก');
   }
 
-  console.log(`Starting cleanup for "${logCollection}" for logs older than ${days} days...`);
+  console.log(`🧹 [LOG_CLEANUP] Starting cleanup for "${logCollection}" for logs older than ${days} days...`);
 
   const cutoffDate = subDays(new Date(), days);
   const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
   const logsRef = collection(db, logCollection);
-  const q = query(logsRef, where('createdAt', '<', cutoffTimestamp));
+  
+  let totalDeleted = 0;
 
-  const snapshot = await getDocs(q);
+  try {
+    // Try new StandardLog structure first (timestamp field)
+    const newFormatQuery = query(logsRef, where('timestamp', '<', cutoffTimestamp));
+    const newFormatSnapshot = await getDocs(newFormatQuery);
+    
+    if (!newFormatSnapshot.empty) {
+      console.log(`📄 [LOG_CLEANUP] Found ${newFormatSnapshot.size} old logs in new format (timestamp field)`);
+      totalDeleted += await deleteBatchedLogs(newFormatSnapshot.docs);
+    }
+  } catch (error: any) {
+    console.log(`⚠️ [LOG_CLEANUP] New format query failed, trying old format: ${error.message}`);
+  }
 
-  if (snapshot.empty) {
-    console.log('No old logs found to delete.');
+  try {
+    // Fallback to old log structure (createdAt field)
+    const oldFormatQuery = query(logsRef, where('createdAt', '<', cutoffTimestamp));
+    const oldFormatSnapshot = await getDocs(oldFormatQuery);
+    
+    if (!oldFormatSnapshot.empty) {
+      console.log(`📄 [LOG_CLEANUP] Found ${oldFormatSnapshot.size} old logs in old format (createdAt field)`);
+      totalDeleted += await deleteBatchedLogs(oldFormatSnapshot.docs);
+    }
+  } catch (error: any) {
+    console.log(`⚠️ [LOG_CLEANUP] Old format query also failed: ${error.message}`);
+  }
+
+  if (totalDeleted === 0) {
+    console.log('✨ [LOG_CLEANUP] No old logs found to delete.');
     return 0;
   }
+
+  console.log(`✅ [LOG_CLEANUP] Successfully deleted ${totalDeleted} old logs from "${logCollection}".`);
+  return totalDeleted;
+};
+
+/**
+ * Helper function to delete documents in batches (Firebase limit: 500 operations per batch)
+ * @param docs Array of documents to delete
+ * @returns Number of deleted documents
+ */
+const deleteBatchedLogs = async (docs: any[]): Promise<number> => {
+  if (docs.length === 0) return 0;
 
   // Firestore allows a maximum of 500 operations in a single batch.
   const batchArray: ReturnType<typeof writeBatch>[] = [];
@@ -34,7 +71,7 @@ export const cleanupOldLogs = async (logCollection: string, days: number): Promi
   let operationCounter = 0;
   let batchIndex = 0;
 
-  snapshot.docs.forEach(doc => {
+  docs.forEach(doc => {
     batchArray[batchIndex].delete(doc.ref);
     operationCounter++;
 
@@ -46,7 +83,5 @@ export const cleanupOldLogs = async (logCollection: string, days: number): Promi
   });
 
   await Promise.all(batchArray.map(batch => batch.commit()));
-  
-  console.log(`Successfully deleted ${snapshot.size} old logs.`);
-  return snapshot.size;
+  return docs.length;
 }; 
