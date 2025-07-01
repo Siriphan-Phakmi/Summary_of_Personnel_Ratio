@@ -1,10 +1,7 @@
 'use client';
 
 import React from 'react';
-import { SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION } from '@/app/features/auth/types/log';
-
-// เพิ่ม constant สำหรับ userManagementLogs collection
-export const USER_MANAGEMENT_LOGS_COLLECTION = 'userManagementLogs';
+import { SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION, USER_MANAGEMENT_LOGS_COLLECTION } from '@/app/features/auth/types/log';
 
 interface LogFilterControlsProps {
   filters: {

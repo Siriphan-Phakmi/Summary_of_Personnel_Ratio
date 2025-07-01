@@ -20,6 +20,7 @@ export enum LogType {
 
 export const SYSTEM_LOGS_COLLECTION = 'system_logs';
 export const USER_ACTIVITY_LOGS_COLLECTION = 'user_activity_logs';
+export const USER_MANAGEMENT_LOGS_COLLECTION = 'userManagementLogs';
 
 /**
  * @deprecated Use StandardLog instead.

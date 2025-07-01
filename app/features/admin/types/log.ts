@@ -7,7 +7,7 @@ export type LogEntry = StandardLog & {
   // Additional computed fields for admin display
   displayUsername?: string;
   displayType?: string;
-  displayTime?: string;
+  displayTime?: Date; // Changed from string to Date to match implementation
 };
 
 // Helper type for raw Firebase document
