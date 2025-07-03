@@ -18,7 +18,6 @@ const securityHeaders = {
 const protectedRoutes = [
   '/admin',
   '/census',
-  '/home',
   '/features',
 ];
 
@@ -183,13 +182,15 @@ function getRoleRequirement(pathname: string): string[] | null {
 
 // ฟังก์ชันหา redirect path ตาม role สำหรับการเข้าหน้าแรก
 function getLandingRedirectPathByRole(role: string): string {
+  // ✅ Pure Lean Code: Direct role-based redirect to primary work page
+  // เพื่อให้ผู้ใช้เข้าไปทำงานได้ทันทีโดยไม่ต้องผ่าน intermediate step
   switch (role) {
     case UserRole.ADMIN:
     case UserRole.DEVELOPER:
-      return '/census/approval';
+      return '/census/approval'; // Admin focus: อนุมัติข้อมูล
     case UserRole.NURSE:
     case UserRole.APPROVER:
-      return '/census/form';
+      return '/census/form'; // Nurse focus: บันทึกข้อมูล
     default:
       // สำหรับ role อื่นๆ หรือกรณีไม่มี role ให้ไปหน้า form เพื่อความปลอดภัย
       return '/census/form';

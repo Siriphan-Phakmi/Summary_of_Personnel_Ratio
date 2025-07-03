@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/features/auth';
 import { useTheme } from 'next-themes';
@@ -43,12 +44,20 @@ const NavBar = () => {
     <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50 no-print">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center py-3">
-          <Link href="/home" className="flex items-center space-x-2">
-            <img src="/images/BPK.jpg" alt="Logo" className="h-8 w-auto" />
+          {/* ✅ Lean Code: Non-clickable Personnel Ratio (Brand Identity Only) */}
+          <div className="flex items-center space-x-2">
+            <Image 
+              src="/images/BPK.jpg" 
+              alt="BPK Hospital Logo" 
+              width={32} 
+              height={32} 
+              className="h-8 w-auto"
+              priority
+            />
             <span className="text-xl font-bold text-gray-800 dark:text-white hidden sm:inline">
               Personnel Ratio
             </span>
-          </Link>
+          </div>
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-2">

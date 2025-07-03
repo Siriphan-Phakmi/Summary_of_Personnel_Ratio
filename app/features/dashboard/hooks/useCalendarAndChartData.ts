@@ -164,7 +164,7 @@ export const useCalendarAndChartData = ({
       loadPieChartData();
       processBedCensusData();
     }
-  }, [wardCensusMap]);
+  }, [wardCensusMap, loadPieChartData, processBedCensusData]);
 
   return {
     calendarMarkers,

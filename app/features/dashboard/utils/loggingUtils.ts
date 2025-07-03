@@ -63,8 +63,10 @@ export const hasAccessToWard = (wardId: string, wards: Ward[]): boolean => {
   );
 };
 
-export default {
+const loggingUtils = {
   logInfo,
   logError,
   hasAccessToWard
-}; 
+};
+
+export default loggingUtils; 

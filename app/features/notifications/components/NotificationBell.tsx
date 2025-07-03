@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Button } from '@/app/components/ui/Button';
 import { useAuth } from '@/app/features/auth';
 import { useNotificationBell } from '../hooks/useNotificationBell';
@@ -39,19 +39,19 @@ const NotificationBell: React.FC = () => {
   }, []);
 
   // Memoized handlers for better performance
-  const handleToggleDropdown = () => setIsOpen(prev => !prev);
+  const handleToggleDropdown = useCallback(() => setIsOpen(prev => !prev), []);
 
-  const handleNotificationClick = (notification: any) => {
+  const handleNotificationClick = useCallback((notification: any) => {
     if (!notification.isRead && notification.id) {
       markAsRead(notification.id);
     }
-  };
+  }, [markAsRead]);
 
-  const handleMarkAsReadClick = (e: React.MouseEvent, notificationId: string) => {
+  const handleMarkAsReadClick = useCallback((e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation();
     e.preventDefault();
     markAsRead(notificationId);
-  };
+  }, [markAsRead]);
 
   // Memoized notification list for performance
   const notificationList = useMemo(() => (

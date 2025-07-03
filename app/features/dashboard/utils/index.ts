@@ -33,7 +33,7 @@ export {
 };
 
 // Default export สำหรับการ import ทั้งหมด
-export default {
+const dashboardUtils = {
   getThaiDayName,
   getThaiMonthName,
   formatThaiDate,
@@ -43,6 +43,8 @@ export default {
   logError,
   hasAccessToWard
 };
+
+export default dashboardUtils;
 
 // Export all utility functions
 export * from './dashboardCalculations';

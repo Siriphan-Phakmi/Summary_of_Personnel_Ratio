@@ -55,7 +55,7 @@ const FormDetailsModal: React.FC<FormDetailsModalProps> = ({ form, isOpen, onClo
     };
 
     fetchHistory();
-  }, [isOpen, form]);
+  }, [isOpen, form, modalConfig?.historyGenericError, modalConfig?.historyIndexError]);
 
   if (!form) return null;
   

@@ -147,7 +147,7 @@ export const useDashboardData = (
       setTableData([]);
       setError(createDashboardErrorMessage(error, 'createTableData'));
     }
-  }, [selectedDate, summaryDataList, user, wards]);
+  }, [selectedDate, user, wards]);
 
   // เรียกใช้ createTableData เมื่อ summaryDataList หรือ selectedDate เปลี่ยนแปลง
   useEffect(() => {

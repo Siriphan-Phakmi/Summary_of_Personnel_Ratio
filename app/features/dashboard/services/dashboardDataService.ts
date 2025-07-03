@@ -183,8 +183,10 @@ export const fetchAllWardSummaryData = async (
   return [];
 };
 
-export default {
+const dashboardDataService = {
   fetchWardForms,
   refreshData,
   fetchAllWardSummaryData
-}; 
+};
+
+export default dashboardDataService; 
