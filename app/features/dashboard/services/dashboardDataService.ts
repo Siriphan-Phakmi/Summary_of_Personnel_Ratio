@@ -187,6 +187,6 @@ const dashboardDataService = {
   fetchWardForms,
   refreshData,
   fetchAllWardSummaryData
-};
+}; 
 
 export default dashboardDataService; 

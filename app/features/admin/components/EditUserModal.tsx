@@ -20,25 +20,40 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
     lastName: user.lastName,
     role: user.role,
     assignedWardId: user.assignedWardId,
-    approveWardIds: user.approveWardIds,
+    approveWardIds: user.approveWardIds || [],
   });
+  
+  const [error, setError] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    setError(null);
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
   const handleWardSelection = (selectedWards: string[]) => {
+    setError(null);
     setFormData(prev => ({ ...prev, approveWardIds: selectedWards }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    
+    if (formData.role === UserRole.NURSE && !formData.assignedWardId) {
+      setError('Please select an assigned ward for NURSE role.');
+      return;
+    }
+    
+    if (formData.role === UserRole.APPROVER && (!formData.approveWardIds || formData.approveWardIds.length === 0)) {
+      setError('Please select at least one ward for APPROVER role.');
+      return;
+    }
+    
     onUpdate(user.uid, formData);
   };
 
   useEffect(() => {
-    // Reset fields when role changes
     if (formData.role !== UserRole.NURSE) {
         setFormData(prev => ({...prev, assignedWardId: undefined}));
     }
@@ -50,66 +65,121 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-4">Edit User: {user.username}</h2>
+        <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-white">Edit User: {user.username}</h2>
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md">
+            <p className="text-sm text-red-700 dark:text-red-300 font-medium">⚠️ {error}</p>
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="firstName">First Name</Label>
-            <Input id="firstName" name="firstName" value={formData.firstName || ''} onChange={handleInputChange} />
+            <Input 
+              id="firstName" 
+              name="firstName" 
+              value={formData.firstName || ''} 
+              onChange={handleInputChange}
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
           </div>
+          
           <div>
             <Label htmlFor="lastName">Last Name</Label>
-            <Input id="lastName" name="lastName" value={formData.lastName || ''} onChange={handleInputChange} />
+            <Input 
+              id="lastName" 
+              name="lastName" 
+              value={formData.lastName || ''} 
+              onChange={handleInputChange}
+              className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            />
           </div>
+          
           <div>
             <Label htmlFor="role">Role</Label>
-            <select id="role" name="role" value={formData.role} onChange={handleInputChange} className="w-full p-2 border rounded">
+            <select 
+              id="role" 
+              name="role" 
+              value={formData.role} 
+              onChange={handleInputChange} 
+              className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
                 {Object.values(UserRole).map(roleValue => (
                     <option key={roleValue} value={roleValue}>{roleValue}</option>
                 ))}
             </select>
           </div>
 
-          {/* Conditional fields based on role */}
           {formData.role === UserRole.NURSE && (
              <div>
                 <Label htmlFor="assignedWardId">Assigned Ward</Label>
-                 <select id="assignedWardId" name="assignedWardId" value={formData.assignedWardId || ''} onChange={handleInputChange} className="w-full p-2 border rounded">
+                 <select 
+                   id="assignedWardId" 
+                   name="assignedWardId" 
+                   value={formData.assignedWardId || ''} 
+                   onChange={handleInputChange} 
+                   className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                 >
                      <option value="">Select a ward</option>
-                     {wards.map(ward => <option key={ward.id} value={ward.id}>{ward.name}</option>)}
+                     {wards && wards.length > 0 ? (
+                       wards.map(ward => (
+                         <option key={ward.id} value={ward.id}>{ward.name}</option>
+                       ))
+                     ) : (
+                       <option disabled>No wards available</option>
+                     )}
                  </select>
+                 {(!wards || wards.length === 0) && (
+                   <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                     ⚠️ Warning: No wards found. Please contact administrator.
+                   </p>
+                 )}
              </div>
           )}
             
           {formData.role === UserRole.APPROVER && (
             <div>
               <Label>Approvable Wards</Label>
-              <div className="grid grid-cols-3 gap-2 p-2 border rounded-md">
-                {wards.map(ward => (
-                  <div key={ward.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`ward-${ward.id}`}
-                      checked={formData.approveWardIds?.includes(ward.id) || false}
-                      onChange={(e) => {
-                        const newSelection = e.target.checked
-                          ? [...(formData.approveWardIds || []), ward.id]
-                          : (formData.approveWardIds || []).filter(id => id !== ward.id);
-                        handleWardSelection(newSelection);
-                      }}
-                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor={`ward-${ward.id}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-200">
-                      {ward.name}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              {wards && wards.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 p-3 border rounded-md dark:bg-gray-700 dark:border-gray-600 max-h-40 overflow-y-auto">
+                  {wards.map(ward => (
+                    <div key={ward.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`ward-${ward.id}`}
+                        checked={formData.approveWardIds?.includes(ward.id) || false}
+                        onChange={(e) => {
+                          setError(null);
+                          const newSelection = e.target.checked
+                            ? [...(formData.approveWardIds || []), ward.id]
+                            : (formData.approveWardIds || []).filter(id => id !== ward.id);
+                          handleWardSelection(newSelection);
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-500 dark:focus:ring-indigo-400"
+                      />
+                      <label 
+                        htmlFor={`ward-${ward.id}`} 
+                        className="ml-2 block text-sm text-gray-900 dark:text-gray-200 cursor-pointer"
+                      >
+                        {ward.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 border rounded-md bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    ⚠️ No wards available for selection. Please contact administrator to set up wards.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Save Changes</Button>
+            <Button type="submit" variant="primary">Save Changes</Button>
           </div>
         </form>
       </div>

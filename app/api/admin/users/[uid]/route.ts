@@ -11,7 +11,7 @@ import {
   applySecurityHeaders 
 } from '@/app/lib/utils/security';
 
-async function handler(req: NextRequest, { params }: { params: { uid: string } }) {
+async function handler(req: NextRequest, { params }: { params: Promise<{ uid: string }> }) {
   // Rate limiting check
   const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
   const maxAttempts = parseInt(process.env.RATE_LIMIT_USER_UPDATE_MAX_ATTEMPTS || '10');
@@ -32,7 +32,7 @@ async function handler(req: NextRequest, { params }: { params: { uid: string } }
     return applySecurityHeaders(response);
   }
 
-  const { uid } = params;
+  const { uid } = await params;
 
   // Validate UID format (basic validation)
   if (!uid || typeof uid !== 'string' || uid.trim().length === 0) {

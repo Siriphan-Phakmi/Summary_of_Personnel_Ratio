@@ -16,17 +16,42 @@ export const useUserManagement = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
+      setError(null);
       try {
         const [wardsData, usersData] = await Promise.all([
           getAllWards(),
           getAllUsers()
         ]);
-        setWards(wardsData);
-        setUsers(usersData);
+        
+        // ✅ Enhanced Error Handling for Ward Data with Better UX
+        if (!wardsData || wardsData.length === 0) {
+          console.warn('⚠️ No wards found in database. User ward assignment will be limited.');
+          showErrorToast('Warning: No wards found. Please contact administrator to set up ward data.');
+        } else {
+          console.log(`✅ Successfully loaded ${wardsData.length} wards for user management.`);
+        }
+        
+        // ✅ Safe Data Setting with Fallbacks
+        setWards(wardsData || []);
+        setUsers(usersData || []);
+        
+        // ✅ Success Feedback for Development
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📊 User Management Data Loaded:`, {
+            wardsCount: wardsData?.length || 0,
+            usersCount: usersData?.length || 0
+          });
+        }
+        
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch initial data.';
+        console.error('❌ User Management Data Loading Error:', err);
         setError(message);
         showErrorToast(message);
+        
+        // ✅ Fallback to Empty Arrays on Error
+        setWards([]);
+        setUsers([]);
       } finally {
         setLoading(false);
       }
@@ -38,6 +63,15 @@ export const useUserManagement = () => {
     setLoading(true);
     setError(null);
     try {
+      // ✅ Client-side Ward Validation before API Call
+      if (userData.role === UserRole.NURSE && !userData.assignedWardId) {
+        throw new Error('Please select an assigned ward for NURSE role.');
+      }
+      
+      if (userData.role === UserRole.APPROVER && (!userData.approveWardIds || userData.approveWardIds.length === 0)) {
+        throw new Error('Please select at least one ward for APPROVER role.');
+      }
+
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: {
@@ -59,6 +93,7 @@ export const useUserManagement = () => {
 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred during user creation.';
+      console.error('❌ User Creation Error:', err);
       setError(message);
       showErrorToast(message);
       return false;
@@ -71,6 +106,15 @@ export const useUserManagement = () => {
     setLoading(true);
     setError(null);
     try {
+      // ✅ Enhanced Client-side Validation before API Call
+      if (userData.role === UserRole.NURSE && !userData.assignedWardId) {
+        throw new Error('Please select an assigned ward for NURSE role.');
+      }
+      
+      if (userData.role === UserRole.APPROVER && (!userData.approveWardIds || userData.approveWardIds.length === 0)) {
+        throw new Error('Please select at least one ward for APPROVER role.');
+      }
+
       const response = await fetch(`/api/admin/users/${uid}`, {
         method: 'PUT',
         headers: {
@@ -92,6 +136,7 @@ export const useUserManagement = () => {
 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred during user update.';
+      console.error('❌ User Update Error:', err);
       setError(message);
       showErrorToast(message);
       return false;
@@ -121,6 +166,7 @@ export const useUserManagement = () => {
 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred during user deletion.';
+      console.error('❌ User Deletion Error:', err);
       setError(message);
       showErrorToast(message);
       return false;
@@ -149,7 +195,7 @@ export const useUserManagement = () => {
 
       showSuccessToast('User status updated successfully.');
       
-      // Log for debugging
+      // ✅ Enhanced Debugging for Development
       if (process.env.NODE_ENV === 'development') {
         console.log("Updated user data from API:", result.user);
       }
@@ -167,6 +213,7 @@ export const useUserManagement = () => {
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'An unknown error occurred during status toggle.';
+      console.error('❌ User Status Toggle Error:', err);
       setError(message);
       showErrorToast(message);
       return false;
@@ -178,10 +225,16 @@ export const useUserManagement = () => {
   const refreshUsers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const usersData = await getAllUsers();
-      setUsers(usersData);
+      setUsers(usersData || []);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔄 Users refreshed: ${usersData?.length || 0} users loaded.`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to refresh users.';
+      console.error('❌ User Refresh Error:', err);
       setError(message);
       showErrorToast(message);
     } finally {

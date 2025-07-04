@@ -67,6 +67,6 @@ const loggingUtils = {
   logInfo,
   logError,
   hasAccessToWard
-};
+}; 
 
 export default loggingUtils; 
