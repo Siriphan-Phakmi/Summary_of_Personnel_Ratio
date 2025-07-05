@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserRole } from '@/app/features/auth/types/user';
-import { getUser, updateUser, deleteUser } from '@/app/features/auth/services/userService';
+import { getUser, updateUser, deleteUser, getUserByUsername } from '@/app/features/auth/services/userService';
 import { logUserManagementAction } from '@/app/features/auth/services/userManagementLogService';
+import { hashPassword } from '@/app/core/utils/authUtils';
 import { 
   validateName,
   validateUserRole,
+  validateUsername,
+  validatePasswordStrength,
   sanitizeInput,
   rateLimiter,
   applySecurityHeaders 
@@ -119,6 +122,40 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ uid: st
           return applySecurityHeaders(response);
         }
         validatedData.approveWardIds = updateData.approveWardIds;
+      }
+
+      // ✅ **NEW: Password Update with Security Validation**
+      if (updateData.password !== undefined && updateData.password !== '') {
+        const passwordValidation = validatePasswordStrength(updateData.password);
+        if (!passwordValidation.isValid) {
+          const response = NextResponse.json({ 
+            error: 'Password does not meet security requirements', 
+            details: passwordValidation.errors 
+          }, { status: 400 });
+          return applySecurityHeaders(response);
+        }
+        
+        // Hash the new password
+        const hashedPassword = await hashPassword(updateData.password);
+        validatedData.password = hashedPassword;
+      }
+
+      // ✅ **NEW: Username Update with Uniqueness Validation**
+      if (updateData.username !== undefined && updateData.username !== targetUser.username) {
+        const usernameValidation = validateUsername(updateData.username);
+        if (!usernameValidation.isValid) {
+          const response = NextResponse.json({ error: usernameValidation.error }, { status: 400 });
+          return applySecurityHeaders(response);
+        }
+        
+        // Check if username already exists (excluding current user)
+        const existingUser = await getUserByUsername(usernameValidation.sanitized);
+        if (existingUser && existingUser.uid !== uid) {
+          const response = NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+          return applySecurityHeaders(response);
+        }
+        
+        validatedData.username = usernameValidation.sanitized;
       }
       
       await updateUser(uid, validatedData);

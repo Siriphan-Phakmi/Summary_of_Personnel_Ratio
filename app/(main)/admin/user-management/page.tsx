@@ -13,7 +13,18 @@ import EditUserModal from '@/app/features/admin/components/EditUserModal';
 
 // Main component for User Management
 const UserManagementComponent = () => {
-  const { users, wards, loading, error, updateUser, deleteUser, toggleUserStatus, refreshUsers } = useUserManagement();
+  const { 
+    users, 
+    wards, 
+    loading, 
+    error, 
+    updateUser, 
+    deleteUser, 
+    toggleUserStatus, 
+    refreshUsers,
+    updatePassword,
+    updateUsername 
+  } = useUserManagement();
   const [isCreateFormVisible, setCreateFormVisible] = useState(false);
   
   // State for the edit modal
@@ -49,6 +60,7 @@ const UserManagementComponent = () => {
     const success = await updateUser(uid, data);
     if (success) {
       handleCloseModal();
+      // ✅ **Auto-refresh หลังแก้ไข (ตามที่คุณบีบีขอ) - already handled in updateUser**
     }
   }
 
@@ -92,6 +104,8 @@ const UserManagementComponent = () => {
           user={selectedUser}
           onClose={handleCloseModal}
           onUpdate={handleUpdateUser}
+          onUpdatePassword={updatePassword}
+          onUpdateUsername={updateUsername}
           wards={wards}
         />
       )}

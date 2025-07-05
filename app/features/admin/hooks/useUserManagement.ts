@@ -130,8 +130,9 @@ export const useUserManagement = () => {
       }
 
       showSuccessToast(`User updated successfully.`);
-      // Refresh the user list with the updated data from the server response
-      setUsers(prev => prev.map(user => user.uid === uid ? { ...user, ...result.user } : user));
+      
+      // ✅ **Auto-refresh users after update (as requested by คุณบีบี)**
+      await refreshUsers();
       return true;
 
     } catch (err) {
@@ -242,6 +243,100 @@ export const useUserManagement = () => {
     }
   };
 
+  // ✅ **NEW: Update Password with Security Validation**
+  const updatePassword = async (uid: string, newPassword: string, confirmPassword: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Client-side validation
+      if (!newPassword || newPassword.length < 8) {
+        throw new Error('Password must be at least 8 characters long.');
+      }
+      
+      if (newPassword !== confirmPassword) {
+        throw new Error('Passwords do not match.');
+      }
+
+      const response = await fetch(`/api/admin/users/${uid}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Error: ${response.status}`);
+      }
+
+      showSuccessToast('Password updated successfully.');
+      
+      // ✅ **Auto-refresh users after password update**
+      await refreshUsers();
+      return true;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unknown error occurred during password update.';
+      console.error('❌ Password Update Error:', err);
+      setError(message);
+      showErrorToast(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ **NEW: Update Username with Uniqueness Validation**
+  const updateUsername = async (uid: string, newUsername: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Client-side validation
+      if (!newUsername || newUsername.length < 3) {
+        throw new Error('Username must be at least 3 characters long.');
+      }
+      
+      if (newUsername.length > 50) {
+        throw new Error('Username must not exceed 50 characters.');
+      }
+      
+      if (!/^[a-zA-Z0-9_-]+$/.test(newUsername)) {
+        throw new Error('Username can only contain letters, numbers, underscores, and hyphens.');
+      }
+
+      const response = await fetch(`/api/admin/users/${uid}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: newUsername }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Error: ${response.status}`);
+      }
+
+      showSuccessToast('Username updated successfully.');
+      
+      // ✅ **Auto-refresh users after username update**
+      await refreshUsers();
+      return true;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unknown error occurred during username update.';
+      console.error('❌ Username Update Error:', err);
+      setError(message);
+      showErrorToast(message);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     users,
     wards,
@@ -252,5 +347,7 @@ export const useUserManagement = () => {
     deleteUser,
     toggleUserStatus,
     refreshUsers,
+    updatePassword,
+    updateUsername,
   };
 }; 

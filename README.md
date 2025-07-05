@@ -8,7 +8,8 @@ A comprehensive application for managing ward personnel ratios and patient censu
 - Ward data form with morning and night shift data entry
 - Approval process for submitted ward data
 - Dashboard for analytics and reporting
-- User management for administrators
+- **Enhanced User Management** with username/password editing capabilities
+- **Dev-Tools System Logs** with advanced filtering and management
 - Dark mode support
 - Responsive design for desktop, tablet, and mobile
 
@@ -118,6 +119,16 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL=your-database-url
 - ✅ ปรับปรุงแบบฟอร์มบันทึกข้อมูลกะเช้า/กะดึก
 - ✅ การจัดการสิทธิ์และการเข้าถึงตาม Role
 - ✅ ปรับโครงสร้างโค้ดใหม่ตามฟีเจอร์ (Feature-based organization)
+- ✅ **Enhanced User Management System** (2025-01-03)
+  - Username editing with uniqueness validation
+  - Password editing with BCrypt encryption
+  - Ward assignment management
+  - Auto-refresh after updates
+- ✅ **Dev-Tools System Logs Enhancement** (2025-01-03)
+  - Bulk delete functionality with security validation
+  - Selective delete with checkbox system
+  - Advanced pagination with cursor-based navigation
+  - Role-based access control (DEVELOPER/ADMIN)
 
 ### In Progress
 - 🔄 การเชื่อมต่อระบบแจ้งเตือนกับการอนุมัติ/ปฏิเสธแบบฟอร์ม

@@ -12,9 +12,18 @@ interface EditUserModalProps {
   wards: Ward[];
   onClose: () => void;
   onUpdate: (uid: string, data: Partial<User>) => void;
+  onUpdatePassword?: (uid: string, newPassword: string, confirmPassword: string) => Promise<boolean>;
+  onUpdateUsername?: (uid: string, newUsername: string) => Promise<boolean>;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onUpdate }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({ 
+  user, 
+  wards, 
+  onClose, 
+  onUpdate, 
+  onUpdatePassword, 
+  onUpdateUsername 
+}) => {
   const [formData, setFormData] = useState<Partial<User>>({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -23,7 +32,22 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
     approveWardIds: user.approveWardIds || [],
   });
   
+  // ✅ **NEW: Username editing state**
+  const [usernameData, setUsernameData] = useState({
+    newUsername: user.username,
+    isEditingUsername: false,
+  });
+  
+  // ✅ **NEW: Password editing state**
+  const [passwordData, setPasswordData] = useState({
+    newPassword: '',
+    confirmPassword: '',
+    isEditingPassword: false,
+    showPassword: false,
+  });
+  
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // ✅ Lean Code: Ward validation logic
   const isWardSelectionValid = (): boolean => {
@@ -31,7 +55,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
       return !!formData.assignedWardId;
     }
     if (formData.role === UserRole.APPROVER) {
-      return formData.approveWardIds && formData.approveWardIds.length > 0;
+      return !!(formData.approveWardIds && formData.approveWardIds.length > 0);
     }
     return true; // Other roles don't require ward selection
   };
@@ -72,6 +96,49 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
     onUpdate(user.uid, formData);
   };
 
+  // ✅ **NEW: Handle username update**
+  const handleUsernameUpdate = async () => {
+    if (!onUpdateUsername) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const success = await onUpdateUsername(user.uid, usernameData.newUsername);
+      if (success) {
+        setUsernameData(prev => ({ ...prev, isEditingUsername: false }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update username');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ **NEW: Handle password update**
+  const handlePasswordUpdate = async () => {
+    if (!onUpdatePassword) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const success = await onUpdatePassword(user.uid, passwordData.newPassword, passwordData.confirmPassword);
+      if (success) {
+        setPasswordData({
+          newPassword: '',
+          confirmPassword: '',
+          isEditingPassword: false,
+          showPassword: false,
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (formData.role !== UserRole.NURSE) {
         setFormData(prev => ({...prev, assignedWardId: undefined}));
@@ -97,6 +164,132 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
         )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ✅ **NEW: Username Editing Section** */}
+          <div className="border-b pb-4 mb-4 dark:border-gray-600">
+            <Label htmlFor="username">Username</Label>
+            {!usernameData.isEditingUsername ? (
+              <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border">
+                <span className="text-gray-900 dark:text-white font-mono">{user.username}</span>
+                {onUpdateUsername && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setUsernameData(prev => ({ ...prev, isEditingUsername: true }))}
+                    disabled={loading}
+                  >
+                    Edit
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  value={usernameData.newUsername}
+                  onChange={(e) => setUsernameData(prev => ({ ...prev, newUsername: e.target.value }))}
+                  placeholder="Enter new username"
+                  disabled={loading}
+                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                <div className="flex space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="primary" 
+                    size="sm"
+                    onClick={handleUsernameUpdate}
+                    disabled={loading || !usernameData.newUsername.trim()}
+                  >
+                    Save
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setUsernameData({ newUsername: user.username, isEditingUsername: false })}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ✅ **NEW: Password Editing Section** */}
+          <div className="border-b pb-4 mb-4 dark:border-gray-600">
+            <Label>Password</Label>
+            {!passwordData.isEditingPassword ? (
+              <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border">
+                <span className="text-gray-500 dark:text-gray-400">••••••••</span>
+                {onUpdatePassword && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setPasswordData(prev => ({ ...prev, isEditingPassword: true }))}
+                    disabled={loading}
+                  >
+                    Change Password
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    type={passwordData.showPassword ? 'text' : 'password'}
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    placeholder="Enter new password"
+                    disabled={loading}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPasswordData(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    disabled={loading}
+                  >
+                    {passwordData.showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+                <Input
+                  type={passwordData.showPassword ? 'text' : 'password'}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  placeholder="Confirm new password"
+                  disabled={loading}
+                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                />
+                <div className="flex space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="primary" 
+                    size="sm"
+                    onClick={handlePasswordUpdate}
+                    disabled={loading || !passwordData.newPassword.trim() || !passwordData.confirmPassword.trim()}
+                  >
+                    Save Password
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setPasswordData({
+                      newPassword: '',
+                      confirmPassword: '',
+                      isEditingPassword: false,
+                      showPassword: false,
+                    })}
+                    disabled={loading}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <Label htmlFor="firstName">First Name</Label>
             <Input 
