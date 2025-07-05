@@ -7,19 +7,46 @@ import { LogsTable } from './components/LogsTable';
 
 export default function LogViewer() {
   const {
+    // Data
     logs,
     loading,
-    filters,
-    setters,
-    fetchLogs,
-    handleCleanupOldLogs,
-    handleDeleteAllLogs,
-    handleDeleteSelectedLogs,
+    
+    // Filter states
+    logCollection,
+    logType,
+    username,
+    dateRange,
+    limitCount,
+    
+    // Pagination states
+    currentPage,
+    hasNextPage,
+    hasPrevPage,
+    
+    // Selection states
     selectedLogs,
+    
+    // Filter setters
+    setLogType,
+    setUsername,
+    setDateRange,
+    setLimitCount,
+    handleLogCollectionChange,
+    
+    // Pagination functions
+    goToNextPage,
+    goToPrevPage,
+    
+    // Selection functions
     handleSelectLog,
     handleSelectAll,
     handleClearSelection,
-    pagination
+    
+    // Action functions
+    fetchLogs,
+    handleCleanupOldLogs,
+    handleDeleteAllLogs,
+    handleDeleteSelectedLogs
   } = useLogViewer();
 
   return (
@@ -35,8 +62,20 @@ export default function LogViewer() {
       
       <main>
         <LogFilterControls 
-          filters={filters}
-          setters={setters}
+          filters={{
+            logCollection,
+            logType,
+            username,
+            dateRange,
+            limitCount
+          }}
+          setters={{
+            handleLogCollectionChange,
+            setLogType,
+            setDateRange,
+            setUsername,
+            setLimitCount
+          }}
           onSearch={fetchLogs}
           onCleanup={handleCleanupOldLogs}
           onDeleteAll={handleDeleteAllLogs}
@@ -51,7 +90,13 @@ export default function LogViewer() {
           onSelectLog={handleSelectLog}
           onSelectAll={handleSelectAll}
           onClearSelection={handleClearSelection}
-          pagination={pagination}
+          pagination={{
+            currentPage,
+            hasNextPage,
+            hasPrevPage,
+            goToNextPage,
+            goToPrevPage
+          }}
         />
       </main>
     </div>

@@ -1,152 +1,178 @@
-# BPK Personnel Ratio Application
+# 🏥 Daily Census Form System - BPK Hospital
 
-A comprehensive application for managing ward personnel ratios and patient census data for BPK Hospital.
+## 📋 Overview
+ระบบบันทึกข้อมูลผู้ป่วยประจำวันสำหรับโรงพยาบาลบีพีเค พัฒนาด้วย Next.js, TypeScript, และ Firebase
 
-## Features
+## 🚀 Features
 
-- User authentication with role-based access control
-- Ward data form with morning and night shift data entry
-- Approval process for submitted ward data
-- Dashboard for analytics and reporting
-- **Enhanced User Management** with username/password editing capabilities
-- **Dev-Tools System Logs** with advanced filtering and management
-- Dark mode support
-- Responsive design for desktop, tablet, and mobile
+### ✅ Recently Completed
+- **Dead Code Elimination**: ลบไฟล์ที่ไม่ใช้งาน (`app/core/utils/auth.ts`, `app/core/services/AuthService.ts`)
+- **File Size Optimization**: แยกไฟล์ `useLogViewer.ts` เป็น helper functions เพื่อปฏิบัติตามหลักการ "Lean Code" (<500 บรรทัด)
+- **Username & Password Editing**: ระบบแก้ไข Username และ Password ใน User Management
+- **Auto-refresh System**: รีเฟรชข้อมูลอัตโนมัติหลังการอัปเดต
+- **Enhanced Security**: BCrypt password hashing และ Username uniqueness validation
 
-## Technology Stack
+### 🔧 Core System
+- **Authentication**: Custom username/password authentication with Firebase Firestore
+- **User Management**: Create, edit, and manage users with role-based access
+- **Census Forms**: Daily patient census data entry and management
+- **Approval System**: Multi-level approval workflow for census data
+- **Dashboard**: Real-time statistics and data visualization
+- **Audit Logging**: Comprehensive user activity tracking
 
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **Backend**: Firebase (Authentication, Firestore, Realtime Database)
-- **State Management**: React Context API
-- **UI Components**: Custom components with Tailwind CSS
-- **Icons**: React Icons
+### 👥 User Roles
+- **Admin**: Full system access including user management
+- **Developer**: Advanced debugging and system administration
+- **Nurse**: Data entry and form management
+- **Approver**: Data approval and verification
 
-## Project Structure
+## 🏗️ Technical Architecture
 
+### 🎯 Lean Code Principles
+- **File Size Limit**: Maximum 500 lines per file
+- **Dead Code Elimination**: Regular removal of unused code
+- **Code Reusability**: Modular design with helper functions
+- **Performance First**: Optimized loading and minimal bundle size
+
+### 💻 Technology Stack
+- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes with server-side validation
+- **Database**: Firebase Firestore with optimized indexes
+- **Authentication**: Custom implementation with BCrypt password hashing
+- **State Management**: React hooks with custom state management
+- **UI/UX**: Responsive design with dark/light mode support
+
+### 🏛️ Project Structure
 ```
-/app
-  /features             # Feature-based organization
-    /auth               # Authentication system
-    /ward-form          # Ward form data entry
-    /approval           # Approval system
-    /dashboard          # Dashboard and analytics
-    /user-management    # User management
-    /notifications      # Notification system
-      
-  /core                 # Shared code base
-    /ui                 # Core UI components
-    /hooks              # Common React hooks
-    /utils              # Utility functions
-    /firebase           # Firebase connection
-    /types              # Common TypeScript types
-    /constants          # Constants
-    
-  /api                  # Next.js API Routes
-    /ward-form          # Form APIs
-    /approval           # Approval APIs
-    /dashboard          # Dashboard APIs
-    /users              # User APIs
-    /dev-tools          # Development tools APIs
-    
-  /dev-tools            # Developer tools
-    /log-viewer         # Log viewer
-    /database-manager   # Database management tools
-    
-  /docs                 # Project documentation
-
-  # Next.js App Router folders
-  /login                # Login page
-  /census               # Census pages
-    /ward-form          # Ward form page
-    /approval           # Approval page
-    /dashboard          # Dashboard page
-  /admin                # Admin pages
-    /user-management    # User management page
-    /database           # Database management page
+app/
+├── (auth)/                 # Authentication pages
+├── (main)/                 # Main application pages
+├── api/                    # API routes
+├── components/             # Reusable UI components
+├── features/               # Feature-specific modules
+│   ├── admin/              # Admin functionality
+│   ├── auth/               # Authentication system
+│   ├── dashboard/          # Dashboard components
+│   └── ward-form/          # Census form system
+├── lib/                    # Utility libraries
+└── middleware.ts           # Route protection
 ```
 
-## Key Workflows
+## 🔒 Security Features
+- **Enterprise-grade Password Validation**: 8+ characters with complexity requirements
+- **BCrypt Password Hashing**: Secure password storage
+- **Username Uniqueness Validation**: Prevent duplicate usernames
+- **XSS Protection**: Input sanitization and validation
+- **Role-based Access Control**: Granular permissions by user role
+- **Audit Trail**: Complete logging of user actions
+- **Session Management**: Secure session handling
 
-### Ward Form Data Entry
-1. User logs in and navigates to the Ward Form
-2. Selects date and shift (morning/night)
-3. Enters patient census data, staff counts and other metrics
-4. Can save as draft or submit final data
-5. Morning shift must be completed before night shift
+## 📊 Performance Optimizations
+- **File Size Management**: All files under 500 lines following "Lean Code" principles
+- **Bundle Optimization**: Modular imports and code splitting
+- **Database Indexes**: Optimized Firebase queries
+- **Caching Strategy**: Smart data caching and refresh mechanisms
+- **Loading States**: Non-blocking UI with proper loading indicators
 
-### Approval Process
-1. Supervisors/admins review submitted ward data
-2. Morning and night shifts must be approved separately
-3. **Rejection Handling:** If a form is rejected by an admin (with a reason), its status changes to 'REJECTED'. The user can then reload the form, see the rejection reason, edit the data, and resubmit it as 'FINAL' for re-approval.
-4. Once both shifts are approved, 24-hour summary is entered
-5. Approved data becomes available for dashboard analytics
+## 🔥 Latest Updates (2025-01-03)
 
-### User Session Management
-1. Only one active session per user is allowed
-2. When a user logs in on a new device, previous sessions are terminated
-3. Session tracking with Firebase Realtime Database
+### Dead Code Elimination & File Size Optimization
+- **Removed Dead Files**: Eliminated unused `auth.ts` and `AuthService.ts` files
+- **File Size Compliance**: Split `useLogViewer.ts` (544 lines) into:
+  - `logViewerHelpers.ts` - Helper functions and types
+  - `useLogViewer.ts` - Main hook logic (466 lines)
+- **Import/Export Management**: Proper modular structure with named imports
+- **Performance Gains**: Reduced bundle size and improved maintainability
 
-## Getting Started
+### User Management Enhancement
+- **Username Editing**: Inline editing with uniqueness validation
+- **Password Management**: Secure password change with confirmation
+- **Auto-refresh**: Real-time data updates after modifications
+- **Enhanced Security**: Enterprise-grade validation and BCrypt hashing
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up Firebase configuration in `.env.local`
-4. Run the development server: `npm run dev`
-5. Access the application at `http://localhost:3000`
+## 🚀 Getting Started
 
-## Environment Variables
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Firebase project with Firestore enabled
 
-Create a `.env.local` file with the following variables:
-
+### Installation
+```bash
+git clone [repository-url]
+cd Summary_of_Personnel_Ratio
+npm install
 ```
-NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-auth-domain
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-storage-bucket
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
-NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
-NEXT_PUBLIC_FIREBASE_DATABASE_URL=your-database-url
+
+### Environment Setup
+Create `.env.local` file with Firebase configuration:
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 ```
 
-## Project Status (อัปเดต 2024-05-10)
+### Running the Application
+```bash
+npm run dev
+# Application will be available at http://localhost:3000
+```
 
-### Recently Completed
-- ✅ ระบบการจัดการแบบฟอร์มและอนุมัติ
-- ✅ Flow การ Reject แบบฟอร์ม (ผู้ใช้สามารถแก้ไขและส่งใหม่ได้)
-- ✅ ระบบคำนวณ Patient Census อัตโนมัติ
-- ✅ ระบบป้องกันการล็อกอินซ้ำซ้อน
-- ✅ พัฒนาระบบแจ้งเตือนเบื้องต้น (NotificationBell)
-- ✅ ปรับปรุงแบบฟอร์มบันทึกข้อมูลกะเช้า/กะดึก
-- ✅ การจัดการสิทธิ์และการเข้าถึงตาม Role
-- ✅ ปรับโครงสร้างโค้ดใหม่ตามฟีเจอร์ (Feature-based organization)
-- ✅ **Enhanced User Management System** (2025-01-03)
-  - Username editing with uniqueness validation
-  - Password editing with BCrypt encryption
-  - Ward assignment management
-  - Auto-refresh after updates
-- ✅ **Dev-Tools System Logs Enhancement** (2025-01-03)
-  - Bulk delete functionality with security validation
-  - Selective delete with checkbox system
-  - Advanced pagination with cursor-based navigation
-  - Role-based access control (DEVELOPER/ADMIN)
+## 📁 Key Files
 
-### In Progress
-- 🔄 การเชื่อมต่อระบบแจ้งเตือนกับการอนุมัติ/ปฏิเสธแบบฟอร์ม
-- 🔄 การปรับปรุงหน้า Dashboard
-- 🔄 การปรับปรุงประสิทธิภาพและการแสดงผลบนอุปกรณ์มือถือ
-- 🔄 การแก้ไขปัญหาการแสดงสถานะแบบฟอร์มในหน้า DailyCensusForm
-- 🔄 ปรับปรุง imports หลังการปรับโครงสร้างโค้ด
+### Core System Files
+- `app/middleware.ts` - Route protection and authentication
+- `app/lib/firebase/firebase.ts` - Firebase configuration
+- `app/features/auth/` - Authentication system
+- `app/features/admin/` - Admin functionality
 
-### Upcoming
-- 📅 ระบบจัดการผู้ใช้งาน
-- 📅 การพัฒนาส่วน Export รายงาน
-- 📅 ส่วนบันทึกข้อมูลสรุป 24 ชั่วโมง
-- 📅 ระบบตรวจสอบความปลอดภัยเพิ่มเติม
+### Recently Modified Files
+- `app/features/admin/utils/logViewerHelpers.ts` - **NEW**: Helper functions for log viewer
+- `app/features/admin/hooks/useLogViewer.ts` - **OPTIMIZED**: Main hook (466 lines)
+- `app/features/admin/components/EditUserModal.tsx` - Enhanced with username/password editing
+- `app/api/admin/users/[uid]/route.ts` - Enhanced API with security validation
 
-## Developer Notes
+## 🔧 Development Guidelines
 
-หากพบปัญหาเกี่ยวกับ Firebase Indexes กรุณาดูไฟล์ `app/docs/FIRESTORE_INDEXES.md` สำหรับคำแนะนำในการสร้าง Indexes ที่จำเป็น
+### Code Standards
+- **Maximum 500 lines per file** (Lean Code principle)
+- **TypeScript strict mode** with comprehensive type safety
+- **ESLint configuration** for code quality
+- **Proper error handling** with user-friendly messages
+- **Security-first approach** with input validation
 
-สำหรับรายละเอียดเพิ่มเติมเกี่ยวกับงานที่ต้องดำเนินการและความคืบหน้าของโครงการ กรุณาดูไฟล์ `app/docs/TASKS.md`
+### Multi-AI Model Compatibility
+- **Cross-model standards** for Claude Sonnet 4, 3.7, Gemini Pro 2.5, O3, O4Mini
+- **Context management** for optimal AI assistant performance
+- **Consistent coding patterns** across different AI models
 
-สำหรับข้อมูลเกี่ยวกับการปรับโครงสร้างโค้ดล่าสุด กรุณาดูไฟล์ `app/docs/RESTRUCTURING.md`
+## 📚 Documentation
+- `REFACTORING_CHANGES.md` - Detailed change log and technical decisions
+- `CLAUDE.md` - AI assistant session summaries and guidelines
+- `README.md` - This file with project overview
+
+## 🔄 Continuous Improvement
+- **Regular code reviews** for quality assurance
+- **Performance monitoring** and optimization
+- **Security updates** and vulnerability assessments
+- **User feedback integration** for feature enhancements
+
+## 🤝 Contributing
+Follow the established patterns and maintain the "Lean Code" philosophy:
+1. Keep files under 500 lines
+2. Remove unused code regularly
+3. Maintain type safety
+4. Document all changes
+5. Test thoroughly before deployment
+
+## 📞 Support
+For technical issues or questions, refer to the documentation files or contact the development team.
+
+---
+
+**Last Updated**: January 3, 2025  
+**Version**: 2.0.0  
+**Status**: Production Ready ✅

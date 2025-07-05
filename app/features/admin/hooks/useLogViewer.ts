@@ -5,104 +5,20 @@ import { collection, query, orderBy, limit, getDocs, where, Timestamp, QueryCons
 import { db } from '@/app/lib/firebase/firebase';
 import { useAuth } from '@/app/features/auth';
 import { subDays, startOfDay } from 'date-fns';
-import { LogLevel, SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION, USER_MANAGEMENT_LOGS_COLLECTION, ActionStatus } from '@/app/features/auth/types/log';
-import { UserRole } from '@/app/features/auth/types/user';
+import { LogLevel, SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION, USER_MANAGEMENT_LOGS_COLLECTION } from '@/app/features/auth/types/log';
 import { cleanupOldLogs, deleteAllLogs, deleteSelectedLogs } from '@/app/features/admin/services/logAdminService';
 import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
-import { LogEntry, RawLogDocument } from '../types/log';
+import { LogEntry } from '../types/log';
 import { 
   validateDeleteAllLogsPermission, 
   validateDeleteSelectedLogsPermission, 
   validateCleanupLogsPermission,
   logSecurityViolation 
 } from '../utils/logSecurityValidation';
-
-// เพิ่ม interface สำหรับ UserManagementLog
-interface UserManagementLogDocument {
-  action: string;
-  adminUid: string;
-  adminUsername: string;
-  targetUid: string;
-  targetUsername: string;
-  timestamp: any;
-  details?: Record<string, any>;
-}
-
-// Helper functions outside the hook to avoid dependency issues
-const safeUserRole = (role: string): UserRole | 'SYSTEM' => {
-  const validRoles = Object.values(UserRole);
-  return validRoles.includes(role as UserRole) ? role as UserRole : 'SYSTEM';
-};
-
-const safeActionStatus = (status: string): ActionStatus => {
-  const validStatuses: ActionStatus[] = ['SUCCESS', 'FAILURE', 'PENDING'];
-  return validStatuses.includes(status as ActionStatus) ? status as ActionStatus : 'SUCCESS';
-};
-
-const safeDeviceType = (deviceType?: string): 'desktop' | 'mobile' | 'tablet' | 'server' | 'unknown' | undefined => {
-  if (!deviceType) return undefined;
-  const validTypes = ['desktop', 'mobile', 'tablet', 'server', 'unknown'];
-  return validTypes.includes(deviceType) ? deviceType as any : 'unknown';
-};
-
-const mapRawLogToEntry = (doc: any): LogEntry => {
-  const data = doc.data() as RawLogDocument;
-  
-  return {
-    id: doc.id,
-    timestamp: data.timestamp,
-    actor: {
-      id: data.actor?.id || 'unknown',
-      username: data.actor?.username || 'Unknown',
-      role: safeUserRole(data.actor?.role || 'SYSTEM'),
-      active: data.actor?.active !== undefined ? data.actor.active : true
-    },
-    action: {
-      type: data.action?.type || 'UNKNOWN',
-      status: safeActionStatus(data.action?.status || 'SUCCESS')
-    },
-    target: data.target,
-    clientInfo: data.clientInfo ? {
-      ipAddress: data.clientInfo.ipAddress,
-      userAgent: data.clientInfo.userAgent,
-      deviceType: safeDeviceType(data.clientInfo.deviceType)
-    } : undefined,
-    details: data.details,
-    // Computed display fields
-    displayUsername: data.actor?.username || 'Unknown',
-    displayType: data.action?.type || 'Unknown',
-    displayTime: data.timestamp?.toDate ? data.timestamp.toDate() : new Date()
-  };
-};
-
-const mapUserManagementLogToEntry = (doc: any): LogEntry => {
-  const data = doc.data() as UserManagementLogDocument;
-  
-  return {
-    id: doc.id,
-    timestamp: data.timestamp,
-    actor: {
-      id: data.adminUid || 'unknown',
-      username: data.adminUsername || 'Unknown Admin',
-      role: UserRole.ADMIN,
-      active: true
-    },
-    action: {
-      type: data.action || 'UNKNOWN',
-      status: 'SUCCESS' as ActionStatus
-    },
-    target: data.targetUid ? {
-      id: data.targetUid,
-      type: 'USER',
-      displayName: data.targetUsername || 'Unknown User'
-    } : undefined,
-    details: data.details,
-    // Computed display fields
-    displayUsername: data.adminUsername || 'Unknown Admin',
-    displayType: data.action || 'Unknown',
-    displayTime: data.timestamp?.toDate ? data.timestamp.toDate() : new Date()
-  };
-};
+import { 
+  mapRawLogToEntry, 
+  mapUserManagementLogToEntry 
+} from '../utils/logViewerHelpers';
 
 export const useLogViewer = () => {
   const { user } = useAuth();
@@ -141,7 +57,6 @@ export const useLogViewer = () => {
     setPageHistory([]);
     setSelectedLogs([]);
   };
-
 
   // Selection Management Functions
   const handleSelectLog = (logId: string) => {
@@ -310,7 +225,7 @@ export const useLogViewer = () => {
       console.log(`🔍 [LOG_VIEWER] Finished fetchLogsWithPagination(${pageDirection})`);
       setLoading(false);
     }
-  }, [user, logType, dateRange, logCollection, limitCount]); // ✅ REMOVED: lastVisibleDoc, pageHistory
+  }, [user, logType, dateRange, logCollection, limitCount, lastVisibleDoc, pageHistory, currentPage]); // ✅ FIXED: Added missing dependencies
 
   // ✅ FIXED: Simple fetchLogs wrapper that doesn't cause infinite loop
   const fetchLogs = useCallback(() => {
@@ -456,21 +371,19 @@ export const useLogViewer = () => {
       return;
     }
 
-    const confirmMessage = `🚨 DANGER: คุณต้องการลบ logs ทั้งหมดใน "${logCollection}" หรือไม่?\n\n⚠️ การกระทำนี้ไม่สามารถยกเลิกได้!\n✅ กดตกลงเพื่อยืนยัน\n❌ กดยกเลิกเพื่อหยุด`;
+    const confirmMessage = `⚠️ คุณแน่ใจหรือไม่ที่จะลบ logs ทั้งหมดของ "${logCollection}"?\n\nการกระทำนี้ไม่สามารถยกเลิกได้!`;
     
     if (window.confirm(confirmMessage)) {
-      const doubleConfirm = window.confirm(`🔴 ยืนยันอีกครั้ง: ลบ logs ทั้งหมดใน "${logCollection}" จริงหรือ?\n\nนี่เป็นการกระทำที่ไม่สามารถย้อนกลับได้!`);
-      
+      const doubleConfirm = window.confirm('❌ ยืนยันอีกครั้ง: ลบ logs ทั้งหมดจริงหรือไม่?');
       if (doubleConfirm) {
         try {
           setLoading(true);
           const count = await deleteAllLogs(logCollection);
-          showSuccessToast(`🗑️ ลบ logs ทั้งหมดสำเร็จ: ${count} รายการ`);
-          setSelectedLogs([]); // Clear selection
-          fetchLogs(); // Refresh logs
+          showSuccessToast(`ลบ logs ทั้งหมดสำเร็จ: ${count} รายการ`);
+          fetchLogs(); // Refresh logs after deletion
         } catch (error: any) {
           console.error('Error deleting all logs:', error);
-          showErrorToast(`เกิดข้อผิดพลาดในการลบ logs ทั้งหมด: ${error.message}`);
+          showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
         } finally {
           setLoading(false);
         }
@@ -480,6 +393,11 @@ export const useLogViewer = () => {
 
   // Delete selected logs function with security validation
   const handleDeleteSelectedLogs = async () => {
+    if (selectedLogs.length === 0) {
+      showErrorToast('กรุณาเลือก logs ที่ต้องการลบ');
+      return;
+    }
+
     // Security validation
     const validation = validateDeleteSelectedLogsPermission(user, selectedLogs.length);
     if (!validation.isAllowed) {
@@ -494,10 +412,10 @@ export const useLogViewer = () => {
         const count = await deleteSelectedLogs(logCollection, selectedLogs);
         showSuccessToast(`ลบ logs ที่เลือกสำเร็จ: ${count} รายการ`);
         setSelectedLogs([]); // Clear selection
-        fetchLogs(); // Refresh logs
+        fetchLogs(); // Refresh logs after deletion
       } catch (error: any) {
         console.error('Error deleting selected logs:', error);
-        showErrorToast(`เกิดข้อผิดพลาดในการลบ logs ที่เลือก: ${error.message}`);
+        showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -505,40 +423,45 @@ export const useLogViewer = () => {
   };
 
   return {
+    // Data
     logs,
     loading,
-    filters: {
-      logCollection,
-      logType,
-      username,
-      dateRange,
-      limitCount
-    },
-    setters: {
-      setLogCollection,
-      handleLogCollectionChange,
-      setLogType,
-      setUsername,
-      setDateRange,
-      setLimitCount
-    },
-    fetchLogs,
-    handleCleanupOldLogs,
-    // New bulk delete functions
-    handleDeleteAllLogs,
-    handleDeleteSelectedLogs,
-    // Selection management
+    
+    // Filter states
+    logCollection,
+    logType,
+    username,
+    dateRange,
+    limitCount,
+    
+    // Pagination states
+    currentPage,
+    hasNextPage,
+    hasPrevPage,
+    
+    // Selection states
     selectedLogs,
+    
+    // Filter setters
+    setLogType,
+    setUsername,
+    setDateRange,
+    setLimitCount,
+    handleLogCollectionChange,
+    
+    // Pagination functions
+    goToNextPage,
+    goToPrevPage,
+    
+    // Selection functions
     handleSelectLog,
     handleSelectAll,
     handleClearSelection,
-    // Pagination
-    pagination: {
-      currentPage,
-      hasNextPage,
-      hasPrevPage,
-      goToNextPage,
-      goToPrevPage
-    }
+    
+    // Action functions
+    fetchLogs,
+    handleCleanupOldLogs,
+    handleDeleteAllLogs,
+    handleDeleteSelectedLogs
   };
 }; 
