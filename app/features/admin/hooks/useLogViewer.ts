@@ -75,16 +75,24 @@ export const useLogViewer = () => {
     setSelectedLogs([]);
   };
 
-  // Pagination Functions
-  const fetchLogsWithPagination = useCallback(async (pageDirection: 'first' | 'next' | 'prev' = 'first') => {
+  // ✅ FIXED: Create fetchLogs function to avoid circular dependency
+  const fetchLogs = useCallback(async () => {
     if (!user) return;
-
-    console.log(`🔍 [LOG_VIEWER] Starting fetchLogsWithPagination(${pageDirection})`);
+    
+    console.log(`🔍 [LOG_VIEWER] fetchLogs() called - Collection: ${logCollection}, Type: ${logType}, DateRange: ${dateRange}, Limit: ${limitCount}`);
+    
+    // Reset pagination state when fetching fresh data
+    setCurrentPage(1);
+    setLastVisibleDoc(null);
+    setFirstVisibleDoc(null);
+    setHasNextPage(false);
+    setHasPrevPage(false);
+    setPageHistory([]);
+    setSelectedLogs([]);
+    
     setLoading(true);
     try {
       const logsRef = collection(db, logCollection);
-      
-      // สำหรับ userManagementLogs ใช้ field `action` แทน `action.type`
       let constraints: QueryConstraint[] = [orderBy('timestamp', 'desc')];
       
       if (dateRange !== 'all') {
@@ -93,39 +101,19 @@ export const useLogViewer = () => {
         constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
       }
       
-      // Filter by action based on collection type
       if (logType !== 'all') {
         if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
-          // สำหรับ userManagementLogs ใช้ field `action` โดยตรง
           constraints.push(where('action', '==', logType));
         } else {
-          // สำหรับ StandardLog collections ใช้ `action.type`
           constraints.push(where('action.type', '==', logType));
         }
       }
       
-      // ✅ FIXED: Use current state values instead of dependency values
-      if (pageDirection === 'next') {
-        const currentLastDoc = lastVisibleDoc;
-        if (currentLastDoc) {
-          constraints.push(startAfter(currentLastDoc));
-        }
-      } else if (pageDirection === 'prev') {
-        const currentHistory = pageHistory;
-        if (currentHistory.length > 0) {
-          const prevDoc = currentHistory[currentHistory.length - 2]; // Go back one page
-          if (prevDoc) {
-            constraints.push(startAfter(prevDoc));
-          }
-        }
-      }
-      
-      constraints.push(limit(limitCount + 1)); // +1 to check if next page exists
+      constraints.push(limit(limitCount + 1));
       
       const q = query(logsRef, ...constraints);
       const snapshot = await getDocs(q);
       
-      // ใช้ mapping function ที่เหมาะสมตาม collection และจัดการ pagination
       const docs = snapshot.docs;
       const hasMore = docs.length > limitCount;
       const actualDocs = hasMore ? docs.slice(0, limitCount) : docs;
@@ -138,14 +126,81 @@ export const useLogViewer = () => {
         }
       });
       
-      // ✅ FIXED: Update pagination state in separate function calls
+      setHasNextPage(hasMore);
+      setFirstVisibleDoc(actualDocs[0] || null);
+      setLastVisibleDoc(actualDocs[actualDocs.length - 1] || null);
+      setRawLogs(logsData);
+      
+      console.log(`📊 [LOG_VIEWER] Loaded ${logsData.length} logs from ${logCollection}`);
+    } catch (error: any) {
+      console.error('❌ [LOG_VIEWER] Error fetching logs:', error);
+      showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, logCollection, logType, dateRange, limitCount]);
+
+  // ✅ FIXED: Simplified fetchLogsWithPagination without circular dependency
+  const fetchLogsWithPagination = useCallback(async (pageDirection: 'first' | 'next' | 'prev' = 'first') => {
+    if (!user) return;
+
+    console.log(`🔍 [LOG_VIEWER] fetchLogsWithPagination(${pageDirection})`);
+    setLoading(true);
+    try {
+      const logsRef = collection(db, logCollection);
+      let constraints: QueryConstraint[] = [orderBy('timestamp', 'desc')];
+      
+      if (dateRange !== 'all') {
+        const days = parseInt(dateRange, 10);
+        const startDate = startOfDay(subDays(new Date(), days));
+        constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
+      }
+      
+      if (logType !== 'all') {
+        if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
+          constraints.push(where('action', '==', logType));
+        } else {
+          constraints.push(where('action.type', '==', logType));
+        }
+      }
+      
+      // Handle pagination direction
+      if (pageDirection === 'next' && lastVisibleDoc) {
+        constraints.push(startAfter(lastVisibleDoc));
+      } else if (pageDirection === 'prev' && pageHistory.length > 0) {
+        const prevDoc = pageHistory[pageHistory.length - 2];
+        if (prevDoc) {
+          constraints.push(startAfter(prevDoc));
+        }
+      }
+      
+      constraints.push(limit(limitCount + 1));
+      
+      const q = query(logsRef, ...constraints);
+      const snapshot = await getDocs(q);
+      
+      const docs = snapshot.docs;
+      const hasMore = docs.length > limitCount;
+      const actualDocs = hasMore ? docs.slice(0, limitCount) : docs;
+      
+      const logsData: LogEntry[] = actualDocs.map(doc => {
+        if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
+          return mapUserManagementLogToEntry(doc);
+        } else {
+          return mapRawLogToEntry(doc);
+        }
+      });
+      
+      // Update pagination state
       if (pageDirection === 'first') {
         setCurrentPage(1);
         setPageHistory([]);
         setHasPrevPage(false);
       } else if (pageDirection === 'next') {
         setCurrentPage(prev => prev + 1);
-        setPageHistory(prev => lastVisibleDoc ? [...prev, lastVisibleDoc] : prev);
+        if (lastVisibleDoc) {
+          setPageHistory(prev => [...prev, lastVisibleDoc]);
+        }
         setHasPrevPage(true);
       } else if (pageDirection === 'prev') {
         setCurrentPage(prev => Math.max(1, prev - 1));
@@ -156,103 +211,29 @@ export const useLogViewer = () => {
       setHasNextPage(hasMore);
       setFirstVisibleDoc(actualDocs[0] || null);
       setLastVisibleDoc(actualDocs[actualDocs.length - 1] || null);
-      
       setRawLogs(logsData);
-      console.log(`📊 [LOG_VIEWER] Loaded ${logsData.length} logs from ${logCollection} (Page ${currentPage}, HasNext: ${hasMore})`);
-    } catch (error: any) {
-      console.error('🔍 [LOG_VIEWER] Error fetching logs:', error);
       
-      // Fallback: try with old structure if new structure fails
-      if (error.code === 'failed-precondition' || error.message.includes('timestamp')) {
-        console.log('🔄 [LOG_VIEWER] Falling back to old log structure...');
-        try {
-          const logsRef = collection(db, logCollection);
-          let fallbackConstraints: QueryConstraint[] = [orderBy('createdAt', 'desc')];
-          
-          if (dateRange !== 'all') {
-            const days = parseInt(dateRange, 10);
-            const startDate = startOfDay(subDays(new Date(), days));
-            fallbackConstraints.push(where('createdAt', '>=', Timestamp.fromDate(startDate)));
-          }
-          
-          if (logType !== 'all') {
-            fallbackConstraints.push(where('type', '==', logType));
-          }
-          
-          fallbackConstraints.push(limit(limitCount));
-          
-          const fallbackQuery = query(logsRef, ...fallbackConstraints);
-          const fallbackSnapshot = await getDocs(fallbackQuery);
-          
-          // Map old structure to new structure
-          const fallbackLogs: LogEntry[] = fallbackSnapshot.docs.map(doc => {
-            const oldData = doc.data();
-            return {
-              id: doc.id,
-              timestamp: oldData.createdAt || oldData.timestamp,
-              actor: {
-                id: oldData.userId || 'unknown',
-                username: oldData.username || 'Unknown',
-                role: oldData.details?.role || 'unknown',
-                active: true
-              },
-              action: {
-                type: oldData.type || 'UNKNOWN',
-                status: 'SUCCESS'
-              },
-              clientInfo: {
-                ipAddress: oldData.ipAddress,
-                userAgent: oldData.details?.userAgent,
-                deviceType: oldData.details?.deviceType
-              },
-              details: oldData.details,
-              displayUsername: oldData.username || 'Unknown',
-              displayType: oldData.type || 'Unknown',
-              displayTime: oldData.createdAt?.toDate ? oldData.createdAt.toDate() : new Date()
-            };
-          });
-          
-          setRawLogs(fallbackLogs);
-          console.log('✅ [LOG_VIEWER] Fallback successful, loaded old format logs');
-        } catch (fallbackError: any) {
-          console.error('❌ [LOG_VIEWER] Fallback also failed:', fallbackError);
-          showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${fallbackError.message}`);
-        }
-      } else {
-        showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
-      }
+      console.log(`📊 [LOG_VIEWER] Pagination ${pageDirection}: ${logsData.length} logs (Page ${currentPage})`);
+    } catch (error: any) {
+      console.error('❌ [LOG_VIEWER] Pagination error:', error);
+      showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
     } finally {
-      console.log(`🔍 [LOG_VIEWER] Finished fetchLogsWithPagination(${pageDirection})`);
       setLoading(false);
     }
-  }, [user, logType, dateRange, logCollection, limitCount, lastVisibleDoc, pageHistory, currentPage]); // ✅ FIXED: Added missing dependencies
+  }, [user, logCollection, logType, dateRange, limitCount, lastVisibleDoc, pageHistory, currentPage]);
 
-  // ✅ FIXED: Simple fetchLogs wrapper that doesn't cause infinite loop
-  const fetchLogs = useCallback(() => {
-    // Reset pagination state when fetching fresh data
-    setCurrentPage(1);
-    setLastVisibleDoc(null);
-    setFirstVisibleDoc(null);
-    setHasNextPage(false);
-    setHasPrevPage(false);
-    setPageHistory([]);
-    setSelectedLogs([]);
-    
-    return fetchLogsWithPagination('first');
-  }, [fetchLogsWithPagination]);
-
-  // ✅ FIXED: Pagination control functions with proper state access
+  // ✅ FIXED: Clean pagination functions without circular dependency
   const goToNextPage = useCallback(() => {
-    if (hasNextPage) {
+    if (hasNextPage && !loading) {
       fetchLogsWithPagination('next');
     }
-  }, [hasNextPage, fetchLogsWithPagination]);
+  }, [hasNextPage, loading, fetchLogsWithPagination]);
 
   const goToPrevPage = useCallback(() => {
-    if (hasPrevPage) {
+    if (hasPrevPage && !loading) {
       fetchLogsWithPagination('prev');
     }
-  }, [hasPrevPage, fetchLogsWithPagination]);
+  }, [hasPrevPage, loading, fetchLogsWithPagination]);
 
   // ✅ FIXED: Only trigger on filter changes, not on every state change
   useEffect(() => {
@@ -260,70 +241,9 @@ export const useLogViewer = () => {
     
     if (!user) return;
     
-    const loadInitialData = async () => {
-      console.log(`🔄 [LOG_VIEWER] loadInitialData() called`);
-      // Reset pagination state when fetching fresh data
-      setCurrentPage(1);
-      setLastVisibleDoc(null);
-      setFirstVisibleDoc(null);
-      setHasNextPage(false);
-      setHasPrevPage(false);
-      setPageHistory([]);
-      setSelectedLogs([]);
-      
-      // Call directly without using fetchLogsWithPagination dependency
-      setLoading(true);
-      try {
-        const logsRef = collection(db, logCollection);
-        let constraints: QueryConstraint[] = [orderBy('timestamp', 'desc')];
-        
-        if (dateRange !== 'all') {
-          const days = parseInt(dateRange, 10);
-          const startDate = startOfDay(subDays(new Date(), days));
-          constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
-        }
-        
-        if (logType !== 'all') {
-          if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
-            constraints.push(where('action', '==', logType));
-          } else {
-            constraints.push(where('action.type', '==', logType));
-          }
-        }
-        
-        constraints.push(limit(limitCount + 1));
-        
-        const q = query(logsRef, ...constraints);
-        const snapshot = await getDocs(q);
-        
-        const docs = snapshot.docs;
-        const hasMore = docs.length > limitCount;
-        const actualDocs = hasMore ? docs.slice(0, limitCount) : docs;
-        
-        const logsData: LogEntry[] = actualDocs.map(doc => {
-          if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
-            return mapUserManagementLogToEntry(doc);
-          } else {
-            return mapRawLogToEntry(doc);
-          }
-        });
-        
-        setHasNextPage(hasMore);
-        setFirstVisibleDoc(actualDocs[0] || null);
-        setLastVisibleDoc(actualDocs[actualDocs.length - 1] || null);
-        setRawLogs(logsData);
-        
-        console.log(`📊 [LOG_VIEWER] Initial load: ${logsData.length} logs from ${logCollection}`);
-      } catch (error: any) {
-        console.error('❌ [LOG_VIEWER] Initial load error:', error);
-        showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadInitialData();
-  }, [user, logCollection, logType, dateRange, limitCount]); // ✅ No function dependencies
+    // Use fetchLogs function instead of inline implementation
+    fetchLogs();
+  }, [user, logCollection, logType, dateRange, limitCount, fetchLogs]);
 
   // ✅ Client-side filtering effect (unchanged)
   useEffect(() => {
@@ -351,7 +271,7 @@ export const useLogViewer = () => {
         setLoading(true);
         const count = await cleanupOldLogs(logCollection, days);
         showSuccessToast(`ลบ logs เก่าสำเร็จ: ${count} รายการ`);
-        fetchLogs(); // Refresh logs after cleanup
+        fetchLogs(); // ✅ Now fetchLogs exists
       } catch (error: any) {
         console.error('Error cleaning up logs:', error);
         showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
@@ -380,7 +300,7 @@ export const useLogViewer = () => {
           setLoading(true);
           const count = await deleteAllLogs(logCollection);
           showSuccessToast(`ลบ logs ทั้งหมดสำเร็จ: ${count} รายการ`);
-          fetchLogs(); // Refresh logs after deletion
+          fetchLogs(); // ✅ Now fetchLogs exists
         } catch (error: any) {
           console.error('Error deleting all logs:', error);
           showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
@@ -412,7 +332,7 @@ export const useLogViewer = () => {
         const count = await deleteSelectedLogs(logCollection, selectedLogs);
         showSuccessToast(`ลบ logs ที่เลือกสำเร็จ: ${count} รายการ`);
         setSelectedLogs([]); // Clear selection
-        fetchLogs(); // Refresh logs after deletion
+        fetchLogs(); // ✅ Now fetchLogs exists
       } catch (error: any) {
         console.error('Error deleting selected logs:', error);
         showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
@@ -459,7 +379,7 @@ export const useLogViewer = () => {
     handleClearSelection,
     
     // Action functions
-    fetchLogs,
+    fetchLogs, // ✅ Now properly exported
     handleCleanupOldLogs,
     handleDeleteAllLogs,
     handleDeleteSelectedLogs
