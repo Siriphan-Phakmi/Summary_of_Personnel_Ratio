@@ -1,11 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, UserRole } from '@/app/features/auth/types/user';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { Button } from '@/app/components/ui/Button';
 import { Input } from '@/app/components/ui/Input';
-import { Label } from '@/app/components/ui/label'; // Assuming you have a Label component
+import { Label } from '@/app/components/ui/label';
+import {
+  validateWardSelection,
+  getWardValidationMessage,
+  validatePasswordStrength,
+  passwordRequirements,
+  validateUsername,
+  PasswordEditState,
+  UsernameEditState,
+  resetPasswordEditState,
+  resetUsernameEditState,
+} from './helpers/editUserModalHelpers'; // Assuming you have a Label component
 
 interface EditUserModalProps {
   user: User;
@@ -32,44 +43,22 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     approveWardIds: user.approveWardIds || [],
   });
   
-  // ✅ **NEW: Username editing state**
-  const [usernameData, setUsernameData] = useState({
-    newUsername: user.username,
-    isEditingUsername: false,
-  });
+  // ✅ **Username editing state using helpers**
+  const [usernameData, setUsernameData] = useState<UsernameEditState>(
+    resetUsernameEditState(user.username)
+  );
   
-  // ✅ **NEW: Password editing state**
-  const [passwordData, setPasswordData] = useState({
-    newPassword: '',
-    confirmPassword: '',
-    isEditingPassword: false,
-    showPassword: false,
-  });
+  // ✅ **Password editing state using helpers**
+  const [passwordData, setPasswordData] = useState<PasswordEditState>(
+    resetPasswordEditState()
+  );
   
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Lean Code: Ward validation logic
-  const isWardSelectionValid = (): boolean => {
-    if (formData.role === UserRole.NURSE) {
-      return !!formData.assignedWardId;
-    }
-    if (formData.role === UserRole.APPROVER) {
-      return !!(formData.approveWardIds && formData.approveWardIds.length > 0);
-    }
-    return true; // Other roles don't require ward selection
-  };
-
-  // ✅ Validation message for user feedback
-  const getValidationMessage = (): string | null => {
-    if (formData.role === UserRole.NURSE && !formData.assignedWardId) {
-      return 'Please select an assigned ward for NURSE role.';
-    }
-    if (formData.role === UserRole.APPROVER && (!formData.approveWardIds || formData.approveWardIds.length === 0)) {
-      return 'Please select at least one ward for APPROVER role.';
-    }
-    return null;
-  };
+  // ✅ Ward validation using helpers
+  const isWardSelectionValid = (): boolean => validateWardSelection(formData);
+  const getValidationMessage = (): string | null => getWardValidationMessage(formData);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -115,7 +104,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     }
   };
 
-  // ✅ **NEW: Handle password update**
+  // ✅ **Password Validation Helper Functions**
+  // ✅ **Password validation using helper with useMemo**
+  const passwordValidation = useMemo(() => 
+    validatePasswordStrength(passwordData.newPassword, passwordData.confirmPassword),
+    [passwordData.newPassword, passwordData.confirmPassword]
+  );
+
+  // ✅ **NEW: Handle password update with Enhanced Validation**
   const handlePasswordUpdate = async () => {
     if (!onUpdatePassword) return;
     
@@ -123,14 +119,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     setError(null);
     
     try {
-      const success = await onUpdatePassword(user.uid, passwordData.newPassword, passwordData.confirmPassword);
+      // ✅ Use validation helper
+      if (!passwordValidation.isValid) {
+        throw new Error(passwordValidation.errors[0]);
+      }
+      
+      const trimmedPassword = passwordData.newPassword?.trim() || '';
+      const trimmedConfirmPassword = passwordData.confirmPassword?.trim() || '';
+      
+      const success = await onUpdatePassword(user.uid, trimmedPassword, trimmedConfirmPassword);
       if (success) {
-        setPasswordData({
-          newPassword: '',
-          confirmPassword: '',
-          isEditingPassword: false,
-          showPassword: false,
-        });
+        setPasswordData(resetPasswordEditState());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update password');
@@ -205,7 +204,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     type="button" 
                     variant="outline" 
                     size="sm"
-                    onClick={() => setUsernameData({ newUsername: user.username, isEditingUsername: false })}
+                    onClick={() => setUsernameData(resetUsernameEditState(user.username))}
                     disabled={loading}
                   >
                     Cancel
@@ -253,7 +252,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     {passwordData.showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>
-                <Input
+                                <Input
                   type={passwordData.showPassword ? 'text' : 'password'}
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
@@ -261,13 +260,46 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                   disabled={loading}
                   className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 />
+                
+                {/* ✅ **Password Requirements Helper Text** */}
+                {passwordData.isEditingPassword && (
+                  <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
+                    <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Password Requirements:</p>
+                    <ul className="text-xs text-blue-600 dark:text-blue-400">
+                      {passwordRequirements.map((requirement, index) => (
+                        <li key={index}>• {requirement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {/* ✅ **Real-time Password Validation Feedback** */}
+                {passwordValidation.hasInput && passwordValidation.errors.length > 0 && (
+                  <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
+                    <ul className="text-xs text-yellow-700 dark:text-yellow-300">
+                      {passwordValidation.errors.map((error: string, index: number) => (
+                        <li key={index} className="flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="flex space-x-2">
                   <Button 
                     type="button" 
                     variant="primary" 
                     size="sm"
                     onClick={handlePasswordUpdate}
-                    disabled={loading || !passwordData.newPassword.trim() || !passwordData.confirmPassword.trim()}
+                    disabled={loading || !passwordValidation.isValid}
+                    className={!passwordValidation.isValid ? 'opacity-50 cursor-not-allowed' : ''}
+                    title={
+                      passwordValidation.isValid 
+                        ? 'Save password changes' 
+                        : passwordValidation.errors[0] || 'Please fix validation errors'
+                    }
                   >
                     Save Password
                   </Button>
@@ -275,12 +307,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     type="button" 
                     variant="outline" 
                     size="sm"
-                    onClick={() => setPasswordData({
-                      newPassword: '',
-                      confirmPassword: '',
-                      isEditingPassword: false,
-                      showPassword: false,
-                    })}
+                    onClick={() => setPasswordData(resetPasswordEditState())}
                     disabled={loading}
                   >
                     Cancel

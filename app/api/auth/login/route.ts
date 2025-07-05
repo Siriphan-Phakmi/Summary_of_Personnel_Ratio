@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import bcrypt from 'bcryptjs';
 import { User, UserRole } from '@/app/features/auth/types/user';
@@ -64,10 +64,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userRef = doc(db, 'users', username);
-    const userSnap = await getDoc(userRef);
+    // Query user by username field instead of document ID
+    const usersCollection = collection(db, 'users');
+    const q = query(usersCollection, where("username", "==", username));
+    const querySnapshot = await getDocs(q);
 
-    if (!userSnap.exists()) {
+    if (querySnapshot.empty) {
       // ใช้เวลาตอบสนองเท่าเดิมเพื่อป้องกันการเดา username (Timing Attack)
       const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12');
       await bcrypt.hash(password, saltRounds);
@@ -90,13 +92,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userData = userSnap.data();
+    // Get the first (and should be only) user document
+    const userDoc = querySnapshot.docs[0];
+    const userData = userDoc.data();
     const isMatch = await bcrypt.compare(password, userData.password || '');
     
     // Construct user object early for logging
     const userForLog: User = {
-        uid: userSnap.id,
-        username: userData.username || userSnap.id,
+        uid: userDoc.id,
+        username: userData.username || userDoc.id,
         role: userData.role || UserRole.NURSE,
         isActive: userData.active === undefined ? true : userData.active,
         firstName: userData.firstName,
@@ -170,8 +174,8 @@ export async function POST(req: NextRequest) {
 
     // สร้าง user object ที่ปลอดภัย ไม่ส่งรหัสผ่านกลับ
     const safeUser = {
-      uid: userSnap.id,
-      username: userData.username || userSnap.id,
+      uid: userDoc.id,
+      username: userData.username || userDoc.id,
       role: userData.role || 'nurse',
       firstName: userData.firstName || '',
       lastName: userData.lastName || '',

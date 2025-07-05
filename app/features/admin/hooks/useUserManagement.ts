@@ -248,12 +248,15 @@ export const useUserManagement = () => {
     setLoading(true);
     setError(null);
     try {
-      // Client-side validation
-      if (!newPassword || newPassword.length < 8) {
+      // ✅ Enhanced Client-side validation with trim()
+      const trimmedPassword = newPassword?.trim() || '';
+      const trimmedConfirmPassword = confirmPassword?.trim() || '';
+      
+      if (!trimmedPassword || trimmedPassword.length < 8) {
         throw new Error('Password must be at least 8 characters long.');
       }
       
-      if (newPassword !== confirmPassword) {
+      if (trimmedPassword !== trimmedConfirmPassword) {
         throw new Error('Passwords do not match.');
       }
 
@@ -262,7 +265,7 @@ export const useUserManagement = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ password: newPassword }),
+        body: JSON.stringify({ password: trimmedPassword }),
       });
 
       const result = await response.json();
