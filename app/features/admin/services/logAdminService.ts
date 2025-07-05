@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, writeBatch, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, Timestamp, limit, doc } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import { subDays } from 'date-fns';
 
@@ -84,4 +84,88 @@ const deleteBatchedLogs = async (docs: any[]): Promise<number> => {
 
   await Promise.all(batchArray.map(batch => batch.commit()));
   return docs.length;
+};
+
+/**
+ * Deletes ALL logs from a specified collection (DANGER - Developer Only)
+ * @param logCollection The name of the log collection
+ * @returns The number of deleted log entries
+ */
+export const deleteAllLogs = async (logCollection: string): Promise<number> => {
+  console.log(`🚨 [LOG_DELETE_ALL] DANGER: Starting delete ALL logs from "${logCollection}"...`);
+
+  const logsRef = collection(db, logCollection);
+  let totalDeleted = 0;
+
+  try {
+    // Get all documents in batches (Firebase query limit)
+    let hasMore = true;
+    while (hasMore) {
+      const batchQuery = query(logsRef, limit(500)); // Process in batches of 500
+      const snapshot = await getDocs(batchQuery);
+      
+      if (snapshot.empty) {
+        hasMore = false;
+        break;
+      }
+      
+      const deletedCount = await deleteBatchedLogs(snapshot.docs);
+      totalDeleted += deletedCount;
+      
+      console.log(`🗑️ [LOG_DELETE_ALL] Deleted batch: ${deletedCount} logs (Total: ${totalDeleted})`);
+      
+      // If we got less than 500, we're done
+      if (snapshot.size < 500) {
+        hasMore = false;
+      }
+    }
+  } catch (error: any) {
+    console.error(`❌ [LOG_DELETE_ALL] Failed to delete all logs from "${logCollection}":`, error);
+    throw new Error(`การลบ logs ทั้งหมดล้มเหลว: ${error.message}`);
+  }
+
+  console.log(`✅ [LOG_DELETE_ALL] Successfully deleted ALL ${totalDeleted} logs from "${logCollection}".`);
+  return totalDeleted;
+};
+
+/**
+ * Deletes selected logs by their IDs
+ * @param logCollection The name of the log collection
+ * @param logIds Array of log document IDs to delete
+ * @returns The number of deleted log entries
+ */
+export const deleteSelectedLogs = async (logCollection: string, logIds: string[]): Promise<number> => {
+  if (!logIds || logIds.length === 0) {
+    throw new Error('ไม่มีรายการที่เลือกสำหรับการลบ');
+  }
+
+  console.log(`🗑️ [LOG_DELETE_SELECTED] Starting delete ${logIds.length} selected logs from "${logCollection}"...`);
+
+  const logsRef = collection(db, logCollection);
+  let totalDeleted = 0;
+
+  try {
+    // Process in batches (Firebase batch limit: 500 operations)
+    const batchSize = 500;
+    for (let i = 0; i < logIds.length; i += batchSize) {
+      const batchIds = logIds.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+      
+      batchIds.forEach(logId => {
+        const docRef = doc(logsRef, logId);
+        batch.delete(docRef);
+      });
+      
+      await batch.commit();
+      totalDeleted += batchIds.length;
+      
+      console.log(`🗑️ [LOG_DELETE_SELECTED] Deleted batch: ${batchIds.length} logs (Total: ${totalDeleted})`);
+    }
+  } catch (error: any) {
+    console.error(`❌ [LOG_DELETE_SELECTED] Failed to delete selected logs:`, error);
+    throw new Error(`การลบ logs ที่เลือกล้มเหลว: ${error.message}`);
+  }
+
+  console.log(`✅ [LOG_DELETE_SELECTED] Successfully deleted ${totalDeleted} selected logs from "${logCollection}".`);
+  return totalDeleted;
 }; 

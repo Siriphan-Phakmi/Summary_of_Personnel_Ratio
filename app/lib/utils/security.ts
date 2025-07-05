@@ -118,10 +118,10 @@ export function validateName(name: string, fieldName: string = 'Name'): { isVali
     return { isValid: false, sanitized, error: `${fieldName} must not exceed 100 characters` };
   }
 
-  // Allow letters, spaces, apostrophes, and hyphens (for international names including Thai)
-  // Supports: Latin (a-z, A-Z), Extended Latin (À-ÿ), Thai (\u0E00-\u0E7F), spaces, apostrophes, hyphens
-  if (!/^[a-zA-ZÀ-ÿ\u0E00-\u0E7F\s'-]+$/.test(sanitized)) {
-    return { isValid: false, sanitized, error: `${fieldName} can only contain letters (including Thai), spaces, apostrophes, and hyphens` };
+  // Allow letters, numbers, spaces, apostrophes, and hyphens (for hospital ward names and international names including Thai)
+  // Supports: Latin (a-z, A-Z), Numbers (0-9), Extended Latin (À-ÿ), Thai (\u0E00-\u0E7F), spaces, apostrophes, hyphens
+  if (!/^[a-zA-ZÀ-ÿ\u0E00-\u0E7F0-9\s'-]+$/.test(sanitized)) {
+    return { isValid: false, sanitized, error: `${fieldName} can only contain letters (including Thai), numbers, spaces, apostrophes, and hyphens` };
   }
 
   return { isValid: true, sanitized };

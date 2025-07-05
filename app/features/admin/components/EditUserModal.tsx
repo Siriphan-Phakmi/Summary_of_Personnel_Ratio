@@ -25,6 +25,28 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
   
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ Lean Code: Ward validation logic
+  const isWardSelectionValid = (): boolean => {
+    if (formData.role === UserRole.NURSE) {
+      return !!formData.assignedWardId;
+    }
+    if (formData.role === UserRole.APPROVER) {
+      return formData.approveWardIds && formData.approveWardIds.length > 0;
+    }
+    return true; // Other roles don't require ward selection
+  };
+
+  // ✅ Validation message for user feedback
+  const getValidationMessage = (): string | null => {
+    if (formData.role === UserRole.NURSE && !formData.assignedWardId) {
+      return 'Please select an assigned ward for NURSE role.';
+    }
+    if (formData.role === UserRole.APPROVER && (!formData.approveWardIds || formData.approveWardIds.length === 0)) {
+      return 'Please select at least one ward for APPROVER role.';
+    }
+    return null;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setError(null);
@@ -40,13 +62,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
     e.preventDefault();
     setError(null);
     
-    if (formData.role === UserRole.NURSE && !formData.assignedWardId) {
-      setError('Please select an assigned ward for NURSE role.');
-      return;
-    }
-    
-    if (formData.role === UserRole.APPROVER && (!formData.approveWardIds || formData.approveWardIds.length === 0)) {
-      setError('Please select at least one ward for APPROVER role.');
+    // ✅ Reuse validation logic (DRY principle)
+    const validationMessage = getValidationMessage();
+    if (validationMessage) {
+      setError(validationMessage);
       return;
     }
     
@@ -61,6 +80,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
         setFormData(prev => ({...prev, approveWardIds: []}));
     }
   }, [formData.role]);
+
+  // ✅ Calculate if Save button should be disabled
+  const isSaveDisabled = !isWardSelectionValid();
+  const currentValidationMessage = getValidationMessage();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
@@ -179,9 +202,26 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, wards, onClose, onU
 
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary">Save Changes</Button>
+            <Button 
+              type="submit" 
+              variant="primary"
+              disabled={isSaveDisabled}
+              className={isSaveDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+              title={currentValidationMessage || 'Save changes'}
+            >
+              Save Changes
+            </Button>
           </div>
         </form>
+        
+        {/* ✅ Visual feedback for disabled state */}
+        {isSaveDisabled && currentValidationMessage && (
+          <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
+            <p className="text-xs text-yellow-700 dark:text-yellow-300 text-center">
+              💡 {currentValidationMessage}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

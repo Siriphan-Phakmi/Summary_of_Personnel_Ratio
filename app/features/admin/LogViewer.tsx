@@ -12,7 +12,14 @@ export default function LogViewer() {
     filters,
     setters,
     fetchLogs,
-    handleCleanupOldLogs
+    handleCleanupOldLogs,
+    handleDeleteAllLogs,
+    handleDeleteSelectedLogs,
+    selectedLogs,
+    handleSelectLog,
+    handleSelectAll,
+    handleClearSelection,
+    pagination
   } = useLogViewer();
 
   return (
@@ -32,11 +39,19 @@ export default function LogViewer() {
           setters={setters}
           onSearch={fetchLogs}
           onCleanup={handleCleanupOldLogs}
+          onDeleteAll={handleDeleteAllLogs}
+          onDeleteSelected={handleDeleteSelectedLogs}
+          selectedCount={selectedLogs.length}
         />
         
         <LogsTable
           logs={logs}
           loading={loading}
+          selectedLogs={selectedLogs}
+          onSelectLog={handleSelectLog}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+          pagination={pagination}
         />
       </main>
     </div>

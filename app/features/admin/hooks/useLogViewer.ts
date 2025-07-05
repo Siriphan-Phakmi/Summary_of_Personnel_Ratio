@@ -1,15 +1,21 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, orderBy, limit, getDocs, where, Timestamp, QueryConstraint } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, where, Timestamp, QueryConstraint, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import { useAuth } from '@/app/features/auth';
 import { subDays, startOfDay } from 'date-fns';
 import { LogLevel, SYSTEM_LOGS_COLLECTION, USER_ACTIVITY_LOGS_COLLECTION, USER_MANAGEMENT_LOGS_COLLECTION, ActionStatus } from '@/app/features/auth/types/log';
 import { UserRole } from '@/app/features/auth/types/user';
-import { cleanupOldLogs } from '@/app/features/admin/services/logAdminService';
+import { cleanupOldLogs, deleteAllLogs, deleteSelectedLogs } from '@/app/features/admin/services/logAdminService';
 import { showErrorToast, showSuccessToast } from '@/app/lib/utils/toastUtils';
 import { LogEntry, RawLogDocument } from '../types/log';
+import { 
+  validateDeleteAllLogsPermission, 
+  validateDeleteSelectedLogsPermission, 
+  validateCleanupLogsPermission,
+  logSecurityViolation 
+} from '../utils/logSecurityValidation';
 
 // เพิ่ม interface สำหรับ UserManagementLog
 interface UserManagementLogDocument {
@@ -108,6 +114,17 @@ export const useLogViewer = () => {
   const [username, setUsername] = useState<string>('');
   const [dateRange, setDateRange] = useState<string>('7');
   const [limitCount, setLimitCount] = useState<number>(50);
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<DocumentSnapshot | null>(null);
+  const [firstVisibleDoc, setFirstVisibleDoc] = useState<DocumentSnapshot | null>(null);
+  const [hasNextPage, setHasNextPage] = useState<boolean>(false);
+  const [hasPrevPage, setHasPrevPage] = useState<boolean>(false);
+  const [pageHistory, setPageHistory] = useState<DocumentSnapshot[]>([]);
+  
+  // Selection States
+  const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
 
   const handleLogCollectionChange = (collection: string) => {
     setLogCollection(collection);
@@ -115,12 +132,39 @@ export const useLogViewer = () => {
     setUsername('');
     setDateRange('7');
     setLimitCount(50);
+    // Reset pagination
+    setCurrentPage(1);
+    setLastVisibleDoc(null);
+    setFirstVisibleDoc(null);
+    setHasNextPage(false);
+    setHasPrevPage(false);
+    setPageHistory([]);
+    setSelectedLogs([]);
   };
 
 
-  const fetchLogs = useCallback(async () => {
+  // Selection Management Functions
+  const handleSelectLog = (logId: string) => {
+    setSelectedLogs(prev => 
+      prev.includes(logId) 
+        ? prev.filter(id => id !== logId)
+        : [...prev, logId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedLogs(logs.map(log => log.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLogs([]);
+  };
+
+  // Pagination Functions
+  const fetchLogsWithPagination = useCallback(async (pageDirection: 'first' | 'next' | 'prev' = 'first') => {
     if (!user) return;
 
+    console.log(`🔍 [LOG_VIEWER] Starting fetchLogsWithPagination(${pageDirection})`);
     setLoading(true);
     try {
       const logsRef = collection(db, logCollection);
@@ -145,13 +189,33 @@ export const useLogViewer = () => {
         }
       }
       
-      constraints.push(limit(limitCount));
+      // ✅ FIXED: Use current state values instead of dependency values
+      if (pageDirection === 'next') {
+        const currentLastDoc = lastVisibleDoc;
+        if (currentLastDoc) {
+          constraints.push(startAfter(currentLastDoc));
+        }
+      } else if (pageDirection === 'prev') {
+        const currentHistory = pageHistory;
+        if (currentHistory.length > 0) {
+          const prevDoc = currentHistory[currentHistory.length - 2]; // Go back one page
+          if (prevDoc) {
+            constraints.push(startAfter(prevDoc));
+          }
+        }
+      }
+      
+      constraints.push(limit(limitCount + 1)); // +1 to check if next page exists
       
       const q = query(logsRef, ...constraints);
       const snapshot = await getDocs(q);
       
-      // ใช้ mapping function ที่เหมาะสมตาม collection
-      const logsData: LogEntry[] = snapshot.docs.map(doc => {
+      // ใช้ mapping function ที่เหมาะสมตาม collection และจัดการ pagination
+      const docs = snapshot.docs;
+      const hasMore = docs.length > limitCount;
+      const actualDocs = hasMore ? docs.slice(0, limitCount) : docs;
+      
+      const logsData: LogEntry[] = actualDocs.map(doc => {
         if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
           return mapUserManagementLogToEntry(doc);
         } else {
@@ -159,8 +223,27 @@ export const useLogViewer = () => {
         }
       });
       
+      // ✅ FIXED: Update pagination state in separate function calls
+      if (pageDirection === 'first') {
+        setCurrentPage(1);
+        setPageHistory([]);
+        setHasPrevPage(false);
+      } else if (pageDirection === 'next') {
+        setCurrentPage(prev => prev + 1);
+        setPageHistory(prev => lastVisibleDoc ? [...prev, lastVisibleDoc] : prev);
+        setHasPrevPage(true);
+      } else if (pageDirection === 'prev') {
+        setCurrentPage(prev => Math.max(1, prev - 1));
+        setPageHistory(prev => prev.slice(0, -1));
+        setHasPrevPage(pageHistory.length > 1);
+      }
+      
+      setHasNextPage(hasMore);
+      setFirstVisibleDoc(actualDocs[0] || null);
+      setLastVisibleDoc(actualDocs[actualDocs.length - 1] || null);
+      
       setRawLogs(logsData);
-      console.log(`📊 [LOG_VIEWER] Loaded ${logsData.length} logs from ${logCollection}`);
+      console.log(`📊 [LOG_VIEWER] Loaded ${logsData.length} logs from ${logCollection} (Page ${currentPage}, HasNext: ${hasMore})`);
     } catch (error: any) {
       console.error('🔍 [LOG_VIEWER] Error fetching logs:', error);
       
@@ -224,14 +307,110 @@ export const useLogViewer = () => {
         showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
       }
     } finally {
+      console.log(`🔍 [LOG_VIEWER] Finished fetchLogsWithPagination(${pageDirection})`);
       setLoading(false);
     }
-  }, [user, logType, dateRange, logCollection, limitCount]);
+  }, [user, logType, dateRange, logCollection, limitCount]); // ✅ REMOVED: lastVisibleDoc, pageHistory
 
+  // ✅ FIXED: Simple fetchLogs wrapper that doesn't cause infinite loop
+  const fetchLogs = useCallback(() => {
+    // Reset pagination state when fetching fresh data
+    setCurrentPage(1);
+    setLastVisibleDoc(null);
+    setFirstVisibleDoc(null);
+    setHasNextPage(false);
+    setHasPrevPage(false);
+    setPageHistory([]);
+    setSelectedLogs([]);
+    
+    return fetchLogsWithPagination('first');
+  }, [fetchLogsWithPagination]);
+
+  // ✅ FIXED: Pagination control functions with proper state access
+  const goToNextPage = useCallback(() => {
+    if (hasNextPage) {
+      fetchLogsWithPagination('next');
+    }
+  }, [hasNextPage, fetchLogsWithPagination]);
+
+  const goToPrevPage = useCallback(() => {
+    if (hasPrevPage) {
+      fetchLogsWithPagination('prev');
+    }
+  }, [hasPrevPage, fetchLogsWithPagination]);
+
+  // ✅ FIXED: Only trigger on filter changes, not on every state change
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    console.log(`🔄 [LOG_VIEWER] useEffect triggered - Collection: ${logCollection}, Type: ${logType}, DateRange: ${dateRange}, Limit: ${limitCount}`);
+    
+    if (!user) return;
+    
+    const loadInitialData = async () => {
+      console.log(`🔄 [LOG_VIEWER] loadInitialData() called`);
+      // Reset pagination state when fetching fresh data
+      setCurrentPage(1);
+      setLastVisibleDoc(null);
+      setFirstVisibleDoc(null);
+      setHasNextPage(false);
+      setHasPrevPage(false);
+      setPageHistory([]);
+      setSelectedLogs([]);
+      
+      // Call directly without using fetchLogsWithPagination dependency
+      setLoading(true);
+      try {
+        const logsRef = collection(db, logCollection);
+        let constraints: QueryConstraint[] = [orderBy('timestamp', 'desc')];
+        
+        if (dateRange !== 'all') {
+          const days = parseInt(dateRange, 10);
+          const startDate = startOfDay(subDays(new Date(), days));
+          constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
+        }
+        
+        if (logType !== 'all') {
+          if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
+            constraints.push(where('action', '==', logType));
+          } else {
+            constraints.push(where('action.type', '==', logType));
+          }
+        }
+        
+        constraints.push(limit(limitCount + 1));
+        
+        const q = query(logsRef, ...constraints);
+        const snapshot = await getDocs(q);
+        
+        const docs = snapshot.docs;
+        const hasMore = docs.length > limitCount;
+        const actualDocs = hasMore ? docs.slice(0, limitCount) : docs;
+        
+        const logsData: LogEntry[] = actualDocs.map(doc => {
+          if (logCollection === USER_MANAGEMENT_LOGS_COLLECTION) {
+            return mapUserManagementLogToEntry(doc);
+          } else {
+            return mapRawLogToEntry(doc);
+          }
+        });
+        
+        setHasNextPage(hasMore);
+        setFirstVisibleDoc(actualDocs[0] || null);
+        setLastVisibleDoc(actualDocs[actualDocs.length - 1] || null);
+        setRawLogs(logsData);
+        
+        console.log(`📊 [LOG_VIEWER] Initial load: ${logsData.length} logs from ${logCollection}`);
+      } catch (error: any) {
+        console.error('❌ [LOG_VIEWER] Initial load error:', error);
+        showErrorToast(`เกิดข้อผิดพลาดในการโหลดข้อมูล Log: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadInitialData();
+  }, [user, logCollection, logType, dateRange, limitCount]); // ✅ No function dependencies
 
+  // ✅ Client-side filtering effect (unchanged)
   useEffect(() => {
     if (username.trim()) {
       const filtered = rawLogs.filter(log =>
@@ -244,6 +423,14 @@ export const useLogViewer = () => {
   }, [rawLogs, username]);
 
   const handleCleanupOldLogs = async (days: number) => {
+    // Security validation
+    const validation = validateCleanupLogsPermission(user, days);
+    if (!validation.isAllowed) {
+      await logSecurityViolation(user, 'CLEANUP_OLD_LOGS', validation.reason || 'Unknown reason');
+      showErrorToast(validation.reason || 'ไม่มีสิทธิ์ในการลบ logs เก่า');
+      return;
+    }
+
     if (window.confirm(`คุณต้องการลบ logs ของ "${logCollection}" ที่เก่ากว่า ${days} วันหรือไม่?`)) {
       try {
         setLoading(true);
@@ -253,6 +440,64 @@ export const useLogViewer = () => {
       } catch (error: any) {
         console.error('Error cleaning up logs:', error);
         showErrorToast(`เกิดข้อผิดพลาดในการลบ logs: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Delete all logs function with security validation
+  const handleDeleteAllLogs = async () => {
+    // Security validation
+    const validation = validateDeleteAllLogsPermission(user);
+    if (!validation.isAllowed) {
+      await logSecurityViolation(user, 'DELETE_ALL_LOGS', validation.reason || 'Unknown reason');
+      showErrorToast(validation.reason || 'ไม่มีสิทธิ์ในการลบ logs ทั้งหมด');
+      return;
+    }
+
+    const confirmMessage = `🚨 DANGER: คุณต้องการลบ logs ทั้งหมดใน "${logCollection}" หรือไม่?\n\n⚠️ การกระทำนี้ไม่สามารถยกเลิกได้!\n✅ กดตกลงเพื่อยืนยัน\n❌ กดยกเลิกเพื่อหยุด`;
+    
+    if (window.confirm(confirmMessage)) {
+      const doubleConfirm = window.confirm(`🔴 ยืนยันอีกครั้ง: ลบ logs ทั้งหมดใน "${logCollection}" จริงหรือ?\n\nนี่เป็นการกระทำที่ไม่สามารถย้อนกลับได้!`);
+      
+      if (doubleConfirm) {
+        try {
+          setLoading(true);
+          const count = await deleteAllLogs(logCollection);
+          showSuccessToast(`🗑️ ลบ logs ทั้งหมดสำเร็จ: ${count} รายการ`);
+          setSelectedLogs([]); // Clear selection
+          fetchLogs(); // Refresh logs
+        } catch (error: any) {
+          console.error('Error deleting all logs:', error);
+          showErrorToast(`เกิดข้อผิดพลาดในการลบ logs ทั้งหมด: ${error.message}`);
+        } finally {
+          setLoading(false);
+        }
+      }
+    }
+  };
+
+  // Delete selected logs function with security validation
+  const handleDeleteSelectedLogs = async () => {
+    // Security validation
+    const validation = validateDeleteSelectedLogsPermission(user, selectedLogs.length);
+    if (!validation.isAllowed) {
+      await logSecurityViolation(user, 'DELETE_SELECTED_LOGS', validation.reason || 'Unknown reason');
+      showErrorToast(validation.reason || 'ไม่มีสิทธิ์ในการลบ logs ที่เลือก');
+      return;
+    }
+
+    if (window.confirm(`คุณต้องการลบ logs ที่เลือก ${selectedLogs.length} รายการหรือไม่?`)) {
+      try {
+        setLoading(true);
+        const count = await deleteSelectedLogs(logCollection, selectedLogs);
+        showSuccessToast(`ลบ logs ที่เลือกสำเร็จ: ${count} รายการ`);
+        setSelectedLogs([]); // Clear selection
+        fetchLogs(); // Refresh logs
+      } catch (error: any) {
+        console.error('Error deleting selected logs:', error);
+        showErrorToast(`เกิดข้อผิดพลาดในการลบ logs ที่เลือก: ${error.message}`);
       } finally {
         setLoading(false);
       }
@@ -278,6 +523,22 @@ export const useLogViewer = () => {
       setLimitCount
     },
     fetchLogs,
-    handleCleanupOldLogs
+    handleCleanupOldLogs,
+    // New bulk delete functions
+    handleDeleteAllLogs,
+    handleDeleteSelectedLogs,
+    // Selection management
+    selectedLogs,
+    handleSelectLog,
+    handleSelectAll,
+    handleClearSelection,
+    // Pagination
+    pagination: {
+      currentPage,
+      hasNextPage,
+      hasPrevPage,
+      goToNextPage,
+      goToPrevPage
+    }
   };
 }; 

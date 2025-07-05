@@ -5,10 +5,24 @@ import { format as dateFormat, formatDistanceToNow } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { LogEntry } from '../types/log';
 import { LogLevel } from '@/app/features/auth/types/log';
+import { LogTableActions, LogRowCheckbox } from './LogTableActions';
+import { LogsPagination } from './LogsPagination';
 
 interface LogsTableProps {
   logs: LogEntry[];
   loading: boolean;
+  selectedLogs?: string[];
+  onSelectLog?: (logId: string) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  // Pagination props
+  pagination?: {
+    currentPage: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+    goToNextPage: () => void;
+    goToPrevPage: () => void;
+  };
 }
 
 // Risk Assessment สำหรับโรงพยาบาล
@@ -110,9 +124,11 @@ const calculateSessionDuration = (logs: LogEntry[], currentLog: LogEntry): strin
   return formatDistanceToNow(loginTime, { addSuffix: false, locale: th });
 };
 
-export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
-  const [selectedLogs, setSelectedLogs] = useState<string[]>([]);
+export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading, selectedLogs = [], onSelectLog, onSelectAll, onClearSelection, pagination }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
+  
+  // Check if selection features are enabled
+  const selectionEnabled = onSelectLog && onSelectAll && onClearSelection;
 
   // Export Functionality สำหรับ Audit
   const exportLogs = (exportFormat: 'csv' | 'json') => {
@@ -185,6 +201,17 @@ export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      {/* Selection Actions (if enabled) */}
+      {selectionEnabled && (
+        <LogTableActions
+          logs={logs}
+          selectedLogs={selectedLogs}
+          onSelectLog={onSelectLog}
+          onSelectAll={onSelectAll}
+          onClearSelection={onClearSelection}
+        />
+      )}
+      
       {/* Hospital Security Summary Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center">
@@ -243,6 +270,11 @@ export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
+              {selectionEnabled && (
+                <th scope="col" className="py-3 px-2 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <span className="sr-only">เลือก</span>
+                </th>
+              )}
               <th scope="col" className="py-3 px-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">ความเสี่ยง</th>
               <th scope="col" className="py-3 px-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">สถานะ</th>
               <th scope="col" className="py-3 px-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">ประเภท</th>
@@ -258,7 +290,14 @@ export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
                 <tr key={log.id} className={`hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors ${
                   getRiskLevel(log) === 'high' ? 'bg-red-50 dark:bg-red-900/20' : 
                   getRiskLevel(log) === 'medium' ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''
-                }`}>
+                } ${selectedLogs.includes(log.id) ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-indigo-500' : ''}`}>
+                  {selectionEnabled && (
+                    <LogRowCheckbox
+                      logId={log.id}
+                      isSelected={selectedLogs.includes(log.id)}
+                      onSelect={onSelectLog}
+                    />
+                  )}
                   <td className="py-4 px-4 text-center">
                     <RiskIndicator risk={getRiskLevel(log)} />
                   </td>
@@ -331,7 +370,7 @@ export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={selectionEnabled ? 8 : 7} className="py-8 text-center text-gray-500 dark:text-gray-400">
                   <div className="flex flex-col items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -346,6 +385,19 @@ export const LogsTable: React.FC<LogsTableProps> = ({ logs, loading }) => {
           </tbody>
         </table>
       </div>
+      
+      {/* Pagination */}
+      {pagination && (
+        <LogsPagination
+          currentPage={pagination.currentPage}
+          hasNextPage={pagination.hasNextPage}
+          hasPrevPage={pagination.hasPrevPage}
+          onNextPage={pagination.goToNextPage}
+          onPrevPage={pagination.goToPrevPage}
+          totalLogsOnPage={logs.length}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }; 

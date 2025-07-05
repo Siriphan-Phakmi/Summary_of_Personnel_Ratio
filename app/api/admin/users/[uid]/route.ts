@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/app/features/auth/services/sessionService';
 import { UserRole } from '@/app/features/auth/types/user';
 import { getUser, updateUser, deleteUser } from '@/app/features/auth/services/userService';
 import { logUserManagementAction } from '@/app/features/auth/services/userManagementLogService';
@@ -10,6 +9,10 @@ import {
   rateLimiter,
   applySecurityHeaders 
 } from '@/app/lib/utils/security';
+
+// ✅ Force runtime execution to prevent static generation issues
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 async function handler(req: NextRequest, { params }: { params: Promise<{ uid: string }> }) {
   // Rate limiting check
@@ -26,7 +29,17 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ uid: st
     return applySecurityHeaders(response);
   }
 
-  const session = await getSession();
+  // ✅ Dynamic import sessionService to prevent webpack issues
+  let session = null;
+  try {
+    const { getSession } = await import('@/app/features/auth/services/sessionService');
+    session = await getSession();
+  } catch (error) {
+    console.error('[API Route] Error loading session service:', error);
+    const response = NextResponse.json({ error: 'Authentication service unavailable' }, { status: 500 });
+    return applySecurityHeaders(response);
+  }
+
   if (!session || ![UserRole.ADMIN, UserRole.DEVELOPER].includes(session.role)) {
     const response = NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return applySecurityHeaders(response);

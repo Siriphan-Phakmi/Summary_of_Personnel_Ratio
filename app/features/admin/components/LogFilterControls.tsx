@@ -20,9 +20,20 @@ interface LogFilterControlsProps {
   };
   onSearch: () => void;
   onCleanup: (days: number) => void;
+  onDeleteAll?: () => void;
+  onDeleteSelected?: () => void;
+  selectedCount?: number;
 }
 
-export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, setters, onSearch, onCleanup }) => {
+export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ 
+  filters, 
+  setters, 
+  onSearch, 
+  onCleanup, 
+  onDeleteAll,
+  onDeleteSelected,
+  selectedCount = 0
+}) => {
   return (
     <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 shadow-md">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -153,10 +164,10 @@ export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, s
           </select>
         </div>
         
-        {/* Cleanup Buttons */}
-        <div className="mt-2 md:mt-0">
+        {/* Cleanup & Delete Buttons */}
+        <div className="mt-2 md:mt-0 flex flex-wrap gap-2">
           <button 
-            className="bg-red-500 text-white px-3 py-1 text-sm rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 mr-2"
+            className="bg-red-500 text-white px-3 py-1 text-sm rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
             onClick={() => onCleanup(30)}
           >
             ลบบันทึกเก่ากว่า 30 วัน
@@ -167,6 +178,26 @@ export const LogFilterControls: React.FC<LogFilterControlsProps> = ({ filters, s
           >
             ลบบันทึกเก่ากว่า 90 วัน
           </button>
+          
+          {/* Bulk Delete Actions */}
+          {onDeleteSelected && selectedCount > 0 && (
+            <button 
+              className="bg-orange-600 text-white px-3 py-1 text-sm rounded-md shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              onClick={onDeleteSelected}
+            >
+              🗑️ ลบรายการที่เลือก ({selectedCount})
+            </button>
+          )}
+          
+          {onDeleteAll && (
+            <button 
+              className="bg-red-900 text-white px-3 py-1 text-sm rounded-md shadow-sm hover:bg-red-950 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 border-2 border-red-700"
+              onClick={onDeleteAll}
+              title="⚠️ DANGER: ลบ logs ทั้งหมดใน collection นี้"
+            >
+              🚨 ลบบันทึกทั้งหมด
+            </button>
+          )}
         </div>
       </div>
     </div>
