@@ -12,7 +12,6 @@ import DraftNotification from './components/DraftNotification';
 import PreviousDataNotification from './components/PreviousDataNotification';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
 import ConfirmZeroValuesModal from './components/ConfirmZeroValuesModal';
-import RecorderInfo from './components/RecorderInfo';
 import { useWardFormData } from './hooks/useWardFormData';
 import { useDailyCensusFormLogic } from './hooks/useDailyCensusFormLogic';
 import { usePreviousDataCheck } from './hooks/usePreviousDataCheck';
@@ -159,7 +158,7 @@ export default function DailyCensusForm() {
             บันทึกข้อมูล Patient Census - {selectedShift === ShiftType.MORNING ? 'เวรเช้า' : 'เวรดึก'}
           </h3>
 
-          {/* Census Input Fields */}
+          {/* Census Input Fields - Now includes all fields and recorder info */}
           <CensusInputFields
             formConfig={formConfig}
             formData={formData}
@@ -169,16 +168,6 @@ export default function DailyCensusForm() {
             isReadOnly={isFormReadOnly}
             selectedShift={selectedShift}
             isCensusAutoCalculated={isCensusAutoCalculated}
-            isDraftLoaded={!!formData.isDraft}
-          />
-
-          {/* Recorder Information */}
-          <RecorderInfo
-            firstName={formData.recorderFirstName || ''}
-            lastName={formData.recorderLastName || ''}
-            handleChange={handleChange}
-            errors={errors}
-            isReadOnly={isFormReadOnly}
             isDraftLoaded={!!formData.isDraft}
           />
         </div>
