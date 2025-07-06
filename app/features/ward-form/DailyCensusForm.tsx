@@ -9,11 +9,13 @@ import { ActionButtonsSection } from './components/forms/ActionButtonsSection';
 import CensusInputFields from './components/CensusInputFields';
 import ShiftSelection from './components/ShiftSelection';
 import DraftNotification from './components/DraftNotification';
+import PreviousDataNotification from './components/PreviousDataNotification';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
 import ConfirmZeroValuesModal from './components/ConfirmZeroValuesModal';
 import RecorderInfo from './components/RecorderInfo';
 import { useWardFormData } from './hooks/useWardFormData';
 import { useDailyCensusFormLogic } from './hooks/useDailyCensusFormLogic';
+import { usePreviousDataCheck } from './hooks/usePreviousDataCheck';
 import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
 import { ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 
@@ -40,6 +42,18 @@ export default function DailyCensusForm() {
     handleReload,
     isSingleWardUser,
   } = useDailyCensusFormLogic();
+
+  // Previous data check for notification
+  const {
+    hasPreviousData,
+    isLoading: isPreviousDataLoading,
+    error: previousDataError,
+    previousNightData,
+  } = usePreviousDataCheck({
+    selectedWard: selectedWardObject?.wardCode || '',
+    selectedDate,
+    enabled: !!selectedWard && !!selectedDate && selectedShift === ShiftType.MORNING,
+  });
 
   // Ward form data management
   const {
@@ -116,6 +130,17 @@ export default function DailyCensusForm() {
         onDateChange={handleDateChange}
         isSingleWardUser={isSingleWardUser || false}
       />
+
+      {/* Previous Data Notification - แจ้งเตือนข้อมูลย้อนหลัง */}
+      {selectedWard && selectedDate && selectedShift === ShiftType.MORNING && (
+        <PreviousDataNotification
+          hasPreviousData={hasPreviousData}
+          isLoading={isPreviousDataLoading}
+          selectedDate={selectedDate}
+          wardName={selectedWardObject?.name}
+          className="mb-4"
+        />
+      )}
               
       {/* Shift Selection */}
                <ShiftSelection
