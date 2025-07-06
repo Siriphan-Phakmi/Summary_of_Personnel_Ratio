@@ -3,30 +3,37 @@ import { User } from '@/app/features/auth/types/user';
 import { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 
-// Initial form structure, aligned with the new WardForm interface
+// ✅ **FIREBASE-SAFE INITIAL FORM STRUCTURE** - No undefined values
+// Firebase ไม่รับค่า undefined ใน setDoc operations
 export const initialFormStructure: Partial<WardForm> = {
-  patientCensus: undefined,
-  admitted: undefined,
-  discharged: undefined,
-  transferredIn: undefined,
-  transferredOut: undefined,
-  deaths: undefined,
-  onLeave: undefined,
-  absconded: undefined,
-  totalBeds: undefined,
-  availableBeds: undefined,
-  occupiedBeds: undefined,
-  specialCareBeds: undefined,
-  isolationBeds: undefined,
+  // 🔢 **Numeric Fields** - ใช้ 0 แทน undefined เพื่อความปลอดภัยกับ Firebase
+  patientCensus: 0,
+  admitted: 0,
+  discharged: 0,
+  transferredIn: 0,
+  transferredOut: 0,
+  deaths: 0,
+  onLeave: 0,
+  absconded: 0,
+  totalBeds: 0,
+  availableBeds: 0,
+  occupiedBeds: 0,
+  specialCareBeds: 0,
+  isolationBeds: 0,
+  
+  // 📝 **Text Fields** - ใช้ empty string
   recorderFirstName: '',
   recorderLastName: '',
   rejectionReason: '',
+  
+  // 🏥 **Status Fields** - ใช้ default values ที่ชัดเจน
   status: FormStatus.DRAFT,
   isDraft: true,
 };
 
 /**
  * แปลงข้อมูลจาก Firebase เป็นรูปแบบที่ใช้ในฟอร์ม
+ * ✅ **Firebase-Safe Conversion** - ไม่มี undefined values
  */
 export const convertFormDataFromFirebase = (
   existingForm: any,
@@ -37,21 +44,21 @@ export const convertFormDataFromFirebase = (
     date: existingForm.date instanceof Timestamp 
       ? format(existingForm.date.toDate(), 'yyyy-MM-dd') 
       : typeof existingForm.date === 'string' ? existingForm.date : selectedDate,
-    // Map old field names to new field names if necessary for backward compatibility,
-    // but the primary goal is to align with the new WardForm interface.
-    patientCensus: existingForm.patientCensus ?? undefined,
-    admitted: existingForm.admitted ?? existingForm.newAdmit ?? undefined,
-    discharged: existingForm.discharged ?? undefined,
-    transferredIn: existingForm.transferredIn ?? existingForm.transferIn ?? undefined,
-    transferredOut: existingForm.transferredOut ?? existingForm.transferOut ?? undefined,
-    deaths: existingForm.deaths ?? existingForm.dead ?? undefined,
-    onLeave: existingForm.onLeave ?? undefined,
-    absconded: existingForm.absconded ?? undefined,
-    totalBeds: existingForm.totalBeds ?? undefined,
-    availableBeds: existingForm.availableBeds ?? existingForm.available ?? undefined,
-    occupiedBeds: existingForm.occupiedBeds ?? undefined,
-    specialCareBeds: existingForm.specialCareBeds ?? undefined,
-    isolationBeds: existingForm.isolationBeds ?? undefined,
+    
+    // ✅ **Numeric Fields** - ใช้ 0 แทน undefined เป็น fallback
+    patientCensus: existingForm.patientCensus ?? 0,
+    admitted: existingForm.admitted ?? existingForm.newAdmit ?? 0,
+    discharged: existingForm.discharged ?? 0,
+    transferredIn: existingForm.transferredIn ?? existingForm.transferIn ?? 0,
+    transferredOut: existingForm.transferredOut ?? existingForm.transferOut ?? 0,
+    deaths: existingForm.deaths ?? existingForm.dead ?? 0,
+    onLeave: existingForm.onLeave ?? 0,
+    absconded: existingForm.absconded ?? 0,
+    totalBeds: existingForm.totalBeds ?? 0,
+    availableBeds: existingForm.availableBeds ?? existingForm.available ?? 0,
+    occupiedBeds: existingForm.occupiedBeds ?? 0,
+    specialCareBeds: existingForm.specialCareBeds ?? 0,
+    isolationBeds: existingForm.isolationBeds ?? 0,
   };
 };
 

@@ -134,7 +134,24 @@ export const validateFormData = (formData: Partial<WardForm>): {
 };
 
 /**
+ * ✅ **Firebase-Safe Number Conversion**
+ * แปลงค่าเป็นตัวเลขอย่างปลอดภัย ไม่ return undefined
+ */
+const safeNumber = (value: unknown): number => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : Math.max(0, parsed); // ป้องกันค่าติดลบ
+  }
+  if (typeof value === 'number') {
+    return isNaN(value) ? 0 : Math.max(0, value); // ป้องกันค่าติดลบ
+  }
+  return 0;
+};
+
+/**
  * คำนวณจำนวนผู้ป่วยกะเช้าจากข้อมูลกะดึกของวันก่อน
+ * ✅ **Firebase-Safe Return Values** - ไม่ return undefined
  */
 export const calculateMorningCensus = (
   previousNightForm: WardForm | null,
@@ -148,18 +165,6 @@ export const calculateMorningCensus = (
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   
-  const safeNumber = (value: unknown): number => {
-    if (value === null || value === undefined) return 0;
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? 0 : parsed;
-    }
-    if (typeof value === 'number') {
-      return isNaN(value) ? 0 : value;
-    }
-    return 0;
-  };
-
   // ใช้จำนวนผู้ป่วยคงเหลือจากกะดึกวันก่อน หรือ 0 ถ้าไม่มีข้อมูล
   const initialPatientCensus = previousNightForm ? safeNumber(previousNightForm.patientCensus) : 0;
   
@@ -175,14 +180,15 @@ export const calculateMorningCensus = (
     : calculatedCensus;
 
   return {
-    initialPatientCensus,
-    calculatedCensus,
-    patientCensus: Math.max(0, finalPatientCensus) // ป้องกันค่าติดลบ
+    initialPatientCensus: Math.max(0, initialPatientCensus), // ✅ Firebase-safe
+    calculatedCensus: Math.max(0, calculatedCensus), // ✅ Firebase-safe
+    patientCensus: Math.max(0, finalPatientCensus) // ✅ Firebase-safe
   };
 };
 
 /**
  * คำนวณจำนวนผู้ป่วยกะดึก
+ * ✅ **Firebase-Safe Return Values** - ไม่ return undefined
  */
 export const calculateNightShiftCensus = (
   morningForm: WardForm,
@@ -195,18 +201,6 @@ export const calculateNightShiftCensus = (
   }
 ): {initialPatientCensus: number, calculatedCensus: number, patientCensus: number} => {
   
-  const safeNumber = (value: unknown): number => {
-    if (value === null || value === undefined) return 0;
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? 0 : parsed;
-    }
-    if (typeof value === 'number') {
-      return isNaN(value) ? 0 : value;
-    }
-    return 0;
-  };
-
   // ใช้จำนวนผู้ป่วยคงเหลือจากกะเช้า
   const initialPatientCensus = safeNumber(morningForm.patientCensus);
   
@@ -217,9 +211,9 @@ export const calculateNightShiftCensus = (
   const calculatedCensus = initialPatientCensus + totalAdmissions - totalDischarges;
 
   return {
-    initialPatientCensus,
-    calculatedCensus,
-    patientCensus: Math.max(0, calculatedCensus) // ป้องกันค่าติดลบ
+    initialPatientCensus: Math.max(0, initialPatientCensus), // ✅ Firebase-safe
+    calculatedCensus: Math.max(0, calculatedCensus), // ✅ Firebase-safe
+    patientCensus: Math.max(0, calculatedCensus) // ✅ Firebase-safe
   };
 };
 

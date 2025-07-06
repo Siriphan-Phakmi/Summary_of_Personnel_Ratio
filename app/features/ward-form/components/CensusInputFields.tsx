@@ -54,13 +54,46 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
     });
   });
   
-  // 📋 Planning/Documentation (การวางแผน/เอกสาร) - Excluding comment (handled separately)
-  fields.push({
-    name: 'plannedDischarge',
-    label: WardFieldLabels.plannedDischarge || 'Planned Discharge',
-    placeholder: '0',
-    type: 'number',
-    category: 'planning'
+  // 📋 Planning/Documentation (การวางแผน/เอกสาร)
+  FieldCategories.PLANNING.fields.forEach(field => {
+    if (field === 'comment') {
+      fields.push({
+        name: field,
+        label: WardFieldLabels[field] || field,
+        placeholder: 'Text', // Text placeholder for comment field
+        type: 'text',
+        category: 'planning'
+      });
+    } else {
+      fields.push({
+        name: field,
+        label: WardFieldLabels[field] || field,
+        placeholder: '0',
+        type: 'number',
+        category: 'planning'
+      });
+    }
+  });
+  
+  // 👤 Recorder (เจ้าหน้าที่ผู้บันทึก) - ✅ **Updated placeholders as requested by BB**
+  FieldCategories.RECORDER.fields.forEach(field => {
+    if (field === 'recorderFirstName') {
+      fields.push({
+        name: field,
+        label: WardFieldLabels[field] || field,
+        placeholder: 'ใส่ชื่อ', // ✅ BB's requirement: placeholder ใส่ชื่อ
+        type: 'text',
+        category: 'recorder'
+      });
+    } else if (field === 'recorderLastName') {
+      fields.push({
+        name: field,
+        label: WardFieldLabels[field] || field,
+        placeholder: 'ใส่นามสกุล', // ✅ BB's requirement: placeholder ใส่นามสกุล
+        type: 'text',
+        category: 'recorder'
+      });
+    }
   });
   
   return fields;

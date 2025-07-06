@@ -25,10 +25,41 @@ import NotificationService from '@/app/features/notifications/services/Notificat
 import { NotificationType } from '@/app/features/notifications/types/notification';
 
 /**
+ * ✅ **Firebase-Safe Data Preparation**
+ * กรอง undefined values ออกเพื่อป้องกัน Firebase errors
+ */
+const sanitizeDataForFirebase = (data: any): any => {
+  const sanitized: any = {};
+  
+  Object.keys(data).forEach(key => {
+    const value = data[key];
+    
+    if (value === undefined) {
+      // ✅ Convert undefined to appropriate default values
+      if (['patientCensus', 'admitted', 'discharged', 'transferredIn', 'transferredOut', 
+           'deaths', 'onLeave', 'absconded', 'totalBeds', 'availableBeds', 'occupiedBeds',
+           'specialCareBeds', 'isolationBeds', 'nurseManager', 'rn', 'pn', 'wc',
+           'unavailableBeds', 'plannedDischarge', 'referIn', 'referOut'].includes(key)) {
+        sanitized[key] = 0; // Default to 0 for numeric fields
+      } else if (['recorderFirstName', 'recorderLastName', 'rejectionReason', 'comment'].includes(key)) {
+        sanitized[key] = ''; // Default to empty string for text fields
+      }
+      // Skip undefined values that don't have defaults
+    } else if (value !== null) {
+      sanitized[key] = value;
+    }
+  });
+  
+  return sanitized;
+};
+
+/**
  * Saves or updates a draft of a ward form.
+ * ✅ **FIREBASE ERROR PREVENTION** - กรอง undefined values ก่อนส่งไป Firebase
  */
 export const saveDraftWardForm = async (form: WardForm, user: User): Promise<string> => {
   const formRef = doc(db, COLLECTION_WARDFORMS, form.id);
+  
   const dataToSave = {
       ...form,
       status: FormStatus.DRAFT,
@@ -37,12 +68,17 @@ export const saveDraftWardForm = async (form: WardForm, user: User): Promise<str
       // Ensure createdAt is only set once
       createdAt: form.createdAt || serverTimestamp(),
   };
-  await setDoc(formRef, dataToSave, { merge: true });
+  
+  // ✅ **CRITICAL FIX** - กรอง undefined values ออกก่อนส่งไป Firebase
+  const sanitizedData = sanitizeDataForFirebase(dataToSave);
+  
+  await setDoc(formRef, sanitizedData, { merge: true });
   return form.id;
 };
 
 /**
  * Finalizes the morning shift form, performing all necessary calculations and saving it.
+ * ✅ **FIREBASE ERROR PREVENTION** - กรอง undefined values ก่อนส่งไป Firebase
  */
 export const finalizeMorningShiftForm = async (form: WardForm, user: User): Promise<string> => {
     try {
@@ -78,7 +114,11 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         };
 
         const formRef = doc(db, COLLECTION_WARDFORMS, form.id);
-        await setDoc(formRef, finalData, { merge: true });
+        
+        // ✅ **CRITICAL FIX** - กรอง undefined values ออกก่อนส่งไป Firebase
+        const sanitizedFinalData = sanitizeDataForFirebase(finalData);
+        
+        await setDoc(formRef, sanitizedFinalData, { merge: true });
 
         const cacheKey = `wardForm-${wardId}-${dateStr}-${ShiftType.MORNING}`;
         clearCache(cacheKey);
@@ -110,6 +150,7 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
 
 /**
  * Finalizes the night shift form, performing calculations and saving.
+ * ✅ **FIREBASE ERROR PREVENTION** - กรอง undefined values ก่อนส่งไป Firebase
  */
 export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardForm, user: User): Promise<string> => {
     try {
@@ -142,7 +183,11 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         };
 
         const formRef = doc(db, COLLECTION_WARDFORMS, form.id);
-        await setDoc(formRef, finalData, { merge: true });
+        
+        // ✅ **CRITICAL FIX** - กรอง undefined values ออกก่อนส่งไป Firebase
+        const sanitizedFinalData = sanitizeDataForFirebase(finalData);
+        
+        await setDoc(formRef, sanitizedFinalData, { merge: true });
 
         const cacheKey = `wardForm-${wardId}-${dateStr}-${ShiftType.NIGHT}`;
         clearCache(cacheKey);
