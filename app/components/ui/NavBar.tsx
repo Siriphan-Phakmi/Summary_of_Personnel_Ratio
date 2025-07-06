@@ -64,6 +64,7 @@ const NavBar = () => {
               height={32} 
               className="h-8 w-auto"
               priority
+              suppressHydrationWarning={true}
             />
             <span className="text-xl font-bold text-gray-800 dark:text-white hidden sm:inline">
               Personnel Ratio
@@ -96,21 +97,19 @@ const NavBar = () => {
                         {user.firstName} {user.lastName}
                     </span>
                  </div>
-                 <UserIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                 <UserIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" suppressHydrationWarning={true} />
               </div>
             )}
             
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Toggle theme"
-            >
-              {mounted ? (
-                theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />
-              ) : (
-                <div className="h-5 w-5" />
-              )}
-            </button>
+            {mounted && (
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun className="h-5 w-5" suppressHydrationWarning={true} /> : <Moon className="h-5 w-5" suppressHydrationWarning={true} />}
+              </button>
+            )}
 
             {user && (
               <Button
@@ -119,7 +118,7 @@ const NavBar = () => {
                 onClick={logout}
                 className="hidden md:flex items-center space-x-2"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-4 w-4" suppressHydrationWarning={true} />
                 <span>Logout</span>
               </Button>
             )}
@@ -131,7 +130,7 @@ const NavBar = () => {
                 className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 aria-label="Toggle menu"
               >
-                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {isMenuOpen ? <X className="h-6 w-6" suppressHydrationWarning={true} /> : <Menu className="h-6 w-6" suppressHydrationWarning={true} />}
               </button>
             </div>
           </div>
@@ -159,7 +158,7 @@ const NavBar = () => {
                 <>
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
                     <div className="flex items-center px-3">
-                      <UserIcon className="h-8 w-8 text-gray-600 dark:text-gray-300 mr-3" />
+                      <UserIcon className="h-8 w-8 text-gray-600 dark:text-gray-300 mr-3" suppressHydrationWarning={true} />
                       <div>
                         <div className="text-base font-medium text-gray-800 dark:text-white">{user.firstName} {user.lastName}</div>
                       </div>
@@ -171,7 +170,7 @@ const NavBar = () => {
                     onClick={logout}
                     className="w-full flex items-center justify-start space-x-2 mt-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
                   >
-                    <LogOut className="h-5 w-5" />
+                    <LogOut className="h-5 w-5" suppressHydrationWarning={true} />
                     <span>Logout</span>
                   </Button>
                 </>
