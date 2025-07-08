@@ -6,6 +6,74 @@ This document provides a chronological summary of major changes and refactoring 
 
 ## Latest High-Level Summaries
 
+### 🔥 **UI STRUCTURE OPTIMIZATION: Ward Form Layout Enhancement (2025-01-08 - Current Session)**
+
+**CRITICAL UI ENHANCEMENT: ปรับปรุงโครงสร้าง Ward Form Layout ตามคำขอของคุณบีบี**
+
+#### **🚨 คำขอจากคุณบีบี:**
+"เอาหัวข้อนี้ออก '📋 Planning/Documentation (การวางแผน/เอกสาร)' - ย้าย 'Planned Discharge' ขึ้นไป ไปอยู่ในหัวข้อ 'Bed/Room Status (สถานะเตียง/ห้อง)' - เอา Comment ออก 1 รายการครับ"
+
+#### **🔍 Root Cause Analysis:**
+**UI Structure Issues:**
+- **Location**: Ward Form มีการจัดกลุ่ม fields ที่ไม่เหมาะสม
+- **Issue**: Planning/Documentation section มี fields เพียง 2 ตัว (plannedDischarge + comment)
+- **Impact**: UI ไม่เป็นระเบียบและมี comment field ซ้ำซ้อน
+
+#### **🛠️ Technical Implementation - Lean Code Approach:**
+
+**1. ✅ WARD FIELD LABELS RESTRUCTURING**
+- **File**: `app/features/ward-form/hooks/wardFieldLabels.ts`
+- **Changes**:
+  - ลบ `PLANNING` category section
+  - ย้าย `plannedDischarge` ไปอยู่ใน `BED_STATUS` category
+  - เปลี่ยน `BED_STATUS.fields` เป็น `['availableBeds', 'unavailableBeds', 'plannedDischarge']`
+  - เปลี่ยน `BED_STATUS.description` เป็น 'สถานะความพร้อมใช้งานของเตียงผู้ป่วย และแผนการจำหน่าย'
+
+**2. ✅ CENSUS INPUT FIELDS UI OPTIMIZATION**
+- **File**: `app/features/ward-form/components/CensusInputFields.tsx`
+- **Changes**:
+  - ลบ `Planning/Documentation Section` ทั้งหมด
+  - ลบ `planningFields` category processing
+  - ปรับ `Bed/Room Status` grid เป็น `lg:grid-cols-3` (รองรับ 3 fields)
+  - เพิ่ม `Comment Section` แยกต่างหาก (เป็น textarea)
+
+**3. ✅ FIELD PROCESSING LOGIC CLEANUP**
+- **File**: `app/features/ward-form/components/CensusInputFields.tsx`
+- **Changes**:
+  - ลบ `PLANNING.fields` processing จาก `createFieldsFromCategories()`
+  - ลบ `planningFields` filter
+  - Planned Discharge ถูกย้ายไปอยู่ใน `bedStatusFields` อัตโนมัติ
+
+#### **✅ Result - UI Structure Optimization:**
+
+**UI Layout After Changes:**
+1. **🏥 Patient Census Section** - เดิม (ไม่เปลี่ยน)
+2. **👥 Personnel/Positions Section** - เดิม (ไม่เปลี่ยน)
+3. **🚶‍♂️ Patient Flow/Movement Section** - เดิม (ไม่เปลี่ยน)
+4. **🛏️ Bed/Room Status Section** - ✅ **NEW**: รวม Available, Unavailable, Planned Discharge
+5. **📝 Comment Section** - ✅ **NEW**: Comment field แยกต่างหาก (textarea)
+6. **👤 Recorder Section** - เดิม (ไม่เปลี่ยน)
+
+#### **📊 Performance Impact:**
+- **Bundle Size**: Build สำเร็จ ✅
+- **Code Lines**: ลดจำนวน code ที่ไม่จำเป็น (Dead Code Elimination)
+- **UI Consistency**: โครงสร้างเป็นระเบียบมากขึ้น
+- **User Experience**: ลดความซ้ำซ้อนของ comment fields
+
+#### **🔧 Technical Validation:**
+- **Build Status**: ✅ Success (Exit code: 0)
+- **TypeScript**: ✅ No errors
+- **ESLint**: ✅ Only minor warnings (เดิม)
+- **File Size**: ✅ CensusInputFields.tsx ยังคงอยู่ที่ 310 lines (< 500 lines)
+
+#### **🎯 Lean Code Benefits:**
+- **Waste Elimination**: ลบ Planning section ที่ไม่จำเป็น
+- **Code Reuse**: ใช้ประโยชน์จาก existing BED_STATUS category
+- **Maintainability**: โครงสร้างชัดเจน เข้าใจง่าย
+- **Scalability**: ง่ายต่อการเพิ่มเติม fields ในอนาคต
+
+---
+
 ### 🔥 **COMMENT FIELD VALIDATION CRITICAL FIX: Text Field Validation Logic Correction (2025-01-08 - Current Session)**
 
 **CRITICAL BUG FIX: แก้ไขปัญหา Comment Field ที่ถูก Validate เป็นตัวเลข แทนที่จะเป็น Text Field**

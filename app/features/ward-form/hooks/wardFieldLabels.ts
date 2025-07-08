@@ -25,10 +25,10 @@ export const WardFieldLabels: { [key in keyof Partial<WardForm>]: string } = {
   // 🛏️ **Bed/Room Status (สถานะเตียง/ห้อง)**
   availableBeds: 'Available',     // เตียงว่าง
   unavailableBeds: 'Unavailable', // เตียงไม่ว่าง
+  plannedDischarge: 'Planned Discharge', // แผนการจำหน่าย (ย้ายมาจาก Planning section)
 
-  // 📋 **Planning/Documentation (การวางแผน/เอกสาร)**
-  plannedDischarge: 'Planned Discharge', // แผนการจำหน่าย
-  comment: 'Comment',                    // หมายเหตุเพิ่มเติม
+  // 📝 **Additional Information (ข้อมูลเพิ่มเติม)**
+  comment: 'Comment',             // หมายเหตุเพิ่มเติม
 
   // 👤 **Recorder (เจ้าหน้าที่ผู้บันทึก)**
   recorderFirstName: 'First Name',  // ชื่อผู้บันทึก
@@ -89,14 +89,8 @@ export const FieldCategories = {
   
   BED_STATUS: {
     title: 'Bed/Room Status (สถานะเตียง/ห้อง)',
-    fields: ['availableBeds', 'unavailableBeds'] as const,
-    description: 'สถานะความพร้อมใช้งานของเตียงผู้ป่วย'
-  },
-  
-  PLANNING: {
-    title: 'Planning/Documentation (การวางแผน/เอกสาร)',
-    fields: ['plannedDischarge', 'comment'] as const,
-    description: 'การวางแผนและการบันทึกเพิ่มเติม'
+    fields: ['availableBeds', 'unavailableBeds', 'plannedDischarge'] as const,
+    description: 'สถานะความพร้อมใช้งานของเตียงผู้ป่วย และแผนการจำหน่าย'
   },
   
   RECORDER: {

@@ -54,27 +54,6 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
     });
   });
   
-  // 📋 Planning/Documentation (การวางแผน/เอกสาร)
-  FieldCategories.PLANNING.fields.forEach(field => {
-    if (field === 'comment') {
-      fields.push({
-        name: field,
-        label: WardFieldLabels[field] || field,
-        placeholder: 'Text', // Text placeholder for comment field
-        type: 'text',
-        category: 'planning'
-      });
-    } else {
-      fields.push({
-        name: field,
-        label: WardFieldLabels[field] || field,
-        placeholder: '0',
-        type: 'number',
-        category: 'planning'
-      });
-    }
-  });
-  
   // 👤 Recorder (เจ้าหน้าที่ผู้บันทึก) - ✅ **Updated placeholders as requested by BB**
   FieldCategories.RECORDER.fields.forEach(field => {
     if (field === 'recorderFirstName') {
@@ -98,15 +77,6 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
   
   return fields;
 };
-
-// 👤 Recorder Fields (เจ้าหน้าที่ผู้บันทึก)
-const recorderFields: InputFieldConfig[] = FieldCategories.RECORDER.fields.map(field => ({
-  name: field,
-  label: WardFieldLabels[field] || field,
-  placeholder: field === 'recorderFirstName' ? 'ใส่ชื่อ' : 'ใส่นามสกุล',
-  type: 'text',
-  category: 'recorder'
-}));
 
 interface CensusInputFieldsProps {
   formConfig: FormConfiguration | null;
@@ -189,7 +159,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
   const personnelFields = configuredFields.filter(f => f.category === 'personnel');
   const patientFlowFields = configuredFields.filter(f => f.category === 'patient_flow');
   const bedStatusFields = configuredFields.filter(f => f.category === 'bed_status');
-  const planningFields = configuredFields.filter(f => f.category === 'planning');
+  const recorderFields = configuredFields.filter(f => f.category === 'recorder');
 
   return (
     <>
@@ -267,30 +237,18 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
         <h4 className="text-md font-medium mb-3 text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">
           🛏️ {FieldCategories.BED_STATUS.title}
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {bedStatusFields.map(field => (
             <Input key={field.name} {...createInputProps(field)} />
           ))}
         </div>
       </div>
 
-      {/* 📋 Planning/Documentation Section */}
+      {/* 📝 Comment Section */}
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-        <h4 className="text-md font-medium mb-3 text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">
-          📋 {FieldCategories.PLANNING.title}
-        </h4>
-        
-        {/* Planned Discharge */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {planningFields.map(field => (
-            <Input key={field.name} {...createInputProps(field)} />
-          ))}
-        </div>
-
-        {/* Comment Field */}
         <div>
           <label htmlFor="comment" className="form-label mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {WardFieldLabels.comment}
+            📝 {WardFieldLabels.comment}
           </label>
           <textarea
             id="comment"
@@ -300,7 +258,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
             onChange={handleChange}
             onBlur={handleBlur}
             readOnly={isReadOnly}
-            placeholder="Text"
+            placeholder="ใส่หมายเหตุ..."
             className={twMerge(
               "form-input w-full resize-none",
               isReadOnly && "bg-gray-100 dark:bg-gray-700 cursor-not-allowed",
@@ -318,7 +276,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           👤 {FieldCategories.RECORDER.title}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {recorderFields.map(field => (
+          {configuredFields.map(field => (
             <Input key={field.name} {...createInputProps(field)} />
           ))}
         </div>
