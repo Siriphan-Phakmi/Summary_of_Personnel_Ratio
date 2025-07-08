@@ -136,6 +136,30 @@ export const useFormSaveManager = ({
       console.log("Validation Errors:", errors);
       return;
     }
+
+    // ✅ **NEW DRAFT OVERWRITE DETECTION** - Check for existing draft before saving
+    if (saveType === 'draft' && selectedBusinessWardId && selectedDate) {
+      try {
+        const targetDate = new Date(selectedDate + 'T00:00:00');
+        const dateTimestamp = Timestamp.fromDate(targetDate);
+        
+        const existingForm = await findWardForm({
+          date: dateTimestamp,
+          shift: selectedShift,
+          wardId: selectedBusinessWardId,
+        });
+        
+        // If existing draft found, show confirmation modal
+        if (existingForm && existingForm.status === FormStatus.DRAFT) {
+          setSaveActionType(saveType);
+          setShowConfirmOverwriteModal(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking existing draft:', error);
+        // Continue with save if error occurs during check
+      }
+    }
     
     // Remap field keys to user-friendly labels for the confirmation modal
     const fieldsWithZeroLabels = fieldsWithZero.map(key => WardFieldLabels[key as keyof typeof WardFieldLabels] || key);
@@ -148,7 +172,7 @@ export const useFormSaveManager = ({
     }
 
     await executeSave(saveType);
-  }, [formData, validateForm, executeSave]);
+  }, [formData, validateForm, executeSave, selectedBusinessWardId, selectedDate, selectedShift]);
 
   const proceedWithSaveAfterZeroConfirmation = useCallback(async () => {
     if (saveActionType) {

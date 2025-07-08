@@ -6,7 +6,40 @@
 
 ## **🎯 Latest Session Status**
 
-### **🔥 HOSPITAL FIELD CATEGORIZATION - COMPLETED** *(2025-01-07 - Current Session)*
+### **🔥 SAVE DRAFT WORKFLOW ENHANCEMENT - COMPLETED** *(2025-01-08 - Current Session)*
+
+**CRITICAL FUNCTIONALITY UPGRADE: ปรับปรุงระบบ Save Draft ให้สมบูรณ์แบบตาม Workflow ของคุณบีบี Successfully**
+
+#### **Feature Request:**
+คุณบีบีขอให้ตรวจสอบการ save draft อีกรอบ ใน @DailyCensusForm.tsx และ @CensusInputFields.tsx เพื่อให้แน่ใจว่าระบบทำงานตาม workflow ที่กำหนด:
+- **Draft Overwrite Confirmation**: แจ้งเตือนเมื่อมี draft อยู่แล้ว
+- **Save Draft Logic**: ตรวจสอบ existing draft ก่อนบันทึก  
+- **UI Draft State**: แสดงสีเหลืองอย่างถูกต้อง
+
+#### **Technical Implementation:**
+- **Complete Draft Overwrite Workflow** - เพิ่ม ConfirmSaveModal logic ใน DailyCensusForm.tsx
+- **Enhanced Save Manager** - เพิ่มการตรวจสอบ existing draft ใน useFormSaveManager.ts
+- **Verified UI Logic** - ตรวจสอบการแสดงสี draft state ใน CensusInputFields.tsx
+- **Firebase Integration** - ใช้ findWardForm query เพื่อตรวจสอบ draft ที่มีอยู่
+
+#### **Results Achieved:**
+- **Draft Detection**: ✅ ระบบตรวจสอบ existing draft ก่อน save อัตโนมัติ
+- **User Confirmation**: ✅ แสดง ConfirmSaveModal เมื่อมี draft อยู่แล้ว
+- **File Size Compliance**: DailyCensusForm.tsx (215 lines), useFormSaveManager.ts (203 lines), CensusInputFields.tsx (288 lines) - ทุกไฟล์ < 500 lines ✅
+- **Build Status**: Exit Code 0 - No compilation errors ✅
+- **Hospital Workflow**: ✅ ตรงตาม requirement ของโรงพยาบาล
+
+#### **Files Enhanced:**
+- `app/features/ward-form/DailyCensusForm.tsx` - Added ConfirmSaveModal integration + setShowConfirmOverwriteModal
+- `app/features/ward-form/hooks/helpers/useFormSaveManager.ts` - Enhanced with draft detection logic
+- `app/features/ward-form/components/CensusInputFields.tsx` - Verified existing draft state logic
+
+#### **Next Action:** 
+User testing - ทดสอบ Save Draft workflow ที่ได้รับการปรับปรุงใหม่
+
+---
+
+### **🔥 HOSPITAL FIELD CATEGORIZATION - COMPLETED** *(2025-01-07 - Previous Session)*
 
 **HOSPITAL STANDARDS EXCELLENCE: จัดหมวดหมู่ Ward Form Fields ตามมาตรฐานโรงพยาบาล Successfully**
 

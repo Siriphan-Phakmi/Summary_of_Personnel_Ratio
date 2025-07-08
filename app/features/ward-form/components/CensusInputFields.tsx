@@ -276,7 +276,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
           👤 {FieldCategories.RECORDER.title}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {configuredFields.map(field => (
+          {recorderFields.map(field => (
             <Input key={field.name} {...createInputProps(field)} />
           ))}
         </div>

@@ -6,7 +6,49 @@
 
 ## 📋 **Current Status**
 
-### **🔥 LATEST: NAVBAR REFRESH ENHANCEMENT - COMPLETED** *(2025-01-03)*
+### **🔥 LATEST: SAVE DRAFT WORKFLOW ENHANCEMENT - COMPLETED** *(2025-01-08)*
+
+**CRITICAL FUNCTIONALITY UPGRADE: ปรับปรุงระบบ Save Draft ให้สมบูรณ์แบบตาม Hospital Workflow**
+
+#### **Feature Request & Solution:**
+- **Request**: "ตรวจสอบการ save draft อีกรอบ ในส่วน @DailyCensusForm.tsx และ @CensusInputFields.tsx"
+- **Solution**: เพิ่ม Draft Overwrite Detection + ConfirmSaveModal integration + Enhanced Save Manager
+
+#### **Technical Implementation:**
+```typescript
+// ✅ Enhanced Draft Detection in Save Manager
+if (saveType === 'draft' && selectedBusinessWardId && selectedDate) {
+  const existingForm = await findWardForm({...});
+  if (existingForm && existingForm.status === FormStatus.DRAFT) {
+    setShowConfirmOverwriteModal(true);
+    return;
+  }
+}
+
+// ✅ Added ConfirmSaveModal in DailyCensusForm
+<ConfirmSaveModal
+  isOpen={showConfirmOverwriteModal}
+  onClose={() => setShowConfirmOverwriteModal(false)}
+  onConfirm={proceedToSaveDraft}
+  formData={formData}
+  isSaving={isSaving}
+/>
+```
+
+#### **Results:**
+- **Draft Detection**: ✅ ระบบตรวจสอบ existing draft ก่อน save อัตโนมัติ
+- **User Confirmation**: ✅ แสดง popup ยืนยันเมื่อมี draft อยู่แล้ว
+- **File Size**: DailyCensusForm.tsx = 215 lines, useFormSaveManager.ts = 203 lines (< 500 lines) ✅
+- **Build Status**: Exit Code 0 - No compilation errors ✅
+- **Hospital Workflow**: ✅ ตรงตาม requirement ของโรงพยาบาล
+
+#### **Files Modified:**
+- `app/features/ward-form/DailyCensusForm.tsx` - Added ConfirmSaveModal integration + setShowConfirmOverwriteModal destructuring
+- `app/features/ward-form/hooks/helpers/useFormSaveManager.ts` - Enhanced with draft detection logic before save
+
+---
+
+### **🔥 NAVBAR REFRESH ENHANCEMENT - COMPLETED** *(2025-01-03)*
 
 **UX IMPROVEMENT: เพิ่มฟังก์ชันรีเฟรชหน้าเมื่อคลิกปุ่ม NavBar ตามคำขอ**
 

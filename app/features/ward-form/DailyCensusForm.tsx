@@ -63,6 +63,7 @@ export default function DailyCensusForm() {
     isFormReadOnly,
     error: formDataError,
     isFormDirty,
+    isDraftLoaded,
     handleChange,
     handleBlur,
     handleSaveDraft,
@@ -72,6 +73,9 @@ export default function DailyCensusForm() {
     isCensusAutoCalculated,
     fieldsWithValueZero,
     proceedWithSaveAfterZeroConfirmation,
+    showConfirmOverwriteModal,
+    setShowConfirmOverwriteModal,
+    proceedToSaveDraft,
   } = useWardFormData({
       selectedWard,
       selectedBusinessWardId: selectedWardObject?.wardCode || '',
@@ -168,7 +172,7 @@ export default function DailyCensusForm() {
             isReadOnly={isFormReadOnly}
             selectedShift={selectedShift}
             isCensusAutoCalculated={isCensusAutoCalculated}
-            isDraftLoaded={!!formData.isDraft}
+            isDraftLoaded={isDraftLoaded}
           />
         </div>
       ) : (
@@ -199,6 +203,15 @@ export default function DailyCensusForm() {
         fieldsWithZero={fieldsWithValueZero || []}
         isSaving={isSaving}
         />
+
+      {/* Draft Overwrite Confirmation Modal */}
+      <ConfirmSaveModal
+        isOpen={showConfirmOverwriteModal}
+        onClose={() => setShowConfirmOverwriteModal(false)}
+        onConfirm={proceedToSaveDraft}
+        formData={formData}
+        isSaving={isSaving}
+      />
       </div>
   );
 }
