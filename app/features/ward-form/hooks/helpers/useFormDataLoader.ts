@@ -10,6 +10,11 @@ import {
   initialFormStructure,
   convertFormDataFromFirebase,
 } from '../useWardFormDataHelpers';
+import {
+  loadFromLocalStorage,
+  saveToLocalStorage,
+  isLocalStorageDataFresh,
+} from './localStorageHelpers';
 
 const formDataCache = new Map<string, { data: Partial<WardForm>; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 วินาที
@@ -55,16 +60,39 @@ export const useFormDataLoader = ({
   const cacheKey = `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`;
 
   const getCachedData = useCallback(() => {
+    // First check in-memory cache
     const cached = formDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log('[FormDataLoader] Using in-memory cache');
       return cached.data;
     }
+    
+    // If in-memory cache is expired or missing, check localStorage
+    if (selectedBusinessWardId && selectedDate) {
+      if (isLocalStorageDataFresh(selectedBusinessWardId, selectedShift, selectedDate, 60)) { // 60 minutes for localStorage
+        const localData = loadFromLocalStorage(selectedBusinessWardId, selectedShift, selectedDate);
+        if (localData?.data) {
+          console.log('[FormDataLoader] Using localStorage cache');
+          // Also update in-memory cache
+          setCachedData(localData.data);
+          return localData.data;
+        }
+      }
+    }
+    
     return null;
-  }, [cacheKey]);
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
 
   const setCachedData = useCallback((data: Partial<WardForm>) => {
+    // Save to in-memory cache
     formDataCache.set(cacheKey, { data, timestamp: Date.now() });
-  }, [cacheKey]);
+    
+    // Also save to localStorage for persistence across page visits
+    if (selectedBusinessWardId && selectedDate) {
+      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data);
+      console.log('[FormDataLoader] Data saved to both memory and localStorage');
+    }
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
   
   const clearCache = useCallback(() => {
     formDataCache.delete(cacheKey);

@@ -60,13 +60,17 @@ export const useFormSaveManager = ({
     try {
       setIsSaving(true);
 
+      // ✅ **FIX: ใช้ Timestamp format เดียวกับการ query**
+      const targetDate = new Date(selectedDate + 'T00:00:00');
+      const dateTimestamp = Timestamp.fromDate(targetDate);
+
       const formDataToSave: WardForm = {
         ...formData,
         id: formData.id || `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`,
         wardId: selectedBusinessWardId,
         shift: selectedShift,
-        date: new Date(selectedDate),
-        updatedAt: new Date(),
+        date: dateTimestamp, // ✅ ใช้ Timestamp แทน Date object
+        updatedAt: Timestamp.now(), // ✅ ใช้ Firestore server timestamp
         updatedBy: user?.uid,
       } as WardForm;
 

@@ -33,7 +33,7 @@ export const initialFormStructure: Partial<WardForm> = {
 
 /**
  * แปลงข้อมูลจาก Firebase เป็นรูปแบบที่ใช้ในฟอร์ม
- * ✅ **Firebase-Safe Conversion** - ไม่มี undefined values
+ * ✅ **Firebase-Safe Conversion** - แปลง string เป็น number และไม่มี undefined values
  */
 export const convertFormDataFromFirebase = (
   existingForm: any,
@@ -45,20 +45,26 @@ export const convertFormDataFromFirebase = (
       ? format(existingForm.date.toDate(), 'yyyy-MM-dd') 
       : typeof existingForm.date === 'string' ? existingForm.date : selectedDate,
     
-    // ✅ **Numeric Fields** - ใช้ 0 แทน undefined เป็น fallback
-    patientCensus: existingForm.patientCensus ?? 0,
-    admitted: existingForm.admitted ?? existingForm.newAdmit ?? 0,
-    discharged: existingForm.discharged ?? 0,
-    transferredIn: existingForm.transferredIn ?? existingForm.transferIn ?? 0,
-    transferredOut: existingForm.transferredOut ?? existingForm.transferOut ?? 0,
-    deaths: existingForm.deaths ?? existingForm.dead ?? 0,
-    onLeave: existingForm.onLeave ?? 0,
-    absconded: existingForm.absconded ?? 0,
-    totalBeds: existingForm.totalBeds ?? 0,
-    availableBeds: existingForm.availableBeds ?? existingForm.available ?? 0,
-    occupiedBeds: existingForm.occupiedBeds ?? 0,
-    specialCareBeds: existingForm.specialCareBeds ?? 0,
-    isolationBeds: existingForm.isolationBeds ?? 0,
+    // ✅ **Numeric Fields** - แปลง string จาก Firebase เป็น number ด้วย safeNumber
+    patientCensus: safeNumber(existingForm.patientCensus),
+    admitted: safeNumber(existingForm.admitted ?? existingForm.newAdmit),
+    discharged: safeNumber(existingForm.discharged),
+    transferredIn: safeNumber(existingForm.transferredIn ?? existingForm.transferIn),
+    transferredOut: safeNumber(existingForm.transferredOut ?? existingForm.transferOut),
+    deaths: safeNumber(existingForm.deaths ?? existingForm.dead),
+    onLeave: safeNumber(existingForm.onLeave),
+    absconded: safeNumber(existingForm.absconded),
+    totalBeds: safeNumber(existingForm.totalBeds),
+    availableBeds: safeNumber(existingForm.availableBeds ?? existingForm.available),
+    occupiedBeds: safeNumber(existingForm.occupiedBeds),
+    specialCareBeds: safeNumber(existingForm.specialCareBeds),
+    isolationBeds: safeNumber(existingForm.isolationBeds),
+    
+    // ✅ **Text Fields** - รักษาเป็น string
+    recorderFirstName: existingForm.recorderFirstName || '',
+    recorderLastName: existingForm.recorderLastName || '',
+    comment: existingForm.comment || '',
+    rejectionReason: existingForm.rejectionReason || '',
   };
 };
 

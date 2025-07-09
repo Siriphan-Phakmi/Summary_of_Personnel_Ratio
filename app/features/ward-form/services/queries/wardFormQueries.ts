@@ -65,6 +65,7 @@ export const findWardForm = async ({
 
   const forms = snapshot ? snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) : [];
   const result = (forms && forms.length > 0) ? forms[0] : null;
+  
   if (result) {
     setCachedQuery(cacheKey, result);
   }

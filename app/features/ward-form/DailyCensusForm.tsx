@@ -16,7 +16,7 @@ import { useWardFormData } from './hooks/useWardFormData';
 import { useDailyCensusFormLogic } from './hooks/useDailyCensusFormLogic';
 import { usePreviousDataCheck } from './hooks/usePreviousDataCheck';
 import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
-import { ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
+import { ShiftType, FormStatus, WardForm } from '@/app/features/ward-form/types/ward';
 
 export default function DailyCensusForm() {
   // Hook to fetch form configuration from Firestore
@@ -133,6 +133,18 @@ export default function DailyCensusForm() {
         onDateChange={handleDateChange}
         isSingleWardUser={isSingleWardUser || false}
       />
+
+      {/* Draft Data Notification - แจ้งเตือนข้อมูล draft ที่บันทึกไว้ */}
+      {selectedWard && selectedDate && isDraftLoaded && formData.id && (
+        <DraftNotification
+          draftData={formData as WardForm}
+          onLoadDraft={() => {
+            // Data is already loaded, just show confirmation message
+            console.log('Draft data is already loaded and displayed');
+          }}
+          className="mb-4"
+        />
+      )}
 
       {/* Previous Data Notification - แจ้งเตือนข้อมูลย้อนหลัง */}
       {selectedWard && selectedDate && selectedShift === ShiftType.MORNING && (
