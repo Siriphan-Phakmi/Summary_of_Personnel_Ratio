@@ -1280,3 +1280,28 @@ This is a Next.js hospital ward management system with Firebase backend, featuri
 - Maintain security and performance standards
 - Document all changes in REFACTORING_CHANGES.md
 - Prepare for context management when approaching limits
+
+### **🔥 DEV-TOOLS SYSTEM TOOLS REMOVAL - COMPLETED** *(2025-06-XX - BB's Lean Code Request)*
+
+**LEAN CODE UPDATE: ลบ System Tools และปุ่ม Clear Logs ออกจาก Dev-Tools ตามคำขอของคุณบีบี**
+
+- Removed: System Tools section (UI + logic)
+- Removed: Clear Logs button and all related state/functions
+- Kept: LogViewer and all log display features
+- No impact: Workflow, LogViewer, or security
+
+---
+
+### **🔥 LOGVIEWER UI ENHANCEMENT - 2025-06-XX**
+
+- ปรับ container หลัก LogViewer (max-w-6xl, center, gap, background/padding)
+- UI สวยงาม สะอาดตา ตรงตาม Lean Code และตัวอย่าง UI
+
+---
+
+### **LAYOUT REFACTOR: DEV-TOOLS & LOGVIEWER - 2025-06-XX**
+
+- **Lean Code:** รวมศูนย์ Layout ที่ `dev-tools/page.tsx`, Refactor `LogViewer.tsx` ให้เป็นคอมโพเนนต์แสดงผลอย่างเดียว
+- **Result:** UI สวยงาม, แก้ปัญหา Header ไม่ตรงแนว, โค้ดบำรุงรักษาง่าย
+
+---

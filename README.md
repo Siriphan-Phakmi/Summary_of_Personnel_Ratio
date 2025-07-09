@@ -623,3 +623,8 @@ For technical issues or questions, refer to the documentation files or contact t
 **Last Updated**: January 3, 2025  
 **Version**: 2.0.0  
 **Status**: Production Ready ✅
+
+## Dev-Tools (Lean Code & Refactored)
+- Layout UI รวมศูนย์ที่ `page.tsx`
+- `LogViewer.tsx` เป็นคอมโพเนนต์แสดงผลอย่างเดียว
+- UI สวยงาม, Lean Code, บำรุงรักษาง่าย

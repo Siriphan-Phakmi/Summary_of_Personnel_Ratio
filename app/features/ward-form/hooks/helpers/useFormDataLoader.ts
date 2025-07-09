@@ -59,6 +59,17 @@ export const useFormDataLoader = ({
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
   const cacheKey = `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`;
 
+  const setCachedData = useCallback((data: Partial<WardForm>) => {
+    // Save to in-memory cache
+    formDataCache.set(cacheKey, { data, timestamp: Date.now() });
+    
+    // Also save to localStorage for persistence across page visits
+    if (selectedBusinessWardId && selectedDate) {
+      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data);
+      console.log('[FormDataLoader] Data saved to both memory and localStorage');
+    }
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
+
   const getCachedData = useCallback(() => {
     // First check in-memory cache
     const cached = formDataCache.get(cacheKey);
@@ -83,17 +94,6 @@ export const useFormDataLoader = ({
     return null;
   }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift, setCachedData]);
 
-  const setCachedData = useCallback((data: Partial<WardForm>) => {
-    // Save to in-memory cache
-    formDataCache.set(cacheKey, { data, timestamp: Date.now() });
-    
-    // Also save to localStorage for persistence across page visits
-    if (selectedBusinessWardId && selectedDate) {
-      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data);
-      console.log('[FormDataLoader] Data saved to both memory and localStorage');
-    }
-  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
-  
   const clearCache = useCallback(() => {
     formDataCache.delete(cacheKey);
   }, [cacheKey]);

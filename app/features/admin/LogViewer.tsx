@@ -50,55 +50,53 @@ export default function LogViewer() {
   } = useLogViewer();
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
+    <div className="flex flex-col gap-4">
+      <header>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
           บันทึกการทำงานของระบบ (System Logs)
-        </h1>
-        <p className="mt-1 text-md text-gray-600 dark:text-gray-400">
+        </h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           ตรวจสอบและจัดการบันทึกกิจกรรมต่างๆ ที่เกิดขึ้นในระบบ
         </p>
       </header>
+
+      <LogFilterControls 
+        filters={{
+          logCollection,
+          logType,
+          username,
+          dateRange,
+          limitCount
+        }}
+        setters={{
+          handleLogCollectionChange,
+          setLogType,
+          setDateRange,
+          setUsername,
+          setLimitCount
+        }}
+        onSearch={fetchLogs}
+        onCleanup={handleCleanupOldLogs}
+        onDeleteAll={handleDeleteAllLogs}
+        onDeleteSelected={handleDeleteSelectedLogs}
+        selectedCount={selectedLogs.length}
+      />
       
-      <main>
-        <LogFilterControls 
-          filters={{
-            logCollection,
-            logType,
-            username,
-            dateRange,
-            limitCount
-          }}
-          setters={{
-            handleLogCollectionChange,
-            setLogType,
-            setDateRange,
-            setUsername,
-            setLimitCount
-          }}
-          onSearch={fetchLogs}
-          onCleanup={handleCleanupOldLogs}
-          onDeleteAll={handleDeleteAllLogs}
-          onDeleteSelected={handleDeleteSelectedLogs}
-          selectedCount={selectedLogs.length}
-        />
-        
-        <LogsTable
-          logs={logs}
-          loading={loading}
-          selectedLogs={selectedLogs}
-          onSelectLog={handleSelectLog}
-          onSelectAll={handleSelectAll}
-          onClearSelection={handleClearSelection}
-          pagination={{
-            currentPage,
-            hasNextPage,
-            hasPrevPage,
-            goToNextPage,
-            goToPrevPage
-          }}
-        />
-      </main>
+      <LogsTable
+        logs={logs}
+        loading={loading}
+        selectedLogs={selectedLogs}
+        onSelectLog={handleSelectLog}
+        onSelectAll={handleSelectAll}
+        onClearSelection={handleClearSelection}
+        pagination={{
+          currentPage,
+          hasNextPage,
+          hasPrevPage,
+          goToNextPage,
+          goToPrevPage
+        }}
+      />
     </div>
   );
 }
