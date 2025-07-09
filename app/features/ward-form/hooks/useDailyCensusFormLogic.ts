@@ -43,18 +43,15 @@ export const useDailyCensusFormLogic = () => {
     setIsDataLoading(true);
     setDataError(null);
     try {
-      let userWards = await getWardsByUserPermission(user);
+      const userWards = await getWardsByUserPermission(user);
       
-      // Fallback: If no specific wards, get all active wards
+      // ✅ **SECURITY FIX**: ไม่ fallback ไป all wards - แสดงเฉพาะ ward ที่มีสิทธิ์เท่านั้น
       if (userWards.length === 0) {
-        console.log(`User ${user.username} has no specific wards, falling back to all active wards.`);
-        userWards = await getActiveWards();
-      }
-
-      if (userWards.length === 0) {
-        setDataError('ไม่พบข้อมูลแผนกที่ใช้งานในระบบ หรือท่านยังไม่ได้รับมอบหมายแผนก กรุณาติดต่อผู้ดูแลระบบ');
+        console.warn(`[WardAccess] User '${user.username}' (${user.role}) has no assigned wards. Access denied.`);
+        setDataError(`คุณยังไม่ได้รับมอบหมายแผนกใดๆ กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์เข้าถึงแผนก (User: ${user.username})`);
         setWards([]);
       } else {
+        console.log(`[WardAccess] User '${user.username}' has access to ${userWards.length} ward(s):`, userWards.map(w => w.name));
         setWards(userWards);
         // Set default selected ward only if it's not already set
         if (!selectedWard && userWards.length > 0) {
@@ -69,6 +66,7 @@ export const useDailyCensusFormLogic = () => {
     } finally {
       setIsDataLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]); // Remove selectedWard dependency to prevent infinite loop
 
   // Fetch statuses for the selected ward and date
@@ -109,14 +107,16 @@ export const useDailyCensusFormLogic = () => {
         clearTimeout(timeoutId);
       };
     }
-  }, [user]); // Only depend on user, not fetchWards
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]); // Only depend on user, not fetchWards (prevents infinite loop)
 
   // Fetch statuses when ward, date, or trigger changes
   useEffect(() => {
     if (selectedWard && selectedDate) {
       fetchStatuses();
     }
-  }, [selectedWard, selectedDate, reloadDataTrigger]); // Only depend on the actual values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWard, selectedDate, reloadDataTrigger]); // Only depend on the actual values (prevents infinite loop)
   
   // Auto-refresh on window focus to get latest data
   useEffect(() => {

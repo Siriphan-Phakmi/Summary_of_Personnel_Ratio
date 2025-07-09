@@ -127,6 +127,9 @@ const CreateUserForm = () => {
         approveWardIds: [],
       });
       setErrors({});
+      
+      // ✅ **BB's Request**: Refresh page after successful user creation
+      window.location.reload();
     }
   };
 

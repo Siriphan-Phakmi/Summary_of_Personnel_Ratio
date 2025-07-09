@@ -81,7 +81,7 @@ export const useFormDataLoader = ({
     }
     
     return null;
-  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift, setCachedData]);
 
   const setCachedData = useCallback((data: Partial<WardForm>) => {
     // Save to in-memory cache

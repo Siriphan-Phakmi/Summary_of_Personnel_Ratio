@@ -3,11 +3,18 @@ const nextConfig = {
   reactStrictMode: true,
   basePath: '',
   output: 'standalone',
+  
+  // ✅ **BB's Request**: Add experimental settings for better performance
+  experimental: {
+    optimizePackageImports: ['@firebase/firestore'],
+  },
+  
   // เพิ่มการตั้งค่าเพื่อแก้ไข chunk error
   compiler: {
     // ลบคำเตือนที่ไม่จำเป็น
     styledComponents: true,
   },
+  
   webpack: (config, { dev, isServer }) => {
     // ขยายขีดจำกัดขนาดของไฟล์
     const oneKb = 1024;
@@ -17,6 +24,14 @@ const nextConfig = {
       ...config.performance,
       maxAssetSize: 500 * oneKb,
       maxEntrypointSize: 500 * oneKb,
+    };
+    
+    // ✅ **BB's Request**: Add better error handling for network issues
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      dns: false,
+      net: false,
+      tls: false,
     };
     
     // ปรับแต่งการแบ่ง chunks

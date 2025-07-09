@@ -35,6 +35,15 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onUpdatePassword, 
   onUpdateUsername 
 }) => {
+  // ✅ **NEW: Store original data for comparison**
+  const originalData = useMemo(() => ({
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: user.role,
+    assignedWardId: user.assignedWardId,
+    approveWardIds: user.approveWardIds || [],
+  }), [user]);
+
   const [formData, setFormData] = useState<Partial<User>>({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -55,6 +64,27 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // ✅ **NEW: Check if form data has changed (dirty state)**
+  const hasFormDataChanged = useMemo(() => {
+    return (
+      formData.firstName !== originalData.firstName ||
+      formData.lastName !== originalData.lastName ||
+      formData.role !== originalData.role ||
+      formData.assignedWardId !== originalData.assignedWardId ||
+      JSON.stringify(formData.approveWardIds?.sort()) !== JSON.stringify(originalData.approveWardIds?.sort())
+    );
+  }, [formData, originalData]);
+
+  // ✅ **NEW: Check if username has changed**
+  const hasUsernameChanged = useMemo(() => {
+    return usernameData.newUsername.trim() !== user.username.trim();
+  }, [usernameData.newUsername, user.username]);
+
+  // ✅ **NEW: Check if password has been entered**
+  const hasPasswordInput = useMemo(() => {
+    return passwordData.newPassword.trim() !== '' || passwordData.confirmPassword.trim() !== '';
+  }, [passwordData.newPassword, passwordData.confirmPassword]);
 
   // ✅ Ward validation using helpers
   const isWardSelectionValid = (): boolean => validateWardSelection(formData);
@@ -196,7 +226,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     variant="primary" 
                     size="sm"
                     onClick={handleUsernameUpdate}
-                    disabled={loading || !usernameData.newUsername.trim()}
+                    disabled={loading || !usernameData.newUsername.trim() || !hasUsernameChanged}
+                    className={(!hasUsernameChanged || loading) ? 'opacity-50 cursor-not-allowed' : ''}
+                    title={!hasUsernameChanged ? 'No changes to save' : 'Save username changes'}
                   >
                     Save
                   </Button>
@@ -293,10 +325,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     variant="primary" 
                     size="sm"
                     onClick={handlePasswordUpdate}
-                    disabled={loading || !passwordValidation.isValid}
-                    className={!passwordValidation.isValid ? 'opacity-50 cursor-not-allowed' : ''}
+                    disabled={loading || !passwordValidation.isValid || !hasPasswordInput}
+                    className={(!passwordValidation.isValid || !hasPasswordInput || loading) ? 'opacity-50 cursor-not-allowed' : ''}
                     title={
-                      passwordValidation.isValid 
+                      !hasPasswordInput 
+                        ? 'Enter password to save changes'
+                        : passwordValidation.isValid 
                         ? 'Save password changes' 
                         : passwordValidation.errors[0] || 'Please fix validation errors'
                     }
@@ -425,9 +459,13 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             <Button 
               type="submit" 
               variant="primary"
-              disabled={isSaveDisabled}
-              className={isSaveDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-              title={currentValidationMessage || 'Save changes'}
+              disabled={isSaveDisabled || !hasFormDataChanged}
+              className={(isSaveDisabled || !hasFormDataChanged) ? 'opacity-50 cursor-not-allowed' : ''}
+              title={
+                !hasFormDataChanged 
+                  ? 'No changes to save' 
+                  : currentValidationMessage || 'Save changes'
+              }
             >
               Save Changes
             </Button>
@@ -435,10 +473,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </form>
         
         {/* ✅ Visual feedback for disabled state */}
-        {isSaveDisabled && currentValidationMessage && (
+        {((isSaveDisabled && currentValidationMessage) || !hasFormDataChanged) && (
           <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
             <p className="text-xs text-yellow-700 dark:text-yellow-300 text-center">
-              💡 {currentValidationMessage}
+              💡 {!hasFormDataChanged ? 'No changes detected. Modify any field to enable Save Changes button.' : currentValidationMessage}
             </p>
           </div>
         )}
