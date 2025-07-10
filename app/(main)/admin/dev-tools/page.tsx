@@ -8,7 +8,7 @@ import LogViewer from '@/app/features/admin/LogViewer';
 export default function DevToolsPage() {
   return (
     <ProtectedPage requiredRole={UserRole.DEVELOPER}>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-6">
         <div className="container mx-auto p-4 space-y-6">
           {/* Main Page Header */}
           <header>
