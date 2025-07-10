@@ -5,7 +5,11 @@ import { useLogViewer } from './hooks/useLogViewer';
 import { LogFilterControls } from './components/LogFilterControls';
 import { LogsTable } from './components/LogsTable';
 
-export default function LogViewer() {
+interface LogViewerProps {
+  className?: string;
+}
+
+export default function LogViewer({ className }: LogViewerProps) {
   const {
     // Data
     logs,
@@ -50,16 +54,7 @@ export default function LogViewer() {
   } = useLogViewer();
 
   return (
-    <div className="flex flex-col gap-4">
-      <header>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-          บันทึกการทำงานของระบบ (System Logs)
-        </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          ตรวจสอบและจัดการบันทึกกิจกรรมต่างๆ ที่เกิดขึ้นในระบบ
-        </p>
-      </header>
-
+    <div className={className}>
       <LogFilterControls 
         filters={{
           logCollection,

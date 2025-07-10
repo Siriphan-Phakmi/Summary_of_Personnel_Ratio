@@ -8,7 +8,7 @@ import LogViewer from '@/app/features/admin/LogViewer';
 export default function DevToolsPage() {
   return (
     <ProtectedPage requiredRole={UserRole.DEVELOPER}>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
         <div className="container mx-auto p-4 space-y-6">
           {/* Main Page Header */}
           <header>
@@ -20,9 +20,18 @@ export default function DevToolsPage() {
             </p>
           </header>
 
-          {/* Log Viewer Component */}
-          <LogViewer />
-          
+          {/* Log Viewer Section */}
+          <div className="flex flex-col gap-4">
+            <header>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
+                บันทึกการทำงานของระบบ (System Logs)
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                ตรวจสอบและจัดการบันทึกกิจกรรมต่างๆ ที่เกิดขึ้นในระบบ
+              </p>
+            </header>
+            <LogViewer className="mt-4" />
+          </div>
         </div>
       </div>
     </ProtectedPage>
