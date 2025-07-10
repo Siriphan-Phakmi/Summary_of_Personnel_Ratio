@@ -66,6 +66,11 @@ export const useNotificationBell = (isOpen: boolean) => {
       const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์';
       setState(s => ({ ...s, error: errorMessage, isLoading: false, notifications: [], unreadCount: 0 }));
       Logger.error('useNotificationBell: Fetch notifications failed', err);
+      
+      // เพิ่ม retry หลังจาก 5 วินาที
+      setTimeout(() => {
+        fetchNotifications();
+      }, 5000);
     } finally {
       fetchingNotifications.current = false;
     }

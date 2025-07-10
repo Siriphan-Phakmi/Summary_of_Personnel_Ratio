@@ -10,6 +10,7 @@ import { Button } from './Button';
 import { Sun, Moon, LogOut, User as UserIcon, Menu, X } from 'lucide-react';
 import { UserRole } from '@/app/features/auth/types/user';
 import { cn } from '@/app/lib/utils/cn';
+import NotificationBell from '@/app/features/notifications/components/NotificationBell';
 
 const navLinks = [
   { href: '/census/form', label: 'Form', allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
@@ -100,6 +101,9 @@ const NavBar = () => {
                  <UserIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" suppressHydrationWarning={true} />
               </div>
             )}
+            
+            {/* Notification Bell */}
+            {user && <NotificationBell />}
             
             {mounted && (
               <button

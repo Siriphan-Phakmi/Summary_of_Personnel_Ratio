@@ -26,7 +26,8 @@ const notificationService = {
     try {
       Logger.info(`[${context}] Creating notification for recipients:`, notificationData.recipientIds);
 
-      const docRef = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+      // ✅ Firebase-Safe Data Preparation - กรอง undefined values
+      const sanitizedData = {
         ...notificationData,
         createdAt: serverTimestamp(),
         // Initialize all recipients as unread
@@ -34,7 +35,16 @@ const notificationService = {
           acc[userId] = false;
           return acc;
         }, {} as { [userId: string]: boolean }),
+      };
+
+      // ✅ Remove undefined fields to prevent Firebase errors
+      Object.keys(sanitizedData).forEach(key => {
+        if ((sanitizedData as any)[key] === undefined) {
+          delete (sanitizedData as any)[key];
+        }
       });
+
+      const docRef = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), sanitizedData);
 
       Logger.info(`[${context}] Successfully created notification with ID: ${docRef.id}`);
       return docRef.id;
@@ -79,7 +89,14 @@ const notificationService = {
    */
   async getUserNotifications(): Promise<UserNotificationsResponse> {
     try {
-      const response = await fetch('/api/notifications/get');
+      // ใช้ BASE_URL จาก environment variable
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+      const response = await fetch(`${baseUrl}/api/notifications/get`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: Failed to fetch notifications`);
       }

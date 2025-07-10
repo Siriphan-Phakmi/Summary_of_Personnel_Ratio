@@ -143,6 +143,7 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
             type: NotificationType.SYSTEM,
             recipientIds: [user.uid],
             createdBy: 'system',
+            actionUrl: `/census/form` // Default to form page for retry
         });
         throw error;
     }
@@ -217,6 +218,7 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
             type: NotificationType.SYSTEM,
             recipientIds: [user.uid],
             createdBy: 'system',
+            actionUrl: `/census/form` // Default to form page for retry
         });
         throw error;
     }

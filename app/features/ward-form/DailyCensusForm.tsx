@@ -9,7 +9,7 @@ import { ActionButtonsSection } from './components/forms/ActionButtonsSection';
 import CensusInputFields from './components/CensusInputFields';
 import ShiftSelection from './components/ShiftSelection';
 import DraftNotification from './components/DraftNotification';
-import PreviousDataNotificationService from '@/app/features/notifications/services/PreviousDataNotificationService';
+import { createPreviousDataNotification, shouldCreatePreviousDataNotification, markPreviousDataNotificationSent } from './utils/previousDataNotificationHelper';
 import ConfirmSaveModal from './components/ConfirmSaveModal';
 import ConfirmZeroValuesModal from './components/ConfirmZeroValuesModal';
 import { useWardFormData } from './hooks/useWardFormData';
@@ -85,50 +85,36 @@ export default function DailyCensusForm() {
       reloadDataTrigger: 0, // Default value for reload trigger
   });
 
-  // ส่ง notification เมื่อตรวจสอบข้อมูลกะดึกเสร็จ
-  useEffect(() => {
-    if (
-      currentUser?.uid &&
-      selectedWardObject?.name &&
-      selectedDate &&
-      selectedShift === ShiftType.MORNING &&
-      !isPreviousDataLoading &&
-      !previousDataError
-    ) {
-      // ตรวจสอบว่าควรส่ง notification หรือไม่
-      const shouldSend = PreviousDataNotificationService.shouldSendNotification(
-        currentUser.uid,
-        selectedWardObject.name,
-        selectedDate
-      );
-
-      if (shouldSend) {
-        PreviousDataNotificationService.sendPreviousDataNotification({
-          userId: currentUser.uid,
-          wardName: selectedWardObject.name,
-          selectedDate,
-          hasPreviousData,
-        }).catch(error => {
-          console.error('Failed to send previous data notification:', error);
-        });
-      }
-    }
-  }, [
-    currentUser?.uid,
-    selectedWardObject?.name,
-    selectedDate,
-    selectedShift,
-    hasPreviousData,
-    isPreviousDataLoading,
-    previousDataError,
-  ]);
-
   // Determine button disabled state
   const isMorningShiftDisabled = actualMorningStatus === FormStatus.APPROVED || actualMorningStatus === FormStatus.FINAL;
   const isNightShiftDisabled = actualNightStatus === FormStatus.APPROVED || actualNightStatus === FormStatus.FINAL;
 
   // Form validation
   const isFormValid = !!(Object.keys(errors).length === 0 && selectedWard && selectedDate);
+    
+  // Previous data notification management
+  useEffect(() => {
+    if (
+      selectedWard && 
+      selectedDate && 
+      selectedShift === ShiftType.MORNING && 
+      selectedWardObject?.name &&
+      currentUser?.uid &&
+      !isPreviousDataLoading &&
+      shouldCreatePreviousDataNotification(selectedDate, selectedWardObject.name, currentUser.uid)
+    ) {
+      // ส่ง notification เกี่ยวกับข้อมูลกะดึกย้อนหลัง
+      createPreviousDataNotification({
+        userId: currentUser.uid,
+        wardName: selectedWardObject.name,
+        selectedDate,
+        hasPreviousData
+      }).then(() => {
+        // บันทึกว่าได้ส่ง notification แล้ว
+        markPreviousDataNotificationSent(selectedDate, selectedWardObject.name, currentUser.uid);
+      });
+    }
+  }, [selectedWard, selectedDate, selectedShift, selectedWardObject?.name, currentUser?.uid, hasPreviousData, isPreviousDataLoading]);
     
   // Combined loading and error states
   const isLoading = isDataLoading || isFormDataLoading || !currentUser || configLoading;
@@ -184,7 +170,7 @@ export default function DailyCensusForm() {
         />
       )}
 
-      {/* การแจ้งเตือนข้อมูลกะดึกย้อนหลังจะแสดงในระฆัง notification แล้ว */}
+      {/* Previous Data Notification ถูกจัดการผ่าน NotificationBell ใน NavBar แล้ว */}
               
       {/* Shift Selection */}
                <ShiftSelection
