@@ -9,6 +9,7 @@ export interface LocalStorageFormData {
   dateString: string;
   lastSaved: string;
   data: Partial<WardForm>;
+  isDraft?: boolean; // เพิ่มข้อมูลว่าเป็น draft หรือไม่
 }
 
 /**
@@ -25,7 +26,8 @@ export const saveToLocalStorage = (
   wardId: string,
   shift: ShiftType,
   dateString: string,
-  data: Partial<WardForm>
+  data: Partial<WardForm>,
+  isDraft: boolean = false
 ): boolean => {
   try {
     const storageKey = createStorageKey(wardId, shift, dateString);
@@ -34,11 +36,12 @@ export const saveToLocalStorage = (
       shift,
       dateString,
       lastSaved: new Date().toISOString(),
-      data
+      data,
+      isDraft
     };
     
     localStorage.setItem(storageKey, JSON.stringify(storageData));
-    console.log(`[FormPersistence] Saved to localStorage: ${storageKey}`);
+    console.log(`[FormPersistence] Saved to localStorage: ${storageKey}, isDraft: ${isDraft}`);
     return true;
   } catch (error) {
     console.error('[FormPersistence] Failed to save to localStorage:', error);

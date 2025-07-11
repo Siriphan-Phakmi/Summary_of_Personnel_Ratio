@@ -59,14 +59,14 @@ export const useFormDataLoader = ({
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
   const cacheKey = `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`;
 
-  const setCachedData = useCallback((data: Partial<WardForm>) => {
+  const setCachedData = useCallback((data: Partial<WardForm>, isDraft: boolean = false) => {
     // Save to in-memory cache
     formDataCache.set(cacheKey, { data, timestamp: Date.now() });
     
     // Also save to localStorage for persistence across page visits
     if (selectedBusinessWardId && selectedDate) {
-      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data);
-      console.log('[FormDataLoader] Data saved to both memory and localStorage');
+      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data, isDraft);
+      console.log('[FormDataLoader] Data saved to both memory and localStorage, isDraft:', isDraft);
     }
   }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
 
@@ -75,7 +75,14 @@ export const useFormDataLoader = ({
     const cached = formDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
       console.log('[FormDataLoader] Using in-memory cache');
-      return cached.data;
+      // ✅ **FIX: เช็ค localStorage เพื่อหา isDraft status ที่ถูกต้อง**
+      if (selectedBusinessWardId && selectedDate) {
+        const localData = loadFromLocalStorage(selectedBusinessWardId, selectedShift, selectedDate);
+        if (localData?.data) {
+          return { data: cached.data, isDraft: localData.isDraft || false };
+        }
+      }
+      return { data: cached.data, isDraft: false };
     }
     
     // If in-memory cache is expired or missing, check localStorage
@@ -83,10 +90,10 @@ export const useFormDataLoader = ({
       if (isLocalStorageDataFresh(selectedBusinessWardId, selectedShift, selectedDate, 60)) { // 60 minutes for localStorage
         const localData = loadFromLocalStorage(selectedBusinessWardId, selectedShift, selectedDate);
         if (localData?.data) {
-          console.log('[FormDataLoader] Using localStorage cache');
+          console.log('[FormDataLoader] Using localStorage cache, isDraft:', localData.isDraft);
           // Also update in-memory cache
-          setCachedData(localData.data);
-          return localData.data;
+          setCachedData(localData.data, localData.isDraft || false);
+          return { data: localData.data, isDraft: localData.isDraft || false };
         }
       }
     }
@@ -103,11 +110,21 @@ export const useFormDataLoader = ({
       return; 
     }
     
+    // ✅ **Cached Data Handler** - Load data from cache if available
     if (!forceRefetch) {
-      const cachedData = getCachedData();
-      if (cachedData) {
-        setFormData(cachedData);
+      const cachedResult = getCachedData();
+      if (cachedResult) {
+        setFormData(cachedResult.data);
+        setIsDraftLoaded(cachedResult.isDraft);
+        // ✅ **FIX: ตั้งค่า isFinalDataFound ให้ถูกต้อง**
+        setIsFinalDataFound(!cachedResult.isDraft); // ถ้าไม่ใช่ draft แสดงว่าเป็น final data
+        // ✅ **FIX: ตั้งค่า isFormReadOnly ตาม draft status**  
+        const isAdminOrDeveloper = user?.role === UserRole.ADMIN || user?.role === UserRole.DEVELOPER;
+        setIsFormReadOnly(!cachedResult.isDraft ? !isAdminOrDeveloper : false);
+        setIsFormDirty(false);
+        loadingRef.current = false;
         setIsLoading(false);
+        console.log('[FormDataLoader] Loaded from cache, isDraft:', cachedResult.isDraft);
         return;
       }
     }
@@ -135,10 +152,11 @@ export const useFormDataLoader = ({
           loadedData.recorderLastName = loadedData.recorderLastName?.trim() || user.lastName || '';
         }
 
+        const isDraftData = existingForm.status === FormStatus.DRAFT;
         setFormData(loadedData);
-        setCachedData(loadedData);
+        setCachedData(loadedData, isDraftData);
         setIsFinalDataFound(isFinal);
-        setIsDraftLoaded(existingForm.status === FormStatus.DRAFT);
+        setIsDraftLoaded(isDraftData);
         
         const isAdminOrDeveloper = user?.role === UserRole.ADMIN || 
                                    user?.role === UserRole.DEVELOPER;
@@ -170,7 +188,7 @@ export const useFormDataLoader = ({
         }
         
         setFormData(newData);
-        setCachedData(newData);
+        setCachedData(newData, false); // new data ไม่ใช่ draft
         setIsFinalDataFound(false);
         setIsDraftLoaded(false);
         setIsFormReadOnly(false);
