@@ -2,22 +2,22 @@ import { FiBell, FiCheckCircle, FiAlertTriangle, FiFileText, FiClock, FiInfo } f
 import { NotificationType } from '@/app/features/notifications/types/notification';
 
 interface NotificationIconProps {
-  type: string;
+  type: NotificationType;
   className?: string;
 }
 
 export const NotificationIcon: React.FC<NotificationIconProps> = ({ type, className = "w-4 h-4 mr-2" }) => {
   const getIconComponent = () => {
     switch (type) {
-      case NotificationType.APPROVAL_REQUIRED:
+      case NotificationType.APPROVAL_REQUEST:
         return <FiFileText className={`${className} text-orange-500`} />;
       case NotificationType.FORM_APPROVED:
         return <FiCheckCircle className={`${className} text-green-500`} />;
       case NotificationType.FORM_REJECTED:
         return <FiAlertTriangle className={`${className} text-red-500`} />;
-      case NotificationType.SUMMARY_REQUIRED:
+      case NotificationType.FORM_DRAFT_SAVED:
         return <FiClock className={`${className} text-blue-500`} />;
-      case NotificationType.SYSTEM:
+      case NotificationType.SYSTEM_ALERT:
       default:
         return <FiInfo className={`${className} text-gray-500`} />;
     }

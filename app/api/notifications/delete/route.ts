@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { db } from '@/app/lib/firebase/firebase';
-import { doc, deleteDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, deleteDoc, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 import { getSession } from '@/app/features/auth/services/sessionService';
 
 export const runtime = 'nodejs';
@@ -113,7 +113,7 @@ export async function DELETE(request: NextRequest) {
         const updatedIsRead = { ...data.isRead };
         delete updatedIsRead[user.uid];
         
-        await targetNotification.ref.update({
+        await updateDoc(targetNotification.ref, {
           recipientIds: updatedRecipientIds,
           isRead: updatedIsRead
         });

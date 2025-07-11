@@ -37,7 +37,7 @@ export interface UseFormDataLoaderReturn {
   isFinalDataFound: boolean;
   isFormDirty: boolean;
   setIsFormDirty: React.Dispatch<React.SetStateAction<boolean>>;
-  loadData: () => Promise<void>;
+  loadData: (forceRefetch?: boolean) => Promise<void>;
 }
 
 export const useFormDataLoader = ({
@@ -98,16 +98,18 @@ export const useFormDataLoader = ({
     formDataCache.delete(cacheKey);
   }, [cacheKey]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceRefetch = false) => {
     if (!selectedBusinessWardId || !selectedDate || !user?.uid || loadingRef.current) {
       return; 
     }
     
-    const cachedData = getCachedData();
-    if (cachedData) {
-      setFormData(cachedData);
-      setIsLoading(false);
-      return;
+    if (!forceRefetch) {
+      const cachedData = getCachedData();
+      if (cachedData) {
+        setFormData(cachedData);
+        setIsLoading(false);
+        return;
+      }
     }
     
     loadingRef.current = true;
@@ -192,7 +194,7 @@ export const useFormDataLoader = ({
 
     if (needsReload || reloadDataTrigger > 0) {
       prevSelectionRef.current = currentSelection;
-      loadData();
+      loadData(reloadDataTrigger > 0);
     }
   }, [loadData, selectedBusinessWardId, selectedDate, reloadDataTrigger]);
 

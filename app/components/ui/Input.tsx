@@ -11,9 +11,19 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, label, error, wrapperClassName, id, ...props }, ref) => {
+    // ✅ ตรวจสอบว่ามี draft background หรือไม่
+    const hasDraftBg = className?.includes('bg-yellow') || className?.includes('yellow');
+    
+    // ✅ Base styles แยกออกจาก background
+    const baseStyles = 'form-input flex h-10 w-full rounded-md border border-gray-300 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:placeholder:text-gray-500 dark:focus-visible:ring-blue-400';
+    
     const inputClasses = twMerge(
-      'form-input flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500 dark:focus-visible:ring-blue-400',
+      baseStyles,
+      // Default background เฉพาะเมื่อไม่มี draft หรือ custom background
+      !hasDraftBg && 'bg-background dark:bg-gray-800',
+      // Error styles
       error && 'border-red-500 focus-visible:ring-red-500 dark:border-red-400 dark:focus-visible:ring-red-400',
+      // ✅ Custom className ตัวสุดท้าย - มี priority สูงสุด
       className
     );
 

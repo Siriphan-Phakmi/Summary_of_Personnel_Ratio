@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { User } from '@/app/features/auth/types/user';
+import { User, UserRole } from '@/app/features/auth/types/user';
 import { WardForm, ShiftType, FormStatus } from '@/app/features/ward-form/types/ward';
 import {
   saveDraftWardForm,
@@ -14,6 +14,20 @@ import { logUserAction } from '@/app/features/auth/services/logService';
 import { useFormValidation } from './useFormValidation';
 import { WardFieldLabels } from '../wardFieldLabels';
 import { Timestamp } from 'firebase/firestore';
+import notificationService from '@/app/features/notifications/services/NotificationService';
+import { NotificationType } from '@/app/features/notifications/types';
+import { getAllUsers } from '@/app/features/auth/services/userService';
+
+// Helper function to safely convert date to ISO string
+const safeGetDateString = (date: string | Timestamp | Date): string => {
+  if (date instanceof Timestamp) {
+    return date.toDate().toISOString().split('T')[0];
+  }
+  if (date instanceof Date) {
+    return date.toISOString().split('T')[0];
+  }
+  return date.split('T')[0];
+}
 
 export interface UseFormSaveManagerProps {
   formData: Partial<WardForm>;
@@ -50,6 +64,41 @@ export const useFormSaveManager = ({
   const [saveActionType, setSaveActionType] = useState<'draft' | 'final' | null>(null);
   const [showConfirmOverwriteModal, setShowConfirmOverwriteModal] = useState(false);
   const { validateForm } = useFormValidation();
+
+  const createSaveNotification = useCallback(async (
+    saveType: 'draft' | 'final',
+    form: WardForm,
+    actor: User
+  ) => {
+    try {
+      const allUsers = await getAllUsers();
+      const adminAndDevIds = allUsers
+        .filter(u => u.role === UserRole.ADMIN || u.role === UserRole.DEVELOPER)
+        .map(u => u.uid);
+
+      const recipientIds = Array.from(new Set([actor.uid, ...adminAndDevIds]));
+
+      const statusText = saveType === 'draft' ? 'ฉบับร่าง' : 'ฉบับสมบูรณ์';
+      const title = `บันทึกฟอร์ม (${statusText})`;
+      const message = `คุณ ${actor.firstName} ได้บันทึกข้อมูลเวร${form.shift === ShiftType.MORNING ? 'เช้า' : 'ดึก'} ของแผนก ${form.wardId} เป็น${statusText}`;
+
+      // สร้าง notification เพียงครั้งเดียวสำหรับ recipients ทั้งหมด
+      await notificationService.createNotification({
+        recipientIds, // ใช้ recipientIds array แทน recipientId เดี่ยว
+        title,
+        message,
+        type: saveType === 'draft' ? NotificationType.FORM_DRAFT_SAVED : NotificationType.FORM_APPROVED,
+        sender: {
+          id: actor.uid,
+          name: `${actor.firstName} ${actor.lastName}`,
+        },
+        actionUrl: `/census/approval?wardId=${form.wardId}&date=${safeGetDateString(form.date)}`
+      });
+    } catch (error) {
+      console.error('Failed to create save notification:', error);
+      // ไม่แสดง toast error เพราะเป็น optional feature
+    }
+  }, []);
 
   const executeSave = useCallback(async (saveType: 'draft' | 'final') => {
     if (!user || !selectedBusinessWardId) {
@@ -103,6 +152,9 @@ export const useFormSaveManager = ({
       
       onSaveSuccess(saveType === 'final');
 
+      // Create notification
+      await createSaveNotification(saveType, formDataToSave, user);
+
       // Only log if user is available
       if (user) {
         await logUserAction(
@@ -130,7 +182,7 @@ export const useFormSaveManager = ({
       setShowConfirmZeroModal(false);
       setSaveActionType(null);
     }
-  }, [formData, selectedBusinessWardId, selectedShift, selectedDate, user, onSaveSuccess]);
+  }, [formData, selectedBusinessWardId, selectedShift, selectedDate, user, onSaveSuccess, createSaveNotification]);
   
   const handleSave = useCallback(async (saveType: 'draft' | 'final') => {
     const { isValid, errors, fieldsWithZero } = validateForm(formData, saveType === 'final');

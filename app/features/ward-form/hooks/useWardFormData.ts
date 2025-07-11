@@ -41,7 +41,7 @@ export const useWardFormData = ({
 
   const onSaveSuccess = useCallback((isFinal: boolean) => {
     setIsFormDirty(false);
-    loadData(); // Reload data to get the latest state including isFormReadOnly
+    loadData(true); // Force a refetch to get the latest data from the database
   }, [setIsFormDirty, loadData]);
 
   const {

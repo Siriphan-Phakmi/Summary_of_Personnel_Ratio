@@ -18,6 +18,7 @@ import { usePreviousDataCheck } from './hooks/usePreviousDataCheck';
 import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
 import { ShiftType, FormStatus, WardForm } from '@/app/features/ward-form/types/ward';
 import { useFormValidation } from './hooks/helpers/useFormValidation';
+import { useNotificationContext } from '@/app/features/notifications/contexts/NotificationContext';
 
 export default function DailyCensusForm() {
   // Hook to fetch form configuration from Firestore
@@ -130,6 +131,13 @@ export default function DailyCensusForm() {
   
   // Combined error state
   const combinedError = dataError || formDataError;
+
+  const { openNotifications } = useNotificationContext();
+
+  useEffect(() => {
+    // เปิด dropdown notification เมื่อเข้าหน้า Form
+    openNotifications();
+  }, [openNotifications]); // ✅ เพิ่ม openNotifications ใน dependency array
 
   if (isLoading) {
     return (

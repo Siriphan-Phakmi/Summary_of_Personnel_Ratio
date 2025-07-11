@@ -127,10 +127,12 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         NotificationService.createNotification({
             title: 'Morning Form Submitted',
             message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.APPROVAL_REQUIRED,
+            type: NotificationType.APPROVAL_REQUEST,
             recipientIds: [user.uid],
-            createdBy: user.uid,
-            relatedDocId: form.id,
+            sender: {
+                id: user.uid,
+                name: user.firstName + ' ' + user.lastName || 'User'
+            },
             actionUrl: `/approval?formId=${form.id}`
         });
 
@@ -140,9 +142,12 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         NotificationService.createNotification({
             title: 'Submission Error',
             message: `Failed to submit morning form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM,
+            type: NotificationType.SYSTEM_ALERT,
             recipientIds: [user.uid],
-            createdBy: 'system',
+            sender: {
+                id: 'system',
+                name: 'System'
+            },
             actionUrl: `/census/form` // Default to form page for retry
         });
         throw error;
@@ -202,10 +207,12 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         NotificationService.createNotification({
             title: 'Night Form Submitted',
             message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.APPROVAL_REQUIRED,
+            type: NotificationType.APPROVAL_REQUEST,
             recipientIds: [user.uid],
-            createdBy: user.uid,
-            relatedDocId: form.id,
+            sender: {
+                id: user.uid,
+                name: user.firstName + ' ' + user.lastName || 'User'
+            },
             actionUrl: `/approval?formId=${form.id}`
         });
 
@@ -215,9 +222,12 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         NotificationService.createNotification({
             title: 'Submission Error',
             message: `Failed to submit night form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM,
+            type: NotificationType.SYSTEM_ALERT,
             recipientIds: [user.uid],
-            createdBy: 'system',
+            sender: {
+                id: 'system',
+                name: 'System'
+            },
             actionUrl: `/census/form` // Default to form page for retry
         });
         throw error;

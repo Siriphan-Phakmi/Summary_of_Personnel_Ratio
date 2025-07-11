@@ -13,7 +13,11 @@ import { cn } from '@/app/lib/utils/cn';
 import NotificationBell from '@/app/features/notifications/components/NotificationBell';
 
 const navLinks = [
-  { href: '/census/form', label: 'Form', allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
+  { 
+    href: '/census/form', 
+    label: 'Form', 
+    allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] 
+  },
   { href: '/census/approval', label: 'Approval', allowedRoles: [UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
   { href: '/dashboard', label: 'Dashboard', allowedRoles: [UserRole.NURSE, UserRole.APPROVER, UserRole.ADMIN, UserRole.DEVELOPER] },
   { href: '/admin/user-management', label: 'User Management', allowedRoles: [UserRole.ADMIN, UserRole.DEVELOPER] },

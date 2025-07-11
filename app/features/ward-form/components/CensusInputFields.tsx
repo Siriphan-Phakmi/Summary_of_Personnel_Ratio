@@ -110,6 +110,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     const fieldNameStr = field.name as string;
     const readOnly = isReadOnly || (field.name === 'patientCensus' && patientCensusReadOnly);
     const isDraftAndEditable = isDraftLoaded && !readOnly;
+    
 
     // ✅ **Dynamic Placeholder Logic**
     // 1. Use placeholder from `formConfig` if available.
@@ -143,13 +144,31 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
       placeholder: placeholderText, // ✅ Use dynamic placeholder
       type: field.type,
       readOnly: readOnly,
-      className: twMerge(
-        "form-input",
-        readOnly && "bg-gray-100 dark:bg-gray-700",
-        isDraftAndEditable && "bg-yellow-100 dark:bg-yellow-900/50",
-        readOnly && "cursor-not-allowed",
-        errors[fieldNameStr] && "!border-red-500 dark:!border-red-400"
-      ),
+      className: (() => {
+        const baseClasses = "form-input";
+        const classes = [];
+        
+        // ✅ **Priority-based CSS Class Management** - BB's Draft Styling Fix
+        if (isDraftAndEditable) {
+          // Draft state has highest priority - yellow background
+          classes.push("!bg-yellow-100 dark:!bg-yellow-900/50 !border-yellow-300 dark:!border-yellow-600");
+        } else if (readOnly) {
+          // Read-only state - gray background
+          classes.push("bg-gray-100 dark:bg-gray-700");
+        }
+        
+        if (readOnly) {
+          classes.push("cursor-not-allowed");
+        }
+        
+        if (errors[fieldNameStr]) {
+          classes.push("!border-red-500 dark:!border-red-400");
+        }
+        
+        const finalClasses = twMerge(baseClasses, ...classes);
+        
+        return finalClasses;
+      })(),
       min: field.type === 'number' ? "0" : undefined,
       inputMode: field.type === 'number' ? "numeric" as const : undefined,
       pattern: field.type === 'number' ? "[0-9]*" : undefined,

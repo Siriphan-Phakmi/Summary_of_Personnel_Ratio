@@ -1,22 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/app/features/auth';
-import { Notification, NotificationType } from '../types'; // Import from centralized types
+import { UserNotification, NotificationType } from '../types'; // Import from centralized types
 import notificationService from '../services/NotificationService'; // Import the service
 import { Logger } from '@/app/lib/utils/logger'; // Import centralized logger
 
-// Define a client-specific interface for notifications to handle the isRead boolean
-interface UINotification {
-  id: string;
-  title: string;
-  message: string;
-  type: NotificationType;
-  isRead: boolean;
-  createdAt: any;
-  actionUrl?: string;
-}
+// ใช้ UserNotification จาก centralized types แทน
 
 export interface NotificationBellState {
-  notifications: UINotification[];
+  notifications: UserNotification[];
   unreadCount: number;
   isLoading: boolean;
   error: string | null;
@@ -59,15 +50,12 @@ export const useNotificationBell = (isOpen: boolean) => {
     
     try {
       const { notifications, unreadCount } = await notificationService.getUserNotifications();
-      // The API is expected to have transformed the isRead map to a boolean for the current user.
-      // We cast here to align the Firestore document type with the client-side UI type.
-      setState(s => ({ ...s, notifications: notifications as any as UINotification[], unreadCount, isLoading: false }));
+      setState(s => ({ ...s, notifications, unreadCount, isLoading: false }));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์';
       setState(s => ({ ...s, error: errorMessage, isLoading: false, notifications: [], unreadCount: 0 }));
       Logger.error('useNotificationBell: Fetch notifications failed', err);
       
-      // เพิ่ม retry หลังจาก 5 วินาที
       setTimeout(() => {
         fetchNotifications();
       }, 5000);
@@ -75,6 +63,21 @@ export const useNotificationBell = (isOpen: boolean) => {
       fetchingNotifications.current = false;
     }
   }, [user]);
+
+  // เพิ่ม: โหลดข้อมูลเมื่อ user login
+  useEffect(() => {
+    if (!user) {
+      setState({
+        notifications: [],
+        unreadCount: 0,
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+    
+    fetchNotifications();
+  }, [user, fetchNotifications]);
 
   // Mark single notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -200,7 +203,7 @@ export const useNotificationBell = (isOpen: boolean) => {
     
     fetchNotifications();
     
-    const intervalId = setInterval(fetchNotifications, 180000); // Poll every 3 minutes
+    const intervalId = setInterval(fetchNotifications, 180000);
     
     return () => clearInterval(intervalId);
   }, [user, isOpen, fetchNotifications]);

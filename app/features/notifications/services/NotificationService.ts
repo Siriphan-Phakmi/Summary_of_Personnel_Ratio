@@ -3,13 +3,13 @@
 
 import { db } from '@/app/lib/firebase/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Notification, NotificationType } from '../types';
+import { Notification, UserNotification, NotificationType } from '../types';
 import { Logger } from '@/app/lib/utils/logger';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
 interface UserNotificationsResponse {
-  notifications: Notification[];
+  notifications: UserNotification[];
   unreadCount: number;
 }
 

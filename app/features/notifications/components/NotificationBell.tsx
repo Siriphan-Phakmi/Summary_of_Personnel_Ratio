@@ -1,21 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { Button } from '@/app/components/ui/Button';
 import { useAuth } from '@/app/features/auth';
 import { useNotificationBell } from '../hooks/useNotificationBell';
 import { BellIcon, NotificationIcon } from './NotificationIcon';
-import { 
-  formatTimestamp, 
+import {
+  formatTimestamp,
   getNotificationItemClassName,
   getNotificationTitleClassName,
   getNotificationMessageClassName,
   getNotificationLinkProps
 } from '../utils/notificationUtils';
+import { useNotificationContext } from '../contexts/NotificationContext';
 
 const NotificationBell: React.FC = () => {
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const { isOpen, closeNotifications, toggleNotifications } = useNotificationContext();
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const {
@@ -34,15 +35,15 @@ const NotificationBell: React.FC = () => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+        closeNotifications();
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [closeNotifications]);
 
   // Memoized handlers for better performance
-  const handleToggleDropdown = useCallback(() => setIsOpen(prev => !prev), []);
+  const handleToggleDropdown = useCallback(() => toggleNotifications(), [toggleNotifications]);
 
   const handleNotificationClick = useCallback((notification: any) => {
     if (!notification.isRead && notification.id) {
