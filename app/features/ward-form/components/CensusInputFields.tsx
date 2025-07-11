@@ -111,6 +111,8 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     const readOnly = isReadOnly || (field.name === 'patientCensus' && patientCensusReadOnly);
     const isDraftAndEditable = isDraftLoaded && !readOnly;
     
+    // Security: Draft state โหลดจาก Firebase เท่านั้น (ไม่ใช้ cache)
+    
 
     // ✅ **Dynamic Placeholder Logic**
     // 1. Use placeholder from `formConfig` if available.

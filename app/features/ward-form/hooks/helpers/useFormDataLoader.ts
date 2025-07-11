@@ -10,11 +10,8 @@ import {
   initialFormStructure,
   convertFormDataFromFirebase,
 } from '../useWardFormDataHelpers';
-import {
-  loadFromLocalStorage,
-  saveToLocalStorage,
-  isLocalStorageDataFresh,
-} from './localStorageHelpers';
+// 🔒 SECURITY FIX: ลบ localStorage imports เพื่อความปลอดภัย
+// import localStorage helpers (ไม่ใช้แล้ว)
 
 const formDataCache = new Map<string, { data: Partial<WardForm>; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 วินาที
@@ -60,46 +57,23 @@ export const useFormDataLoader = ({
   const cacheKey = `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`;
 
   const setCachedData = useCallback((data: Partial<WardForm>, isDraft: boolean = false) => {
-    // Save to in-memory cache
+    // 🔒 SECURITY FIX: ลบ localStorage persistence เพื่อความปลอดภัย
+    // เก็บเฉพาะ in-memory cache ระยะสั้นเท่านั้น
     formDataCache.set(cacheKey, { data, timestamp: Date.now() });
-    
-    // Also save to localStorage for persistence across page visits
-    if (selectedBusinessWardId && selectedDate) {
-      saveToLocalStorage(selectedBusinessWardId, selectedShift, selectedDate, data, isDraft);
-      console.log('[FormDataLoader] Data saved to both memory and localStorage, isDraft:', isDraft);
-    }
-  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift]);
+    console.log('[FormDataLoader] Data saved to memory cache only (no localStorage), isDraft:', isDraft);
+  }, [cacheKey]);
 
   const getCachedData = useCallback(() => {
-    // First check in-memory cache
+    // 🔒 SECURITY FIX: ใช้เฉพาะ in-memory cache ระยะสั้น (30 วินาที)
+    // ไม่ใช้ localStorage เพื่อป้องกันข้อมูลค้างคาว
     const cached = formDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log('[FormDataLoader] Using in-memory cache');
-      // ✅ **FIX: เช็ค localStorage เพื่อหา isDraft status ที่ถูกต้อง**
-      if (selectedBusinessWardId && selectedDate) {
-        const localData = loadFromLocalStorage(selectedBusinessWardId, selectedShift, selectedDate);
-        if (localData?.data) {
-          return { data: cached.data, isDraft: localData.isDraft || false };
-        }
-      }
-      return { data: cached.data, isDraft: false };
-    }
-    
-    // If in-memory cache is expired or missing, check localStorage
-    if (selectedBusinessWardId && selectedDate) {
-      if (isLocalStorageDataFresh(selectedBusinessWardId, selectedShift, selectedDate, 60)) { // 60 minutes for localStorage
-        const localData = loadFromLocalStorage(selectedBusinessWardId, selectedShift, selectedDate);
-        if (localData?.data) {
-          console.log('[FormDataLoader] Using localStorage cache, isDraft:', localData.isDraft);
-          // Also update in-memory cache
-          setCachedData(localData.data, localData.isDraft || false);
-          return { data: localData.data, isDraft: localData.isDraft || false };
-        }
-      }
+      console.log('[FormDataLoader] Using in-memory cache only (30s)');
+      return { data: cached.data, isDraft: false }; // ไม่เก็บ isDraft ใน cache
     }
     
     return null;
-  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift, setCachedData]);
+  }, [cacheKey]);
 
   const clearCache = useCallback(() => {
     formDataCache.delete(cacheKey);
@@ -110,22 +84,18 @@ export const useFormDataLoader = ({
       return; 
     }
     
-    // ✅ **Cached Data Handler** - Load data from cache if available
+    // 🔒 SECURITY FIX: ใช้ cache เฉพาะ performance เท่านั้น
+    // ไม่ใช้ cache เพื่อตัดสินใจ business logic สำคัญ เช่น isDraftLoaded
     if (!forceRefetch) {
       const cachedResult = getCachedData();
       if (cachedResult) {
+        console.log('[Security] Using cache for performance only, will verify with Firebase');
         setFormData(cachedResult.data);
-        setIsDraftLoaded(cachedResult.isDraft);
-        // ✅ **FIX: ตั้งค่า isFinalDataFound ให้ถูกต้อง**
-        setIsFinalDataFound(!cachedResult.isDraft); // ถ้าไม่ใช่ draft แสดงว่าเป็น final data
-        // ✅ **FIX: ตั้งค่า isFormReadOnly ตาม draft status**  
-        const isAdminOrDeveloper = user?.role === UserRole.ADMIN || user?.role === UserRole.DEVELOPER;
-        setIsFormReadOnly(!cachedResult.isDraft ? !isAdminOrDeveloper : false);
+        // ไม่ตั้งค่า isDraftLoaded จาก cache - จะโหลดจาก Firebase เสมอ
         setIsFormDirty(false);
         loadingRef.current = false;
         setIsLoading(false);
-        console.log('[FormDataLoader] Loaded from cache, isDraft:', cachedResult.isDraft);
-        return;
+        // ต้องโหลดจาก Firebase เพื่อยืนยัน draft status
       }
     }
     
@@ -153,6 +123,7 @@ export const useFormDataLoader = ({
         }
 
         const isDraftData = existingForm.status === FormStatus.DRAFT;
+        console.log('[Security] Firebase form found - status:', existingForm.status, 'isDraftData:', isDraftData);
         setFormData(loadedData);
         setCachedData(loadedData, isDraftData);
         setIsFinalDataFound(isFinal);
