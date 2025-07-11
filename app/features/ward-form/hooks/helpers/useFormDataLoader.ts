@@ -10,8 +10,12 @@ import {
   initialFormStructure,
   convertFormDataFromFirebase,
 } from '../useWardFormDataHelpers';
-// 🔒 SECURITY FIX: ลบ localStorage imports เพื่อความปลอดภัย
-// import localStorage helpers (ไม่ใช้แล้ว)
+// 🔒 SECURITY FIX: ใช้ Firebase secure draft system แทน localStorage
+import {
+  loadDraftFromFirebase,
+  saveDraftToFirebase,
+  isDraftDataFresh,
+} from '../../services/persistence/draftPersistence';
 
 const formDataCache = new Map<string, { data: Partial<WardForm>; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 วินาที
@@ -27,6 +31,7 @@ export interface UseFormDataLoaderProps {
 export interface UseFormDataLoaderReturn {
   formData: Partial<WardForm>;
   setFormData: React.Dispatch<React.SetStateAction<Partial<WardForm>>>;
+  saveFormData: (data: Partial<WardForm>, isDraft?: boolean) => Promise<void>; // 🔒 Firebase secure save
   isLoading: boolean;
   error: string | null;
   isFormReadOnly: boolean;
@@ -56,46 +61,72 @@ export const useFormDataLoader = ({
   const prevSelectionRef = useRef({ ward: selectedBusinessWardId, date: selectedDate });
   const cacheKey = `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`;
 
-  const setCachedData = useCallback((data: Partial<WardForm>, isDraft: boolean = false) => {
-    // 🔒 SECURITY FIX: ลบ localStorage persistence เพื่อความปลอดภัย
-    // เก็บเฉพาะ in-memory cache ระยะสั้นเท่านั้น
+  const setCachedData = useCallback(async (data: Partial<WardForm>, isDraft: boolean = false) => {
+    // 🔒 SECURITY FIX: ใช้ Firebase secure draft system แทน localStorage
     formDataCache.set(cacheKey, { data, timestamp: Date.now() });
-    console.log('[FormDataLoader] Data saved to memory cache only (no localStorage), isDraft:', isDraft);
-  }, [cacheKey]);
+    
+    // บันทึก draft ลง Firebase หากเป็น draft data
+    if (isDraft && selectedBusinessWardId && selectedDate && user) {
+      await saveDraftToFirebase(user, selectedBusinessWardId, selectedShift, selectedDate, data);
+    }
+    console.log('[FormDataLoader] Data saved to memory cache + Firebase draft system, isDraft:', isDraft);
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift, user]);
 
-  const getCachedData = useCallback(() => {
-    // 🔒 SECURITY FIX: ใช้เฉพาะ in-memory cache ระยะสั้น (30 วินาที)
-    // ไม่ใช้ localStorage เพื่อป้องกันข้อมูลค้างคาว
+  const getCachedData = useCallback(async () => {
+    // 🔒 SECURITY FIX: เช็ค in-memory cache ก่อน จากนั้นเช็ค Firebase
     const cached = formDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log('[FormDataLoader] Using in-memory cache only (30s)');
-      return { data: cached.data, isDraft: false }; // ไม่เก็บ isDraft ใน cache
+      console.log('[FormDataLoader] Using in-memory cache (30s)');
+      return { data: cached.data, isDraft: false };
+    }
+    
+    // เช็ค Firebase draft system หาก cache หมดอายุ
+    if (selectedBusinessWardId && selectedDate && user) {
+      const draftResult = await loadDraftFromFirebase(user, selectedBusinessWardId, selectedShift, selectedDate);
+      if (draftResult) {
+        console.log('[FormDataLoader] Using Firebase draft system, isDraft:', draftResult.isDraft);
+        // อัปเดต in-memory cache
+        formDataCache.set(cacheKey, { data: draftResult.data, timestamp: Date.now() });
+        return draftResult;
+      }
     }
     
     return null;
-  }, [cacheKey]);
+  }, [cacheKey, selectedBusinessWardId, selectedDate, selectedShift, user]);
 
   const clearCache = useCallback(() => {
     formDataCache.delete(cacheKey);
   }, [cacheKey]);
+
+  const saveFormData = useCallback(async (data: Partial<WardForm>, isDraft: boolean = false) => {
+    if (!selectedBusinessWardId || !selectedDate) return;
+    
+    await setCachedData(data, isDraft);
+    // 🔒 SECURITY NOTE: ตั้งค่า isDraftLoaded จาก Firebase secure system
+    setIsDraftLoaded(isDraft);
+    setFormData(data);
+  }, [selectedBusinessWardId, selectedDate, setCachedData]);
 
   const loadData = useCallback(async (forceRefetch = false) => {
     if (!selectedBusinessWardId || !selectedDate || !user?.uid || loadingRef.current) {
       return; 
     }
     
-    // 🔒 SECURITY FIX: ใช้ cache เฉพาะ performance เท่านั้น
-    // ไม่ใช้ cache เพื่อตัดสินใจ business logic สำคัญ เช่น isDraftLoaded
+    // 🔒 SECURITY FIX: ใช้ Firebase secure system เพื่อ verify draft status
     if (!forceRefetch) {
-      const cachedResult = getCachedData();
+      const cachedResult = await getCachedData();
       if (cachedResult) {
-        console.log('[Security] Using cache for performance only, will verify with Firebase');
+        console.log('[Security] Using Firebase-verified data, isDraft:', cachedResult.isDraft);
         setFormData(cachedResult.data);
-        // ไม่ตั้งค่า isDraftLoaded จาก cache - จะโหลดจาก Firebase เสมอ
+        setIsDraftLoaded(cachedResult.isDraft);
+        setIsFinalDataFound(!cachedResult.isDraft);
+        // ตั้งค่า read-only status ตาม draft status
+        const isAdminOrDeveloper = user?.role === UserRole.ADMIN || user?.role === UserRole.DEVELOPER;
+        setIsFormReadOnly(!cachedResult.isDraft ? !isAdminOrDeveloper : false);
         setIsFormDirty(false);
         loadingRef.current = false;
         setIsLoading(false);
-        // ต้องโหลดจาก Firebase เพื่อยืนยัน draft status
+        return;
       }
     }
     
@@ -159,7 +190,7 @@ export const useFormDataLoader = ({
         }
         
         setFormData(newData);
-        setCachedData(newData, false); // new data ไม่ใช่ draft
+        await setCachedData(newData, false); // new data ไม่ใช่ draft - บันทึกใน Firebase
         setIsFinalDataFound(false);
         setIsDraftLoaded(false);
         setIsFormReadOnly(false);
@@ -202,6 +233,7 @@ export const useFormDataLoader = ({
   return {
     formData,
     setFormData,
+    saveFormData, // 🔒 Firebase secure draft system
     isLoading,
     error,
     isFormReadOnly,

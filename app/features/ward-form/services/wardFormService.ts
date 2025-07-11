@@ -14,6 +14,18 @@ export {
   finalizeNightShiftForm,
 } from './persistence/wardFormPersistence';
 
+// --- 🔒 Secure Draft Persistence ---
+// Firebase-based secure draft storage (replaces localStorage)
+export {
+  saveDraftToFirebase,
+  loadDraftFromFirebase,
+  removeDraftFromFirebase,
+  hasDraftInFirebase,
+  getAllUserDraftsFromFirebase,
+  cleanupExpiredDrafts,
+  isDraftDataFresh,
+} from './persistence/draftPersistence';
+
 // --- Query Functions ---
 // Handles all read operations for ward forms and related data.
 export {
