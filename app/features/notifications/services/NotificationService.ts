@@ -133,6 +133,35 @@ const notificationService = {
   async markAllNotificationsAsRead(csrfToken: string): Promise<boolean> {
     return this.markAsReadRequest({ all: true }, csrfToken);
   },
+
+  /**
+   * Deletes a single notification for the current user.
+   * @param notificationId - The ID of the notification to delete.
+   * @param csrfToken - The CSRF token for security.
+   * @returns Object with success status and message.
+   */
+  async deleteNotification(notificationId: string, csrfToken: string): Promise<{ success: boolean; message: string }> {
+    return this.deleteRequest({ notificationId }, csrfToken);
+  },
+
+  /**
+   * Deletes all notifications for the current user.
+   * @param csrfToken - The CSRF token for security.
+   * @returns Object with success status, message, and deletion count.
+   */
+  async deleteAllNotifications(csrfToken: string): Promise<{ success: boolean; message: string; deletedCount?: number }> {
+    return this.deleteRequest({ all: true }, csrfToken);
+  },
+
+  /**
+   * Deletes notifications by type for the current user.
+   * @param type - The notification type to delete.
+   * @param csrfToken - The CSRF token for security.
+   * @returns Object with success status, message, and deletion count.
+   */
+  async deleteNotificationsByType(type: NotificationType, csrfToken: string): Promise<{ success: boolean; message: string; deletedCount?: number }> {
+    return this.deleteRequest({ type }, csrfToken);
+  },
   
   /**
    * Unified private method to handle mark-as-read requests.
@@ -175,7 +204,49 @@ const notificationService = {
     }
   },
 
-  // ... other methods like markAsRead, getUserNotifications, etc. can be added here
+  /**
+   * Unified private method to handle delete requests.
+   * @param payload - The request payload.
+   * @param csrfToken - The CSRF token.
+   * @returns Object with success status, message, and optional count.
+   * @private
+   */
+  async deleteRequest(
+    payload: { notificationId?: string; all?: boolean; type?: NotificationType },
+    csrfToken: string
+  ): Promise<{ success: boolean; message: string; deletedCount?: number }> {
+    if (!csrfToken) {
+      Logger.error('[NotificationService] CSRF Token not available for deleteRequest.');
+      throw new Error('CSRF Token is missing.');
+    }
+
+    try {
+      const response = await fetch('/api/notifications/delete', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: data.success,
+          message: data.message,
+          deletedCount: data.deletedCount
+        };
+      } else {
+        const errorText = await response.text();
+        Logger.error(`[NotificationService] Delete request failed with status ${response.status}`, errorText);
+        throw new Error(`Failed to delete notifications. Status: ${response.status}`);
+      }
+    } catch (error) {
+      Logger.error('[NotificationService] Delete request failed:', error);
+      throw error; // Re-throw to be handled by the caller
+    }
+  },
 };
 
 export default notificationService;

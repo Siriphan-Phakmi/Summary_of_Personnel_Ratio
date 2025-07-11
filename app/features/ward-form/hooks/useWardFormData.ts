@@ -79,7 +79,11 @@ export const useWardFormData = ({
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    const error = validateField(name, value);
+    
+    // ✅ BB's Smart Validation: Only validate format/type on blur, not required fields
+    // Required fields will be validated only when user attempts to save
+    const error = validateField(name, value, false); // isOnSave = false for blur validation
+    
     if (error) {
       setErrors(prev => ({ ...prev, [name]: error }));
     } else if (errors[name]) {

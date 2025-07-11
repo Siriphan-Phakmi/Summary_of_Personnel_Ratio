@@ -26,7 +26,7 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
     fields.push({
       name: field,
       label: WardFieldLabels[field] || field,
-      placeholder: '0',
+      placeholder: '', // ใช้ค่าว่างแทน '0'
       type: 'number',
       category: 'personnel'
     });
@@ -37,7 +37,7 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
     fields.push({
       name: field,
       label: WardFieldLabels[field] || field,
-      placeholder: '0', 
+      placeholder: '', // ใช้ค่าว่างแทน '0'
       type: 'number',
       category: 'patient_flow'
     });
@@ -48,7 +48,7 @@ const createFieldsFromCategories = (): InputFieldConfig[] => {
     fields.push({
       name: field,
       label: WardFieldLabels[field] || field,
-      placeholder: '0',
+      placeholder: '', // ใช้ค่าว่างแทน '0'
       type: 'number',
       category: 'bed_status'
     });
@@ -111,6 +111,12 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
     const readOnly = isReadOnly || (field.name === 'patientCensus' && patientCensusReadOnly);
     const isDraftAndEditable = isDraftLoaded && !readOnly;
 
+    // ✅ **Dynamic Placeholder Logic**
+    // 1. Use placeholder from `formConfig` if available.
+    // 2. Fallback to the hardcoded placeholder in `field` object.
+    const placeholderText = 
+      formConfig?.placeholders?.[fieldNameStr] ?? field.placeholder;
+
     let displayValue: string | number = '';
     const rawValue = formData[field.name as keyof typeof formData];
     
@@ -134,7 +140,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
       onChange: handleChange,
       onBlur: handleBlur,
       error: errors[fieldNameStr],
-      placeholder: field.placeholder,
+      placeholder: placeholderText, // ✅ Use dynamic placeholder
       type: field.type,
       readOnly: readOnly,
       className: twMerge(
@@ -178,7 +184,7 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.patientCensus}
-              placeholder="0"
+              placeholder={formConfig?.placeholders?.patientCensus ?? "0"}
               type="number"
               readOnly={patientCensusReadOnly}
               className={twMerge(

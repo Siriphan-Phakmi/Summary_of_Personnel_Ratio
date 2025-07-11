@@ -4,33 +4,35 @@ import { useCallback } from 'react';
 import { WardForm } from '@/app/features/ward-form/types/ward';
 import { WardFieldLabels, FieldCategories } from '../wardFieldLabels';
 
-// ✅ **Hospital Field Validation** - Based on BB's Categories
-// Simple validation function for single field on blur
-export const validateFieldSimple = (name: string, value: string | number): string | null => {
+// ✅ **Enhanced Field Validation** - BB's Smart Validation Strategy
+// Validate format/type on blur, required fields only on save
+export const validateFieldSimple = (name: string, value: string | number, isOnSave: boolean = false): string | null => {
   // 📝 Text fields (Comment + Recorder fields)
   const textFields = ['recorderFirstName', 'recorderLastName', 'rejectionReason', 'comment'];
   
   if (textFields.includes(name)) {
-    // Required recorder fields
+    // Required recorder fields - only validate on save attempt
     if (['recorderFirstName', 'recorderLastName'].includes(name)) {
-      if (!value || String(value).trim() === '') {
+      if (isOnSave && (!value || String(value).trim() === '')) {
         return 'กรุณาใส่ข้อมูล';
       }
     }
-    return null; // Text fields pass validation
+    return null; // Text fields pass validation on blur
   }
   
-  // 🔢 Numeric fields validation
-  const numericValue = Number(value);
-  if (isNaN(numericValue) || numericValue < 0) {
-    return 'ต้องเป็นตัวเลขมากกว่าหรือเท่ากับ 0';
+  // 🔢 Numeric fields validation - only validate format/type on blur
+  if (value !== undefined && value !== null && value !== '') {
+    const numericValue = Number(value);
+    if (isNaN(numericValue) || numericValue < 0) {
+      return 'ต้องเป็นตัวเลขมากกว่าหรือเท่ากับ 0';
+    }
   }
 
   return null;
 };
 
 export interface UseFormValidationReturn {
-  validateField: (name: string, value: string | number) => string | null;
+  validateField: (name: string, value: string | number, isOnSave?: boolean) => string | null;
   validateForm: (formData: Partial<WardForm>, finalSave?: boolean) => {
     isValid: boolean,
     errors: Record<string, string>,
@@ -48,7 +50,7 @@ export const useFormValidation = (): UseFormValidationReturn => {
     const newErrors: Record<string, string> = {};
     const fieldsWithZero: string[] = [];
 
-    // 1. ✅ Validate required recorder fields
+    // 1. ✅ Validate required recorder fields (always required)
     const requiredFields: (keyof WardForm)[] = ['recorderFirstName', 'recorderLastName'];
     requiredFields.forEach(field => {
       const value = formData[field];
@@ -97,7 +99,8 @@ export const useFormValidation = (): UseFormValidationReturn => {
            fieldsWithZero.push(displayLabel);
         }
       } else if (finalSave) {
-        // For final save, treat empty numeric fields as errors
+        // ✅ BB's Smart Logic: Only require numeric fields for FINAL save
+        // Draft save can have empty fields
         newErrors[key] = 'กรุณากรอกข้อมูล';
       }
     });

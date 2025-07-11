@@ -24,7 +24,10 @@ const NotificationBell: React.FC = () => {
     isLoading,
     error,
     markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    deleteNotification,
+    deleteAllNotifications,
+    deleteNotificationsByType
   } = useNotificationBell(isOpen);
 
   // Close dropdown when clicking outside
@@ -53,6 +56,21 @@ const NotificationBell: React.FC = () => {
     markAsRead(notificationId);
   }, [markAsRead]);
 
+  const handleDeleteClick = useCallback((e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (confirm('คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนนี้?')) {
+      deleteNotification(notificationId);
+    }
+  }, [deleteNotification]);
+
+  const handleDeleteAllClick = useCallback(() => {
+    if (notifications.length === 0) return;
+    if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนทั้งหมด ${notifications.length} รายการ?`)) {
+      deleteAllNotifications();
+    }
+  }, [deleteAllNotifications, notifications.length]);
+
   // Memoized notification list for performance
   const notificationList = useMemo(() => (
     notifications.length > 0 ? (
@@ -71,15 +89,26 @@ const NotificationBell: React.FC = () => {
                     {notification.title}
                   </span>
                 </div>
-                {!notification.isRead && notification.id && (
-                  <button 
-                    onClick={(e) => handleMarkAsReadClick(e, notification.id!)}
-                    className="text-xs text-blue-500 hover:underline ml-2 whitespace-nowrap"
-                    aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
-                  >
-                    อ่านแล้ว
-                  </button>
-                )}
+                <div className="flex gap-1 ml-2">
+                  {!notification.isRead && notification.id && (
+                    <button 
+                      onClick={(e) => handleMarkAsReadClick(e, notification.id!)}
+                      className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                      aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
+                    >
+                      อ่านแล้ว
+                    </button>
+                  )}
+                  {notification.id && (
+                    <button 
+                      onClick={(e) => handleDeleteClick(e, notification.id!)}
+                      className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                      aria-label="ลบการแจ้งเตือน"
+                    >
+                      ลบ
+                    </button>
+                  )}
+                </div>
               </div>
               <p className={getNotificationMessageClassName(notification.isRead)}>
                 {notification.message}
@@ -94,7 +123,7 @@ const NotificationBell: React.FC = () => {
     ) : (
       <div className="p-4 text-center text-gray-500 dark:text-gray-400">ไม่มีการแจ้งเตือน</div>
     )
-  ), [notifications, handleNotificationClick, handleMarkAsReadClick]);
+  ), [notifications, handleNotificationClick, handleMarkAsReadClick, handleDeleteClick]);
 
   // Don't render if user not logged in
   if (!user) return null;
@@ -108,17 +137,30 @@ const NotificationBell: React.FC = () => {
           {/* Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">การแจ้งเตือน</h3>
-            {unreadCount > 0 && (
-              <Button 
-                variant="link" 
-                size="sm"
-                onClick={markAllAsRead}
-                disabled={isLoading}
-                className="text-sm"
-              >
-                อ่านทั้งหมด
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {unreadCount > 0 && (
+                <Button 
+                  variant="link" 
+                  size="sm"
+                  onClick={markAllAsRead}
+                  disabled={isLoading}
+                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  อ่านทั้งหมด
+                </Button>
+              )}
+              {notifications.length > 0 && (
+                <Button 
+                  variant="link" 
+                  size="sm"
+                  onClick={handleDeleteAllClick}
+                  disabled={isLoading}
+                  className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  ลบทั้งหมด
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Content */}

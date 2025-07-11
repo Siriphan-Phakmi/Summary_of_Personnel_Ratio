@@ -118,6 +118,82 @@ export const useNotificationBell = (isOpen: boolean) => {
     }
   }, [csrfToken, state.unreadCount]);
 
+  // Delete single notification
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    if (!csrfToken) {
+      Logger.error('Cannot delete notification, CSRF Token not available');
+      return;
+    }
+    
+    setState(s => ({ ...s, error: null }));
+    try {
+      const result = await notificationService.deleteNotification(notificationId, csrfToken);
+      if (result.success) {
+        setState(s => {
+          const deletedNotification = s.notifications.find(n => n.id === notificationId);
+          const wasUnread = deletedNotification && !deletedNotification.isRead;
+          
+          return {
+            ...s,
+            notifications: s.notifications.filter(n => n.id !== notificationId),
+            unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount
+          };
+        });
+      }
+    } catch (err) {
+      setState(s => ({ ...s, error: 'ไม่สามารถลบการแจ้งเตือนได้' }));
+      Logger.error('Delete notification failed:', err);
+    }
+  }, [csrfToken]);
+
+  // Delete all notifications
+  const deleteAllNotifications = useCallback(async () => {
+    if (state.notifications.length === 0 || !csrfToken) return;
+    
+    setState(s => ({ ...s, error: null }));
+    try {
+      const result = await notificationService.deleteAllNotifications(csrfToken);
+      if (result.success) {
+        setState(s => ({
+          ...s,
+          notifications: [],
+          unreadCount: 0,
+        }));
+      }
+    } catch (err) {
+      setState(s => ({ ...s, error: 'ไม่สามารถลบการแจ้งเตือนทั้งหมดได้' }));
+      Logger.error('Delete all notifications failed:', err);
+    }
+  }, [csrfToken, state.notifications.length]);
+
+  // Delete notifications by type
+  const deleteNotificationsByType = useCallback(async (type: NotificationType) => {
+    if (!csrfToken) {
+      Logger.error('Cannot delete notifications by type, CSRF Token not available');
+      return;
+    }
+    
+    setState(s => ({ ...s, error: null }));
+    try {
+      const result = await notificationService.deleteNotificationsByType(type, csrfToken);
+      if (result.success) {
+        setState(s => {
+          const remainingNotifications = s.notifications.filter(n => n.type !== type);
+          const deletedUnreadCount = s.notifications.filter(n => n.type === type && !n.isRead).length;
+          
+          return {
+            ...s,
+            notifications: remainingNotifications,
+            unreadCount: Math.max(0, s.unreadCount - deletedUnreadCount)
+          };
+        });
+      }
+    } catch (err) {
+      setState(s => ({ ...s, error: 'ไม่สามารถลบการแจ้งเตือนตามประเภทได้' }));
+      Logger.error('Delete notifications by type failed:', err);
+    }
+  }, [csrfToken]);
+
   // Auto-fetch when dropdown opens and poll while open
   useEffect(() => {
     if (!user || !isOpen) return;
@@ -133,5 +209,8 @@ export const useNotificationBell = (isOpen: boolean) => {
     ...state,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
+    deleteAllNotifications,
+    deleteNotificationsByType,
   };
 }; 

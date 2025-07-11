@@ -17,6 +17,7 @@ import { useDailyCensusFormLogic } from './hooks/useDailyCensusFormLogic';
 import { usePreviousDataCheck } from './hooks/usePreviousDataCheck';
 import { useFormConfig } from '@/app/features/config/hooks/useFormConfig';
 import { ShiftType, FormStatus, WardForm } from '@/app/features/ward-form/types/ward';
+import { useFormValidation } from './hooks/helpers/useFormValidation';
 
 export default function DailyCensusForm() {
   // Hook to fetch form configuration from Firestore
@@ -85,12 +86,20 @@ export default function DailyCensusForm() {
       reloadDataTrigger: 0, // Default value for reload trigger
   });
 
+  // ✅ **Enhanced Form Validation** - BB's Smart Validation Strategy
+  const { validateForm } = useFormValidation();
+
+  // ✅ **Smart Form Validation for Save Button** - BB's Requirements
+  // เช็คว่าข้อมูลครบสำหรับการ save final หรือไม่
+  const formValidationResult = validateForm(formData, true); // finalSave = true for strict validation
+  const isFormValid = !!(formValidationResult.isValid && selectedWard && selectedDate);
+
   // Determine button disabled state
   const isMorningShiftDisabled = actualMorningStatus === FormStatus.APPROVED || actualMorningStatus === FormStatus.FINAL;
   const isNightShiftDisabled = actualNightStatus === FormStatus.APPROVED || actualNightStatus === FormStatus.FINAL;
 
   // Form validation
-  const isFormValid = !!(Object.keys(errors).length === 0 && selectedWard && selectedDate);
+  // const isFormValid = !!(Object.keys(errors).length === 0 && selectedWard && selectedDate);
     
   // Previous data notification management
   useEffect(() => {

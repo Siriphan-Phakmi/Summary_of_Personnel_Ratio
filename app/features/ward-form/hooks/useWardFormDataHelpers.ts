@@ -6,22 +6,28 @@ import { format } from 'date-fns';
 // ✅ **FIREBASE-SAFE INITIAL FORM STRUCTURE** - No undefined values
 // Firebase ไม่รับค่า undefined ใน setDoc operations
 export const initialFormStructure: Partial<WardForm> = {
-  // 🔢 **Numeric Fields** - ใช้ 0 แทน undefined เพื่อความปลอดภัยกับ Firebase
+  // 🔢 **Numeric Fields** - patientCensus is often calculated, others are blank initially
   patientCensus: 0,
-  admitted: 0,
-  discharged: 0,
-  transferredIn: 0,
-  transferredOut: 0,
-  deaths: 0,
-  onLeave: 0,
-  absconded: 0,
-  totalBeds: 0,
-  availableBeds: 0,
-  occupiedBeds: 0,
-  specialCareBeds: 0,
-  isolationBeds: 0,
+  
+  // The following fields are intentionally left undefined to render as blank inputs.
+  // The UI's Input component and the backend's safeNumber function handle undefined values gracefully.
+  // nurseManager: undefined,
+  // rn: undefined,
+  // pn: undefined,
+  // wc: undefined,
+  // admitted: undefined,
+  // transferredIn: undefined,
+  // referIn: undefined,
+  // transferredOut: undefined,
+  // referOut: undefined,
+  // discharged: undefined,
+  // deaths: undefined,
+  // availableBeds: undefined,
+  // unavailableBeds: undefined,
+  // plannedDischarge: undefined,
   
   // 📝 **Text Fields** - ใช้ empty string
+  comment: '',
   recorderFirstName: '',
   recorderLastName: '',
   rejectionReason: '',
@@ -29,6 +35,13 @@ export const initialFormStructure: Partial<WardForm> = {
   // 🏥 **Status Fields** - ใช้ default values ที่ชัดเจน
   status: FormStatus.DRAFT,
   isDraft: true,
+};
+
+// 🧮 Helper: แปลงค่าตัวเลขจาก Firebase โดยรักษา undefined/null ให้คงว่าง
+const numericOrUndefined = (value: any): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const num = Number(value);
+  return isNaN(num) ? undefined : Math.max(0, Math.floor(num));
 };
 
 /**
@@ -45,22 +58,20 @@ export const convertFormDataFromFirebase = (
       ? format(existingForm.date.toDate(), 'yyyy-MM-dd') 
       : typeof existingForm.date === 'string' ? existingForm.date : selectedDate,
     
-    // ✅ **Numeric Fields** - แปลง string จาก Firebase เป็น number ด้วย safeNumber
-    patientCensus: safeNumber(existingForm.patientCensus),
-    admitted: safeNumber(existingForm.admitted ?? existingForm.newAdmit),
-    discharged: safeNumber(existingForm.discharged),
-    transferredIn: safeNumber(existingForm.transferredIn ?? existingForm.transferIn),
-    transferredOut: safeNumber(existingForm.transferredOut ?? existingForm.transferOut),
-    deaths: safeNumber(existingForm.deaths ?? existingForm.dead),
-    onLeave: safeNumber(existingForm.onLeave),
-    absconded: safeNumber(existingForm.absconded),
-    totalBeds: safeNumber(existingForm.totalBeds),
-    availableBeds: safeNumber(existingForm.availableBeds ?? existingForm.available),
-    occupiedBeds: safeNumber(existingForm.occupiedBeds),
-    specialCareBeds: safeNumber(existingForm.specialCareBeds),
-    isolationBeds: safeNumber(existingForm.isolationBeds),
+    // ✅ Numeric fields: keep undefined so UI shows placeholder
+    patientCensus: numericOrUndefined(existingForm.patientCensus) ?? 0, // ยอดคงเหลือต้องมีค่าเสมอ
+    admitted: numericOrUndefined(existingForm.admitted ?? existingForm.newAdmit),
+    discharged: numericOrUndefined(existingForm.discharged),
+    transferredIn: numericOrUndefined(existingForm.transferredIn ?? existingForm.transferIn),
+    transferredOut: numericOrUndefined(existingForm.transferredOut ?? existingForm.transferOut),
+    referIn: numericOrUndefined(existingForm.referIn),
+    referOut: numericOrUndefined(existingForm.referOut),
+    deaths: numericOrUndefined(existingForm.deaths ?? existingForm.dead),
+    availableBeds: numericOrUndefined(existingForm.availableBeds ?? existingForm.available),
+    unavailableBeds: numericOrUndefined(existingForm.unavailableBeds),
+    plannedDischarge: numericOrUndefined(existingForm.plannedDischarge),
     
-    // ✅ **Text Fields** - รักษาเป็น string
+    // ✅ Text Fields
     recorderFirstName: existingForm.recorderFirstName || '',
     recorderLastName: existingForm.recorderLastName || '',
     comment: existingForm.comment || '',
@@ -155,7 +166,20 @@ export const prepareDataForSave = (
     saveData.createdBy = user.uid;
   }
 
-  // Convert undefined values to null for Firestore
+  // 🔄 Normalize numeric fields: undefined/'' → null, otherwise Number(value)
+  const numericFields: (keyof WardForm)[] = [
+    'patientCensus','nurseManager','rn','pn','wc','admitted','transferredIn','referIn','transferredOut','referOut','discharged','deaths','availableBeds','unavailableBeds','plannedDischarge'
+  ];
+  numericFields.forEach(field => {
+    const val = saveData[field];
+    if (val === undefined || val === '') {
+      (saveData as any)[field] = null; // Firestore-friendly
+    } else {
+      (saveData as any)[field] = safeNumber(val);
+    }
+  });
+
+  // Convert explicit undefined (still left) to null for Firestore safety
   Object.keys(saveData).forEach(key => {
     if (saveData[key as keyof WardForm] === undefined) {
       (saveData as any)[key] = null;
