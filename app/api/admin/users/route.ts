@@ -100,12 +100,12 @@ export async function POST(req: NextRequest) {
     // --- User Creation with Sanitized Data ---
     const saltRounds = parseInt(process.env.BCRYPT_SALT_ROUNDS || '12');
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    const newUserRef = doc(usersCollection);
+    const newUserRef = doc(usersCollection,username);
     
     // Create the user object with sanitized and validated data
     const newUser: User = {
-        uid: newUserRef.id,
-        username: usernameValidation.sanitized,
+        uid: username,
+        username,
         password: hashedPassword,
         firstName: firstName ? sanitizeInput(firstName) : undefined,
         lastName: lastName ? sanitizeInput(lastName) : undefined,
