@@ -57,23 +57,19 @@ const notificationService = {
   },
 
   /**
-   * Fetches the CSRF token from the server.
-   * It first checks sessionStorage and returns the token if found.
+   * Fetches the CSRF token from the server (ไม่ใช้ sessionStorage)
    * @returns The CSRF token or null if failed.
    */
   async getCsrfToken(): Promise<string | null> {
     try {
-      const existingToken = sessionStorage.getItem('csrfToken');
-      if (existingToken) {
-        return existingToken;
-      }
+      // ✅ ไม่ใช้ sessionStorage แล้ว - ขอ token ใหม่ทุกครั้ง
       const response = await fetch('/api/auth/csrf');
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
       const data = await response.json();
       if (data.csrfToken) {
-        sessionStorage.setItem('csrfToken', data.csrfToken);
+        // ใช้ server-side CSRF protection แทน browser storage
         return data.csrfToken;
       }
       return null;

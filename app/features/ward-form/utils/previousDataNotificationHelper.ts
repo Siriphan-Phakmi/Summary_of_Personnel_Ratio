@@ -2,6 +2,8 @@
 
 import notificationService, { NotificationType } from '@/app/features/notifications/services/NotificationService';
 import { Logger } from '@/app/lib/utils/logger';
+import { getUserState, updateUserState } from '@/app/features/auth/services/userStateService';
+import { User } from '@/app/features/auth/types/user';
 
 interface CreatePreviousDataNotificationParams {
   userId: string;
@@ -48,36 +50,55 @@ export const createPreviousDataNotification = async ({
 };
 
 /**
- * ตรวจสอบว่าควรส่ง notification หรือไม่
+ * ตรวจสอบว่าควรส่ง notification หรือไม่ (ใช้ Firebase แทน sessionStorage)
  * เพื่อหลีกเลี่ยงการส่ง notification ซ้ำๆ
  */
-export const shouldCreatePreviousDataNotification = (
+export const shouldCreatePreviousDataNotification = async (
   selectedDate: string,
   wardName: string | undefined,
-  userId: string | undefined
-): boolean => {
-  if (!selectedDate || !wardName || !userId) {
+  user: User | undefined
+): Promise<boolean> => {
+  if (!selectedDate || !wardName || !user?.uid) {
     return false;
   }
 
-  // สร้าง key สำหรับ sessionStorage เพื่อตรวจสอบว่าเคยส่งแล้วหรือยัง
-  const notificationKey = `prevData_${userId}_${wardName}_${selectedDate}`;
-  const lastSent = sessionStorage.getItem(notificationKey);
-  
-  // ถ้าเคยส่งในวันเดียวกันแล้ว ไม่ต้องส่งอีก
-  const today = new Date().toDateString();
-  return lastSent !== today;
+  try {
+    // ✅ ใช้ Firebase แทน sessionStorage
+    const userState = await getUserState(user);
+    if (!userState) return true; // ถ้าไม่มี state ให้ส่ง notification
+
+    // สร้าง key สำหรับตรวจสอบ notification
+    const notificationKey = `prevData_${wardName}_${selectedDate}`;
+    const lastSent = userState.lastNotificationDate;
+    
+    // ถ้าเคยส่งในวันเดียวกันแล้ว ไม่ต้องส่งอีก
+    const today = new Date().toDateString();
+    return lastSent !== today;
+    
+  } catch (error) {
+    Logger.error('[PreviousDataNotification] Error checking notification state:', error);
+    return true; // ถ้า error ให้ส่ง notification
+  }
 };
 
 /**
- * บันทึกว่าได้ส่ง notification แล้ว
+ * บันทึกว่าได้ส่ง notification แล้ว (ใช้ Firebase แทน sessionStorage)
  */
-export const markPreviousDataNotificationSent = (
+export const markPreviousDataNotificationSent = async (
   selectedDate: string,
   wardName: string,
-  userId: string
-): void => {
-  const notificationKey = `prevData_${userId}_${wardName}_${selectedDate}`;
-  const today = new Date().toDateString();
-  sessionStorage.setItem(notificationKey, today);
+  user: User
+): Promise<void> => {
+  try {
+    if (!user?.uid) return;
+
+    // ✅ ใช้ Firebase แทน sessionStorage
+    const today = new Date().toDateString();
+    await updateUserState(user, 'lastNotificationDate', today);
+    
+    Logger.info(`[PreviousDataNotification] Marked notification as sent for ${wardName} on ${selectedDate}`);
+    
+  } catch (error) {
+    Logger.error('[PreviousDataNotification] Error marking notification as sent:', error);
+  }
 };

@@ -46,29 +46,17 @@ export const useLoginForm = (): UseLoginFormReturn => {
   
   const { login } = useAuth();
   
-  // Load saved username if remember me was checked
-  useEffect(() => {
-    try {
-      const savedUsername = sessionStorage.getItem('lastUsername');
-      if (savedUsername) {
-        setUsername(savedUsername);
-      }
-    } catch (err) {
-      console.error('Error retrieving saved username:', err);
-    }
-  }, []);
+  // ✅ ลบการโหลด username จาก sessionStorage
+  // ใช้ server-side session management แทน
 
   // Generate CSRF token on component load
   useEffect(() => {
     try {
-      // ใช้ฟังก์ชัน generateCSRFToken ที่สร้างขึ้นเอง
+      // ✅ สร้าง CSRF token แต่ไม่เก็บใน sessionStorage
       const token = generateCSRFToken();
       console.log('Generated CSRF token locally:', token ? 'success' : 'failed');
       setCsrfToken(token);
-      // บันทึกลงใน sessionStorage อีกครั้งเพื่อให้แน่ใจ
-      if (token && typeof window !== 'undefined') {
-        sessionStorage.setItem('csrfToken', token);
-      }
+      // ใช้ server-side CSRF protection แทน browser storage
     } catch (error) {
       console.error('Error generating CSRF token:', error);
     }

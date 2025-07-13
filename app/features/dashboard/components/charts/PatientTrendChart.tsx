@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Ward } from '@/app/features/ward-form/types/ward';
 import { useTheme } from 'next-themes';
 import { PatientTrendChartProps } from '../types/chart-types';
+import { getUserPreferences, updateUserPreference } from '@/app/features/auth/services/userPreferenceService';
+import { useAuth } from '@/app/features/auth/AuthContext';
 
 const WARD_COLORS = [
   '#3b82f6', // blue
@@ -69,20 +71,33 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
 }) => {
   const { theme } = useTheme();
   const isDarkMode = theme === 'dark';
-  // ดึงค่าการแสดงแยกแผนกจาก localStorage ถ้ามี
-  const [showWardDetails, setShowWardDetails] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const savedPreference = localStorage.getItem('dashboardShowWardDetails');
-        // ถ้ามีค่าเก็บไว้ ให้ใช้ค่านั้น แต่ถ้าไม่มีให้ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
-        return savedPreference !== null ? savedPreference === 'true' : true;
-      } catch (error) {
-        console.error('Error reading display mode preference:', error);
-        return true; // ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
+  const { user } = useAuth();
+  
+  // ✅ ใช้ Firebase แทน localStorage สำหรับการตั้งค่าการแสดงผล
+  const [showWardDetails, setShowWardDetails] = useState(true);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  // โหลดการตั้งค่าจาก Firebase
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!user) {
+        setPreferencesLoaded(true);
+        return;
       }
-    }
-    return true; // ค่าเริ่มต้นเป็น true (แสดงแยกแผนก)
-  });
+
+      try {
+        const preferences = await getUserPreferences(user);
+        setShowWardDetails(preferences.dashboardShowWardDetails ?? true);
+      } catch (error) {
+        console.error('[PatientTrendChart] Error loading preferences:', error);
+        setShowWardDetails(true); // ค่าเริ่มต้น
+      } finally {
+        setPreferencesLoaded(true);
+      }
+    };
+
+    loadPreferences();
+  }, [user]);
   
   if (loading) {
     return (
@@ -185,15 +200,18 @@ const PatientTrendChart: React.FC<PatientTrendChartProps> = ({
     }
   };
   
-  const toggleDisplayMode = () => {
+  const toggleDisplayMode = async () => {
     // สลับระหว่างการแสดงแยกแผนกและแสดงภาพรวม
-    setShowWardDetails(!showWardDetails);
+    const newValue = !showWardDetails;
+    setShowWardDetails(newValue);
     
-    // บันทึกสถานะลงใน localStorage เพื่อจำค่าไว้
-    try {
-      localStorage.setItem('dashboardShowWardDetails', (!showWardDetails).toString());
-    } catch (error) {
-      console.error('Error saving display mode preference:', error);
+    // ✅ บันทึกสถานะลง Firebase แทน localStorage
+    if (user) {
+      try {
+        await updateUserPreference(user, 'dashboardShowWardDetails', newValue);
+      } catch (error) {
+        console.error('[PatientTrendChart] Error saving display mode preference:', error);
+      }
     }
   };
 

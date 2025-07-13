@@ -104,26 +104,30 @@ export default function DailyCensusForm() {
     
   // Previous data notification management
   useEffect(() => {
-    if (
-      selectedWard && 
-      selectedDate && 
-      selectedShift === ShiftType.MORNING && 
-      selectedWardObject?.name &&
-      currentUser?.uid &&
-      !isPreviousDataLoading &&
-      shouldCreatePreviousDataNotification(selectedDate, selectedWardObject.name, currentUser.uid)
-    ) {
-      // ส่ง notification เกี่ยวกับข้อมูลกะดึกย้อนหลัง
-      createPreviousDataNotification({
-        userId: currentUser.uid,
-        wardName: selectedWardObject.name,
-        selectedDate,
-        hasPreviousData
-      }).then(() => {
-        // บันทึกว่าได้ส่ง notification แล้ว
-        markPreviousDataNotificationSent(selectedDate, selectedWardObject.name, currentUser.uid);
-      });
-    }
+    const checkAndCreateNotification = async () => {
+      if (
+        selectedWard && 
+        selectedDate && 
+        selectedShift === ShiftType.MORNING && 
+        selectedWardObject?.name &&
+        currentUser?.uid &&
+        !isPreviousDataLoading &&
+        (await shouldCreatePreviousDataNotification(selectedDate, selectedWardObject.name, currentUser))
+      ) {
+        // ส่ง notification เกี่ยวกับข้อมูลกะดึกย้อนหลัง
+        createPreviousDataNotification({
+          userId: currentUser.uid,
+          wardName: selectedWardObject.name,
+          selectedDate,
+          hasPreviousData
+        }).then(() => {
+          // บันทึกว่าได้ส่ง notification แล้ว
+          markPreviousDataNotificationSent(selectedDate, selectedWardObject.name, currentUser);
+        });
+      }
+    };
+    
+    checkAndCreateNotification();
   }, [selectedWard, selectedDate, selectedShift, selectedWardObject?.name, currentUser?.uid, hasPreviousData, isPreviousDataLoading]);
     
   // Combined loading and error states

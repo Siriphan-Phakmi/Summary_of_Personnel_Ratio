@@ -1,21 +1,5 @@
-// Re-export helpers from modular files to maintain backward compatibility
-// This file serves as an entry point for all form persistence helpers
-
-// LocalStorage helpers
-export {
-  type LocalStorageFormData,
-  createStorageKey,
-  saveToLocalStorage,
-  loadFromLocalStorage,
-  removeFromLocalStorage,
-  hasDraftInLocalStorage,
-  getAllDraftsFromLocalStorage,
-  cleanupOldDrafts,
-  isLocalStorageDataFresh,
-  createBackup,
-  getLocalStorageSize,
-  isLocalStorageFull
-} from './helpers/localStorageHelpers';
+// ✅ ลบ localStorage helpers ออกทั้งหมด - ใช้ Firebase แทน
+// Form persistence helpers สำหรับการจัดการข้อมูลฟอร์ม
 
 // Validation helpers (inline since they're shorter)
 import { WardForm, ShiftType, Ward } from '../types/ward';

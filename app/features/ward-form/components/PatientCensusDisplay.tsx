@@ -30,11 +30,23 @@ const PatientCensusDisplay: React.FC<PatientCensusDisplayProps> = ({
     return Number(value);
   };
 
-  const admissions = safeNumber(formData.admitted) + safeNumber(formData.transferredIn);
-  const discharges = safeNumber(formData.discharged) + safeNumber(formData.transferredOut) + safeNumber(formData.deaths);
+  // 👉 Admissions = New Admit + Transfer In + Refer In
+  const admissions =
+    safeNumber(formData.admitted) +
+    safeNumber(formData.transferredIn) +
+    safeNumber(formData.referIn);
+
+  // 👉 Discharges = Transfer Out + Refer Out + Discharge + Dead
+  const discharges =
+    safeNumber(formData.transferredOut) +
+    safeNumber(formData.referOut) +
+    safeNumber(formData.discharged) +
+    safeNumber(formData.deaths);
 
   const startingCensus = safeNumber(formData.patientCensus);
   const expectedCensus = Math.max(0, startingCensus + admissions - discharges);
+
+
 
   const resultLabel =
     selectedShift === ShiftType.MORNING
@@ -61,7 +73,7 @@ const PatientCensusDisplay: React.FC<PatientCensusDisplayProps> = ({
 
         <div className="font-semibold border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">{resultLabel}</div>
         <div className="font-semibold text-blue-700 dark:text-blue-300 border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">
-          {expectedCensus}
+          {startingCensus}
         </div>
       </div>
       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic border-t border-gray-200 dark:border-gray-700 pt-1">

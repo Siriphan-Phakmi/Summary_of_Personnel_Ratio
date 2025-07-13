@@ -17,6 +17,7 @@ import { Timestamp } from 'firebase/firestore';
 import notificationService from '@/app/features/notifications/services/NotificationService';
 import { NotificationType } from '@/app/features/notifications/types';
 import { getAllUsers } from '@/app/features/auth/services/userService';
+import { calculatePatientCensusFromOverview } from '../../services/wardFormHelpers';
 
 // Helper function to safely convert date to ISO string
 const safeGetDateString = (date: string | Timestamp | Date): string => {
@@ -113,8 +114,17 @@ export const useFormSaveManager = ({
       const targetDate = new Date(selectedDate + 'T00:00:00');
       const dateTimestamp = Timestamp.fromDate(targetDate);
 
+      // 🎯 Auto-calculate Patient Census จากข้อมูลคงเหลือเมื่อบันทึกครั้งแรก
+      const enhancedFormData = { ...formData };
+      
+      // ถ้า Patient Census ยังไม่มีข้อมูล (บันทึกครั้งแรก) ให้คำนวณอัตโนมัติ
+      if (!enhancedFormData.patientCensus || enhancedFormData.patientCensus === 0) {
+        const autoPatientCensus = calculatePatientCensusFromOverview(enhancedFormData);
+        enhancedFormData.patientCensus = autoPatientCensus;
+      }
+
       const formDataToSave: WardForm = {
-        ...formData,
+        ...enhancedFormData,
         id: formData.id || `${selectedBusinessWardId}-${selectedDate}-${selectedShift}`,
         wardId: selectedBusinessWardId,
         shift: selectedShift,

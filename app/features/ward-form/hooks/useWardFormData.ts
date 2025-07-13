@@ -7,6 +7,11 @@ import { useFormDataLoader } from './helpers/useFormDataLoader';
 import { useFormSaveManager } from './helpers/useFormSaveManager';
 import { useFormValidation } from './helpers/useFormValidation';
 import { showErrorToast } from '@/app/lib/utils/toastUtils';
+import { 
+  calculateUnavailableBeds, 
+  calculateAvailableBeds, 
+  calculatePlannedDischarge 
+} from '../services/wardFormHelpers';
 
 export const useWardFormData = ({
   selectedWard,
@@ -65,7 +70,31 @@ export const useWardFormData = ({
 
   const handleChange = useCallback((e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev: Partial<WardForm>) => ({ ...prev, [name]: value }));
+    
+    // อัพเดทข้อมูลหลัก
+    setFormData((prev: Partial<WardForm>) => {
+      const newFormData = { ...prev, [name]: value };
+      
+      // 🎯 Auto-calculation logic ตามคำขอของคุณบีบี
+      
+      // 1. Auto-fill Unavailable Beds เมื่อกรอก New Admit, Transfer In, Refer In
+      if (['admitted', 'transferredIn', 'referIn'].includes(name)) {
+        const autoUnavailable = calculateUnavailableBeds(newFormData);
+        newFormData.unavailableBeds = autoUnavailable;
+      }
+      
+      // 2. Auto-fill Available Beds และ Planned Discharge เมื่อกรอก Transfer Out, Refer Out, Discharge, Dead
+      if (['transferredOut', 'referOut', 'discharged', 'deaths'].includes(name)) {
+        const autoAvailable = calculateAvailableBeds(newFormData);
+        const autoPlannedDischarge = calculatePlannedDischarge(newFormData);
+        
+        newFormData.availableBeds = autoAvailable;
+        newFormData.plannedDischarge = autoPlannedDischarge;
+      }
+      
+      return newFormData;
+    });
+    
     setIsFormDirty(true);
     
     if (errors[name]) {

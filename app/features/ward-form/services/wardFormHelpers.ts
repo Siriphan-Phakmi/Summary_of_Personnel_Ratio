@@ -277,4 +277,62 @@ export const normalizeDateOrThrow = (dateInput: Date | Timestamp | string | unde
     console.error('[normalizeDateOrThrow] Error normalizing date:', error);
     throw error;
   }
+};
+
+/**
+ * คำนวณ Patient Census อัตโนมัติจากข้อมูลคงเหลือในภาพรวมการคำนวณ
+ * @param formData ข้อมูลฟอร์มปัจจุบัน
+ * @returns Patient Census ที่คำนวณได้
+ */
+export const calculatePatientCensusFromOverview = (formData: Partial<WardForm>): number => {
+  const startingCensus = safeNumber(formData.patientCensus);
+  const admissions = safeNumber(formData.admitted) + 
+                   safeNumber(formData.transferredIn) + 
+                   safeNumber(formData.referIn);
+  const discharges = safeNumber(formData.discharged) + 
+                    safeNumber(formData.transferredOut) + 
+                    safeNumber(formData.referOut) + 
+                    safeNumber(formData.deaths);
+  
+  const calculatedCensus = startingCensus + admissions - discharges;
+  return Math.max(0, calculatedCensus);
+};
+
+/**
+ * คำนวณ Unavailable Beds อัตโนมัติ (รวม New Admit + Transfer In + Refer In)
+ * @param formData ข้อมูลฟอร์มปัจจุบัน
+ * @returns จำนวนเตียงที่ไม่ว่าง
+ */
+export const calculateUnavailableBeds = (formData: Partial<WardForm>): number => {
+  const newAdmit = safeNumber(formData.admitted);
+  const transferIn = safeNumber(formData.transferredIn);
+  const referIn = safeNumber(formData.referIn);
+  
+  const totalUnavailable = newAdmit + transferIn + referIn;
+  return Math.max(0, totalUnavailable);
+};
+
+/**
+ * คำนวณ Available Beds อัตโนมัติ (รวม Transfer Out + Refer Out + Discharge + Dead)
+ * @param formData ข้อมูลฟอร์มปัจจุบัน
+ * @returns จำนวนเตียงที่ว่าง
+ */
+export const calculateAvailableBeds = (formData: Partial<WardForm>): number => {
+  const transferOut = safeNumber(formData.transferredOut);
+  const referOut = safeNumber(formData.referOut);
+  const discharge = safeNumber(formData.discharged);
+  const dead = safeNumber(formData.deaths);
+  
+  const totalAvailable = transferOut + referOut + discharge + dead;
+  return Math.max(0, totalAvailable);
+};
+
+/**
+ * คำนวณ Planned Discharge อัตโนมัติ (เหมือนกับ Available Beds)
+ * @param formData ข้อมูลฟอร์มปัจจุบัน
+ * @returns จำนวนแผนการจำหน่าย
+ */
+export const calculatePlannedDischarge = (formData: Partial<WardForm>): number => {
+  // ใช้สูตรเดียวกับ Available Beds
+  return calculateAvailableBeds(formData);
 }; 

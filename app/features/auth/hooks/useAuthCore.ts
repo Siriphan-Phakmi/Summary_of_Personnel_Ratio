@@ -36,42 +36,19 @@ export const useAuthCore = () => {
   }, []);
 
   const clearStorageData = useCallback(() => {
+    // ✅ เหลือเฉพาะการลบ cookies (ไม่ใช้ browser storage)
     if (typeof document !== 'undefined') {
       document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('auth_token_backup');
-      localStorage.removeItem('user_data_backup');
-      localStorage.removeItem('auth_expires');
-    }
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem('is_browser_session');
-      sessionStorage.removeItem('csrfToken');
-      sessionStorage.removeItem('session_cache');
-    }
-    devLog('All session storage data cleared.');
+    devLog('All cookie data cleared.');
   }, []);
   
   const saveUserData = useCallback((userData: User) => {
-    // Cookies are set by the server via API response (httpOnly)
-    if (typeof localStorage !== 'undefined') {
-      const plainUser = JSON.stringify({
-        uid: userData.uid,
-        username: userData.username,
-        role: userData.role,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-      });
-      localStorage.setItem('user_data_backup', plainUser);
-      localStorage.setItem('auth_expires', new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString());
-    }
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem('is_browser_session', 'true');
-      if (userData.username) {
-        sessionStorage.setItem('lastUsername', userData.username);
-      }
-    }
+    // ✅ Cookies are set by the server via API response (httpOnly)
+    // ลบ localStorage และ sessionStorage backup ออกทั้งหมด
+    // ใช้เฉพาะ server-side cookies และ Firebase session management
+    devLog(`User data saved: ${userData.username} (${userData.role})`);
   }, []);
 
   const logoutUser = useCallback(async (currentUser?: User | null) => {
