@@ -24,7 +24,9 @@
       "Bash(true)",
       "Bash(cat:*)",
       "Bash(npm ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
