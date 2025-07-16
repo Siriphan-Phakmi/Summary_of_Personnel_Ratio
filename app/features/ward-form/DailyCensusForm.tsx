@@ -128,7 +128,7 @@ export default function DailyCensusForm() {
     };
     
     checkAndCreateNotification();
-  }, [selectedWard, selectedDate, selectedShift, selectedWardObject?.name, currentUser?.uid, hasPreviousData, isPreviousDataLoading]);
+  }, [selectedWard, selectedDate, selectedShift, selectedWardObject, currentUser, hasPreviousData, isPreviousDataLoading]);
     
   // Combined loading and error states
   const isLoading = isDataLoading || isFormDataLoading || !currentUser || configLoading;

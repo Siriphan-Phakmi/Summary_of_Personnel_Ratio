@@ -110,9 +110,22 @@ export const useFormSaveManager = ({
     try {
       setIsSaving(true);
 
-      // ✅ **FIX: ใช้ Timestamp format เดียวกับการ query**
+      // ✅ **FIX: ใช้ Timestamp format เดียวกับการ query - สร้างครั้งเดียวใช้ทั่วทั้งฟังก์ชัน**
       const targetDate = new Date(selectedDate + 'T00:00:00');
       const dateTimestamp = Timestamp.fromDate(targetDate);
+
+      // 🎯 ตรวจสอบเวรเช้าก่อนเวรดึกก่อนดำเนินการใดๆ
+      if (selectedShift === ShiftType.NIGHT) {
+        const morningForm = await findWardForm({
+          date: dateTimestamp,
+          shift: ShiftType.MORNING,
+          wardId: selectedBusinessWardId,
+        });
+
+        if (!morningForm || (morningForm.status !== FormStatus.FINAL && morningForm.status !== FormStatus.APPROVED)) {
+          throw new Error('กรุณาบันทึกกะเช้าให้สมบูรณ์ก่อนบันทึกกะดึก');
+        }
+      }
 
       // 🎯 Auto-calculate Patient Census จากข้อมูลคงเหลือเมื่อบันทึกครั้งแรก
       const enhancedFormData = { ...formData };
@@ -142,20 +155,14 @@ export const useFormSaveManager = ({
         if (selectedShift === ShiftType.MORNING) {
           savedFormId = await finalizeMorningShiftForm(formDataToSave, user);
         } else { // Night Shift
-          const targetDate = new Date(selectedDate + 'T00:00:00');
-          const dateTimestamp = Timestamp.fromDate(targetDate);
-          
+          // ดึง morning form อีกครั้งเพื่อส่งไปให้ finalizeNightShiftForm
           const morningForm = await findWardForm({
               date: dateTimestamp,
               shift: ShiftType.MORNING,
               wardId: selectedBusinessWardId,
           });
 
-          if (!morningForm || (morningForm.status !== FormStatus.FINAL && morningForm.status !== FormStatus.APPROVED)) {
-            throw new Error('กรุณาบันทึกกะเช้าให้สมบูรณ์ก่อนบันทึกกะดึก');
-          }
-
-          savedFormId = await finalizeNightShiftForm(formDataToSave, morningForm, user);
+          savedFormId = await finalizeNightShiftForm(formDataToSave, morningForm!, user);
         }
         showSuccessToast('บันทึกสมบูรณ์สำเร็จ!');
       }
@@ -206,6 +213,7 @@ export const useFormSaveManager = ({
     // ✅ **NEW DRAFT OVERWRITE DETECTION** - Check for existing draft before saving
     if (saveType === 'draft' && selectedBusinessWardId && selectedDate) {
       try {
+        // ใช้ same format เพื่อให้ consistent กับการ query อื่นๆ
         const targetDate = new Date(selectedDate + 'T00:00:00');
         const dateTimestamp = Timestamp.fromDate(targetDate);
         

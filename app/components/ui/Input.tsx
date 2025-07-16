@@ -10,7 +10,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, label, error, wrapperClassName, id, ...props }, ref) => {
+  ({ className, type, label, error, wrapperClassName, id, onKeyDown, onPaste, ...props }, ref) => {
     // ✅ ตรวจสอบว่ามี draft background หรือไม่
     const hasDraftBg = className?.includes('bg-yellow') || className?.includes('yellow');
     
@@ -27,6 +27,38 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       className
     );
 
+    // 🚫 ป้องกันสัญลักษณ์ลบและบวกในฟิลด์ตัวเลข - ตามที่คุณบีบีร้องขอ
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (type === 'number') {
+        // ป้องกัน +, -, e, E (scientific notation)
+        if (['+', '-', 'e', 'E'].includes(e.key)) {
+          e.preventDefault();
+          return;
+        }
+      }
+      // เรียก onKeyDown ของ parent component ถ้ามี
+      onKeyDown?.(e);
+    };
+
+    // 🚫 ป้องกันการ paste ข้อความที่มี +, - ในฟิลด์ตัวเลข
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+      if (type === 'number') {
+        const pastedText = e.clipboardData.getData('text');
+        // ตรวจสอบว่าข้อความที่ paste มี +, -, e, E หรือไม่
+        if (/[+\-eE]/.test(pastedText)) {
+          e.preventDefault();
+          return;
+        }
+        // ตรวจสอบว่าเป็นตัวเลขเท่านั้น
+        if (!/^\d*\.?\d*$/.test(pastedText)) {
+          e.preventDefault();
+          return;
+        }
+      }
+      // เรียก onPaste ของ parent component ถ้ามี
+      onPaste?.(e);
+    };
+
     return (
       <div className={twMerge('w-full', wrapperClassName)}>
         {label && (
@@ -38,6 +70,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           id={id}
           type={type}
           className={inputClasses}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           ref={ref}
           {...props}
         />

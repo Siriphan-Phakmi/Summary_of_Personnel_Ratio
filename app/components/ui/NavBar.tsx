@@ -11,6 +11,7 @@ import { Sun, Moon, LogOut, User as UserIcon, Menu, X } from 'lucide-react';
 import { UserRole } from '@/app/features/auth/types/user';
 import { cn } from '@/app/lib/utils/cn';
 import NotificationBell from '@/app/features/notifications/components/NotificationBell';
+import { ApprovalStatusIndicator } from '@/app/features/approval/components/ApprovalStatusIndicator';
 
 const navLinks = [
   { 
@@ -106,6 +107,9 @@ const NavBar = () => {
               </div>
             )}
             
+            {/* Approval Status Indicator */}
+            {user && <ApprovalStatusIndicator user={user} />}
+
             {/* Notification Bell */}
             {user && <NotificationBell />}
             
@@ -165,22 +169,32 @@ const NavBar = () => {
               {user && (
                 <>
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
-                    <div className="flex items-center px-3">
-                      <UserIcon className="h-8 w-8 text-gray-600 dark:text-gray-300 mr-3" suppressHydrationWarning={true} />
-                      <div>
-                        <div className="text-base font-medium text-gray-800 dark:text-white">{user.firstName} {user.lastName}</div>
+                    <div className="flex items-center justify-between px-3 mb-3">
+                      <div className="flex items-center">
+                        <UserIcon className="h-8 w-8 text-gray-600 dark:text-gray-300 mr-3" suppressHydrationWarning={true} />
+                        <div>
+                          <div className="text-base font-medium text-gray-800 dark:text-white">{user.firstName} {user.lastName}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{user.role?.toUpperCase()}</div>
+                        </div>
                       </div>
                     </div>
+                    
+                    {/* Mobile Approval Status Indicator */}
+                    <div className="px-3 mb-3">
+                      <ApprovalStatusIndicator user={user} className="w-full justify-center" />
+                    </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={logout}
-                    className="w-full flex items-center justify-start space-x-2 mt-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
-                  >
-                    <LogOut className="h-5 w-5" suppressHydrationWarning={true} />
-                    <span>Logout</span>
-                  </Button>
+                  <div className="px-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={logout}
+                      className="w-full flex items-center justify-start space-x-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50"
+                    >
+                      <LogOut className="h-5 w-5" suppressHydrationWarning={true} />
+                      <span>Logout</span>
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
