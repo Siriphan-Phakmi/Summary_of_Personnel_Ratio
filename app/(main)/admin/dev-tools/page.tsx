@@ -5,7 +5,7 @@ import ProtectedPage from '@/app/components/ui/ProtectedPage';
 import { UserRole } from '@/app/features/auth/types/user';
 import LogViewer from '@/app/features/admin/LogViewer';
 import { Button } from '@/app/components/ui/Button';
-import { fixWard6UserAssignment, resetAllDefaultWards, checkUserWardAssignment } from '@/app/features/ward-form/services/wardService';
+import { checkUserWardAssignment } from '@/app/features/ward-form/services/wardService';
 import { showSuccessToast, showErrorToast } from '@/app/lib/utils/toastUtils';
 
 
@@ -13,45 +13,7 @@ export default function DevToolsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkResult, setCheckResult] = useState<string>('');
 
-  const handleFixWard6 = async () => {
-    setIsLoading(true);
-    try {
-      const result = await fixWard6UserAssignment();
-      if (result.success) {
-        showSuccessToast(result.message);
-        setCheckResult(result.message);
-      } else {
-        showErrorToast(result.message);
-        setCheckResult(result.message);
-      }
-    } catch (error) {
-      const errorMsg = `เกิดข้อผิดพลาด: ${error}`;
-      showErrorToast(errorMsg);
-      setCheckResult(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const handleResetWards = async () => {
-    setIsLoading(true);
-    try {
-      const result = await resetAllDefaultWards();
-      if (result.success) {
-        showSuccessToast(result.message);
-        setCheckResult(result.message);
-      } else {
-        showErrorToast(result.message);
-        setCheckResult(result.message);
-      }
-    } catch (error) {
-      const errorMsg = `เกิดข้อผิดพลาด: ${error}`;
-      showErrorToast(errorMsg);
-      setCheckResult(errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCheckUser = async (username: string) => {
     setIsLoading(true);
@@ -98,51 +60,20 @@ export default function DevToolsPage() {
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {/* Fix Ward6 Button */}
-              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">🔧 แก้ไข Ward6</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  แก้ไขปัญหา User Ward6 ที่ไม่มี ward assignment
-                </p>
-                <Button 
-                  onClick={handleFixWard6}
-                  disabled={isLoading}
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isLoading ? 'กำลังแก้ไข...' : 'แก้ไข Ward6'}
-                </Button>
-              </div>
-
-              {/* Reset Default Wards */}
-              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">🔄 รีเซ็ต Wards</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  รีเซ็ต default wards ทั้งหมด (รวม Ward6)
-                </p>
-                <Button 
-                  onClick={handleResetWards}
-                  disabled={isLoading}
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isLoading ? 'กำลังรีเซ็ต...' : 'รีเซ็ต Wards'}
-                </Button>
-              </div>
-
               {/* Check User Assignment */}
               <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">🔍 ตรวจสอบ User</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  ตรวจสอบ ward assignment ของ Ward6
+                  ตรวจสอบ ward assignment ของ user ที่ต้องการ
                 </p>
+                {/* This part can be enhanced with an input field in the future */}
                 <Button 
-                  onClick={() => handleCheckUser('Ward6')}
+                  onClick={() => handleCheckUser('some-user')}
                   disabled={isLoading}
                   className="w-full"
                   variant="outline"
                 >
-                  {isLoading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบ Ward6'}
+                  {isLoading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบ User'}
                 </Button>
               </div>
             </div>

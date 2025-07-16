@@ -30,7 +30,5 @@ export {
 
 // Export user setup functions
 export {
-  fixWard6UserAssignment,
-  resetAllDefaultWards,
   checkUserWardAssignment
 } from './ward-modules/wardUserSetup'; 

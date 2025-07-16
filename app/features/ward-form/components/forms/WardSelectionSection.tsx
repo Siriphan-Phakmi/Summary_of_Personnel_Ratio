@@ -32,12 +32,18 @@ export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
     user.role === UserRole.NURSE && 
     wards.length === 1;
 
-  // Enhanced ward display information
+  // Enhanced ward display information - Lean Code
   const getWardDisplayInfo = () => {
     if (!selectedWardObject) return null;
+    
+    // Clean display - avoid redundant ward name/code
+    const cleanWardName = selectedWardObject.name !== selectedWardObject.wardCode 
+      ? `${selectedWardObject.name} (${selectedWardObject.wardCode})`
+      : selectedWardObject.name;
+    
     return {
-      displayName: `${selectedWardObject.name} (${selectedWardObject.wardCode})`,
-      fullInfo: `แผนก: ${selectedWardObject.name} | รหัส: ${selectedWardObject.wardCode} | เตียง: ${selectedWardObject.totalBeds} เตียง`,
+      displayName: cleanWardName,
+      fullInfo: `แผนก: ${cleanWardName} | เตียง: ${selectedWardObject.totalBeds} เตียง`,
       userRole: user?.role || 'unknown'
     };
   };
@@ -53,7 +59,7 @@ export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
         {wardDisplayInfo && (
           <div className="mt-2 sm:mt-0">
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-              👨‍⚕️ {user?.firstName} {user?.lastName} ({user?.role?.toUpperCase()})
+              {user?.firstName} {user?.lastName}
             </span>
           </div>
         )}
@@ -74,42 +80,22 @@ export const WardSelectionSection: React.FC<WardSelectionSectionProps> = ({
             disabled={isSingleWardUser || wards.length === 0}
           >
             {wards.length > 0 ? (
-              wards.map((ward) => (
-                <option key={ward.id} value={ward.id}>
-                  {ward.name} ({ward.wardCode}) - {ward.totalBeds} เตียง
-                </option>
-              ))
+              wards.map((ward) => {
+                const cleanName = ward.name !== ward.wardCode 
+                  ? `${ward.name} (${ward.wardCode})`
+                  : ward.name;
+                return (
+                  <option key={ward.id} value={ward.id}>
+                    {cleanName}
+                  </option>
+                );
+              })
             ) : (
               <option value="" disabled>
                 ไม่มีแผนกที่ได้รับมอบหมาย
               </option>
             )}
           </select>
-          
-          {/* Enhanced Ward Information Display */}
-          {wardDisplayInfo && (
-            <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-md border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    🏥 {wardDisplayInfo.fullInfo}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    ระดับแผนก: {selectedWardObject?.wardLevel} | ลำดับ: {selectedWardObject?.wardOrder}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    selectedWardObject?.isActive 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                  }`}>
-                    {selectedWardObject?.isActive ? '✅ เปิดใช้งาน' : '❌ ปิดใช้งาน'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Date Selection */}
