@@ -188,6 +188,14 @@ export const setupDefaultWards = async (): Promise<void> => {
         wardOrder: 4,
         active: true,
         bedCapacity: 30
+      },
+      {
+        id: 'WARD6',
+        wardCode: 'Ward6',
+        wardName: 'หอผู้ป่วยห้อง 6',
+        wardOrder: 5,
+        active: true,
+        bedCapacity: 25
       }
     ];
     

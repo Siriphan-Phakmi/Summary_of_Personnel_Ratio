@@ -177,29 +177,62 @@ export const getWardsByIds = async (wardIds: string[]): Promise<Ward[]> => {
  * @returns A Ward object if found, otherwise null.
  */
 export const findWardBySimilarCode = async (searchCode: string): Promise<Ward | null> => {
-    // Extract numbers from the search code to handle inputs like "Ward 6" -> "6"
-    const numericPart = searchCode.match(/\\d+/);
-    if (!numericPart) {
-        console.warn(`[WardQueries] Could not extract numeric part from searchCode: "${searchCode}"`);
-        return null;
-    }
-    const number = numericPart[0];
-
-    // This is less efficient than a direct query, but necessary for case-insensitive/flexible matching
-    // without changing the database structure or adding dedicated search services.
     const allWards = await getActiveWards();
+    const normalizedSearchCode = searchCode.toLowerCase().trim();
+    
+    console.log(`[WardQueries] Searching for ward with code: "${searchCode}", normalized: "${normalizedSearchCode}"`);
 
-    // Create a flexible regex, e.g., for "6", it becomes /ward\\s*6/i
-    const searchRegex = new RegExp(`ward\\s*${number}`, 'i');
-
-    const foundWard = allWards.find(ward => ward.wardCode && searchRegex.test(ward.wardCode));
-
+    // 1. หาตรงที่สุดก่อน - exact match (case insensitive)
+    let foundWard = allWards.find(ward => 
+        ward.wardCode && ward.wardCode.toLowerCase() === normalizedSearchCode
+    );
+    
     if (foundWard) {
-        console.log(`[WardQueries] Found matching ward (ID: ${foundWard.id}) for search code "${searchCode}"`);
+        console.log(`[WardQueries] Found exact match ward (ID: ${foundWard.id}) for "${searchCode}"`);
         return foundWard;
     }
 
-    console.warn(`[WardQueries] No ward found matching code "${searchCode}" after flexible search.`);
+    // 2. หาจาก ward name และ wardCode ที่มีคำว่า search code
+    foundWard = allWards.find(ward => {
+        const nameMatch = ward.name && ward.name.toLowerCase().includes(normalizedSearchCode);
+        const codeMatch = ward.wardCode && ward.wardCode.toLowerCase().includes(normalizedSearchCode);
+        return nameMatch || codeMatch;
+    });
+    
+    if (foundWard) {
+        console.log(`[WardQueries] Found partial match ward (ID: ${foundWard.id}) for "${searchCode}"`);
+        return foundWard;
+    }
+
+    // 3. หาจากตัวเลข - Extract numbers from the search code
+    const numericPart = searchCode.match(/\d+/);
+    if (numericPart) {
+        const number = numericPart[0];
+        
+        // ลองหาจาก wardCode หรือ name ที่มีตัวเลขนั้น
+        foundWard = allWards.find(ward => {
+            const codeHasNumber = ward.wardCode && ward.wardCode.includes(number);
+            const nameHasNumber = ward.name && ward.name.includes(number);
+            return codeHasNumber || nameHasNumber;
+        });
+        
+        if (foundWard) {
+            console.log(`[WardQueries] Found numeric match ward (ID: ${foundWard.id}) for number "${number}"`);
+            return foundWard;
+        }
+        
+        // ลองด้วย regex pattern
+        const searchRegex = new RegExp(`ward\\s*${number}`, 'i');
+        foundWard = allWards.find(ward => ward.wardCode && searchRegex.test(ward.wardCode));
+        
+        if (foundWard) {
+            console.log(`[WardQueries] Found regex match ward (ID: ${foundWard.id}) for pattern "ward*${number}"`);
+            return foundWard;
+        }
+    }
+
+    console.warn(`[WardQueries] No ward found matching code "${searchCode}" after all search methods.`);
+    console.log(`[WardQueries] Available wards:`, allWards.map(w => `${w.id}(${w.wardCode})`));
     return null;
 }
 

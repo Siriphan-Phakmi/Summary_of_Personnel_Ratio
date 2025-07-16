@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/app/features/auth/AuthContext';
 import { FiUser, FiLock, FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi';
 import { useTheme } from 'next-themes';
 import { Button } from '@/app/components/ui/Button';
+import { FiSun, FiMoon } from 'react-icons/fi';
 
 // Import custom hooks
 import { 
@@ -19,8 +20,13 @@ import {
 export default function LoginPage() {
   const { user, authStatus } = useAuth();
   const searchParams = useSearchParams();
-  const { theme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const usernameInputRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   
   // Check for special login messages from URL params
   const sessionExpired = searchParams.get('reason') === 'session_expired';
@@ -66,6 +72,23 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen w-full bg-gray-50 dark:bg-gray-900 px-4">
+      {/* Theme Toggle Button */}
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          aria-label="Toggle theme"
+        >
+          {!mounted ? (
+            <FiSun size={20} />
+          ) : theme === 'dark' ? (
+            <FiSun size={20} />
+          ) : (
+            <FiMoon size={20} />
+          )}
+        </button>
+      </div>
+      
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden p-6 login-page">
         <div className="flex flex-col items-center">
           <div 
