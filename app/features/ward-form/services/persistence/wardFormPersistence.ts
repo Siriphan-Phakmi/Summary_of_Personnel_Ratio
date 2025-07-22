@@ -21,8 +21,8 @@ import {
   normalizeDateOrThrow,
 } from '../wardFormHelpers';
 import { getLatestPreviousNightForm } from '../queries/wardFormQueries';
-import NotificationService from '@/app/features/notifications/services/NotificationService';
-import { NotificationType } from '@/app/features/notifications/types/notification';
+import notificationService from '@/app/features/notifications/services/NotificationService';
+import { NotificationType } from '@/app/features/notifications/types';
 
 /**
  * ✅ **Firebase-Safe Data Preparation**
@@ -124,32 +124,45 @@ export const finalizeMorningShiftForm = async (form: WardForm, user: User): Prom
         clearCache(cacheKey);
 
         Logger.info(`Form ${form.id} finalized by ${user.uid}`);
-        NotificationService.createNotification({
-            title: 'Morning Form Submitted',
-            message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.APPROVAL_REQUEST,
-            recipientIds: [user.uid],
-            sender: {
-                id: user.uid,
-                name: user.firstName + ' ' + user.lastName || 'User'
-            },
-            actionUrl: `/approval?formId=${form.id}`
-        });
+        
+        // Create notification (don't let it fail the main process)
+        try {
+            await notificationService.createNotification({
+                title: 'Morning Form Submitted',
+                message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
+                type: NotificationType.APPROVAL_REQUEST,
+                recipientIds: [user.uid],
+                sender: {
+                    id: user.uid,
+                    name: user.firstName + ' ' + user.lastName || 'User'
+                },
+                actionUrl: `/approval?formId=${form.id}`
+            });
+        } catch (error) {
+            Logger.error('Failed to create success notification:', error);
+        }
 
         return form.id;
     } catch (error) {
         Logger.error('Error finalizing morning form:', error);
-        NotificationService.createNotification({
-            title: 'Submission Error',
-            message: `Failed to submit morning form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM_ALERT,
-            recipientIds: [user.uid],
-            sender: {
-                id: 'system',
-                name: 'System'
-            },
-            actionUrl: `/census/form` // Default to form page for retry
-        });
+        
+        // Create error notification (don't let it fail further)
+        try {
+            await notificationService.createNotification({
+                title: 'Submission Error',
+                message: `Failed to submit morning form for ward ${form.wardName}. Please try again.`,
+                type: NotificationType.SYSTEM_ALERT,
+                recipientIds: [user.uid],
+                sender: {
+                    id: 'system',
+                    name: 'System'
+                },
+                actionUrl: `/census/form`
+            });
+        } catch (notifError) {
+            Logger.error('Failed to create error notification:', notifError);
+        }
+        
         throw error;
     }
 };
@@ -204,32 +217,45 @@ export const finalizeNightShiftForm = async (form: WardForm, morningForm: WardFo
         }
 
         Logger.info(`Form ${form.id} finalized by ${user.uid}`);
-        NotificationService.createNotification({
-            title: 'Night Form Submitted',
-            message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
-            type: NotificationType.APPROVAL_REQUEST,
-            recipientIds: [user.uid],
-            sender: {
-                id: user.uid,
-                name: user.firstName + ' ' + user.lastName || 'User'
-            },
-            actionUrl: `/approval?formId=${form.id}`
-        });
+        
+        // Create notification (don't let it fail the main process)
+        try {
+            await notificationService.createNotification({
+                title: 'Night Form Submitted',
+                message: `Form for ward ${form.wardName} on ${dateStr} has been successfully submitted.`,
+                type: NotificationType.APPROVAL_REQUEST,
+                recipientIds: [user.uid],
+                sender: {
+                    id: user.uid,
+                    name: user.firstName + ' ' + user.lastName || 'User'
+                },
+                actionUrl: `/approval?formId=${form.id}`
+            });
+        } catch (error) {
+            Logger.error('Failed to create success notification:', error);
+        }
 
         return form.id;
     } catch (error) {
         Logger.error('Error finalizing night form:', error);
-        NotificationService.createNotification({
-            title: 'Submission Error',
-            message: `Failed to submit night form for ward ${form.wardName}. Please try again.`,
-            type: NotificationType.SYSTEM_ALERT,
-            recipientIds: [user.uid],
-            sender: {
-                id: 'system',
-                name: 'System'
-            },
-            actionUrl: `/census/form` // Default to form page for retry
-        });
+        
+        // Create error notification (don't let it fail further)
+        try {
+            await notificationService.createNotification({
+                title: 'Submission Error',
+                message: `Failed to submit night form for ward ${form.wardName}. Please try again.`,
+                type: NotificationType.SYSTEM_ALERT,
+                recipientIds: [user.uid],
+                sender: {
+                    id: 'system',
+                    name: 'System'
+                },
+                actionUrl: `/census/form`
+            });
+        } catch (notifError) {
+            Logger.error('Failed to create error notification:', notifError);
+        }
+        
         throw error;
     }
 }; 

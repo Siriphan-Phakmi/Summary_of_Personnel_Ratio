@@ -4,6 +4,10 @@ import { UserNotification, NotificationType } from '../types'; // Import from ce
 import notificationService from '../services/NotificationService'; // Import the service
 import { Logger } from '@/app/lib/utils/logger'; // Import centralized logger
 
+// Deduplication cache for API requests
+const requestCache = new Map<string, { promise: Promise<any>; timestamp: number }>();
+const CACHE_DURATION = 5000; // 5 seconds cache
+
 // ใช้ UserNotification จาก centralized types แทน
 
 export interface NotificationBellState {
@@ -24,6 +28,8 @@ export const useNotificationBell = (isOpen: boolean) => {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   
   const fetchingNotifications = useRef<boolean>(false);
+  const lastFetchTime = useRef<number>(0);
+  const abortController = useRef<AbortController | null>(null);
 
   // Get CSRF Token
   useEffect(() => {
@@ -41,28 +47,89 @@ export const useNotificationBell = (isOpen: boolean) => {
     initCsrfToken();
   }, [user, csrfToken]);
 
-  // Fetch notifications function
-  const fetchNotifications = useCallback(async () => {
-    if (!user || fetchingNotifications.current) return;
+  // Clean expired cache entries
+  const cleanCache = useCallback(() => {
+    const now = Date.now();
+    requestCache.forEach((value, key) => {
+      if (now - value.timestamp > CACHE_DURATION) {
+        requestCache.delete(key);
+      }
+    });
+  }, []);
+
+  // Fetch notifications function with deduplication
+  const fetchNotifications = useCallback(async (force = false) => {
+    if (!user) return;
+    
+    const now = Date.now();
+    const cacheKey = `fetch-notifications-${user.uid}`;
+    
+    // Prevent too frequent requests (debounce)
+    if (!force && now - lastFetchTime.current < 2000) {
+      return;
+    }
+    
+    // Check cache for pending request
+    const cached = requestCache.get(cacheKey);
+    if (cached && now - cached.timestamp < CACHE_DURATION) {
+      try {
+        return await cached.promise;
+      } catch (err) {
+        requestCache.delete(cacheKey);
+      }
+    }
+    
+    if (fetchingNotifications.current && !force) return;
+    
+    // Cancel previous request
+    if (abortController.current) {
+      abortController.current.abort();
+    }
+    abortController.current = new AbortController();
     
     fetchingNotifications.current = true;
+    lastFetchTime.current = now;
     setState(s => ({ ...s, isLoading: true, error: null }));
     
-    try {
-      const { notifications, unreadCount } = await notificationService.getUserNotifications();
-      setState(s => ({ ...s, notifications, unreadCount, isLoading: false }));
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์';
-      setState(s => ({ ...s, error: errorMessage, isLoading: false, notifications: [], unreadCount: 0 }));
-      Logger.error('useNotificationBell: Fetch notifications failed', err);
-      
-      setTimeout(() => {
-        fetchNotifications();
-      }, 5000);
-    } finally {
-      fetchingNotifications.current = false;
-    }
-  }, [user]);
+    const fetchPromise = (async () => {
+      try {
+        const { notifications, unreadCount } = await notificationService.getUserNotifications();
+        
+        // Only update state if this is the latest request
+        if (!abortController.current?.signal.aborted) {
+          setState(s => ({ ...s, notifications, unreadCount, isLoading: false }));
+        }
+        
+        return { notifications, unreadCount };
+      } catch (err) {
+        if (abortController.current?.signal.aborted) {
+          return; // Request was cancelled
+        }
+        
+        const errorMessage = err instanceof Error ? err.message : 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์';
+        setState(s => ({ ...s, error: errorMessage, isLoading: false }));
+        Logger.error('useNotificationBell: Fetch notifications failed', err);
+        
+        // Retry with exponential backoff (only if not aborted)
+        if (!abortController.current?.signal.aborted) {
+          setTimeout(() => {
+            fetchNotifications(true);
+          }, 5000);
+        }
+        
+        throw err;
+      } finally {
+        fetchingNotifications.current = false;
+        requestCache.delete(cacheKey);
+      }
+    })();
+    
+    // Cache the promise
+    requestCache.set(cacheKey, { promise: fetchPromise, timestamp: now });
+    cleanCache();
+    
+    return fetchPromise;
+  }, [user, cleanCache]);
 
   // เพิ่ม: โหลดข้อมูลเมื่อ user login
   useEffect(() => {
@@ -197,16 +264,63 @@ export const useNotificationBell = (isOpen: boolean) => {
     }
   }, [csrfToken]);
 
+  // Auto-fetch when user logs in (initial fetch)
+  useEffect(() => {
+    if (!user) return;
+    
+    // Fetch immediately when user is available
+    fetchNotifications();
+  }, [user, fetchNotifications]);
+
   // Auto-fetch when dropdown opens and poll while open
   useEffect(() => {
     if (!user || !isOpen) return;
     
     fetchNotifications();
     
-    const intervalId = setInterval(fetchNotifications, 180000);
+    // Reduce polling frequency and add force parameter
+    const intervalId = setInterval(() => {
+      fetchNotifications(false); // Don't force, use cache if available
+    }, 180000); // Keep 3-minute interval
     
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      // Cancel ongoing request when dropdown closes
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+    };
   }, [user, isOpen, fetchNotifications]);
+  
+  // Background polling for unread count (only when dropdown is closed)
+  useEffect(() => {
+    if (!user || isOpen) return;
+    
+    // Background polling every 5 minutes to check for new notifications
+    const backgroundIntervalId = setInterval(() => {
+      // Only fetch if dropdown is closed to avoid interference
+      if (!isOpen) {
+        fetchNotifications(false);
+      }
+    }, 300000); // 5 minutes
+    
+    return () => {
+      clearInterval(backgroundIntervalId);
+    };
+  }, [user, isOpen, fetchNotifications]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortController.current) {
+        abortController.current.abort();
+      }
+      // Clean cache entries for this user
+      if (user) {
+        requestCache.delete(`fetch-notifications-${user.uid}`);
+      }
+    };
+  }, [user]);
 
   return {
     ...state,

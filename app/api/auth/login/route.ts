@@ -3,6 +3,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '@/app/lib/firebase/firebase';
 import bcrypt from 'bcryptjs';
 import { User, UserRole } from '@/app/features/auth/types/user';
+import { initializeUserSession } from '@/app/features/auth/services/sessionService';
 
 // Helper: สร้าง response JSON พร้อม header ที่ถูกต้อง
 const jsonResponse = (data: any, init: ResponseInit = {}) => {
@@ -204,6 +205,14 @@ export async function POST(req: NextRequest) {
       maxAge: sessionTimeoutSeconds,
       path: '/',
     });
+
+    // Initialize session notification service
+    try {
+      await initializeUserSession(safeUser);
+    } catch (sessionError) {
+      console.error('Failed to initialize user session:', sessionError);
+      // Don't fail the login if session initialization fails
+    }
 
     return response;
   } catch (err) {

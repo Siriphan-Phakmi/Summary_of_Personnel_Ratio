@@ -2,6 +2,7 @@ import { ref, remove } from 'firebase/database';
 import { rtdb } from '@/app/lib/firebase/firebase';
 import { cookies } from 'next/headers';
 import { User } from '@/app/features/auth/types/user';
+import SessionNotificationService from '@/app/features/notifications/services/SessionNotificationService';
 
 export const clearAllUserSessions = async (userId: string): Promise<void> => {
   try {
@@ -15,6 +16,24 @@ export const clearAllUserSessions = async (userId: string): Promise<void> => {
   } catch (error) {
     console.error('Error clearing user sessions:', error);
     throw error;
+  }
+};
+
+export const initializeUserSession = async (user: User): Promise<void> => {
+  try {
+    const sessionNotificationService = SessionNotificationService.getInstance();
+    await sessionNotificationService.initializeSession(user);
+  } catch (error) {
+    console.error('Error initializing user session:', error);
+  }
+};
+
+export const clearUserSession = async (user: User): Promise<void> => {
+  try {
+    const sessionNotificationService = SessionNotificationService.getInstance();
+    await sessionNotificationService.clearSession(user);
+  } catch (error) {
+    console.error('Error clearing user session:', error);
   }
 };
 

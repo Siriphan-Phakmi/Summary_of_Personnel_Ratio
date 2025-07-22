@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { clearUserSession } from '@/app/features/auth/services/sessionService';
 
 // Server-side logging function
 const logToFirebase = async (logData: any, collectionName: string = 'system_logs') => {
@@ -34,6 +35,13 @@ export async function POST(req: NextRequest) {
     if (userCookie) {
       try {
         const userData = JSON.parse(decodeURIComponent(userCookie));
+        
+        // Clear user session
+        try {
+          await clearUserSession(userData);
+        } catch (sessionError) {
+          console.error('Failed to clear user session:', sessionError);
+        }
         
         // Server-side logging
         await logToFirebase({

@@ -13,6 +13,18 @@ import {
   getNotificationLinkProps
 } from '../utils/notificationUtils';
 import { useNotificationContext } from '../contexts/NotificationContext';
+import { Logger } from '@/app/lib/utils/logger';
+
+// Security: Input validation
+const isValidNotificationId = (id: string | undefined): boolean => {
+  return Boolean(id && typeof id === 'string' && id.length > 0 && /^[a-zA-Z0-9_-]+$/.test(id));
+};
+
+// Security: Sanitize display text
+const sanitizeText = (text: string): string => {
+  if (typeof text !== 'string') return '';
+  return text.replace(/<script[^>]*>.*?<\/script>/gi, '').replace(/<[^>]*>/g, '').substring(0, 500);
+};
 
 const NotificationBell: React.FC = () => {
   const { user } = useAuth();
@@ -46,85 +58,138 @@ const NotificationBell: React.FC = () => {
   const handleToggleDropdown = useCallback(() => toggleNotifications(), [toggleNotifications]);
 
   const handleNotificationClick = useCallback((notification: any) => {
-    if (!notification.isRead && notification.id) {
-      markAsRead(notification.id);
+    try {
+      if (!notification?.isRead && isValidNotificationId(notification?.id)) {
+        markAsRead(notification.id);
+        Logger.info('Notification marked as read', { id: notification.id });
+      }
+    } catch (error) {
+      Logger.error('Error handling notification click:', error);
     }
   }, [markAsRead]);
 
   const handleMarkAsReadClick = useCallback((e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation();
     e.preventDefault();
-    markAsRead(notificationId);
+    
+    try {
+      if (!isValidNotificationId(notificationId)) {
+        Logger.warn('Invalid notification ID for mark as read:', notificationId);
+        return;
+      }
+      markAsRead(notificationId);
+      Logger.info('Notification manually marked as read', { id: notificationId });
+    } catch (error) {
+      Logger.error('Error marking notification as read:', error);
+    }
   }, [markAsRead]);
 
   const handleDeleteClick = useCallback((e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation();
     e.preventDefault();
-    if (confirm('คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนนี้?')) {
-      deleteNotification(notificationId);
+    
+    try {
+      if (!isValidNotificationId(notificationId)) {
+        Logger.warn('Invalid notification ID for deletion:', notificationId);
+        return;
+      }
+      
+      if (confirm('คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนนี้?')) {
+        deleteNotification(notificationId);
+        Logger.info('Notification deleted', { id: notificationId });
+      }
+    } catch (error) {
+      Logger.error('Error deleting notification:', error);
     }
   }, [deleteNotification]);
 
   const handleDeleteAllClick = useCallback(() => {
-    if (notifications.length === 0) return;
-    if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนทั้งหมด ${notifications.length} รายการ?`)) {
-      deleteAllNotifications();
+    try {
+      if (notifications.length === 0) return;
+      
+      const notificationCount = Math.min(notifications.length, 999); // Security: Limit display count
+      if (confirm(`คุณแน่ใจหรือไม่ที่จะลบการแจ้งเตือนทั้งหมด ${notificationCount} รายการ?`)) {
+        deleteAllNotifications();
+        Logger.info('All notifications deleted', { count: notificationCount });
+      }
+    } catch (error) {
+      Logger.error('Error deleting all notifications:', error);
     }
   }, [deleteAllNotifications, notifications.length]);
 
-  // Memoized notification list for performance
-  const notificationList = useMemo(() => (
-    notifications.length > 0 ? (
+  // Memoized notification list for performance with security enhancements
+  const notificationList = useMemo(() => {
+    if (notifications.length === 0) {
+      return <div className="p-4 text-center text-gray-500 dark:text-gray-400">ไม่มีการแจ้งเตือน</div>;
+    }
+
+    // Security: Limit number of notifications displayed to prevent DOM overflow
+    const displayNotifications = notifications.slice(0, 50);
+    
+    return (
       <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-        {notifications.map((notification) => (
-          <li key={notification.id} className={getNotificationItemClassName(notification.isRead)}>
-            <a
-              {...getNotificationLinkProps(notification.actionUrl)}
-              onClick={() => handleNotificationClick(notification)}
-              className="block text-sm"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex items-center mb-1">
-                  <NotificationIcon type={notification.type} />
-                  <span className={getNotificationTitleClassName(notification.isRead)}>
-                    {notification.title}
-                  </span>
+        {displayNotifications.map((notification) => {
+          // Security: Validate notification data
+          if (!notification?.id || typeof notification.id !== 'string') {
+            Logger.warn('Invalid notification data detected:', notification);
+            return null;
+          }
+
+          return (
+            <li key={notification.id} className={getNotificationItemClassName(notification.isRead)}>
+              <a
+                {...getNotificationLinkProps(notification.actionUrl)}
+                onClick={() => handleNotificationClick(notification)}
+                className="block text-sm"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center mb-1">
+                    <NotificationIcon type={notification.type} />
+                    <span className={getNotificationTitleClassName(notification.isRead)}>
+                      {sanitizeText(notification.title || '')}
+                    </span>
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    {!notification.isRead && isValidNotificationId(notification.id) && (
+                      <button 
+                        onClick={(e) => handleMarkAsReadClick(e, notification.id)}
+                        className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                        aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
+                        type="button"
+                      >
+                        อ่านแล้ว
+                      </button>
+                    )}
+                    {isValidNotificationId(notification.id) && (
+                      <button 
+                        onClick={(e) => handleDeleteClick(e, notification.id)}
+                        className="text-xs text-red-500 hover:underline whitespace-nowrap"
+                        aria-label="ลบการแจ้งเตือน"
+                        type="button"
+                      >
+                        ลบ
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-1 ml-2">
-                  {!notification.isRead && notification.id && (
-                    <button 
-                      onClick={(e) => handleMarkAsReadClick(e, notification.id!)}
-                      className="text-xs text-blue-500 hover:underline whitespace-nowrap"
-                      aria-label="ทำเครื่องหมายว่าอ่านแล้ว"
-                    >
-                      อ่านแล้ว
-                    </button>
-                  )}
-                  {notification.id && (
-                    <button 
-                      onClick={(e) => handleDeleteClick(e, notification.id!)}
-                      className="text-xs text-red-500 hover:underline whitespace-nowrap"
-                      aria-label="ลบการแจ้งเตือน"
-                    >
-                      ลบ
-                    </button>
-                  )}
-                </div>
-              </div>
-              <p className={getNotificationMessageClassName(notification.isRead)}>
-                {notification.message}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                {formatTimestamp(notification.createdAt)}
-              </p>
-            </a>
+                <p className={getNotificationMessageClassName(notification.isRead)}>
+                  {sanitizeText(notification.message || '')}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  {formatTimestamp(notification.createdAt)}
+                </p>
+              </a>
+            </li>
+          );
+        }).filter(Boolean)}
+        {notifications.length > 50 && (
+          <li className="p-2 text-center text-xs text-gray-500">
+            และอีก {notifications.length - 50} รายการ...
           </li>
-        ))}
+        )}
       </ul>
-    ) : (
-      <div className="p-4 text-center text-gray-500 dark:text-gray-400">ไม่มีการแจ้งเตือน</div>
-    )
-  ), [notifications, handleNotificationClick, handleMarkAsReadClick, handleDeleteClick]);
+    );
+  }, [notifications, handleNotificationClick, handleMarkAsReadClick, handleDeleteClick]);
 
   // Don't render if user not logged in
   if (!user) return null;

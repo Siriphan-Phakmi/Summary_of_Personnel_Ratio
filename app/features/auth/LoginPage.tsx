@@ -78,14 +78,17 @@ export default function LoginPage() {
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
           aria-label="Toggle theme"
+          suppressHydrationWarning
         >
-          {!mounted ? (
-            <FiSun size={20} />
-          ) : theme === 'dark' ? (
-            <FiSun size={20} />
-          ) : (
-            <FiMoon size={20} />
-          )}
+          <span suppressHydrationWarning>
+            {!mounted ? (
+              <FiSun key="sun-default" size={20} suppressHydrationWarning />
+            ) : theme === 'dark' ? (
+              <FiSun key="sun-dark" size={20} suppressHydrationWarning />
+            ) : (
+              <FiMoon key="moon-light" size={20} suppressHydrationWarning />
+            )}
+          </span>
         </button>
       </div>
       

@@ -28,7 +28,11 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(claude mcp add:*)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(claude --debug --help)",
+      "Bash(claude:*)",
+      "WebFetch(domain:mcp.context7.com)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

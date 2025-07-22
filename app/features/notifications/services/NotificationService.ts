@@ -2,9 +2,41 @@
 // It can be expanded to handle various types of notifications (e.g., toast, push, etc.).
 
 import { db } from '@/app/lib/firebase/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, limit } from 'firebase/firestore';
 import { Notification, UserNotification, NotificationType } from '../types';
 import { Logger } from '@/app/lib/utils/logger';
+
+// In-memory deduplication cache
+const notificationCache = new Map<string, number>();
+const NOTIFICATION_CACHE_DURATION = 60000; // 1 minute
+
+// Generate notification hash for deduplication (UTF-8 safe)
+const generateNotificationHash = (data: Omit<Notification, 'id' | 'createdAt' | 'isRead'>): string => {
+  const hashContent = {
+    type: data.type,
+    title: data.title,
+    message: data.message,
+    recipientIds: data.recipientIds.sort(), // Sort for consistent hashing
+    actionUrl: data.actionUrl || '',
+    senderId: data.sender?.id || ''
+  };
+  
+  // UTF-8 safe base64 encoding
+  const jsonString = JSON.stringify(hashContent);
+  const utf8Bytes = new TextEncoder().encode(jsonString);
+  const binaryString = Array.from(utf8Bytes, byte => String.fromCharCode(byte)).join('');
+  return btoa(binaryString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+};
+
+// Clean expired cache entries
+const cleanNotificationCache = () => {
+  const now = Date.now();
+  notificationCache.forEach((timestamp, hash) => {
+    if (now - timestamp > NOTIFICATION_CACHE_DURATION) {
+      notificationCache.delete(hash);
+    }
+  });
+};
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
@@ -15,7 +47,7 @@ interface UserNotificationsResponse {
 
 const notificationService = {
   /**
-   * Creates a new notification in Firestore.
+   * Creates a new notification in Firestore with deduplication.
    * @param notificationData - The data for the notification to be created.
    * @returns The ID of the newly created notification document.
    */
@@ -23,13 +55,58 @@ const notificationService = {
     notificationData: Omit<Notification, 'id' | 'createdAt' | 'isRead'>
   ): Promise<string> {
     const context = `createNotification-${notificationData.type}`;
+    
     try {
       Logger.info(`[${context}] Creating notification for recipients:`, notificationData.recipientIds);
+
+      // Generate hash for deduplication
+      const notificationHash = generateNotificationHash(notificationData);
+      const now = Date.now();
+      
+      // Clean expired cache
+      cleanNotificationCache();
+      
+      // Check in-memory cache for recent duplicates
+      const cachedTimestamp = notificationCache.get(notificationHash);
+      if (cachedTimestamp && (now - cachedTimestamp) < NOTIFICATION_CACHE_DURATION) {
+        Logger.warn(`[${context}] Duplicate notification detected (cached), skipping creation`);
+        return 'duplicate'; // Don't throw error, return special ID
+      }
+      
+      // Check Firestore for recent duplicates (last 5 minutes)
+      const fiveMinutesAgo = new Date(now - 300000); // 5 minutes
+      const duplicateQuery = query(
+        collection(db, NOTIFICATIONS_COLLECTION),
+        where('type', '==', notificationData.type),
+        where('title', '==', notificationData.title),
+        where('message', '==', notificationData.message),
+        where('createdAt', '>', fiveMinutesAgo),
+        limit(1)
+      );
+      
+      const duplicateSnapshot = await getDocs(duplicateQuery);
+      if (!duplicateSnapshot.empty) {
+        // Check if recipients match
+        const existingDoc = duplicateSnapshot.docs[0];
+        const existingData = existingDoc.data();
+        const existingRecipients = existingData.recipientIds || [];
+        
+        const hasMatchingRecipients = notificationData.recipientIds.some(id => 
+          existingRecipients.includes(id)
+        );
+        
+        if (hasMatchingRecipients) {
+          Logger.warn(`[${context}] Duplicate notification detected in Firestore, skipping creation`);
+          notificationCache.set(notificationHash, now);
+          return existingDoc.id; // Return existing notification ID
+        }
+      }
 
       // ✅ Firebase-Safe Data Preparation - กรอง undefined values
       const sanitizedData = {
         ...notificationData,
         createdAt: serverTimestamp(),
+        notificationHash, // Store hash for future reference
         // Initialize all recipients as unread
         isRead: notificationData.recipientIds.reduce((acc, userId) => {
           acc[userId] = false;
@@ -45,14 +122,16 @@ const notificationService = {
       });
 
       const docRef = await addDoc(collection(db, NOTIFICATIONS_COLLECTION), sanitizedData);
+      
+      // Cache this notification to prevent immediate duplicates
+      notificationCache.set(notificationHash, now);
 
       Logger.info(`[${context}] Successfully created notification with ID: ${docRef.id}`);
       return docRef.id;
     } catch (error) {
-      Logger.error(`[${context}] Error creating notification:`, error);
-      // Depending on the application's needs, you might want to re-throw the error
-      // or handle it gracefully. For now, we'll throw it to let the caller know.
-      throw new Error('Failed to create notification.');
+      // Don't throw for any errors, just log them and continue
+      Logger.error(`[${context}] Failed to create notification, continuing execution:`, error);
+      return 'failed'; // Return a special ID for failures
     }
   },
 

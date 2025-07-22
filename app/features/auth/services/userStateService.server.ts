@@ -1,12 +1,12 @@
-'use client';
-
 import { doc, getDoc, setDoc, deleteDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from '@/app/lib/firebase/firebase';
 import { User } from '@/app/features/auth/types/user';
 
 /**
- * User State Interface - ระบบจัดการ state ชั่วคราวของผู้ใช้
+ * Server-side User State Service
+ * สำหรับใช้งานฝั่ง server (API routes) เท่านั้น
  */
+
 export interface UserState {
   // Session state
   sessionStartTime?: Date;
@@ -44,14 +44,12 @@ export interface UserState {
 }
 
 /**
- * ดึง state ของผู้ใช้จาก Firebase
- * @param user ข้อมูลผู้ใช้
- * @returns User state หรือ null ถ้าไม่มี
+ * Server-side: ดึง state ของผู้ใช้จาก Firebase
  */
-export const getUserState = async (user: User): Promise<UserState | null> => {
+export const getUserStateServer = async (user: User): Promise<UserState | null> => {
   try {
     if (!user?.uid) {
-      console.warn('[UserStateService] No user UID provided');
+      console.warn('[UserStateService.Server] No user UID provided');
       return null;
     }
 
@@ -63,7 +61,7 @@ export const getUserState = async (user: User): Promise<UserState | null> => {
       
       // ตรวจสอบว่า state หมดอายุหรือไม่
       if (data.expiresAt && data.expiresAt.toDate() < new Date()) {
-        await deleteUserState(user);
+        await deleteUserStateServer(user);
         return null;
       }
       
@@ -80,23 +78,21 @@ export const getUserState = async (user: User): Promise<UserState | null> => {
     return null;
     
   } catch (error) {
-    console.error('[UserStateService] Error getting user state:', error);
+    console.error('[UserStateService.Server] Error getting user state:', error);
     return null;
   }
 };
 
 /**
- * บันทึก state ของผู้ใช้ลง Firebase
- * @param user ข้อมูลผู้ใช้
- * @param state state ที่ต้องการบันทึก
+ * Server-side: บันทึก state ของผู้ใช้ลง Firebase
  */
-export const setUserState = async (
+export const setUserStateServer = async (
   user: User, 
   state: Partial<UserState>
 ): Promise<void> => {
   try {
     if (!user?.uid) {
-      console.warn('[UserStateService] No user UID provided');
+      console.warn('[UserStateService.Server] No user UID provided');
       return;
     }
 
@@ -113,7 +109,7 @@ export const setUserState = async (
     };
 
     // ถ้าเป็นการสร้าง state ใหม่ ให้เพิ่ม createdAt
-    const existingState = await getUserState(user);
+    const existingState = await getUserStateServer(user);
     if (!existingState) {
       stateToSave.createdAt = serverTimestamp();
     }
@@ -121,97 +117,62 @@ export const setUserState = async (
     await setDoc(stateDocRef, stateToSave, { merge: true });
     
   } catch (error) {
-    console.error('[UserStateService] Error saving user state:', error);
+    console.error('[UserStateService.Server] Error saving user state:', error);
     throw error;
   }
 };
 
 /**
- * อัพเดท state เฉพาะด้าน
- * @param user ข้อมูลผู้ใช้
- * @param key คีย์ของ state
- * @param value ค่าใหม่
+ * Server-side: อัพเดท state เฉพาะด้าน
  */
-export const updateUserState = async <K extends keyof UserState>(
+export const updateUserStateServer = async <K extends keyof UserState>(
   user: User,
   key: K,
   value: UserState[K]
 ): Promise<void> => {
   try {
     const stateUpdate = { [key]: value } as Partial<UserState>;
-    await setUserState(user, stateUpdate);
+    await setUserStateServer(user, stateUpdate);
     
   } catch (error) {
-    console.error('[UserStateService] Error updating user state:', error);
+    console.error('[UserStateService.Server] Error updating user state:', error);
     throw error;
   }
 };
 
 /**
- * ลบ state ของผู้ใช้
- * @param user ข้อมูลผู้ใช้
+ * Server-side: ลบ state ของผู้ใช้
  */
-export const deleteUserState = async (user: User): Promise<void> => {
+export const deleteUserStateServer = async (user: User): Promise<void> => {
   try {
     if (!user?.uid) {
-      console.warn('[UserStateService] No user UID provided');
+      console.warn('[UserStateService.Server] No user UID provided');
       return;
     }
 
     const stateDocRef = doc(db, 'userStates', user.uid);
     await deleteDoc(stateDocRef);
     
-    console.log('[UserStateService] User state deleted successfully');
+    console.log('[UserStateService.Server] User state deleted successfully');
     
   } catch (error) {
-    console.error('[UserStateService] Error deleting user state:', error);
+    console.error('[UserStateService.Server] Error deleting user state:', error);
     throw error;
   }
 };
 
 /**
- * อัพเดทเวลาการใช้งานล่าสุด
- * @param user ข้อมูลผู้ใช้
+ * Server-side: บันทึกการเริ่มต้น session
  */
-export const updateLastActive = async (user: User): Promise<void> => {
+export const startUserSessionServer = async (user: User): Promise<void> => {
   try {
-    await updateUserState(user, 'lastActiveTime', new Date());
-    
-  } catch (error) {
-    console.error('[UserStateService] Error updating last active:', error);
-  }
-};
-
-/**
- * บันทึกการเริ่มต้น session
- * @param user ข้อมูลผู้ใช้
- */
-export const startUserSession = async (user: User): Promise<void> => {
-  try {
-    const deviceInfo = typeof window !== 'undefined' ? navigator.userAgent : 'Unknown';
-    
-    await setUserState(user, {
+    await setUserStateServer(user, {
       sessionStartTime: new Date(),
       lastActiveTime: new Date(),
-      deviceInfo,
+      deviceInfo: 'Server',
     });
     
   } catch (error) {
-    console.error('[UserStateService] Error starting user session:', error);
-  }
-};
-
-/**
- * ล้าง state ที่หมดอายุทั้งหมด (สำหรับ cleanup job)
- */
-export const cleanupExpiredStates = async (): Promise<number> => {
-  try {
-    // ฟังก์ชันนี้ควรถูกเรียกจาก server-side job
-    console.warn('[UserStateService] cleanupExpiredStates should be called from server-side');
-    return 0;
-    
-  } catch (error) {
-    console.error('[UserStateService] Error cleaning up expired states:', error);
-    return 0;
+    console.error('[UserStateService.Server] Error starting user session:', error);
   }
 };

@@ -116,13 +116,10 @@ export default function DailyCensusForm() {
       ) {
         // ส่ง notification เกี่ยวกับข้อมูลกะดึกย้อนหลัง
         createPreviousDataNotification({
-          userId: currentUser.uid,
+          user: currentUser,
           wardName: selectedWardObject.name,
           selectedDate,
           hasPreviousData
-        }).then(() => {
-          // บันทึกว่าได้ส่ง notification แล้ว
-          markPreviousDataNotificationSent(selectedDate, selectedWardObject.name, currentUser);
         });
       }
     };
