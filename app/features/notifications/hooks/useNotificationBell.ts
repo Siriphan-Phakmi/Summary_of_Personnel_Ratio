@@ -59,13 +59,19 @@ export const useNotificationBell = (isOpen: boolean) => {
 
   // Fetch notifications function with deduplication
   const fetchNotifications = useCallback(async (force = false) => {
-    if (!user) return;
+    if (!user) {
+      console.log('[DEBUG useNotificationBell] No user, skipping fetch');
+      return;
+    }
+    
+    console.log(`[DEBUG useNotificationBell] Starting fetch for user: ${user.uid}, force: ${force}`);
     
     const now = Date.now();
     const cacheKey = `fetch-notifications-${user.uid}`;
     
     // Prevent too frequent requests (debounce)
     if (!force && now - lastFetchTime.current < 2000) {
+      console.log('[DEBUG useNotificationBell] Skipping due to debounce');
       return;
     }
     
@@ -93,10 +99,13 @@ export const useNotificationBell = (isOpen: boolean) => {
     
     const fetchPromise = (async () => {
       try {
+        console.log('[DEBUG useNotificationBell] Calling notificationService.getUserNotifications()');
         const { notifications, unreadCount } = await notificationService.getUserNotifications();
+        console.log(`[DEBUG useNotificationBell] Service returned: ${notifications.length} notifications, ${unreadCount} unread`);
         
         // Only update state if this is the latest request
         if (!abortController.current?.signal.aborted) {
+          console.log('[DEBUG useNotificationBell] Updating state with new data');
           setState(s => ({ ...s, notifications, unreadCount, isLoading: false }));
         }
         
@@ -131,7 +140,7 @@ export const useNotificationBell = (isOpen: boolean) => {
     return fetchPromise;
   }, [user, cleanCache]);
 
-  // เพิ่ม: โหลดข้อมูลเมื่อ user login
+  // เพิ่ม: โหลดข้อมูลทันทีเมื่อ user login (ไม่รอให้เปิด dropdown)
   useEffect(() => {
     if (!user) {
       setState({
@@ -143,8 +152,14 @@ export const useNotificationBell = (isOpen: boolean) => {
       return;
     }
     
-    fetchNotifications();
-  }, [user, fetchNotifications]);
+    console.log('[DEBUG useNotificationBell] User detected, starting immediate fetch');
+    // ใช้ setTimeout เพื่อหลีกเลี่ยง race condition กับ dependency
+    const timeoutId = setTimeout(() => {
+      fetchNotifications(true); // Force fetch เพื่อให้แน่ใจว่าจะ fetch
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [user?.uid]); // ใช้ user.uid แทนเพื่อหลีกเลี่ยง infinite re-render
 
   // Mark single notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -211,8 +226,25 @@ export const useNotificationBell = (isOpen: boolean) => {
         });
       }
     } catch (err) {
-      setState(s => ({ ...s, error: 'ไม่สามารถลบการแจ้งเตือนได้' }));
-      Logger.error('Delete notification failed:', err);
+      const is404Error = err instanceof Error && (err.message.includes('404') || err.message.includes('not found'));
+      
+      if (is404Error) {
+        // If 404, remove from local state anyway (notification doesn't exist)
+        setState(s => {
+          const deletedNotification = s.notifications.find(n => n.id === notificationId);
+          const wasUnread = deletedNotification && !deletedNotification.isRead;
+          
+          return {
+            ...s,
+            notifications: s.notifications.filter(n => n.id !== notificationId),
+            unreadCount: wasUnread ? Math.max(0, s.unreadCount - 1) : s.unreadCount,
+            error: null // Don't show error for 404, just clean up UI
+          };
+        });
+      } else {
+        setState(s => ({ ...s, error: 'ไม่สามารถลบการแจ้งเตือนได้' }));
+        Logger.error('Delete notification failed:', err);
+      }
     }
   }, [csrfToken]);
 
@@ -264,19 +296,13 @@ export const useNotificationBell = (isOpen: boolean) => {
     }
   }, [csrfToken]);
 
-  // Auto-fetch when user logs in (initial fetch)
-  useEffect(() => {
-    if (!user) return;
-    
-    // Fetch immediately when user is available
-    fetchNotifications();
-  }, [user, fetchNotifications]);
 
   // Auto-fetch when dropdown opens and poll while open
   useEffect(() => {
     if (!user || !isOpen) return;
     
-    fetchNotifications();
+    console.log('[DEBUG useNotificationBell] Dropdown opened, fetching notifications');
+    fetchNotifications(false); // ไม่ force เพื่อใช้ cache ถ้ามี
     
     // Reduce polling frequency and add force parameter
     const intervalId = setInterval(() => {
@@ -290,16 +316,18 @@ export const useNotificationBell = (isOpen: boolean) => {
         abortController.current.abort();
       }
     };
-  }, [user, isOpen, fetchNotifications]);
+  }, [user?.uid, isOpen]); // ใช้ user.uid แทน user object
   
   // Background polling for unread count (only when dropdown is closed)
   useEffect(() => {
     if (!user || isOpen) return;
     
+    console.log('[DEBUG useNotificationBell] Starting background polling');
     // Background polling every 5 minutes to check for new notifications
     const backgroundIntervalId = setInterval(() => {
       // Only fetch if dropdown is closed to avoid interference
       if (!isOpen) {
+        console.log('[DEBUG useNotificationBell] Background polling fetch');
         fetchNotifications(false);
       }
     }, 300000); // 5 minutes
@@ -307,7 +335,7 @@ export const useNotificationBell = (isOpen: boolean) => {
     return () => {
       clearInterval(backgroundIntervalId);
     };
-  }, [user, isOpen, fetchNotifications]);
+  }, [user?.uid, isOpen]); // ใช้ user.uid แทน user object
   
   // Cleanup on unmount
   useEffect(() => {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User } from '../types/user';
 import { logLogin, logLogout } from '../services/logService';
 import { showErrorToast } from '@/app/lib/utils/toastUtils';
+import { useActiveSessionMonitor } from './useActiveSessionMonitor';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -28,6 +29,7 @@ export const useAuthCore = () => {
   
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isCheckingSessionRef = useRef<boolean>(false); // ✅ Prevent multiple session checks
 
   const clearTimers = useCallback(() => {
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -40,8 +42,9 @@ export const useAuthCore = () => {
     if (typeof document !== 'undefined') {
       document.cookie = `auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `user_data=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
     }
-    devLog('All cookie data cleared.');
+    devLog('All cookie data cleared including session_id.');
   }, []);
   
   const saveUserData = useCallback((userData: User) => {
@@ -163,8 +166,17 @@ export const useAuthCore = () => {
         devLog('Skipping session check during logout.');
         return;
     }
+    
+    // ✅ Guard against multiple concurrent session checks
+    if (isCheckingSessionRef.current) {
+      devLog('Session check already in progress, skipping...');
+      return;
+    }
+    
+    isCheckingSessionRef.current = true;
     devLog('Checking session...');
     setAuthStatus('loading');
+    
     try {
       const response = await fetch('/api/auth/session', { method: 'GET' });
       const result = await response.json();
@@ -183,6 +195,8 @@ export const useAuthCore = () => {
       setError('เกิดข้อผิดพลาดในการตรวจสอบเซสชัน');
       setAuthStatus('unauthenticated');
       clearTimers();
+    } finally {
+      isCheckingSessionRef.current = false; // ✅ Release lock
     }
   }, [clearTimers, isLoggingOut]);
   
@@ -207,6 +221,19 @@ export const useAuthCore = () => {
     
     return roles.includes(userRoleString);
   }, [user, authStatus]);
+
+  // ✅ Stable force logout callback - move outside useActiveSessionMonitor
+  const stableForceLogoutCallback = useCallback(() => {
+    devLog('🚫 Force logout triggered by session monitor');
+    showErrorToast('คุณถูก logout อัตโนมัติเนื่องจากมีการล็อกอินจากที่อื่น');
+    logoutUser();
+  }, [logoutUser]);
+
+  // 🔒 Active Session Monitor Integration
+  useActiveSessionMonitor({
+    user,
+    onForceLogout: stableForceLogoutCallback
+  });
 
   useEffect(() => {
     // Run session check only once on initial mount

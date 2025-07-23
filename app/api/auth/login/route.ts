@@ -4,6 +4,7 @@ import { db } from '@/app/lib/firebase/firebase';
 import bcrypt from 'bcryptjs';
 import { User, UserRole } from '@/app/features/auth/types/user';
 import { initializeUserSession } from '@/app/features/auth/services/sessionService';
+import { FirestoreSessionManager } from '@/app/features/auth/services/firestoreSessionManager';
 
 // Helper: สร้าง response JSON พร้อม header ที่ถูกต้อง
 const jsonResponse = (data: any, init: ResponseInit = {}) => {
@@ -191,27 +192,83 @@ export async function POST(req: NextRequest) {
     // ตั้ง cookie แบบ httpOnly สำหรับ auth token และ user_data
     const response = NextResponse.json({ success: true, user: safeUser });
     
-    // สำหรับ demo ใช้ token ปลอม (ใน production ต้องสร้าง JWT หรือ signed token จริง)
-    const authToken = 'mock_auth_token_for_demo';
-
-    response.cookies.set('auth_token', authToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: sessionTimeoutSeconds,
-      path: '/',
-    });
-    response.cookies.set('user_data', encodeURIComponent(JSON.stringify(safeUser)), {
-      maxAge: sessionTimeoutSeconds,
-      path: '/',
-    });
-
-    // Initialize session notification service
+    // 🔒 Create Single Active Session (Force Logout previous sessions)
+    const sessionManager = FirestoreSessionManager.getInstance();
+    let sessionId: string;
+    
     try {
+      sessionId = await sessionManager.createNewSession(safeUser, {
+        userAgent: req.headers.get('user-agent') || 'unknown',
+        ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1'
+      });
+      
+      // Use sessionId as authToken for better security
+      const authToken = `session_${sessionId}`;
+
+      response.cookies.set('auth_token', authToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: sessionTimeoutSeconds,
+        path: '/',
+      });
+      response.cookies.set('user_data', encodeURIComponent(JSON.stringify(safeUser)), {
+        maxAge: sessionTimeoutSeconds,
+        path: '/',
+      });
+      response.cookies.set('session_id', sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: sessionTimeoutSeconds,
+        path: '/',
+      });
+
+      // Initialize session notification service
       await initializeUserSession(safeUser);
+      
+      // Log successful session creation
+      await logToFirebase({
+        actor: { 
+          id: safeUser.uid, 
+          username: safeUser.username, 
+          role: safeUser.role, 
+          active: safeUser.isActive 
+        },
+        action: { type: 'SESSION.CREATED', status: 'SUCCESS' },
+        details: { 
+          sessionId,
+          forceLogoutPrevious: true,
+          clientInfo: {
+            userAgent: req.headers.get('user-agent') || 'unknown',
+            ipAddress: req.headers.get('x-forwarded-for') || '127.0.0.1'
+          }
+        }
+      });
+      
     } catch (sessionError) {
-      console.error('Failed to initialize user session:', sessionError);
-      // Don't fail the login if session initialization fails
+      console.error('Failed to create active session:', sessionError);
+      
+      // Fallback: still allow login but log the error
+      const authToken = `fallback_${Date.now()}`;
+      response.cookies.set('auth_token', authToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: sessionTimeoutSeconds,
+        path: '/',
+      });
+      response.cookies.set('user_data', encodeURIComponent(JSON.stringify(safeUser)), {
+        maxAge: sessionTimeoutSeconds,
+        path: '/',
+      });
+
+      // Initialize session notification service
+      try {
+        await initializeUserSession(safeUser);
+      } catch (initError) {
+        console.error('Failed to initialize user session:', initError);
+      }
     }
 
     return response;

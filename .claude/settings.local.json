@@ -32,7 +32,12 @@
       "Bash(claude --debug --help)",
       "Bash(claude:*)",
       "WebFetch(domain:mcp.context7.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npx firebase deploy:*)",
+      "WebFetch(domain:blog.jetbrains.com)",
+      "WebFetch(domain:www.example.com)",
+      "Bash(uvx:*)",
+      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")"
     ],
     "deny": []
   }

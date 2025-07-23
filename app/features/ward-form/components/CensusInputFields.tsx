@@ -190,47 +190,50 @@ const CensusInputFields: React.FC<CensusInputFieldsProps> = ({
 
   return (
     <>
-      {/* 🏥 Patient Census Section - Auto-calculated display */}
+      {/* 🏥 Patient Census Section - Integrated Display */}
       <div className="mb-6">
         <h4 className="text-md font-medium mb-3 text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 pb-2">
           📊 {FieldCategories.PATIENT_CENSUS.title}
         </h4>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <Input
-              id="patientCensus"
-              name="patientCensus"
-              label={patientCensusLabel}
-              value={formData.patientCensus ? String(formData.patientCensus) : ''}
-              onChange={handleChange}
-              onBlur={handleBlur}
-              error={errors.patientCensus}
-              placeholder={formConfig?.placeholders?.patientCensus ?? "0"}
-              type="number"
-              readOnly={patientCensusReadOnly}
-              className={twMerge(
-                "form-input",
-                patientCensusReadOnly && "bg-gray-100 dark:bg-gray-700 cursor-not-allowed",
-                isDraftLoaded && !patientCensusReadOnly && "bg-yellow-100 dark:bg-yellow-900/50",
-                errors.patientCensus && "!border-red-500 dark:!border-red-400"
+        {/* ✅ Unified Container with Visual Grouping */}
+        <div className="bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                id="patientCensus"
+                name="patientCensus"
+                label={patientCensusLabel}
+                value={formData.patientCensus ? String(formData.patientCensus) : ''}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.patientCensus}
+                placeholder={formConfig?.placeholders?.patientCensus ?? "0"}
+                type="number"
+                readOnly={patientCensusReadOnly}
+                className={twMerge(
+                  "form-input",
+                  patientCensusReadOnly && "bg-gray-100 dark:bg-gray-700 cursor-not-allowed",
+                  isDraftLoaded && !patientCensusReadOnly && "bg-yellow-100 dark:bg-yellow-900/50",
+                  errors.patientCensus && "!border-red-500 dark:!border-red-400"
+                )}
+                min="0"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                required
+              />
+              {patientCensusReadOnly && isCensusAutoCalculated && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  * ค่านี้คำนวณจากยอดคงเหลือของเวรดึกคืนก่อน
+                </p>
               )}
-              min="0"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              required
-            />
-            {patientCensusReadOnly && isCensusAutoCalculated && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                * ค่านี้คำนวณจากยอดคงเหลือของเวรดึกคืนก่อน
-              </p>
-            )}
-          </div>
-          <div className="flex-1">
-            <PatientCensusDisplay 
-              formData={formData} 
-              selectedShift={selectedShift} 
-              config={formConfig}
-            />
+            </div>
+            <div className="flex-1">
+              <PatientCensusDisplay 
+                formData={formData} 
+                selectedShift={selectedShift} 
+                config={formConfig}
+              />
+            </div>
           </div>
         </div>
       </div>

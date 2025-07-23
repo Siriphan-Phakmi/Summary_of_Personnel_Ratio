@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { clearUserSession } from '@/app/features/auth/services/sessionService';
+import { FirestoreSessionManager } from '@/app/features/auth/services/firestoreSessionManager';
 
 // Server-side logging function
 const logToFirebase = async (logData: any, collectionName: string = 'system_logs') => {
@@ -36,11 +37,17 @@ export async function POST(req: NextRequest) {
       try {
         const userData = JSON.parse(decodeURIComponent(userCookie));
         
-        // Clear user session
+        // 🔒 Clear Active Session (Single Active Session Control)
+        const sessionManager = FirestoreSessionManager.getInstance();
+        
         try {
+          // Remove active session from Firebase
+          await sessionManager.removeCurrentSession(userData.uid);
+          
+          // Clear user session notification service
           await clearUserSession(userData);
         } catch (sessionError) {
-          console.error('Failed to clear user session:', sessionError);
+          console.error('Failed to clear active session:', sessionError);
         }
         
         // Server-side logging
@@ -64,10 +71,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Clear cookies
+    // Clear cookies including session_id
     const response = NextResponse.json({ success: true });
     response.cookies.set('auth_token', '', { maxAge: 0, path: '/' });
     response.cookies.set('user_data', '', { maxAge: 0, path: '/' });
+    response.cookies.set('session_id', '', { maxAge: 0, path: '/' });
     
     return response;
   } catch (error) {

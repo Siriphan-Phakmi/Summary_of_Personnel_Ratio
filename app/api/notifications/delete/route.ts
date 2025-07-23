@@ -82,47 +82,55 @@ export async function DELETE(request: NextRequest) {
       });
 
     } else if (notificationId) {
-      // Delete specific notification
-      const notificationRef = doc(db, 'notifications', notificationId);
-      
-      // First check if user has access to this notification
-      const notificationDoc = await getDocs(
-        query(
+      // Delete specific notification - simplified approach
+      try {
+        const notificationRef = doc(db, 'notifications', notificationId);
+        
+        // Query for notification with specific ID and user access
+        const q = query(
           collection(db, 'notifications'),
           where('recipientIds', 'array-contains', user.uid)
-        )
-      );
-      
-      const targetNotification = notificationDoc.docs.find(doc => doc.id === notificationId);
-      if (!targetNotification) {
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const targetNotification = querySnapshot.docs.find(doc => doc.id === notificationId);
+        
+        if (!targetNotification) {
+          return NextResponse.json(
+            { success: false, error: 'Notification not found or access denied' },
+            { status: 404 }
+          );
+        }
+
+        const data = targetNotification.data();
+        const recipientIds = data.recipientIds || [];
+        
+        if (recipientIds.length === 1 && recipientIds[0] === user.uid) {
+          // Single recipient - delete entire document
+          await deleteDoc(notificationRef);
+        } else if (recipientIds.length > 1) {
+          // Multiple recipients - remove user from arrays
+          const updatedRecipientIds = recipientIds.filter((id: string) => id !== user.uid);
+          const updatedIsRead = { ...data.isRead };
+          delete updatedIsRead[user.uid];
+          
+          await updateDoc(notificationRef, {
+            recipientIds: updatedRecipientIds,
+            isRead: updatedIsRead
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Notification deleted successfully'
+        });
+      } catch (deleteError) {
+        console.error('[NotificationAPI] Error in single notification deletion:', deleteError);
         return NextResponse.json(
-          { success: false, error: 'Notification not found or access denied' },
-          { status: 404 }
+          { success: false, error: 'Failed to delete notification' },
+          { status: 500 }
         );
       }
-
-      const data = targetNotification.data();
-      const recipientIds = data.recipientIds || [];
-      
-      if (recipientIds.length === 1 && recipientIds[0] === user.uid) {
-        // If this user is the only recipient, delete the entire notification
-        await deleteDoc(notificationRef);
-      } else if (recipientIds.length > 1) {
-        // If multiple recipients, remove only this user
-        const updatedRecipientIds = recipientIds.filter((id: string) => id !== user.uid);
-        const updatedIsRead = { ...data.isRead };
-        delete updatedIsRead[user.uid];
-        
-        await updateDoc(targetNotification.ref, {
-          recipientIds: updatedRecipientIds,
-          isRead: updatedIsRead
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Notification deleted successfully'
-      });
 
     } else if (type) {
       // Delete notifications by type

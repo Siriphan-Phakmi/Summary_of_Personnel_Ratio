@@ -142,7 +142,13 @@ const notificationService = {
   async getCsrfToken(): Promise<string | null> {
     try {
       // ✅ ไม่ใช้ sessionStorage แล้ว - ขอ token ใหม่ทุกครั้ง
-      const response = await fetch('/api/auth/csrf');
+      const response = await fetch('/api/auth/csrf', {
+        method: 'GET',
+        credentials: 'include', // ✅ Include cookies for authentication
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -164,24 +170,35 @@ const notificationService = {
    */
   async getUserNotifications(): Promise<UserNotificationsResponse> {
     try {
+      console.log('[DEBUG NotificationService] Starting getUserNotifications()');
       // ใช้ BASE_URL จาก environment variable
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+      console.log('[DEBUG NotificationService] Making request to:', `${baseUrl}/api/notifications/get`);
+      
       const response = await fetch(`${baseUrl}/api/notifications/get`, {
+        method: 'GET',
+        credentials: 'include', // ✅ Include cookies for authentication
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('[DEBUG NotificationService] Response status:', response.status, response.statusText);
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: Failed to fetch notifications`);
       }
       const data = await response.json();
+      console.log('[DEBUG NotificationService] Response data:', data);
+      
       if (data.success) {
+        console.log(`[DEBUG NotificationService] Success! ${data.notifications?.length || 0} notifications, ${data.unreadCount || 0} unread`);
         return {
           notifications: data.notifications || [],
           unreadCount: data.unreadCount || 0,
         };
       } else {
+        console.error('[DEBUG NotificationService] API returned error:', data.error);
         throw new Error(data.error || 'Failed to fetch notifications');
       }
     } catch (error) {
@@ -257,6 +274,7 @@ const notificationService = {
     try {
       const response = await fetch('/api/notifications/markAsRead', {
         method: 'POST',
+        credentials: 'include', // ✅ Include cookies for authentication
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken,
@@ -298,6 +316,7 @@ const notificationService = {
     try {
       const response = await fetch('/api/notifications/delete', {
         method: 'DELETE',
+        credentials: 'include', // ✅ Include cookies for authentication
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': csrfToken,
@@ -314,7 +333,7 @@ const notificationService = {
         };
       } else {
         const errorText = await response.text();
-        Logger.error(`[NotificationService] Delete request failed with status ${response.status}`, errorText);
+        Logger.error(`[NotificationService] Delete request failed with status ${response.status} "${errorText}"`);
         throw new Error(`Failed to delete notifications. Status: ${response.status}`);
       }
     } catch (error) {

@@ -36,7 +36,31 @@ export async function GET(request: NextRequest) {
       orderBy('createdAt', 'desc')
     );
 
-    const querySnapshot = await getDocs(q);
+    console.log(`[DEBUG] Starting notification query for user: ${user.uid}`);
+    
+    let querySnapshot;
+    try {
+      querySnapshot = await getDocs(q);
+      console.log(`[DEBUG] Query successful. Document count: ${querySnapshot.size}`);
+    } catch (firestoreError: any) {
+      console.error('Firestore query error:', firestoreError.code, firestoreError.message);
+      
+      // Check if it's a missing index error
+      if (firestoreError.code === 'failed-precondition' && 
+          firestoreError.message.includes('index')) {
+        console.warn('Missing Firestore index for notifications query. Deploy the index and try again.');
+        
+        // Return empty result instead of error to prevent infinite loading
+        return NextResponse.json({
+          notifications: [],
+          unreadCount: 0,
+          error: 'Missing database index - please contact administrator'
+        });
+      }
+      
+      // Re-throw other errors
+      throw firestoreError;
+    }
     const notifications: any[] = [];
     let unreadCount = 0;
 
@@ -55,6 +79,8 @@ export async function GET(request: NextRequest) {
         unreadCount++;
       }
     });
+
+    console.log(`[DEBUG] Processed notifications: ${notifications.length}, Unread count: ${unreadCount}`);
 
     return NextResponse.json({
       success: true,
