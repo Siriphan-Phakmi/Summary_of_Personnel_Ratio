@@ -184,14 +184,22 @@ class SessionNotificationService {
     user,
     wardName,
     selectedDate,
-    hasPreviousData
+    hasPreviousData,
+    hasCurrentData = false
   }: {
     user: User;
     wardName: string;
     selectedDate: string;
     hasPreviousData: boolean;
+    hasCurrentData?: boolean;
   }): Promise<void> {
     try {
+      // ✅ ถ้ามีข้อมูลปัจจุบันแล้ว ไม่ต้องแจ้งเตือนเรื่องข้อมูลย้อนหลัง
+      if (hasCurrentData) {
+        Logger.info(`[SessionNotificationService] Skipping notification: Current data exists for ${wardName} on ${selectedDate}`);
+        return;
+      }
+
       // Check if notification should be sent
       const checkResult = await this.shouldSendPreviousDataNotification(user, wardName, selectedDate);
       

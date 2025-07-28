@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     // Construct user object early for logging
     const userForLog: User = {
         uid: userDoc.id,
-        username: userData.username || userDoc.id,
+        username: userData.username || username, // ใช้ username ที่ login เข้ามาแทน document ID
         role: userData.role || UserRole.NURSE,
         isActive: userData.active === undefined ? true : userData.active,
         firstName: userData.firstName,
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
     // สร้าง user object ที่ปลอดภัย ไม่ส่งรหัสผ่านกลับ
     const safeUser = {
       uid: userDoc.id,
-      username: userData.username || userDoc.id,
+      username: userData.username || username, // ใช้ username ที่ login เข้ามาแทน document ID
       role: userData.role || 'nurse',
       firstName: userData.firstName || '',
       lastName: userData.lastName || '',

@@ -43,8 +43,8 @@ const PatientCensusDisplay: React.FC<PatientCensusDisplayProps> = ({
     safeNumber(formData.discharged) +
     safeNumber(formData.deaths);
 
-  const startingCensus = safeNumber(formData.patientCensus);
-  const expectedCensus = Math.max(0, startingCensus + admissions - discharges);
+  // ✅ สูตรที่ถูกต้อง: (รับเข้า + ย้ายเข้า + ส่งต่อเข้า) - (ย้ายออก + ส่งต่อออก + จำหน่าย + เสียชีวิต)
+  const expectedCensus = Math.max(0, admissions - discharges);
 
 
 
@@ -62,13 +62,10 @@ const PatientCensusDisplay: React.FC<PatientCensusDisplayProps> = ({
         {sections.calculation || 'ภาพรวมการคำนวณ'}
       </h5>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-gray-700 dark:text-gray-300">
-        <div>{labels.censusDisplayStart || 'เริ่มต้น:'}</div>
-        <div className="font-medium">{startingCensus}</div>
-
-        <div>{labels.censusDisplayAdmissions || 'รับเข้า/ย้ายเข้า (+):'}</div>
+        <div>{labels.censusDisplayAdmissions || 'รับเข้า/ย้ายเข้า/ส่งต่อเข้า (+):'}</div>
         <div className="font-medium text-green-600 dark:text-green-400">{admissions > 0 ? `+${admissions}` : '0'}</div>
 
-        <div>{labels.censusDisplayDischarges || 'จำหน่าย/ย้ายออก/เสียชีวิต (-):'}</div>
+        <div>{labels.censusDisplayDischarges || 'ย้ายออก/ส่งต่อออก/จำหน่าย/เสียชีวิต (-):'}</div>
         <div className="font-medium text-red-600 dark:text-red-400">{discharges > 0 ? `-${discharges}` : '0'}</div>
 
         <div className="font-semibold border-t border-blue-200 dark:border-blue-700 pt-1 mt-1">{resultLabel}</div>
@@ -77,7 +74,7 @@ const PatientCensusDisplay: React.FC<PatientCensusDisplayProps> = ({
         </div>
       </div>
       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic border-t border-gray-200 dark:border-gray-700 pt-1">
-        {helpers.calculationFormula || 'สูตร: เริ่มต้น + รับเข้า - จำหน่าย = คงเหลือ'}
+        {helpers.calculationFormula || 'สูตร: รับเข้า - จำหน่าย = ผลต่าง'}
       </div>
     </div>
   );

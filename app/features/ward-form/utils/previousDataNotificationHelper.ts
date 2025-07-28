@@ -9,6 +9,7 @@ interface CreatePreviousDataNotificationParams {
   wardName: string;
   selectedDate: string;
   hasPreviousData: boolean;
+  hasCurrentData?: boolean;
 }
 
 /**
@@ -19,7 +20,8 @@ export const createPreviousDataNotification = async ({
   user,
   wardName,
   selectedDate,
-  hasPreviousData
+  hasPreviousData,
+  hasCurrentData = false
 }: CreatePreviousDataNotificationParams): Promise<void> => {
   try {
     const sessionNotificationService = SessionNotificationService.getInstance();
@@ -28,7 +30,8 @@ export const createPreviousDataNotification = async ({
       user,
       wardName,
       selectedDate,
-      hasPreviousData
+      hasPreviousData,
+      hasCurrentData
     });
     
     Logger.info(`[PreviousDataNotification] Created notification for user ${user.uid}: ${hasPreviousData ? 'พบข้อมูลกะดึกย้อนหลัง' : 'ไม่พบข้อมูลกะดึกย้อนหลัง'}`);

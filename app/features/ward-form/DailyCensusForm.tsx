@@ -119,7 +119,8 @@ export default function DailyCensusForm() {
           user: currentUser,
           wardName: selectedWardObject.name,
           selectedDate,
-          hasPreviousData
+          hasPreviousData,
+          hasCurrentData: isDraftLoaded || !!formData?.status
         });
       }
     };

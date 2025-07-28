@@ -27,24 +27,20 @@ const PatientCensusCalculation: React.FC<PatientCensusCalculationProps> = ({
       </div>
       <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-600 dark:text-gray-400">เริ่มต้น:</span>
-          <span className="font-medium">{formData.initialCensus}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600 dark:text-gray-400">รับเข้า (+):</span>
+          <span className="text-gray-600 dark:text-gray-400">รับเข้า/ย้ายเข้า/ส่งต่อเข้า (+):</span>
           <span className="font-medium text-green-600 dark:text-green-400">+{formData.admitTotal}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600 dark:text-gray-400">จำหน่าย (-):</span>
+          <span className="text-gray-600 dark:text-gray-400">ย้ายออก/ส่งต่อออก/จำหน่าย/เสียชีวิต (-):</span>
           <span className="font-medium text-red-600 dark:text-red-400">-{formData.dischargeTotal}</span>
         </div>
         <div className="h-px bg-blue-200 dark:bg-blue-700 my-2"></div>
         <div className="flex justify-between font-bold">
-          <span>คงเหลือ (คาดการณ์):</span>
+          <span>ผลต่าง:</span>
           <span>{formData.calculatedCensus}</span>
         </div>
         <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-1 sm:mt-2">
-          สูตร: เริ่มต้น + รับเข้า - จำหน่าย = คงเหลือ
+          สูตร: รับเข้า - จำหน่าย = ผลต่าง
         </div>
       </div>
     </div>

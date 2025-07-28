@@ -37,7 +37,13 @@
       "WebFetch(domain:blog.jetbrains.com)",
       "WebFetch(domain:www.example.com)",
       "Bash(uvx:*)",
-      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")"
+      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__onboarding",
+      "mcp__serena__list_dir",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__write_memory"
     ],
     "deny": []
   }
